@@ -33,7 +33,8 @@
   "packages/contracts/src/config/workspace-config/policy-classes.ts": 1,
   "packages/contracts/src/email/sending-domains.ts": 1,
   "packages/core/src/deliver.ts": 1,
-  "packages/core/src/inbound/answer.ts": 3,
+  "packages/core/src/inbound/context.ts": 2,
+  "packages/core/src/inbound/reply-gates.ts": 1,
   "packages/core/src/inbound/steps.ts": 3,
   "packages/core/src/messages/broadcast.ts": 1,
   "packages/jobs/src/handlers.ts": 1

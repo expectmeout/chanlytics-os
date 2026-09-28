@@ -24,13 +24,15 @@ export interface ReachOutStepRow {
   signed_by: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;
+  /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
+  hand: unknown;
   run_hour: number;
   last_run_for: string | null;
   created_at: string;
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
@@ -119,6 +121,43 @@ export async function searchNamesByIds(db: Db, tenantId: string, ids: string[]):
   const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new Error(`cannot read the searches: ${error.message}`);
   return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+
+/** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */
+export async function leadNamesByIds(db: Db, tenantId: string, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+
+/** One lead a hand step hands to the team: its send, its person, the step's words for it, and its step's id. */
+export type HandItem = {
+  send_id: string;
+  lead_id: string;
+  contact_id: string;
+  words: string;
+  source_id: string;
+};
+
+/**
+ * A hand step's run for its day, written whole (00228 reach_out_hand_run): the run, a handed send for each lead, and
+ * each lead's dated step for the team. How many were made, and how many the run had already.
+ */
+export async function handRun(
+  db: Db,
+  p: { tenantId: string; stepId: string; runId: string; day: string; items: HandItem[] },
+): Promise<{ made: number; already: number }> {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items,
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r = (data ?? {}) as { made?: number; already?: number };
+  return { made: r.made ?? 0, already: r.already ?? 0 };
 }
 
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */

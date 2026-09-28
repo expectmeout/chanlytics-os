@@ -324,9 +324,9 @@ export type Database = {
           scheduled_for: string
           started_at: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           updated_at: string
         }
@@ -345,9 +345,9 @@ export type Database = {
           scheduled_for: string
           started_at?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -366,9 +366,9 @@ export type Database = {
           scheduled_for?: string
           started_at?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -3793,6 +3793,7 @@ export type Database = {
           domain_ids: string[]
           gap_days: number
           gap_minutes: number | null
+          hand: Json | null
           id: string
           include_unconfirmed: boolean
           kind: string
@@ -3807,9 +3808,9 @@ export type Database = {
           run_hour: number
           signed_by: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           trigger: string
           updated_at: string
@@ -3824,6 +3825,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3838,9 +3840,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           trigger: string
           updated_at?: string
@@ -3855,6 +3857,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3869,9 +3872,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           trigger?: string
           updated_at?: string
@@ -6117,6 +6120,16 @@ export type Database = {
         }[]
       }
       reach_out_given_up: { Args: { p_created_at: string }; Returns: boolean }
+      reach_out_hand_run: {
+        Args: {
+          p_day: string
+          p_items: Json
+          p_run_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       reach_out_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {

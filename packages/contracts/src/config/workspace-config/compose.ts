@@ -1,10 +1,11 @@
 /**
- * The composer: the receptionist's instructions built from the business's facts (composeSystemPrompt), how each
- * part of them opens (PROMPT_OPENINGS), and the clock and the closures it is told beside them (describeNow).
+ * The composer: the receptionist's instructions built from the business's facts (composeSystemPrompt), a section at a
+ * time (PROMPT_SECTIONS), how each part of them opens (PROMPT_OPENINGS), and the clock and the closures it is told
+ * beside them (describeNow).
  * Which instructions a workspace is actually given is resolve.ts; the week's lines are prompt-hours.ts.
  */
 import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "../no-booking-link";
-import { guardrailsInForce, type BusinessProfile, type Closure } from "./business-profile";
+import { guardrailsInForce, type BookingRules, type BusinessProfile, type Closure } from "./business-profile";
 import { policyRules } from "./policy-classes";
 import { hoursLines, joinList } from "./prompt-hours";
 
@@ -228,11 +229,70 @@ function composeSystemPromptWith(
   now: Date,
   policy: Record<string, { mode: string }> | null | undefined,
 ): string {
-  const s: string[] = [];
   // A business that quotes each job has no booking link (the first run's decision 2). Each place below that offers
   // the link says instead what the receptionist takes for the team (NO_LINK_DETAILS). With a link, every word is as
   // it was.
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const hrs = hoursLines(profile.hours);
+  // EVERY upcoming closure, not the first handful. A cap here and a larger cap
+  // on the schema is a silent divergence between what an owner can store and
+  // what the receptionist will ever say — and because the list is sorted
+  // oldest-first, the ones a cap drops are the furthest out: exactly the dates
+  // customers book against months ahead.
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  const facts: SectionFacts = { base, profile, channel, tz, policy, link, hrs, closed };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+
+/**
+ * What every section of the prompt is built from: the composer's arguments, and the three facts worked out once
+ * because more than one section reads them.
+ */
+interface SectionFacts {
+  /** The business as the composer is handed it: its name, its phone number and its booking link. */
+  base: Parameters<typeof composeSystemPromptWith>[0];
+  profile: BusinessProfile;
+  channel: "whatsapp" | "voice";
+  tz: string | null | undefined;
+  policy: Record<string, { mode: string }> | null | undefined;
+  /** The booking link the prompt offers, or null for a business that quotes each job. */
+  link: string | null;
+  /** The week's lines (hoursLines): the hours section says them, and the owner's words are told it did. */
+  hrs: string[];
+  /** The closures still ahead, a line each: the closures section says them, and the owner's words are told it did. */
+  closed: string[];
+}
+
+/**
+ * One section of the prompt: what it adds, in order, each joined to the next by a newline; nothing when it has
+ * nothing to say.
+ */
+type PromptSection = (facts: SectionFacts) => string[];
+
+/**
+ * The prompt, section by section, in the order the receptionist reads it: who it is and how to reach the business,
+ * the business's facts, how to hand over, the owner's own words, the medium, the open times, and the rules LAST,
+ * where no earlier instruction can read as overriding them.
+ */
+const PROMPT_SECTIONS: readonly PromptSection[] = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection,
+];
+
+/** Who the receptionist is and where it answers, its tone, and the languages it speaks. */
+function identitySection({ base, profile, channel }: SectionFacts): string[] {
+  const s: string[] = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -244,7 +304,12 @@ function composeSystemPromptWith(
         (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : ""),
     );
   }
+  return s;
+}
 
+/** How to reach the business: its address, phone number, booking link and website, each only when there is one. */
+function contactSection({ base, profile, link }: SectionFacts): string[] {
+  const s: string[] = [];
   if (profile.address) s.push(`\nAddress: ${profile.address}`);
   // Omitted when there is none. A receptionist that has no number to give is
   // not improved by being told to say "undefined"; it answers, offers the
@@ -252,8 +317,12 @@ function composeSystemPromptWith(
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
+  return s;
+}
 
-  const hrs = hoursLines(profile.hours);
+/** The opening hours, a line for each run of days that share them, in the business's zone when it is known. */
+function hoursSection({ tz, hrs }: SectionFacts): string[] {
+  const s: string[] = [];
   if (hrs.length) {
     // "09:30–18:00" is not a fact until you say where. A customer calling from
     // another state gets a straight answer either way; the model needs the zone
@@ -261,13 +330,12 @@ function composeSystemPromptWith(
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`\n${PROMPT_OPENINGS.hours}${where}:\n${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
 
-  // EVERY upcoming closure, not the first handful. A cap here and a larger cap
-  // on the schema is a silent divergence between what an owner can store and
-  // what the receptionist will ever say — and because the list is sorted
-  // oldest-first, the ones a cap drops are the furthest out: exactly the dates
-  // customers book against months ahead.
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+/** The dates still ahead that the business is shut, whatever its hours say. */
+function closuresSection({ closed }: SectionFacts): string[] {
+  const s: string[] = [];
   if (closed.length) {
     s.push(
       `\n${PROMPT_OPENINGS.closures}, whatever the opening hours above say:\n${closed
@@ -277,7 +345,12 @@ function composeSystemPromptWith(
         )}\nIf someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`,
     );
   }
+  return s;
+}
 
+/** The services, each with how long it takes and its price note when it has them. */
+function servicesSection({ profile }: SectionFacts): string[] {
+  const s: string[] = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits = [sv.name];
@@ -287,40 +360,64 @@ function composeSystemPromptWith(
     });
     s.push(`\n${PROMPT_OPENINGS.services}\n${lines.join("\n")}`);
   }
+  return s;
+}
 
+/** The owner's notes: what the receptionist should know that fits no field, a topic each. */
+function notesSection({ profile }: SectionFacts): string[] {
+  const s: string[] = [];
   if (profile.notes?.length) {
     s.push(`\n${PROMPT_OPENINGS.notes}\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
+  return s;
+}
 
+/**
+ * The booking rules, when one that speaks is set: the least notice, a consultation first, the party size, the email,
+ * the notes.
+ */
+function bookingRulesSection({ profile }: SectionFacts): string[] {
+  const s: string[] = [];
   const br = profile.booking_rules;
   if (
     br &&
     (br.lead_hours !== undefined || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)
   ) {
-    const lines: string[] = [];
-    if (br.lead_hours !== undefined) {
-      lines.push(
-        br.lead_hours === 0
-          ? "Same-day bookings are fine, right up to the time."
-          : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`,
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`,
-      );
-    // The receptionist never books: the visit is made on the business's own site, so "ask when booking" is "ask when
-    // the link goes out". Once, and only where no address is on file (what is on file is the lead's description).
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
-      );
-    for (const n of br.notes ?? []) lines.push(n);
+    const lines = bookingRuleLines(br);
     s.push(`\n${PROMPT_OPENINGS.bookingRules}\n${lines.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
 
+/** What each booking rule that is set says, a line each, in the order the section lists them. */
+function bookingRuleLines(br: BookingRules): string[] {
+  const lines: string[] = [];
+  if (br.lead_hours !== undefined) {
+    lines.push(
+      br.lead_hours === 0
+        ? "Same-day bookings are fine, right up to the time."
+        : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`,
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`,
+    );
+  // The receptionist never books: the visit is made on the business's own site, so "ask when booking" is "ask when
+  // the link goes out". Once, and only where no address is on file (what is on file is the lead's description).
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one.",
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+
+/** How to hand the customer to a person, and when: in chat the [[HUMAN]] token, on a call the transfer or a message. */
+function handoffSection({ profile, channel }: SectionFacts): string[] {
+  const s: string[] = [];
   // HOW to hand off, not just when — and unconditionally, because the product
   // promise depends on it.
   //
@@ -368,6 +465,17 @@ function composeSystemPromptWith(
       `\n${PROMPT_OPENINGS.handoffCall}\n${staffed}\n` +
         `Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`,
     );
+  }
+  return s;
+}
+
+/**
+ * On a call, after its hand-off, the call's tools: check_availability, send_booking_link (or, with no link, what to
+ * take) and end_call.
+ */
+function callToolsSection({ channel, link }: SectionFacts): string[] {
+  const s: string[] = [];
+  if (channel !== "whatsapp") {
     // The booking link is a WhatsApp message and nothing else: retell-fn
     // delivers it on channel "whatsapp", and texting is not sold until the
     // carriers approve a line (capabilities.ts). This used to say the tool
@@ -384,7 +492,12 @@ function composeSystemPromptWith(
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
+  return s;
+}
 
+/** The owner's own words, under a line saying which details above win and, on a call, where the words came from. */
+function ownWordsSection({ profile, channel, hrs, closed }: SectionFacts): string[] {
+  const s: string[] = [];
   if (profile.extra_instructions?.trim()) {
     // A business's own prose almost always restates the address, the hours or
     // the services. Once a form fills those in structurally there are two
@@ -419,7 +532,12 @@ function composeSystemPromptWith(
       .join(" ");
     s.push(header ? `\n${header}\n${text}` : `\n${text}`);
   }
+  return s;
+}
 
+/** How to speak on this medium: short, with no URL read out, on a call; the booking link (or what to take) in chat. */
+function mediumSection({ channel, link }: SectionFacts): string[] {
+  const s: string[] = [];
   // Medium, not facts. A phone caller cannot re-read a paragraph.
   const callMedium = link
     ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
@@ -430,7 +548,12 @@ function composeSystemPromptWith(
       ? `\n${PROMPT_OPENINGS.callMedium} ${callMedium}`
       : `\n${PROMPT_OPENINGS.chatMedium} ${chatMedium}`,
   );
+  return s;
+}
 
+/** What to do with the open times listed after these instructions: offer up to three, then the link or the details. */
+function openTimesSection({ link }: SectionFacts): string[] {
+  const s: string[] = [];
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
@@ -440,7 +563,12 @@ function composeSystemPromptWith(
         ? "then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link."
         : `then take ${NO_LINK_DETAILS} so the team can confirm one — the calendar decides, never you. If none are listed, do not guess at open times.`),
   );
+  return s;
+}
 
+/** The rules: the guardrails in force, the reply to YES OFFERS, and the Autonomy pane's Booking and FAQ rows. */
+function rulesSection({ profile, channel, policy, link }: SectionFacts): string[] {
+  const s: string[] = [];
   // LAST, and never optional.
   const g = guardrailsInForce(profile.guardrails);
   const rules: string[] = [];
@@ -471,6 +599,5 @@ function composeSystemPromptWith(
   // both channels' prompts, so a switch flipped once changes both.
   rules.push(...policyRules(policy, channel));
   if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
-
-  return s.join("\n");
+  return s;
 }

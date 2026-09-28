@@ -33,6 +33,18 @@ async function countRecipients(
   return count ?? 0;
 }
 
+/**
+ * A run as the batch sends it: with its template, or not at all. Only a reach-out's hand step's run has none (00228),
+ * and it sends nothing, so it is never this job's.
+ */
+function withTemplate<T extends { template_name: string | null; template_language: string | null }>(
+  row: T | null,
+): (T & { template_name: string; template_language: string }) | null {
+  if (!row) return null;
+  const { template_name, template_language } = row;
+  return template_name && template_language ? { ...row, template_name, template_language } : null;
+}
+
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as { broadcast_id: string; waits?: unknown };
@@ -47,7 +59,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
           .eq("tenant_id", job.tenant_id)
           .maybeSingle();
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
-        return data;
+        return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
       // is not a workspace that is paying.

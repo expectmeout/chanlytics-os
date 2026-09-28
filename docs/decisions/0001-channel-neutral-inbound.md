@@ -194,6 +194,13 @@ packages/core/src/inbound/answer.ts   answerInbound() — the gates, the model t
 packages/core/src/inbound/index.ts
 ```
 
+**As built** (28 September 2026): `answer.ts` holds the order alone, and each
+phase is a function in a module beside it: `context.ts` (the control plane,
+read once), `ingest.ts` (`ingestMessage()`: the two senders never answered,
+persist first, the thread, the replay gate), `gates.ts`, `unreadable.ts`,
+`reply-gates.ts`, `model-turn.ts` (the model turn and layer two) and
+`dispatch.ts` (the hold window and the send).
+
 `answerInbound` keeps the gate order `docs/conversation-flow.md` §5.1 records,
 because the order is the product. What changes is that it reads
 `InboundMessage` and a `ChannelCapabilities` record instead of a carrier:

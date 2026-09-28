@@ -110,10 +110,10 @@ memory by a test.
 
 | Channel  | Door                                                                                             | Decides                                | Then                                                                                                                                                                   |
 | -------- | ------------------------------------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `packages/core/src/inbound/steps.ts`   | `packages/core/src/inbound/answer.ts`: persist, read the posture, ask the brain, deliver or hold (the edge adapts it in `apps/edge/lib/whatsapp/inbound.ts`)           |
+| WhatsApp | `apps/edge/api/whatsapp.ts`                                                                      | `packages/core/src/inbound/steps.ts`   | `packages/core/src/inbound/answer.ts`'s phases: persist, read the posture, ask the brain, deliver or hold (the edge adapts it in `apps/edge/lib/whatsapp/inbound.ts`)  |
 | SMS      | `apps/edge/api/inbound-sms.ts`                                                                   | `apps/edge/lib/sms/sms-ingress.ts`     | The same handler, with the carrier's consent words and the texting rules                                                                                               |
 | Voice    | `apps/edge/api/retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`, `retell-webhook.ts` | `apps/edge/lib/voice/call-start.ts`    | The call runs at the provider from the same business facts; the webhook writes the call into the thread                                                                |
-| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
+| Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist drafts only on a reach-out reply |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
 workspace's config through one door; `packages/contracts/src/config/workspace-config/compose.ts`
@@ -125,6 +125,28 @@ now, waits in a veto window, or waits for a person.
 
 The inbound path is WhatsApp-shaped today and SMS rides it by conversion. The
 channel-neutral pipeline that replaces it is `docs/decisions/0001-channel-neutral-inbound.md`.
+
+**A reply to a reach-out** (Reach out Part 5, 00222) is read before anyone
+answers it, in a job of its own. The `email_ingest` job keeps the email as it
+keeps any, then asks `reach_out_reply_of`: does it answer or cite one of the
+workspace's reach-out emails of the last 30 days, or is its person a lead's a
+reach-out wrote to? For such a reply the intake schedules one `reply_read`
+job through `ctx.scheduleOnce` (one live job per message and stage, held by
+the `jobs_reply_read_once` index), flags a person's reply (not an automatic
+one) for a person, and tells nobody itself. The job's adapter
+(`packages/jobs/src/reply-read.ts`) builds
+ports over the edge's reader (`apps/edge/lib/reach-out/reply-read.ts`) and
+runs core's `readReply` (`packages/core/src/messages/reply-read.ts`): it asks
+Haiku through `lib/model.ts` for the reply's intent, under the workspace's
+day of reads; hands contracts' `readingPlan` to one service-role door,
+`reach_out_reply_apply`, which applies it in one transaction (the lead
+Talking, a no through the consent door, a dated step, the reading kept in
+`reach_out_replies`); asks the receptionist's brain for a draft, kept on the
+reading and never as a message row (`apps/edge/lib/reach-out/reply-draft.ts`,
+decision 0017); and tells the workspace once, a claim then the mark only once
+`notifyOnce` answered. A reply that could not be read is scheduled again
+under a stage of its own (`reread-<n>`). The reading stops and labels; it
+never sends.
 
 ## A message out
 
@@ -142,10 +164,27 @@ business is a lead still being written to, whether its address is on the
 never-again list, whether the person ever wrote back or phoned (00181), and
 what its From domain is and has sent in the last day;
 the refusals are words in contracts (`PURPOSE_REFUSALS`). Email leaves by one
-of two lanes (`emailSender`): the hosted lane, the workspace's mailbox on the
-platform's mail account, for everything else; the own lane, a verified sending
-domain on the cold account, for outreach only. A cold send never moves its
-thread, and a failure is recorded on its row rather than flagged.
+of two lanes (`emailSender`, `packages/core/src/wire-senders.ts`): the hosted
+lane, the workspace's mailbox on the platform's mail account, for everything
+else; the own lane, a verified sending domain on the cold account, for
+outreach, and for a person's reply to a reach-out that can go from it. A cold
+send never moves its thread, and a failure is recorded on its row rather than
+flagged.
+
+A person's reply to a business a reach-out wrote to leaves from the domain
+the reach-out wrote from, and from the mailbox whenever that domain cannot
+carry it (Reach out Part 5, C15, N5). The dashboard freezes the reply twice
+(`replyIdentityOf`, `apps/dashboard/src/server/connections/email.ts`): the
+mailbox's request, as every reply before, as `meta.email.request`, and, when
+the reach-out email it answers left one of the workspace's domains that is
+verified now, a twin from that domain as `meta.email.own_request`. The door
+marks only a person's own reply (`kindOf` is `reply`), and the wire's
+`emailSender` sends the twin by the own route whose address is its From when
+that route holds its Reply-To; otherwise it sends the mailbox's request, which
+every edge can send, so either deploy order and a rollback are safe. Which
+one left is stamped on the row (`meta.email.left_as`, `own` or `mailbox`, with
+the reason; 00226 `stamp_email_left_as`), and the thread says so when it was
+the mailbox.
 
 A reach-out (Part 3) is a chain of `playbooks` rows over a lead search, and
 each lead in a step's run is a send (`reach_out_sends`). The run is planned

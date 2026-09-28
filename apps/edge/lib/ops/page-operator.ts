@@ -11,7 +11,7 @@
  * for six hours, and the mail domain losing its standing (api/cron/health.ts);
  * a customer waiting in a workspace with nobody on file to tell
  * (api/cron/deadman.ts); the receptionist having no model key
- * (core/inbound/answer.ts); and cold email's own: a sending domain another
+ * (core/inbound/model-turn.ts); and cold email's own: a sending domain another
  * workspace holds, one the cold account already holds verified with no
  * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts),
  * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
