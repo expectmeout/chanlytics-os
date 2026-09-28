@@ -1,4 +1,4 @@
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 import { DAY_MS } from "../shared/time";
 
 /**

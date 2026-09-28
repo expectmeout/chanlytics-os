@@ -7,7 +7,8 @@
  * keep reading it the way the composer writes it.
  */
 
-import { NO_FIELDS_COMPOSED_WORDS, PROMPT_OPENINGS as O, whoseWords, type WhoseWords } from "./config";
+import { PROMPT_OPENINGS as O } from "./workspace-config/compose";
+import { NO_FIELDS_COMPOSED_WORDS, whoseWords, type WhoseWords } from "./workspace-config/resolve";
 
 /**
  * The composed prompt, cut into the blocks that wrote it.
