@@ -59,6 +59,8 @@ const baselineFiles = fs
 
 const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 1), 0);
 const keys = (o) => Object.keys(o ?? {}).length;
+/** Every field of every entry, summed: a stylesheet's literal values are counted by kind. */
+const fieldsTotal = (o) => Object.values(o ?? {}).reduce((a, v) => a + Object.values(v).reduce((b, n) => b + n, 0), 0);
 
 /** The block, from a map of baseline file → its numbers, and the source-scan counts. */
 function blockFrom(by, scanCounts) {
@@ -81,6 +83,13 @@ function blockFrom(by, scanCounts) {
     ["as unknown as", total(by["casts.json"]), ""],
     ["table names outside packages/db", total(by["tables.json"]), ""],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
+    ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
+    [
+      "primitives outside the kit",
+      total(by["kit-primitives.json"]),
+      `selectors naming ${keys(by["kit-primitives.json"])} classes`,
+    ],
+    ["inline style props", total(by["inline-styles.json"]), `in ${keys(by["inline-styles.json"])} files`],
     ["wire names not in snake_case", wire.names, `in ${wire.routes} routes`],
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
     ["source-text reads in tests", total(scanCounts), ""],

@@ -809,23 +809,10 @@ test("the dashboard's stream parser: blocks, deltas, thinking and its signature,
   assert.equal(mod.featureRejected("credit balance too low"), false);
 });
 
-test("the migration: own rows, column-scoped update, a ninety-day purge on the cron, and an owner-only scrub the erase route calls", () => {
-  const m = readRaw("supabase/migrations/00040_ask.sql");
-  assert.ok(m.includes("alter table public.ask_threads enable row level security;"));
-  assert.ok(m.includes("alter table public.ask_messages enable row level security;"));
-  assert.ok(m.includes("using (user_id = (select auth.uid()));"));
-  assert.ok(m.includes("grant update (title, scope, last_at) on public.ask_threads to authenticated;"));
-  assert.ok(!/grant update[^;]*ask_messages/.test(m), "a message is written once");
-  assert.ok(m.includes("select cron.schedule('purge-ask', '37 4 * * *', $$select public.purge_ask()$$);"));
-  assert.ok(m.includes("default '90 days'"));
-  assert.ok(
-    m.includes("m.role = 'owner'") && m.includes("raise exception 'scrub_ask_for_contact: owner role required';"),
-  );
-  const erase = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
-  assert.ok(
-    erase.includes('ctx.supabase.rpc("scrub_ask_for_contact", {'),
-    "erasing a person scrubs the Ask turns that quoted them",
-  );
+// The tables' own rows, column grants and ninety-day purge are proved on the database (database/tenancy.db,
+// database/privileges.db, ops/sweep-registry.db), the scrub by running it (people/erasure/erasure-ask-scrub.db), and
+// the erasure's calls of it by running the route (people/people-routes).
+test("the store never scopes by hand: RLS is the door", () => {
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
   assert.ok(!store.includes('.eq("user_id"'), "the store never scopes by hand; RLS is the door");
 });

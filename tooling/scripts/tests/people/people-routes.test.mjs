@@ -2,8 +2,9 @@
  * People and lists, run through route(): the real route modules, their `run`
  * called with a database in memory. What is proved is the policy each
  * declares and what the handler answers, not its text. The erasure's happy
- * path reaches the jobs ledger through the service client, so only its doors
- * are run here; erase.test.mjs holds its order.
+ * path reaches the jobs ledger through the service client, which is pointed at
+ * the same database for the one test of what it hands the Ask scrub; the rest
+ * run its doors, and erase.test.mjs holds its order.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +19,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+const { erasureKeys } = await import(at("apps/dashboard/src/server/people/erasure.ts"));
 const contacts = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 const receptionistMany = await import(at("apps/dashboard/app/api/v1/contacts/receptionist/route.ts"));
 const notesMany = await import(at("apps/dashboard/app/api/v1/contacts/notes/route.ts"));
@@ -368,6 +371,68 @@ test("a key that could not be READ stops the erasure, rather than erasing withou
     assert.equal(writes(ctx), 0, `${table}: refused before anything was queued or destroyed`);
     assert.equal(tables.contacts[0].erased_at, null, `${table}: the person is still there to try again`);
   }
+});
+
+test("an erasure hands the Ask scrub every spelling of the number and the address, before the rows go and after; a re-drive, the id", async () => {
+  const scrubs = [];
+  const rpcs = {
+    scrub_ask_for_contact: (a) => {
+      scrubs.push(a);
+      return 0;
+    },
+    erase_contact: () => ({ counts: {}, storage_paths: [], jobs_canceled: 0 }),
+  };
+  /** The erasure on a database in memory, its service-client legs (the block, the finished jobs) on the same one. */
+  const erase = async (tables) => {
+    const ctx = ctxFor(
+      { memberships: both("owner", "operator"), calls: [], messages: [], jobs: [], ...tables },
+      { id: P1 },
+      rpcs,
+    );
+    setServiceClient(ctx.supabase);
+    try {
+      return { out: await person.DELETE.run(send("DELETE"), ctx), seen: ctx.supabase.seen };
+    } finally {
+      setServiceClient(null);
+    }
+  };
+
+  const { out, seen } = await erase({
+    contacts: [contact(P1, A, { phone_e164: "+15550100123", email: "ada@example.com", erasing_since: null })],
+    contact_identities: [
+      { contact_id: P1, external_id: "15550100123" },
+      { contact_id: P1, external_id: "ada.b@example.com" },
+    ],
+  });
+  assert.equal(out.erased, true);
+  const { needles } = erasureKeys({ phone_e164: "+15550100123", email: "ada@example.com" }, [
+    "15550100123",
+    "ada.b@example.com",
+  ]);
+  assert.ok(needles.includes("+1 (555) 010-0123") && needles.includes("ada.b@example.com"), "the spellings");
+  assert.deepEqual(
+    scrubs.map((a) => [a.p_tenant_id, a.p_contact_id, a.p_needles]),
+    [
+      [A, P1, needles],
+      [A, P1, needles],
+    ],
+    "with every spelling, before erase_contact and after it",
+  );
+  assert.deepEqual(
+    seen.filter((s) => s.rpc).map((s) => s.rpc),
+    ["scrub_ask_for_contact", "erase_contact", "scrub_ask_for_contact"],
+  );
+
+  // Already erased: nothing is left to spell them by, and the re-drive scrubs by the id alone.
+  scrubs.length = 0;
+  const again = await erase({
+    contacts: [contact(P1, A, { phone_e164: null, email: null, erased_at: "2026-09-01T00:00:00Z" })],
+  });
+  assert.equal(again.out.already_erased, true);
+  assert.deepEqual(
+    scrubs.map((a) => [a.p_contact_id, a.p_needles]),
+    [[P1, []]],
+  );
 });
 
 test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors; an erased person is a 404", async () => {
