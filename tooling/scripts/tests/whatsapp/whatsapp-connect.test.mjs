@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DECISION_SUBJECTS, DECISION_VERBS } from "@chanlytics/contracts";
+import { DECISION_SUBJECTS, DECISION_VERBS, connectionRows, toChannelVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -240,13 +240,50 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
   assert.ok(
     s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'),
   );
-  const rows = readCode("packages/contracts/src/setup/connections.ts");
-  assert.ok(
-    rows.includes('const wa = channel("whatsapp");') && rows.includes("} else if (i.whatsapp === undefined) {"),
-    "offered only when the workspace has no WhatsApp channel, and honest while asking",
+  // The row itself runs (contracts' connectionRows) rather than being read.
+  const NOW = Date.parse("2026-09-07T15:00:00Z");
+  const channel = (status) =>
+    toChannelVM(
+      {
+        id: "ch-wa",
+        kind: "whatsapp",
+        number_e164: "+13055550188",
+        status,
+        created_at: "2026-08-01T00:00:00Z",
+        last_inbound_at: null,
+      },
+      new Date(NOW),
+    );
+  const whatsapp = (over) =>
+    connectionRows(
+      {
+        channels: [],
+        whatsapp: { ready: true, reason: null },
+        lines: { rows: [], ready: false },
+        lineRequestedAt: null,
+        google: null,
+        calendar: null,
+        ...over,
+      },
+      NOW,
+    ).find((r) => r.kind === "whatsapp");
+  assert.equal(whatsapp({}).verb.to, "verb:whatsapp-connect", "offered where the workspace has no WhatsApp channel");
+  for (const status of ["active", "disabled"])
+    assert.equal(whatsapp({ channels: [channel(status)] }).verb.to, "messages", `never over one it has (${status})`);
+  assert.deepEqual(
+    [whatsapp({ whatsapp: undefined }).sentence, whatsapp({ whatsapp: undefined }).verb],
+    ["Checking whether Chanlytics can connect a number…", null],
+    "honest while asking",
+  );
+  assert.deepEqual(
+    [whatsapp({ whatsapp: null }).sentence, whatsapp({ whatsapp: null }).verb],
+    ["Chanlytics isn't set up to connect numbers yet.", null],
+    "and an answer of nothing is not still asking",
   );
   assert.ok(
-    rows.includes("the Embedded Signup configuration is missing on the Chanlytics side"),
+    whatsapp({ whatsapp: { ready: false, reason: "no_config_id" } }).sentence.includes(
+      "the Embedded Signup configuration is missing on the Chanlytics side",
+    ),
     "the missing piece is named, not hidden",
   );
   assert.ok(

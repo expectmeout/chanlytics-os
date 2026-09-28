@@ -383,6 +383,84 @@ spend, is at its month's allowance, or has spent its 400 model attempts of
 the UTC day (`reach_out_check_spend`) is asked again an hour on
 (`reach_out_check_gated`).
 
+**Replies to a reach-out (Part 5).** A reply to a reach-out's email is read
+for what it means before anyone answers it. The email intake asks
+`reach_out_reply_of` of every email it keeps, and for a reach-out's reply it
+schedules one `reply_read` job instead of telling anyone itself. The job reads
+the reply with the model, applies what the reading means through
+`reach_out_reply_apply`, drafts an answer when the reading asks one, and tells
+the workspace once (`reach_out_replied`). The readings are rows of
+`reach_out_replies`, one per message.
+
+- **Once per message and stage.** A partial unique index,
+  `jobs_reply_read_once`, holds one live `reply_read` per message and stage;
+  a failed one does not count. The stage is in the payload: none (or `read`)
+  for the first read, `reread-<n>` for the n-th read again, and `draft` for a
+  draft a first job had no time left for. A second schedule of the same
+  message and stage is answered `already_scheduled`, never an error.
+- **Cancel them.** Only a job still `scheduled` can be canceled (the ledger's
+  guard refuses the rest):
+  `update public.jobs set state = 'canceled' where kind = 'reply_read' and state = 'scheduled' and tenant_id = '…';`
+  A canceled job still holds its message and stage on the index until
+  `purge_jobs` deletes it a week later, so the same read is not scheduled
+  again before then. A reading already applied stays applied; cancel the
+  jobs, not the readings.
+- **The model the reading needs.** Haiku 4.5 (contracts' `REACH_OUT_MODEL`)
+  through `ANTHROPIC_API_KEY` on the edge, the key the check already uses;
+  the draft asks the receptionist's own model through the same key. A
+  workspace reads at most 200 replies a UTC day (`REACH_OUT_READS_PER_DAY`,
+  counted in `reach_out_check_spend.reads`), and only while it may spend.
+- **What "unread" means.** A reading whose `unread` is set was not read, and
+  is `other` until it is: `no_model` (no key on the edge), `may_not_spend`
+  (the workspace may not spend), `day_spent` (its 200 reads of the UTC day
+  are spent) or `model_failed` (the model threw, ran out of time or answered
+  nothing usable). A person's unread reply stops the chain as any reply does,
+  and an automatic one changes nothing until it is read; nothing is drafted,
+  and the thread says they wrote back. It is read again at most
+  three times within seven days of the reply (`REPLY_REREADS`,
+  `REPLY_REREAD_DAYS`): after `no_model` or `model_failed`, an hour on the
+  first time and the next UTC day after that; after `day_spent` or
+  `may_not_spend`, the next UTC day. A re-read that finds a no applies it and
+  tells the workspace again.
+- **A read job that failed for good** is not scheduled again, and the
+  re-reads it would have made are lost with it: after three failed tries the
+  workspace hears "A reply to your reach-out could not be read or told" on
+  the Inbox. After the edge is rolled back past Part 5 (an older edge fails
+  `reply_read` as work it does not know) and then forward again, schedule
+  again what is still owed:
+  `insert into jobs (tenant_id, kind, due_at, payload) select tenant_id, 'reply_read', now(), jsonb_build_object('message_id', message_id, 'stage', 'reread-' || (rereads + 1)) from reach_out_replies where unread is not null and undone_at is null and rereads < 3 and read_at > now() - interval '7 days' on conflict do nothing;`
+- **Why nothing was drafted.** The reading says why in `draft_why`:
+  `no_receptionist` (no receptionist configured, no mailbox, or no model key),
+  `off` (the reply mode is never), `budget` (the day's tokens are spent),
+  `may_not_spend`, or `not_drafted` (the brain handed off, refused or failed).
+  The edge logs `reach_out_reply_draft` with `drafted` and `why`.
+- **A reply that left from the mailbox, and why.** An owner's reply to a
+  reach-out's thread is frozen twice: the mailbox's request, and a twin from
+  the domain the reach-out wrote from while that domain is verified. The wire
+  sends the twin when it can and records which left on the row:
+  `meta.email.left_as` is `own` or `mailbox`, with the reason
+  (00226 `stamp_email_left_as`). The reasons for `mailbox` are
+  `no_own_route` (no own domain is bound: the cold lane's keys are unset, the
+  domains could not be read that tick, `email_own_domains_unread`, or none is
+  verified now), `domain_has_no_route` (the twin's domain was held or removed
+  after the freeze), `route_refuses_twin` (its Reply-To is on a reply domain
+  the edge has retired) and `twin_names_another_recipient`. A reply with no
+  `left_as` left as every reply did before: the dashboard froze no twin
+  (the domain held or removed at Send, or no reach-out email on the thread),
+  or the edge predates Part 5. A stamp that fails is logged
+  (`deliver_left_as_failed`) and never thrown: the words already left.
+- **Microsoft 365's out-of-office stops a chain.** Its documented headers
+  claim `automated`, not `auto_reply`, so it counts as writing back and the
+  chain stops, with a step for the day they are back, rather than pausing.
+  A capture from a live Exchange Online mailbox is still owed; if it claims
+  `auto_reply`, the change is to `classifyReceived` alone.
+- **The proof.** The nightly's run of a reply is
+  `tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs`:
+  on a stack, a chain written to four businesses, each reply read by the
+  real job, the owner's answer by the own domain and then the mailbox, and
+  the undo of a no. It runs with the database suites, locally with
+  `corepack pnpm test:db`.
+
 **A domain held twice in 30 days.** Its owner cannot resume it: the platform
 is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
 domain). Look at what it sent, then lift it:
