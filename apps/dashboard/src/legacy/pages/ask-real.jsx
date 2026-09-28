@@ -903,7 +903,7 @@ const arFoot = ({ phone, talk, typing, t, liftMic }) =>
 // The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
 // while Ask reads, one line in coral ink saying what it reads. On a phone the face and the line are the hero's,
 // and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
-// listens. The scope's × clears the open thread's scope too, so its next question is asked with none (D9).
+// listens.
 const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScope, setActive, t, inputRef, quick, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
   return (

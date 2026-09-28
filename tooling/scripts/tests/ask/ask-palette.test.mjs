@@ -645,66 +645,6 @@ test("a follow-up folds the answer above the line; Clear ends the conversation, 
   await closes();
 });
 
-test("the scope per turn (D9): a question goes with the scope the chip shows, else its conversation's own, which then holds it; the chip's × sends none next; a new conversation takes the chip's or none; and no send moves the chip", async () => {
-  const hash = globalThis.window.location.hash;
-  const calls = ask([]);
-  globalThis.window.__ask.send = async (input, on) => {
-    calls.inputs.push(input);
-    on({ t: "thread", id: TH(5).id, title: input.text });
-    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
-  };
-  const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1";
-  const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b2";
-  const row = (id) => ({ kind: "thread", id, label: "this thread" });
-  /** The Line closed and opened again over a page, as a person does: the chip is that page's scope. */
-  const over = async (route) => {
-    await closes();
-    globalThis.window.location.hash = route;
-    return opens();
-  };
-  const asked = async (tree, words) => {
-    typed(tree, words);
-    tree = await later(Palette, OPEN);
-    keyed(tree, "Enter");
-    return later(Palette, OPEN);
-  };
-  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
-  const sent = () => calls.inputs.at(-1).scope;
-  try {
-    render(Palette, CLOSED);
-    let tree = await asked(await over(`#/inbox/th-${ROW1}`), "What did they ask for?");
-    assert.deepEqual(sent(), row(ROW1), "(d) a new conversation takes the chip's scope");
-    tree = await asked(await over(`#/inbox/th-${ROW2}`), "And this one?");
-    assert.deepEqual(
-      sent(),
-      row(ROW2),
-      "(b) REGRESSION: a follow-up asked over another row went with the conversation's first scope",
-    );
-    tree = await asked(await over("#/today"), "And both of them?");
-    assert.deepEqual(sent(), row(ROW2), "(c) no chip: the conversation's own, which its last turn gave it");
-    assert.equal(chip(tree), null, "and the send moved no chip: Today has none");
-    tree = await over(`#/inbox/th-${ROW1}`);
-    assert.equal(chip(tree), "this thread", "the chip is the row's again");
-    press(find(byTestId(tree, "ask-scope"), (n) => n.type === "button"));
-    tree = await later(Palette, OPEN);
-    assert.equal(chip(tree), null, "the × empties the chip");
-    tree = await asked(tree, "Anything else?");
-    assert.equal(sent(), null, "(a) a cleared chip sends none, said as null, so the server clears the thread's");
-    tree = await asked(await over("#/today"), "And now?");
-    assert.equal(sent(), null, "(c) and the conversation holds none after it");
-    press(byTestId(tree, "ask-clear"));
-    tree = await asked(await later(Palette, OPEN), "What is new?");
-    assert.equal(sent(), null, "(d) a new conversation with no chip: none");
-    assert.deepEqual(
-      calls.inputs.map((i) => i.text),
-      ["What did they ask for?", "And this one?", "And both of them?", "Anything else?", "And now?", "What is new?"],
-    );
-    await closes();
-  } finally {
-    globalThis.window.location.hash = hash;
-  }
-});
-
 test("Esc while Ask reads stops waiting: the turn says so, and what the stream sends after changes nothing; Esc again closes", async () => {
   const calls = ask([]);
   let finish = () => {};
@@ -2405,4 +2345,64 @@ test("a page is found by the name it goes by AND by the one it used to: 'templat
   );
   // And an alias is not a wildcard: a word nothing answers to still finds nothing.
   assert.deepEqual(askJump("zzq", ASK_PAGES), []);
+});
+
+test("the scope per turn (D9): a question goes with the scope the chip shows, else its conversation's own, which then holds it; the chip's × sends none next; a new conversation takes the chip's or none; and no send moves the chip", async () => {
+  const hash = globalThis.window.location.hash;
+  const calls = ask([]);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: TH(5).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
+  };
+  const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1";
+  const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b2";
+  const row = (id) => ({ kind: "thread", id, label: "this thread" });
+  /** The Line closed and opened again over a page, as a person does: the chip is that page's scope. */
+  const over = async (route) => {
+    await closes();
+    globalThis.window.location.hash = route;
+    return opens();
+  };
+  const asked = async (tree, words) => {
+    typed(tree, words);
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    return later(Palette, OPEN);
+  };
+  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
+  const sent = () => calls.inputs.at(-1).scope;
+  try {
+    render(Palette, CLOSED);
+    let tree = await asked(await over(`#/inbox/th-${ROW1}`), "What did they ask for?");
+    assert.deepEqual(sent(), row(ROW1), "(d) a new conversation takes the chip's scope");
+    tree = await asked(await over(`#/inbox/th-${ROW2}`), "And this one?");
+    assert.deepEqual(
+      sent(),
+      row(ROW2),
+      "(b) REGRESSION: a follow-up asked over another row went with the conversation's first scope",
+    );
+    tree = await asked(await over("#/today"), "And both of them?");
+    assert.deepEqual(sent(), row(ROW2), "(c) no chip: the conversation's own, which its last turn gave it");
+    assert.equal(chip(tree), null, "and the send moved no chip: Today has none");
+    tree = await over(`#/inbox/th-${ROW1}`);
+    assert.equal(chip(tree), "this thread", "the chip is the row's again");
+    press(find(byTestId(tree, "ask-scope"), (n) => n.type === "button"));
+    tree = await later(Palette, OPEN);
+    assert.equal(chip(tree), null, "the × empties the chip");
+    tree = await asked(tree, "Anything else?");
+    assert.equal(sent(), null, "(a) a cleared chip sends none, said as null, so the server clears the thread's");
+    tree = await asked(await over("#/today"), "And now?");
+    assert.equal(sent(), null, "(c) and the conversation holds none after it");
+    press(byTestId(tree, "ask-clear"));
+    tree = await asked(await later(Palette, OPEN), "What is new?");
+    assert.equal(sent(), null, "(d) a new conversation with no chip: none");
+    assert.deepEqual(
+      calls.inputs.map((i) => i.text),
+      ["What did they ask for?", "And this one?", "And both of them?", "Anything else?", "And now?", "What is new?"],
+    );
+    await closes();
+  } finally {
+    globalThis.window.location.hash = hash;
+  }
 });
