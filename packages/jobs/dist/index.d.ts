@@ -49,7 +49,7 @@ declare const FUNCTION_CEILING_MS = 60000;
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
- * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * (core runner/rules.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
  * ever in flight past its deadline and it needs no room after it. Its
  * deadline sits at the ceiling less the kill margin the runner already keeps.
  *
