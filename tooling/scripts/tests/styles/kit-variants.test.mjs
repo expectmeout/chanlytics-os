@@ -44,6 +44,16 @@ test("a prop not given, or given as undefined, takes its default; a value that d
   assert.equal(pill({ tone: "warn" }), "pill pill-warn");
 });
 
+test("a value and a prop are read from what the map and the props hold themselves, never from what objects inherit", () => {
+  const tally = variants({ base: "tally", variants: { tone: { warn: "tally-warn" } } });
+  assert.equal(tally({ tone: "constructor" }), "tally", "not Object's source, which a map inherits under that name");
+  assert.equal(tally({ tone: "toString" }), "tally");
+  assert.equal(tally({ tone: "__proto__" }), "tally", "not [object Object]");
+  const toggle = variants({ base: "tg", variants: { constructor: { on: "tg-on" } } });
+  assert.equal(toggle(), "tg", "a prop not given is not what the props inherit under its name");
+  assert.equal(toggle({ constructor: "on" }), "tg tg-on", "a prop given under that name is read");
+});
+
 test("with no defaults, a prop not given draws nothing, and a value its map does not name adds nothing", () => {
   const tally = variants({ base: "tally", variants: { tone: { warn: "tally-warn" } } });
   assert.equal(tally(), "tally");

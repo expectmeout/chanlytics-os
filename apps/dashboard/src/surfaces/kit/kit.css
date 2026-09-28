@@ -10,7 +10,8 @@
    - Values read from tokens.css: the roles a look sets (tier 2: a surface's fill, a control's height, the primary
      action's ink) and a component's own tokens (tier 3, such as --btn-h), declared here and never set by a look. No
      colour, type size, radius, shadow or blur is written as a number.
-   - One phone breakpoint, 900px: the one width an @media here names.
+   - One phone breakpoint, 900px: the one width an @media here names, the phone as (max-width: 900px) and the desk
+     as (width > 900px). A query that names no width (reduced motion, reduced transparency) is not a breakpoint.
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
    Loaded right after tokens.css, before every other stylesheet: by the app's two entry files (legacy-bridge/legacy.css

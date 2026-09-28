@@ -7,12 +7,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import ts from "typescript";
-import { cssFacts, cssOf, isPrimitiveClass, isPrimitiveClassFor, KIT_REGISTRY, strictFacts } from "../_css.mjs";
-import { inlineStyles, repoFiles } from "../_ast.mjs";
-import { ROOT } from "../_source.mjs";
+import { cssFacts, cssOf, isPrimitiveClass, isPrimitiveClassFor, strictFacts } from "../_css.mjs";
+import { inlineStyles } from "../_ast.mjs";
 import { MEASURES, TOKENS_CSS } from "../_measures.mjs";
 
 const NONE = { font: 0, radius: 0, shadow: 0, colour: 0, blur: 0 };
@@ -105,21 +102,12 @@ test("a class draws a primitive when one of its words names one or it is a kit n
   }
 });
 
-test("a class the kit's registry lists is a primitive whatever its words, and each name it lists is a stylesheet's", () => {
+test("a class the kit's registry lists is a primitive whatever its words", () => {
+  // The registry's names are all primitives by their words today (styles/kit-css.test.mjs holds the list), so the
+  // branch is shown on a name of its own.
   const withKit = isPrimitiveClassFor(new Set(["frame-rim"]));
   assert.ok(withKit("frame-rim"), "a name the registry lists, though no word of it names a primitive");
   assert.ok(!withKit("frame-top"), "a name it does not list is read by its words");
-  const listed = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8")).classes;
-  assert.ok(listed.length > 0, `${KIT_REGISTRY} was read`);
-  assert.equal(new Set(listed).size, listed.length, "each name once");
-  const named = new Set(
-    repoFiles(["apps/dashboard"], { keep: /\.css$/ }).flatMap((f) => Object.keys(cssOf(f).classes)),
-  );
-  assert.deepEqual(
-    listed.filter((name) => !named.has(name)),
-    [],
-    "every name the registry lists is a class a stylesheet of the dashboard names",
-  );
 });
 
 test("a style prop counts on an element or a component; another prop, a style key or the word in a string does not", () => {

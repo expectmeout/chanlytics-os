@@ -6,8 +6,11 @@
  * real config over probe snippets, placed as if they lived in each layer, and
  * expects each forbidden thing to be refused and each allowed thing to pass.
  * So is the kit's rule for the surfaces that leave the shell (src/surfaces):
- * a raw <button>, <input>, <select>, <textarea> or <dialog> is the kit's to
- * draw, and a surface takes the kit's component instead.
+ * a raw <button>, <input>, <select>, <textarea> or <dialog>, written as JSX
+ * or made from its name, is the kit's to draw, and a surface takes the kit's
+ * component instead. A surface moved before its kit step waits in
+ * KIT_PENDING, which lifts that rule and nothing else; the probe builds the
+ * config as it will stand with one surface listed, from the real blocks.
  *
  * The function limits are lint rules there too, in the trees the complexity
  * ratchet has emptied (plan 27: "the limits are lint errors for new code"):
@@ -40,7 +43,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
-import { LIMITED_TREES, WIDE_PARAMS, FUNCTION_LIMITS } from "../../../../eslint.config.mjs";
+import config, {
+  FUNCTION_LIMITS,
+  KIT_PENDING,
+  LIMITED_TREES,
+  rawElementsRule,
+  WIDE_PARAMS,
+} from "../../../../eslint.config.mjs";
 import { LIMIT } from "../_measures.mjs";
 import { repoFiles } from "../_ast.mjs";
 import { readBaseline } from "../_ratchet.mjs";
@@ -121,29 +130,157 @@ test("a surface is browser code, linted as the dashboard's own: its layer, and t
   }
 });
 
-/** The component each raw element's refusal names (eslint.config.mjs, KIT_COMPONENT_FOR). */
-const KIT_TAKES = { button: "Button", input: "Field", select: "Select", textarea: "Field", dialog: "Sheet" };
+/** What each raw element's refusal tells a surface to take (eslint.config.mjs, KIT_TAKES), and what else it says. */
+const KIT_TAKES = {
+  button: ["Take the kit's Button,", "a button that opens a page is a link"],
+  input: ["Take the kit's Field,", "the kit's Switch for a checkbox"],
+  select: ["Take the kit's Select,", ""],
+  textarea: ["Take the kit's Field,", ""],
+  dialog: ["Take the kit's Sheet,", "the kit's Confirm for a confirmation"],
+};
 
-test("a surface takes its controls from the kit: a raw one is refused, naming the kit's component, and the kit draws them", async () => {
+/** A raw element made every way the rule knows, one line each: its JSX, a member's JSX, and from its name. */
+const everyWay = (element) =>
+  [
+    `export const a = <${element} />;`,
+    `export const b = <motion.${element} />;`,
+    `export const c = createElement("${element}");`,
+    `export const d = React.createElement("${element}", null);`,
+    `export const e = jsx("${element}", {});`,
+    `export const f = jsxs("${element}", {});`,
+    `export const g = jsxDEV("${element}", {});`,
+    "",
+  ].join("\n");
+
+test("a surface takes its controls from the kit: a raw one, however it is made, is refused with what to take, and the kit draws them", async () => {
   const [page, kit] = SURFACES;
-  const draws = (element) => `export function Probe(): unknown {\n  return <${element} />;\n}\n`;
-  for (const [element, component] of Object.entries(KIT_TAKES)) {
-    const [result] = await eslint.lintText(draws(element), { filePath: path.join(ROOT, page) });
+  for (const [element, [take, note]] of Object.entries(KIT_TAKES)) {
+    const [result] = await eslint.lintText(everyWay(element), { filePath: path.join(ROOT, page) });
     const refused = result.messages.filter((m) => m.severity === 2);
     assert.deepEqual(
-      refused.map((m) => m.ruleId),
-      ["no-restricted-syntax"],
-      `<${element}> in a surface`,
+      refused.map((m) => [m.line, m.ruleId]),
+      [1, 2, 3, 4, 5, 6, 7].map((line) => [line, "no-restricted-syntax"]),
+      `<${element}>, each way it is made, in a surface`,
     );
-    assert.match(refused[0].message, new RegExp(`^Take the kit's ${component}[ ,]`), `<${element}>`);
-    assert.deepEqual(await rulesFiredOn(kit, draws(element)), [], `<${element}> in the kit, which draws it`);
+    for (const { message } of refused) {
+      assert.ok(message.startsWith(take) && message.includes(note), `<${element}>: ${message}`);
+      assert.match(
+        message,
+        /adds its surface's folder to KIT_PENDING .*removes it\.$/,
+        "and how a moved surface waits",
+      );
+    }
+    assert.deepEqual(await rulesFiredOn(kit, everyWay(element)), [], `<${element}> in the kit, which draws it`);
   }
-  assert.deepEqual(await rulesFiredOn(page, draws("Button")), [], "the kit's component is not the raw element");
-  assert.deepEqual(await rulesFiredOn(page, draws("div")), [], "and the rule names those five alone");
+  const notRaw = [
+    "export const a = <Button />;",
+    "export const b = <Kit.Button />;",
+    "export const c = <div />;",
+    "export const d = createElement(button);",
+    'export const e = createElement("div");',
+    'export const f = track("button");',
+    "",
+  ].join("\n");
+  assert.deepEqual(await rulesFiredOn(page, notRaw), [], "a component, another element, a name in a variable, a call");
   assert.deepEqual(
-    await rulesFiredOn("apps/dashboard/src/legacy-bridge/probe.tsx", draws("button")),
+    await rulesFiredOn("apps/dashboard/src/legacy-bridge/probe.tsx", everyWay("button")),
     [],
     "the bridge's own screens are not surfaces",
+  );
+});
+
+test("a surface moved before its kit step waits in KIT_PENDING: its raw controls pass, and nothing else is lifted", async () => {
+  const ruled = config.filter(
+    (block) =>
+      block.rules?.["no-restricted-syntax"] && block.files?.some((f) => f.startsWith("apps/dashboard/src/surfaces/")),
+  );
+  assert.equal(ruled.length, 1, "one block holds the rule on raw elements");
+  assert.deepEqual(ruled[0], rawElementsRule(KIT_PENDING), "and it is rawElementsRule over KIT_PENDING");
+  // The config as it will stand once the pilot has moved: the same blocks, with Reports listed.
+  const listed = "apps/dashboard/src/surfaces/reports";
+  const moved = new ESLint({
+    cwd: ROOT,
+    overrideConfigFile: true,
+    overrideConfig: config.map((block) => (block === ruled[0] ? rawElementsRule([listed]) : block)),
+  });
+  const firedIn = async (file, code) => {
+    const [r] = await moved.lintText(code, { filePath: path.join(ROOT, file) });
+    assert.deepEqual(
+      r.messages.filter((m) => m.fatal),
+      [],
+      "the probe parses",
+    );
+    return r.messages.filter((m) => m.severity === 2).map((m) => m.ruleId);
+  };
+  const button = "export function Probe(): unknown {\n  return <button />;\n}\n";
+  assert.deepEqual(await firedIn(`${listed}/probe.tsx`, button), [], "a listed surface's raw button passes");
+  assert.deepEqual(await firedIn(`${listed}/parts/probe.tsx`, button), [], "in any folder of it");
+  assert.deepEqual(
+    await firedIn("apps/dashboard/src/surfaces/inbox/probe.tsx", button),
+    ["no-restricted-syntax"],
+    "an unlisted surface's is refused",
+  );
+  assert.deepEqual(
+    await firedIn(`${listed}/probe.tsx`, 'import { route } from "@/server/route";\nexport const x = route;\n'),
+    [IMPORTS],
+    "the layers hold a listed surface",
+  );
+  const at = { lines: LIMIT.lines, branches: LIMIT.branches, depth: LIMIT.depth, params: FUNCTION_LIMITS.params };
+  assert.deepEqual(
+    await firedIn(`${listed}/probe.ts`, probe({ ...at, branches: at.branches + 1 })),
+    ["complexity"],
+    "and so do the function limits: a surface moves with its functions under them",
+  );
+});
+
+/** The surfaces' tree. */
+const SURFACES_TREE = "apps/dashboard/src/surfaces";
+
+/** The folders directly under the surfaces' tree that hold a tracked file: the kit, and each surface that moved. */
+const surfaceFolders = () => [
+  ...new Set(
+    repoFiles([SURFACES_TREE], { keep: /./ })
+      .map((f) => f.slice(SURFACES_TREE.length + 1))
+      .filter((rest) => rest.includes("/"))
+      .map((rest) => rest.split("/")[0]),
+  ),
+];
+
+/** The entries of `pending` that name no moved surface: all but `<tree>/<folder>`, for a folder `folders` holds. */
+const strayPending = (pending, folders) =>
+  pending.filter((entry) => {
+    const folder = entry.startsWith(`${SURFACES_TREE}/`) ? entry.slice(SURFACES_TREE.length + 1) : "";
+    return folder === "" || folder.includes("/") || folder === "kit" || !folders.includes(folder);
+  });
+
+test("KIT_PENDING names moved surfaces: each entry a folder directly under src/surfaces that holds code, never the tree or the kit", () => {
+  const folders = surfaceFolders();
+  assert.ok(folders.includes("kit"), `the surfaces' folders were read: ${folders.join(", ")}`);
+  assert.deepEqual(
+    strayPending(KIT_PENDING, folders),
+    [],
+    "an entry that names no surface lifts the rule from nothing, or from more than one surface",
+  );
+  const known = ["kit", "reports"];
+  assert.deepEqual(strayPending([`${SURFACES_TREE}/reports`], known), [], "a moved surface's folder is an entry");
+  const stray = [
+    `${SURFACES_TREE}/inbox`,
+    SURFACES_TREE,
+    `${SURFACES_TREE}/`,
+    `${SURFACES_TREE}/kit`,
+    `${SURFACES_TREE}/reports/parts`,
+    "apps/dashboard/src/legacy/pages",
+  ];
+  assert.deepEqual(strayPending(stray, known), stray, "a folder with no code, the tree, the kit, a part, the shell");
+});
+
+test("every file under src/surfaces is TypeScript the lint and the typecheck read, a stylesheet, or data", () => {
+  const files = repoFiles([SURFACES_TREE], { keep: /./, drop: /^$/ });
+  assert.ok(files.length > 0, "the surfaces' files were read");
+  assert.deepEqual(
+    files.filter((f) => !/\.(ts|tsx|css|json)$/.test(f)),
+    [],
+    "a .js, .jsx or .mts file there is read by no lint block and no typecheck: write it as .ts or .tsx",
   );
 });
 

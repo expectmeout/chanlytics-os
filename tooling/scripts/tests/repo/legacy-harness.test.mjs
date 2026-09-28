@@ -475,6 +475,28 @@ test("the harness links the stylesheets the app imports, in its order, the kit's
   assert.equal((await served("/surfaces/kit/index.ts")).status, 404, "the kit's stylesheet is served, not its folder");
 });
 
+test("the harness serves nothing beside its tree, however the path spells the climb", async () => {
+  // A path reaches serveStatic decoded (serve-legacy.mjs and the e2e harness decode it first), so an encoded slash or
+  // backslash climbs out of the tree: into a folder beside it whose name begins with the tree's, which a comparison of
+  // the two paths as strings let through.
+  const at = (url) => served(decodeURIComponent(url));
+  const beside = fs.readFileSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/legacy.css"), "utf8");
+  const slashed = await at("/..%2flegacy-bridge%2flegacy.css");
+  assert.equal(slashed.status, 403, "the climb into legacy-bridge is refused");
+  const backslashed = await at("/..%5clegacy-bridge%5clegacy.css");
+  if (path.sep === "\\") assert.equal(backslashed.status, 403, "and its backslash form, a climb on Windows");
+  else
+    assert.equal(
+      backslashed.status,
+      404,
+      "and its backslash form, a name no file has where a backslash is no separator",
+    );
+  for (const answer of [slashed, backslashed])
+    assert.notEqual(answer.body, beside, "the bridge's stylesheet stays put");
+  assert.equal((await at("/..%2f..%2f..%2f..%2fpackage.json")).status, 403, "and nothing further up is served");
+  assert.equal((await at("/styles/tokens.css")).status, 200, "while the tree's own files are");
+});
+
 /**
  * The harness's one shared scope, run on node: every file it loads, in its order, as the browser runs it.
  *

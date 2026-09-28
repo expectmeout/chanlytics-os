@@ -133,20 +133,46 @@ const EDGE_MAY_NOT_IMPORT = [
 
 /**
  * A surface draws its controls with the kit's components (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
- * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, and the
- * refusal names the component to take instead. The kit draws each raw element once, in its component.
+ * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, whether it is
+ * written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement("button")`, and the JSX
+ * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead. The kit draws each raw element
+ * once, in its component.
  */
-const KIT_COMPONENT_FOR = {
-  button: "Button",
-  input: "Field, or its Switch for a checkbox",
-  select: "Select",
-  textarea: "Field",
-  dialog: "Sheet",
+const KIT_TAKES = {
+  button: "Take the kit's Button, not a raw <button>; a button that opens a page is a link, as a door is.",
+  input: "Take the kit's Field, or the kit's Switch for a checkbox, not a raw <input>.",
+  select: "Take the kit's Select, not a raw <select>.",
+  textarea: "Take the kit's Field, not a raw <textarea>.",
+  dialog: "Take the kit's Sheet, or the kit's Confirm for a confirmation, not a raw <dialog>.",
 };
-const RAW_ELEMENTS = Object.entries(KIT_COMPONENT_FOR).map(([element, component]) => ({
-  selector: `JSXOpeningElement[name.name='${element}']`,
-  message: `Take the kit's ${component} (apps/dashboard/src/surfaces/kit/), not a raw <${element}>. If the kit has no variant for this, add one there with its gallery entry.`,
+/** The calls that make an element from its name: React's own, and the JSX runtime's. */
+const MAKES_AN_ELEMENT = "/^(createElement|jsx|jsxs|jsxDEV)$/";
+const RAW_ELEMENTS = Object.entries(KIT_TAKES).map(([element, take]) => ({
+  selector: [
+    `JSXOpeningElement[name.name='${element}']`,
+    `JSXOpeningElement[name.property.name='${element}']`,
+    `CallExpression[callee.name=${MAKES_AN_ELEMENT}][arguments.0.value='${element}']`,
+    `CallExpression[callee.property.name=${MAKES_AN_ELEMENT}][arguments.0.value='${element}']`,
+  ].join(", "),
+  message: `${take} The kit is apps/dashboard/src/surfaces/kit/: if it has no variant for this, add one there with its gallery entry. A pure move under decision 0015 adds its surface's folder to KIT_PENDING (eslint.config.mjs), and that surface's kit step (Phase 4) removes it.`,
 }));
+
+/**
+ * The surfaces that have moved under decision 0015 and not yet had their kit step (Phase 4 of the interface kit's
+ * plan, §3.6), each by its folder (`apps/dashboard/src/surfaces/reports`). A move draws what the JSX drew, raw
+ * elements and all, so it adds its surface here, and the kit step, which draws the surface's controls with the kit,
+ * takes it out. Only the rule on raw elements passes over a listed surface: the layers and the function limits hold it
+ * as they hold the rest of src/surfaces. Empty until the first move; repo/lint-boundaries.test.mjs fails an entry that
+ * names no surface's folder.
+ */
+export const KIT_PENDING = [];
+
+/** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */
+export const rawElementsRule = (pending) => ({
+  files: ["apps/dashboard/src/surfaces/**/*.{ts,tsx}"],
+  ignores: ["apps/dashboard/src/surfaces/kit/**", ...pending.map((folder) => `${folder}/**`)],
+  rules: { "no-restricted-syntax": ["error", ...RAW_ELEMENTS] },
+});
 
 /**
  * A function's limits, the complexity ratchet's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
@@ -371,12 +397,9 @@ export default [
     },
   },
 
-  // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements.
-  {
-    files: ["apps/dashboard/src/surfaces/**/*.{ts,tsx}"],
-    ignores: ["apps/dashboard/src/surfaces/kit/**"],
-    rules: { "no-restricted-syntax": ["error", ...RAW_ELEMENTS] },
-  },
+  // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
+  // a surface moved before its kit step waits in KIT_PENDING.
+  rawElementsRule(KIT_PENDING),
 
   // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they
   // do to the ratchet.

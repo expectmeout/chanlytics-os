@@ -19,6 +19,11 @@ export function cx(...names: ClassName[]): string {
   return names.filter(Boolean).join(" ");
 }
 
+/** What a record holds under `key` itself, never what every object inherits there (`constructor`, `toString`). */
+function own<T>(record: Partial<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 /**
  * A component's classes from its props: the base class, then each prop's class in the order `variants` names the
  * props, a prop not given (or given as undefined) taking its default. A value its map does not name adds nothing.
@@ -30,8 +35,8 @@ export function variants<V extends Variants>(spec: { base: string; variants: V; 
     return cx(
       spec.base,
       ...Object.entries(spec.variants).map(([prop, classes]) => {
-        const value = given[prop] ?? fallback[prop];
-        return value === undefined ? undefined : classes[value];
+        const value = own(given, prop) ?? own(fallback, prop);
+        return value === undefined ? undefined : own(classes, value);
       }),
     );
   };
