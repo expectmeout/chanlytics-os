@@ -854,12 +854,12 @@
     "branches": 53,
     "depth": 2
   },
-  "packages/contracts/src/deals/deal-sheet.ts::dealSheetBody#1": {
+  "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {
     "lines": 73,
     "branches": 55,
     "depth": 3
   },
-  "packages/contracts/src/deals/deal-sheet.ts::dealSheetFor#1": {
+  "packages/contracts/src/deals/sheet/deal-sheet.ts::dealSheetFor#1": {
     "lines": 103,
     "branches": 69,
     "depth": 0

@@ -8,7 +8,7 @@
  */
 import { visitDay, visitLine, visitTime } from "../calendar/calendar-people";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
-import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deals";
+import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./list-rules";
