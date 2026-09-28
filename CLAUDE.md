@@ -43,7 +43,7 @@ corepack pnpm check:dead-exports              # knip against a baseline that may
 corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise a rise
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
-node tooling/scripts/gen-route-types.mjs      # the typed client, after a route changes (--check to verify)
+node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
 corepack pnpm gen:schema-sets                 # the closed sets, after a migration changes one (needs the stack)
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
 ```

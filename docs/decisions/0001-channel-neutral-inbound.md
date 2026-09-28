@@ -88,7 +88,7 @@ needs no new caller — it needs a different fact underneath it.
 _"process-then-200 in-invocation under maxDuration 60; Meta retries + dedupe
 make replays safe"_ (`:15-17`). The observable rule is two lines: `if
 (unrecorded > 0) return json(503, ...)` (`:240`) else `json(200, { ok: true })`
-(`:241`). `tooling/scripts/golden-edge.mjs:62-103` pins the handshake, the two
+(`:241`). `tooling/scripts/ops/golden-edge.mjs:62-103` pins the handshake, the two
 401s, a signed status payload, a dropped non-allowlisted text and raw-byte HMAC
 against a deployed URL. Three node tests execute the doors over a database in
 memory: `whatsapp-door.test.mjs` (597 lines, 11 tests), `sms-door.test.mjs`

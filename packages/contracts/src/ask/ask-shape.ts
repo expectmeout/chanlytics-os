@@ -4,7 +4,7 @@
  *
  * Logged as `ask_turn_shape` and stored on the turn's own row
  * (ask_messages.content.shape), so a day's numbers are one query
- * (tooling/scripts/ask-day.mjs), never a search of the logs. Milliseconds
+ * (tooling/scripts/ops/ask-day.mjs), never a search of the logs. Milliseconds
  * count from the turn's start in the loop. Null means "never happened this
  * turn": a turn answered by cards alone streams no Say; a broken stream has
  * no first byte; a script sends no opened_ms. The spec:

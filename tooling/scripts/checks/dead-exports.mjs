@@ -10,9 +10,9 @@
  * step rather than inside `pnpm test`, because a whole-repository import graph
  * takes a minute the node suite should not.
  *
- *   node tooling/scripts/check-dead-exports.mjs            # compare with the baseline
- *   node tooling/scripts/check-dead-exports.mjs --update   # bank a fall or a removal, nothing else
- *   node tooling/scripts/check-dead-exports.mjs --raise    # write the list as measured, rises included
+ *   node tooling/scripts/checks/dead-exports.mjs            # compare with the baseline
+ *   node tooling/scripts/checks/dead-exports.mjs --update   # bank a fall or a removal, nothing else
+ *   node tooling/scripts/checks/dead-exports.mjs --raise    # write the list as measured, rises included
  *
  * A rise is raised only with `--raise`, argued under "Rises" in docs/debt.md and
  * in the pull request, as `UPDATE_BASELINES=raise` is for the other ratchets.
@@ -28,9 +28,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bank, compare, writeBaseline } from "./tests/_ratchet.mjs";
+import { bank, compare, writeBaseline } from "../tests/_ratchet.mjs";
 
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const BASELINE = path.join(ROOT, "tooling/scripts/tests/baselines/dead-exports.json");
 
 /**
@@ -99,7 +99,7 @@ function main() {
   }
   if (better.length) {
     console.error(
-      `good — now bank it (node tooling/scripts/check-dead-exports.mjs --update):\n  ${better.join("\n  ")}`,
+      `good — now bank it (node tooling/scripts/checks/dead-exports.mjs --update):\n  ${better.join("\n  ")}`,
     );
     process.exit(1);
   }

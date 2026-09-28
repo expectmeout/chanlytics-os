@@ -51,7 +51,7 @@
       "project": ["src/**/*.ts"]
     },
     "tooling/scripts": {
-      "entry": ["*.mjs", "checks/*.mjs", "tests/**/*.mjs", "e2e-harness/**/*.{ts,mjs}"],
+      "entry": ["*.mjs", "checks/*.mjs", "gen/*.mjs", "ops/*.mjs", "tests/**/*.mjs", "e2e-harness/**/*.{ts,mjs}"],
       "project": ["**/*.{ts,mjs}"]
     }
   }

@@ -52,7 +52,7 @@
  * before any write, idempotent, and --apply to write.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, E2E_USER_EMAIL, E2E_MEMBER_EMAIL
- * Usage: node tooling/scripts/e2e-workspace.mjs [--apply]
+ * Usage: node tooling/scripts/ops/e2e-workspace.mjs [--apply]
  */
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -1410,7 +1410,7 @@ async function main() {
   }
   const apply = process.argv.includes("--apply");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   const report = await converge(db, {
     ownerEmail: process.env.E2E_USER_EMAIL,
     memberEmail: process.env.E2E_MEMBER_EMAIL,

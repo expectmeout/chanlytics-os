@@ -23,7 +23,7 @@
  * with itself. The baselines live under tooling/scripts/tests/baselines/ and
  * docs/debt.md names each one.
  *
- * `compare` and `bank` are also knip's (check-dead-exports.mjs), so a dead export
+ * `compare` and `bank` are also knip's (checks/dead-exports.mjs), so a dead export
  * rises, falls and banks by the same rule as every other number.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
