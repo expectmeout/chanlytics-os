@@ -514,3 +514,22 @@ test("an office phone system (canvas V6): the number to forward to, where to set
   assert.equal(mobile.code.withMe, null, "a phone with a code has no call to book");
   assert.equal(mobile.code.label, "Verizon", "an office answer the saved forwarding does not bear out is not said");
 });
+
+test("an office phone system asked again: the questions come before its forwarding is drawn, and an ask a day old is offered again", () => {
+  const rows = [lineOf({ voice_state: "answering" }), forwardedLine("office")];
+  const redo = phone(answeringDto({ lines: { ...dtoOf().lines, rows } }), kept({ rings: "office", redo: true }));
+  assert.equal(redo.stage, "ask", "changing the answers asks them again, an office system's as a phone's");
+  assert.deepEqual([redo.forwardFrom, redo.saved, redo.keepCode], [LISTED, { carrier: "office" }, "Keep what I have"]);
+  assert.deepEqual(redo.cta, { label: "Show me where to forward", held: null, act: "forward" });
+  const askedWords = (forwarding) =>
+    phone(
+      answeringDto({ lines: { ...dtoOf().lines, rows }, requests: { line: null, forwarding } }),
+      kept({ rings: "office" }),
+    ).code.withMe.asked;
+  assert.match(
+    askedWords("2026-09-23T15:00:00.001Z"),
+    /^Asked .+: a person at Chanlytics/,
+    "a millisecond inside the day",
+  );
+  assert.equal(askedWords("2026-09-23T15:00:00.000Z"), null, "a day to the millisecond: offered again");
+});
