@@ -187,7 +187,7 @@
   line-height: 1.15;
 }
 .cl-page-sub {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   line-height: 1.5;
   max-width: 520px;
@@ -219,7 +219,7 @@
   color: var(--ink-faint);
 }
 .cl-head-stat-value {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
@@ -269,7 +269,7 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
 }
 .cl-search-wrap input::placeholder { color: var(--ink-faint); }
@@ -298,14 +298,14 @@
   letter-spacing: -0.005em;
 }
 .cl-buckets-sub {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cl-buckets-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: transparent;
   border: 1px solid var(--line);
@@ -380,7 +380,7 @@
 .cl-triage-tab.active.accent .cl-triage-tab-label { color: var(--ink); }
 
 .cl-triage-tab-count {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
@@ -433,7 +433,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cl-triage-body-meta .dot { width: 2px; height: 2px; background: var(--ink-faint); border-radius: 50%; }
@@ -443,7 +443,7 @@
   gap: 3px;
   background: transparent;
   border: none;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   cursor: pointer;
   padding: 2px 4px;
@@ -498,7 +498,7 @@
   gap: 4px;
 }
 .cl-decision-name {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   display: inline-flex;
@@ -532,7 +532,7 @@
   color: var(--ink-muted);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px 2px 3px;
   width: fit-content;
   max-width: 100%;
@@ -563,7 +563,7 @@
 
 .cl-decision-cta {
   align-self: center;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
@@ -665,7 +665,7 @@
   white-space: nowrap;
 }
 .cl-mini-narr {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -717,7 +717,7 @@
   font-size: 10px;
   color: var(--ink-muted);
   background: var(--bg-sunken);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 6px;
   border: 1px solid var(--line);
 }
@@ -778,12 +778,12 @@
   border: 1px solid var(--line);
 }
 .cl-tab {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: transparent;
   border: none;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -808,7 +808,7 @@
 .cl-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 .cl-table thead th {
   text-align: left;
@@ -875,7 +875,7 @@
 }
 .cl-row-name-block { min-width: 0; line-height: 1.25; }
 .cl-row-fullname {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
@@ -912,11 +912,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 8px 2px 4px;
   max-width: 240px;
 }
@@ -926,7 +926,7 @@
 .cl-row-agent .agent-avatar {
   width: 18px; height: 18px;
   font-size: 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .cl-row-agent-verb {
   overflow: hidden;
@@ -947,7 +947,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .cl-row-pkg .num { font-weight: 500; color: var(--ink); }
 .cl-row-pkg .lbl { color: var(--ink-dim); }
@@ -962,7 +962,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 2px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   color: var(--ink-muted);
@@ -989,7 +989,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -1055,7 +1055,7 @@
   margin-top: 4px;
 }
 .cl-seg-count {
-  font-size: 22px;
+  font-size: var(--text-2xl);
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -1210,7 +1210,7 @@
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 500;
+  font-size: var(--text-xl); font-weight: 500;
   color: var(--ink-muted);
 }
 .cl-prof-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -1230,7 +1230,7 @@
 @container (max-width: 400px) {
   .cl-prof-id { gap: 10px; }
   .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
-  .cl-prof-name { font-size: 18px; }
+  .cl-prof-name { font-size: var(--text-xl); }
 }
 .cl-prof-meta {
   display: flex;
@@ -1300,7 +1300,7 @@
   color: var(--ink-faint);
 }
 .cl-prof-money-value {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -1331,7 +1331,7 @@
   letter-spacing: -0.005em;
 }
 .cl-prof-section-sub {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -1364,7 +1364,7 @@
 .cl-prof-now .pill-ok { color: var(--ok-ink); }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
-.cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+.cl-prof-now-why { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
@@ -1419,7 +1419,7 @@
 .cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
 .cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
-.cl-prof-deal-step-day { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.cl-prof-deal-step-day { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* The link, whether it went and the day it stands until: one line that breaks between its facts, after the dot. */
 .cl-prof-deal-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-link { color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
@@ -1444,7 +1444,7 @@
    its Done and Change as the card's own quiet words; with none, "Set a next step" in a dashed outline. */
 .cl-prof-deal-nextstep { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
 .cl-prof-deal-next-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
-.cl-prof-deal-next-label { margin-right: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
+.cl-prof-deal-next-label { margin-right: 6px; font-size: var(--text-xs); font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
 .cl-prof-deal-next-words { color: var(--ink); }
 .cl-prof-deal-next-day { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cl-prof-deal-nextstep:not([data-due="ahead"]) .cl-prof-deal-next-day { color: var(--warn-ink); font-weight: 500; }
@@ -1471,7 +1471,7 @@
   html.legacy-on .cl-prof-deal-act { min-height: 0; position: relative; }
   html.legacy-on .cl-prof-deal-act::after { content: ""; position: absolute; inset: -9px -8px; }
 }
-.cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-said { margin: 0; min-width: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-sub { color: var(--ink-dim); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
@@ -1588,12 +1588,12 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   margin-bottom: 3px;
 }
 .cl-tl-time { margin-left: auto; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cl-tl-sub { margin-top: 3px; font-size: 11px; color: var(--ink-faint); }
+.cl-tl-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-faint); }
 .cl-tl-who { font-weight: 500; color: var(--ink); }
 .cl-tl-channel {
   display: inline-flex;
@@ -1602,7 +1602,7 @@
   color: var(--ink-faint);
 }
 .cl-tl-text {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -1661,7 +1661,7 @@
   grid-template-columns: var(--rec-key, 104px) minmax(0, 1fr);
   gap: 12px;
   padding: 8px 0;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   border-bottom: 1px solid var(--line);
 }
 .cl-prof-attr:last-child { border-bottom: none; }
@@ -1673,7 +1673,7 @@
 .cl-prof-run { width: 100%; margin: 0; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cl-prof-run:last-child { border-bottom: none; }
 .cl-prof-run:hover .cl-prof-run-title { text-decoration: underline; }
-.cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
 .cl-prof-run-title { display: block; }
 .cl-prof-run-out { display: block; color: var(--ink-dim); }
 .cl-prof-run-out[data-tone="warn"] { color: var(--warn-ink); }
@@ -1699,7 +1699,7 @@
   font-size: 10.5px;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--ink-muted);
   cursor: pointer;
   text-align: center;
@@ -1726,7 +1726,7 @@
   font-size: 11.5px;
   padding: 5px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-raised);
   color: var(--ink);
   cursor: pointer;
@@ -1775,14 +1775,14 @@
 @media (pointer: coarse) { .cl-prof-msg { padding: 10px 12px; } .cl-prof-note :is(input, select) { padding: 9px 10px; } }
 /* The explanation a reader may want and never needs in the way. */
 .cl-prof-why { margin-top: 6px; }
-.cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: 11px; color: var(--ink-muted); cursor: pointer; }
+.cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: var(--text-xs); color: var(--ink-muted); cursor: pointer; }
 .cl-prof-why > summary::-webkit-details-marker { display: none; }
 .cl-prof-why > summary:hover, .cl-prof-why[open] > summary { color: var(--ink); }
 .cl-prof-why[open] > summary svg { transform: rotate(180deg); }
 .cl-prof-why > .cl-prof-aut-hint { margin-top: 4px; }
 @media (pointer: coarse) { .cl-prof-why > summary { padding: 8px 0; } }
 .cl-prof-aut-hint {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   font-style: italic;
   margin-top: 8px;
@@ -1815,7 +1815,7 @@
   color: var(--ink-muted);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -1862,7 +1862,7 @@
 .cl-prof-queue-tag.paused { color: var(--warn); background: var(--warn-soft); }
 
 /* Saved lists on the rail: the empty line and the name box. */
-.cl-rail-hint { font-size: 11px; line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
+.cl-rail-hint { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
 /* A field error sits where the rail's hint does, and on a naming row it takes its own line. */
 .cl-rail-foot > .field-error { padding: 2px 10px 8px; }
 .cl-bulk-naming > .field-error { flex-basis: 100%; }
@@ -1900,14 +1900,14 @@
 .cl-rail-newlist input:focus { outline: none; border-color: var(--ink-faint); }
 
 /* ---- Booked: a fact from the calendar beside the state pill ---- */
-.cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
+.cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: var(--radius-full); font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
 
 /* ---- A name the owner gives; notes the receptionist reads ---- */
 .cl-prof-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* Editing wraps: the input takes the line and the two buttons follow it, on a phone under it. The input's fixed
    240px beside two buttons pushed a 375px page 80px wide of itself. */
 .cl-prof-name-row.editing { flex-wrap: wrap; gap: 6px; }
-.cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
 .cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
 /* No name yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
@@ -1934,7 +1934,7 @@
 /* A pencil alone is 22px wide; on a touch screen it is the row's only control, and the row has the room. */
 @media (pointer: coarse) { .cl-prof-email .cl-prof-rename:not(.is-plain) { min-width: 44px; } }
 .cl-prof-email.editing { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-.cl-prof-email-input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; width: 100%; }
+.cl-prof-email-input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 8px; min-width: 0; width: 100%; }
 .cl-prof-email-input:focus { outline: none; border-color: var(--accent); }
 .cl-prof-email-input[aria-invalid="true"] { border-color: var(--danger); }
 .cl-prof-email-problem { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
@@ -1944,20 +1944,20 @@
    shows on hover, and always under a thumb. */
 .cl-prof-notes { display: flex; flex-direction: column; gap: 10px; }
 .cl-prof-note-compose { display: flex; flex-direction: column; gap: 6px; }
-.cl-prof-note-input { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; resize: none; outline: none; width: 100%; box-sizing: border-box; }
+.cl-prof-note-input { font: inherit; font-size: var(--text-sm); line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; resize: none; outline: none; width: 100%; box-sizing: border-box; }
 .cl-prof-note-compose.is-open .cl-prof-note-input, .cl-pnote.is-editing .cl-prof-note-input { resize: vertical; min-height: 64px; }
 .cl-prof-note-input:focus { border-color: var(--accent); }
 .cl-prof-note-input::placeholder { color: var(--ink-faint); }
 .cl-prof-note-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .cl-prof-note-aud { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; max-width: 150px; }
+.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 150px; }
 .cl-prof-note-team { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
 .cl-prof-note-team input { margin: 0; accent-color: var(--ink); }
 .cl-prof-note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cl-pnote { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
 .cl-prof-note-list > .cl-pnote:first-child { border-top: none; padding-top: 2px; }
-.cl-prof-note-body { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: 11px; color: var(--ink-dim); min-height: 22px; }
+.cl-prof-note-body { font-size: var(--text-sm); line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: var(--text-xs); color: var(--ink-dim); min-height: 22px; }
 .cl-prof-note-meta > span + span:not(.cl-prof-note-more)::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
 .cl-prof-note-who { color: var(--ink-muted); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
 .cl-prof-note-for-who { color: var(--ink-muted); }
@@ -1972,7 +1972,7 @@
 .cl-pnote.is-suggested { border-top: none; padding: 6px 0 6px 10px; margin-bottom: 4px; box-shadow: inset 2px 0 0 var(--line-strong); }
 .cl-prof-note-decide { display: flex; gap: 6px; padding-top: 4px; }
 .cl-prof-note-all { align-self: flex-start; }
-.cl-prof-note-rule { font-size: 11px; }
+.cl-prof-note-rule { font-size: var(--text-xs); }
 /* A step (0007, amended): its Done box before its words; its day first on its line, in the warn ink once it is due;
    done, its words struck through in the dim ink, and the line says who did it and when. */
 .cl-prof-note-day { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
@@ -1994,7 +1994,7 @@
 .cl-rail-group + .cl-rail-group { margin-top: 10px; }
 .cl-rail-group-label { padding: 2px 10px 4px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 .cl-list-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
-.cl-list-action-text { font-size: 12.5px; color: var(--ink-dim); }
+.cl-list-action-text { font-size: var(--text-sm); color: var(--ink-dim); }
 /* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
 .cl-row-next { color: var(--ink-muted); font-weight: 500; }
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
@@ -2015,15 +2015,15 @@
 /* On dark paper 7% of the ink sat within a shade of a hovered row and the cursor's; 12% stands apart from both. */
 [data-theme="dark"] .clients { --pl-selected: oklch(from var(--ink) l c h / 0.12); }
 .cl-table tbody tr.selected { background: var(--pl-selected); }
-.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
+.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .cl-bulk { animation: none; } }
-.cl-bulk-count { font-size: 12.5px; color: var(--ink-dim); margin-right: 4px; }
+.cl-bulk-count { font-size: var(--text-sm); color: var(--ink-dim); margin-right: 4px; }
 /* The bar sits at the bottom, so its menus open upward, never under the fold. */
 .cl-bulk .more-menu { top: auto; bottom: calc(100% + 6px); }
 .cl-bulk-count b { color: var(--ink); }
 .cl-bulk-naming { display: inline-flex; align-items: center; gap: 6px; }
-.cl-bulk-naming input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
+.cl-bulk-naming input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
 .cl-bulk-naming input:focus { border-color: var(--accent); }
 
 /* ---- Import people (pages/people-import.jsx): the record kit's sheet. Its body is a file or pasted rows, the counts
@@ -2062,14 +2062,14 @@
 .cl-table th.cl-actions-head { width: 1%; }
 .cl-row-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
-.cl-row-act { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-dim); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; }
+.cl-row-act { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-dim); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; }
 .cl-row-act:hover { color: var(--ink); border-color: var(--line-strong); }
 .cl-table tbody tr.focused { background: var(--bg-hover); box-shadow: inset 2px 0 0 var(--accent); }
 /* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row
    paints no box-shadow, inside the row so the pinned cells do not cover it. */
 .cl-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
-.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-dim); background: var(--bg-raised); }
+.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
 /* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
 .cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The Columns menu: a check beside what shows; Person, which always shows, says so and does not press. */
@@ -2208,7 +2208,7 @@
 }
 
 /* One line above the table: the count, who needs a person, who was reached. */
-.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: 12.5px; color: var(--ink-dim); }
+.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .pl-standing-dot { color: var(--ink-faint); }
@@ -2276,7 +2276,7 @@
 }
 .cl-attn-avatar.glyph { color: var(--ink-faint); }
 .cl-attn-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); line-height: 1.3; }
+.cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-sm); font-weight: 500; color: var(--ink); line-height: 1.3; }
 .cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-meta { flex: none; font-size: 10.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* TWO lines, not one. This line is the thing a person decides from -- the
@@ -2303,7 +2303,7 @@
 .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .cl-attn-cta {
   align-self: center;
-  font-size: 11px; font-weight: 500;
+  font-size: var(--text-xs); font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -2338,7 +2338,7 @@
 .cl-row-reach { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
 .cl-row-reach .tabular { font-variant-numeric: tabular-nums; }
 .cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
 /* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
@@ -2347,7 +2347,7 @@
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
 /* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
 .cl-section-lead { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
-.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-section-lead:hover .cl-list-rename, .cl-list-rename:focus-visible { opacity: 1; }
 .cl-list-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
 @media (hover: none) { .cl-list-rename { opacity: 1; } }
@@ -2380,7 +2380,7 @@
 .pp-bar-field { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-dim); }
 .pp-bar-field:focus-within { border-color: var(--ink-faint); }
 .pp-bar-field .icon { flex: none; }
-.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.pp-bar-field input { flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--field-text-touch); outline: none; }
 .pp-bar-field input::placeholder { color: var(--ink-faint); }
 .pp-bar-field input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .pp-bar-clear { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-dim); cursor: pointer; }
@@ -2412,7 +2412,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pp-field { display: flex; flex-direction: column; gap: 6px; }
 .pp-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
 .pp-field-opt { color: var(--ink-dim); }
-.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--field-text-touch); }
 .pp-input:focus { outline: none; border-color: var(--ink-muted); box-shadow: 0 0 0 3px var(--bg-active); }
 .pp-input[aria-invalid="true"] { border-color: var(--danger); }
 .pp-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
@@ -2630,7 +2630,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-card.is-dragging { opacity: .4; }
 .pipe-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pipe-card-face { flex: none; width: 24px; height: 24px; font-size: 9px; }
-.pipe-card-name { min-width: 0; font-size: 12.5px; font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-card-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-service { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .pipe-card-value { color: var(--ink); }
@@ -2716,14 +2716,14 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-pass { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pipe-pass-ask { font-size: var(--text-sm); color: var(--ink); }
 .pipe-pass-rest { font-size: 12px; color: var(--ink-dim); }
-.pipe-peek-reach { margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px 14px; font-size: 12.5px; }
+.pipe-peek-reach { margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px 14px; font-size: var(--text-sm); }
 .pipe-peek-reach-row { display: contents; }
 .pipe-peek-reach-label { color: var(--ink-dim); }
 .pipe-peek-reach-what { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; }
 .pipe-peek-reach-words { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
 .pipe-peek-history { padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .pipe-peek-head { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-dim); }
-.pipe-peek-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.pipe-peek-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
 .pipe-peek-history-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ink-muted); }
 .pipe-peek-when { flex: none; color: var(--ink-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pipe-peek-bar { display: none; }

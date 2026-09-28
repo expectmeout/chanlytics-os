@@ -67,7 +67,7 @@ body {
   textarea,
   select,
   [contenteditable]:not([contenteditable="false"]) {
-    font-size: 16px !important;
+    font-size: var(--field-text-touch) !important;
   }
 }
 
@@ -507,7 +507,7 @@ html.in-app .auth-or {
   gap: 14px;
   background: var(--auth-surface);
   border: 1px solid var(--auth-line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
 }
 .yes-way-body {
@@ -546,7 +546,7 @@ html.in-app .auth-or {
   display: inline-block;
   background: #fff;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   line-height: 0;
 }
 .yes-qr-code svg {
@@ -563,7 +563,7 @@ html.in-app .auth-or {
   margin: 30px 0 0;
   padding: 18px 18px 18px 34px;
   border: 1px solid var(--auth-line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--auth-muted);
   font-size: 0.8rem;
 }
@@ -732,7 +732,7 @@ html.in-app .auth-or {
 .sign-sheet {
   background: #fff;
   color: #000;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: clamp(20px, 7%, 56px);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.3),
@@ -868,7 +868,7 @@ html.in-app .auth-or {
 .os-shell .card {
   background: var(--auth-surface);
   border: 1px solid var(--auth-line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 20px 24px;
   margin: 16px 0;
 }
@@ -880,7 +880,7 @@ html.in-app .auth-or {
 }
 .os-shell code {
   background: #0a100e;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   font-size: 0.85em;
 }
@@ -891,7 +891,7 @@ html.in-app .auth-or {
   background: none;
   border: 1px solid var(--auth-line);
   color: var(--auth-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 12px;
   cursor: pointer;
   font-size: 0.85rem;
