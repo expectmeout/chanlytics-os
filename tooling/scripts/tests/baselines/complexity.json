@@ -55,7 +55,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 181,
+    "lines": 178,
     "branches": 11,
     "depth": 1
   },

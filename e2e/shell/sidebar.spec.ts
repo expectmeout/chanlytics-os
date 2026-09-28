@@ -3,9 +3,9 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 
 /**
  * The sidebar's chrome on a real workspace: the account menu with who you
- * are and the theme, the workspace menu, the rail on ⌘B that survives a
- * reload, the shortcuts sheet on "?", and no floating pill anywhere. The
- * device's preferences are put back afterwards.
+ * are and the theme (and no look yet), the workspace menu, the rail on ⌘B
+ * that survives a reload, the shortcuts sheet on "?", and no floating pill
+ * anywhere. The device's preferences are put back afterwards.
  */
 test.describe("sidebar on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -33,6 +33,13 @@ test.describe("sidebar on a real workspace", () => {
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "light");
       await me.getByTestId("sb-theme-dark").click();
       await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "dark");
+      // The look travels as the theme does: Classic on a device that has chosen none, on the document and on the
+      // shell's root alike. The menu offers no Look until Glass is drawn (contracts LOOK_OFFERED, the interface kit's
+      // step 5.5, which turns this over with it).
+      await expect(page.locator("html")).toHaveAttribute("data-look", "classic");
+      await expect(page.locator(".app-root")).toHaveAttribute("data-look", "classic");
+      await expect(me.getByRole("radiogroup", { name: "Look" })).toHaveCount(0);
+      await expect(me.getByTestId("sb-look-glass")).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(me).toHaveCount(0);
 

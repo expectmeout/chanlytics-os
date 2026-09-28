@@ -11,6 +11,11 @@
  * (prefers-color-scheme), so they followed the PHONE while the page followed the member's preference, and the two
  * never had to agree. The script now paints them from the theme it resolved, and LegacyApp's paintThemeColor
  * repaints them on every change; both run here, against the one colour per theme contracts keeps.
+ *
+ * The look travels as the theme does (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.2): the same
+ * stored object's `look`, stamped as data-look by the same script before first paint, as lookPrefOf reads it (what
+ * loadPrefs keeps), so a `[data-look]` rule never flips after mount. Both attributes are run here, for every pairing
+ * a device could hold.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,8 +23,10 @@ import {
   themeBootScript,
   themePrefOf,
   resolveTheme,
+  lookPrefOf,
   DEVICE_PREFS_STORAGE,
   DEFAULT_THEME_PREF,
+  DEFAULT_LOOK_PREF,
   THEME_COLORS,
 } from "../../../../packages/contracts/src/shell/chrome.ts";
 import { paintThemeColor } from "../../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
@@ -32,8 +39,9 @@ const manifest = typeof manifestModule.default === "function" ? manifestModule.d
  * A document with a head, as the page ships it: the theme-color metas the markup declared, none by default beyond
  * the one the layout renders. `bars()` reads the head the way a browser does -- the first theme-color meta in tree
  * order -- and `metas()` is every answer to the same question, which is what the writers have to leave agreeing.
+ * `noHead` is a document with none at all, where writing a meta throws.
  */
-const fakeDoc = ({ markupMetas = [THEME_COLORS.dark] } = {}) => {
+const fakeDoc = ({ markupMetas = [THEME_COLORS.dark], noHead = false } = {}) => {
   const el = (name) => ({
     name,
     attrs: {},
@@ -55,12 +63,14 @@ const fakeDoc = ({ markupMetas = [THEME_COLORS.dark] } = {}) => {
     documentElement: { dataset: {}, setAttribute() {} },
     createElement: el,
     querySelectorAll: (sel) => (String(sel).includes("theme-color") ? metas() : []),
-    head: {
-      appendChild(node) {
-        head.push(node);
-        return node;
-      },
-    },
+    head: noHead
+      ? undefined
+      : {
+          appendChild(node) {
+            head.push(node);
+            return node;
+          },
+        },
   };
   return {
     doc,
@@ -69,9 +79,9 @@ const fakeDoc = ({ markupMetas = [THEME_COLORS.dark] } = {}) => {
   };
 };
 
-/** The script run in a window: what it stamped, what the bars ended up, or what it threw. */
-const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false, markupMetas }) => {
-  const { doc, bars, contents } = fakeDoc(markupMetas === undefined ? {} : { markupMetas });
+/** The script run in a window: the theme and the look it stamped, what the bars ended up, or what it threw. */
+const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false, markupMetas, noHead = false }) => {
+  const { doc, bars, contents } = fakeDoc({ ...(markupMetas === undefined ? {} : { markupMetas }), noHead });
   const localStorage = {
     getItem: () => {
       if (storageThrows) throw new Error("blocked");
@@ -88,7 +98,8 @@ const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false,
   } catch (e) {
     threw = e;
   }
-  return { theme: doc.documentElement.dataset.theme, bars: bars(), metas: contents(), threw };
+  const { theme, look } = doc.documentElement.dataset;
+  return { theme, look, bars: bars(), metas: contents(), threw };
 };
 
 /** What the app paints once mounted, from the same bytes: loadPrefs' parse, then the one rule. */
@@ -102,22 +113,47 @@ const app = (stored, systemDark) => {
   return resolveTheme(themePrefOf(pref), systemDark);
 };
 
-test("the script stamps what the app will paint, for everything this device could hold and both device settings", () => {
+/** The look the app keeps once mounted, from the same bytes: loadPrefs' parse, then lookPrefOf. */
+const appLook = (stored) => {
+  let pref;
+  try {
+    pref = { look: DEFAULT_LOOK_PREF, ...JSON.parse(stored || "{}") }.look;
+  } catch {
+    pref = DEFAULT_LOOK_PREF;
+  }
+  return lookPrefOf(pref);
+};
+
+/**
+ * Everything this device could hold under the name: each theme and each look this build knows, one it does not, a
+ * look in the wrong case or the wrong shape, and neither, in every pairing; then nothing at all, and bytes that are
+ * not a preferences object.
+ */
+const THEMES_HELD = ['"dark"', '"light"', '"system"', '"junk"', undefined];
+const LOOKS_HELD = ['"classic"', '"glass"', '"junk"', '"Glass"', "null", '["glass"]', undefined];
+const HELD = [
+  ...THEMES_HELD.flatMap((theme) =>
+    LOOKS_HELD.map((look) => {
+      const fields = [theme && `"theme":${theme}`, look && `"look":${look}`].filter(Boolean);
+      return `{${fields.join(",")}}`;
+    }),
+  ),
+  null,
+  "not json",
+  "null",
+  '"dark"',
+  '"glass"',
+];
+
+test("the script stamps the theme and the look the app will paint, for everything this device could hold and both device settings", () => {
+  assert.ok(HELD.includes('{"theme":"light","look":"glass"}') && HELD.includes("{}"), "every pairing, and neither");
   for (const systemDark of [false, true]) {
-    for (const stored of [
-      '{"theme":"dark"}',
-      '{"theme":"light"}',
-      '{"theme":"system"}',
-      "{}",
-      null,
-      '{"theme":"junk"}',
-      "not json",
-      "null",
-      '"dark"',
-    ]) {
-      const { theme, threw } = boot({ stored, systemDark });
-      assert.equal(threw, null, `${stored} on a ${systemDark ? "dark" : "light"} device throws nothing`);
-      assert.equal(theme, app(stored, systemDark), `${stored} on a ${systemDark ? "dark" : "light"} device`);
+    for (const stored of HELD) {
+      const where = `${stored} on a ${systemDark ? "dark" : "light"} device`;
+      const { theme, look, threw } = boot({ stored, systemDark });
+      assert.equal(threw, null, `${where} throws nothing`);
+      assert.equal(theme, app(stored, systemDark), `${where}: the theme`);
+      assert.equal(look, appLook(stored), `${where}: the look`);
     }
   }
 });
@@ -130,25 +166,63 @@ test("a device that has chosen nothing opens in the app's default, not its own s
   assert.equal(themePrefOf("system"), "system");
 });
 
-test("a storage that refuses, or a window with no matchMedia, still stamps a theme: the app's own, never a page with none", () => {
+test("the look is Classic until the device keeps another, and each attribute is read on its own: a value one does not know leaves the other standing", () => {
+  assert.equal(DEFAULT_LOOK_PREF, "classic", "the app as it is drawn today");
+  assert.equal(lookPrefOf(undefined), DEFAULT_LOOK_PREF);
+  assert.equal(lookPrefOf("junk"), DEFAULT_LOOK_PREF);
+  assert.equal(lookPrefOf("glass"), "glass");
+  const stamped = (stored) => {
+    const { theme, look } = boot({ stored, systemDark: false });
+    return { theme, look };
+  };
+  const theme = resolveTheme(DEFAULT_THEME_PREF, false);
+  assert.deepEqual(stamped(null), { theme, look: "classic" }, "a device that has chosen nothing");
+  assert.deepEqual(stamped('{"theme":"light","look":"glass"}'), { theme: "light", look: "glass" });
+  assert.deepEqual(stamped('{"theme":"junk","look":"glass"}'), { theme, look: "glass" }, "a theme it does not know");
+  assert.deepEqual(
+    stamped('{"theme":"light","look":"junk"}'),
+    { theme: "light", look: "classic" },
+    "a look it does not know",
+  );
+});
+
+test("a storage that refuses, or a window with no matchMedia, still stamps a theme and a look: the app's own, never a page with none", () => {
   const dark = resolveTheme(DEFAULT_THEME_PREF, true);
   assert.deepEqual(boot({ stored: null, systemDark: true, storageThrows: true }), {
     theme: dark,
+    look: DEFAULT_LOOK_PREF,
     bars: THEME_COLORS[dark],
     metas: [THEME_COLORS[dark]],
     threw: null,
   });
   assert.deepEqual(boot({ stored: '{"theme":"light"}', systemDark: false, noMatchMedia: true }), {
     theme: "light",
+    look: DEFAULT_LOOK_PREF,
     bars: THEME_COLORS.light,
     metas: [THEME_COLORS.light],
     threw: null,
   });
   assert.deepEqual(
-    boot({ stored: '{"theme":"system"}', systemDark: true, noMatchMedia: true }),
-    { theme: resolveTheme("system", false), bars: THEME_COLORS.light, metas: [THEME_COLORS.light], threw: null },
-    "no matchMedia reads as a light device, as the app's own useSystemDark does",
+    boot({ stored: '{"theme":"system","look":"glass"}', systemDark: true, noMatchMedia: true }),
+    {
+      theme: resolveTheme("system", false),
+      look: "glass",
+      bars: THEME_COLORS.light,
+      metas: [THEME_COLORS.light],
+      threw: null,
+    },
+    "no matchMedia reads as a light device, as the app's own useSystemDark does, and the look it keeps stands",
   );
+});
+
+test("a document with no head still wears the theme and the look: both are stamped before any meta is touched", () => {
+  const { theme, look, bars, threw } = boot({
+    stored: '{"theme":"light","look":"glass"}',
+    systemDark: true,
+    markupMetas: [],
+    noHead: true,
+  });
+  assert.deepEqual({ theme, look, bars, threw }, { theme: "light", look: "glass", bars: null, threw: null });
 });
 
 test("the script reads the preferences the app writes, under the same name", () => {
@@ -193,8 +267,8 @@ test("a light app on a dark phone gets light bars, and a dark app on a light pho
   assert.deepEqual(
     [boot({ stored: '{"theme":"light"}', systemDark: true }), boot({ stored: '{"theme":"dark"}', systemDark: false })],
     [
-      { theme: "light", bars: THEME_COLORS.light, metas: [THEME_COLORS.light], threw: null },
-      { theme: "dark", bars: THEME_COLORS.dark, metas: [THEME_COLORS.dark], threw: null },
+      { theme: "light", look: DEFAULT_LOOK_PREF, bars: THEME_COLORS.light, metas: [THEME_COLORS.light], threw: null },
+      { theme: "dark", look: DEFAULT_LOOK_PREF, bars: THEME_COLORS.dark, metas: [THEME_COLORS.dark], threw: null },
     ],
   );
 });
@@ -202,6 +276,7 @@ test("a light app on a dark phone gets light bars, and a dark app on a light pho
 test("a head with no theme-color of its own gets one, so the bars are never left on the browser's guess", () => {
   assert.deepEqual(boot({ stored: '{"theme":"light"}', systemDark: true, markupMetas: [] }), {
     theme: "light",
+    look: DEFAULT_LOOK_PREF,
     bars: THEME_COLORS.light,
     metas: [THEME_COLORS.light],
     threw: null,

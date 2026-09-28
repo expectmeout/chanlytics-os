@@ -57,7 +57,7 @@
   <!-- Foundations -->
   <script type="text/babel" src="components/icons.jsx?v=9"></script>
   <script type="text/babel" src="components/surface-tabs.jsx?v=11"></script>
-  <script type="text/babel" src="components/sidebar.jsx?v=27"></script>
+  <script type="text/babel" src="components/sidebar.jsx?v=28"></script>
   <script type="text/babel" src="components/shortcuts.jsx?v=2"></script>
   <script type="text/babel" src="components/ask-face.jsx?v=9"></script>
   <script type="text/babel" src="components/topbar.jsx?v=31"></script>
@@ -183,7 +183,7 @@
   <!-- Shell -->
   <script type="text/babel" src="pages/activity.jsx?v=8"></script>
   <script type="text/babel" src="pages/app-routes.jsx?v=4"></script>
-  <script type="text/babel" src="pages/app-shell.jsx?v=72"></script>
+  <script type="text/babel" src="pages/app-shell.jsx?v=73"></script>
 
   <!-- The mockup's own files (legacy/demo/, legacy-bridge/manifest-demo.ts): after every file above, as the app loads
        them in a session that declared itself a demo. A real workspace never loads them. -->
@@ -205,6 +205,7 @@
 
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
       "theme": "dark",
+      "look": "classic",
       "inboxDensity": "compact",
       "showInboxAgentRail": false
     }/*EDITMODE-END*/;
@@ -213,10 +214,13 @@
     // (#89) and its <script> tag outlived it, so this harness has been throwing
     // "useTweaks is not defined" on boot ever since. The two knobs it carried
     // that the shell still reads are defaults here; theme is a real control
-    // because a design pass needs to see both.
+    // because a design pass needs to see both. The look is stamped beside it,
+    // as the app stamps it, so a [data-look] rule draws here as it does there.
     function App() {
       const [theme, setTheme] = React.useState(TWEAK_DEFAULTS.theme);
+      const [look, setLook] = React.useState(TWEAK_DEFAULTS.look);
       useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+      useEffect(() => { document.documentElement.setAttribute("data-look", look); }, [look]);
       useEffect(() => {
         const onKey = (e) => {
           if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -231,6 +235,8 @@
         <ChanlyticsApp
           theme={theme}
           onTheme={setTheme}
+          look={look}
+          onLook={setLook}
           inboxDensity={TWEAK_DEFAULTS.inboxDensity}
           showInboxAgentRail={TWEAK_DEFAULTS.showInboxAgentRail}
         />

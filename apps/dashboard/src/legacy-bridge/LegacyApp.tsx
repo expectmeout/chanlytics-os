@@ -4,7 +4,7 @@
  * The Phase-A bridge (Blueprint §7): replaces Chanlytics.html's inline boot
  * script. Seeds globals, evaluates the ordered manifest, enforces the boot
  * gate, and renders ChanlyticsApp inside OUR React tree with the exact props
- * the original App wrapper passed. Prefs (theme/density/rail) live in
+ * the original App wrapper passed. Prefs (theme/look/density/rail) live in
  * localStorage — view preferences only. Surface flips run through the
  * SurfaceData runner; the pill reports live/degraded per surface, carries
  * sign-out, and flags stale deployments (version heartbeat).
@@ -14,11 +14,15 @@ import {
   resolveTheme,
   themePrefOf,
   DEFAULT_THEME_PREF,
+  lookPrefOf,
+  DEFAULT_LOOK_PREF,
   DEVICE_PREFS_STORAGE,
   isSidebarPref,
   FIRST_RUN_ROUTE,
   type PendingWorkspace,
+  type Theme,
   type ThemePref,
+  type LookPref,
   type SidebarPref,
 } from "@chanlytics/contracts";
 import { subscribeMessagesInserts } from "@chanlytics/db";
@@ -251,17 +255,19 @@ installSurfaceRegistry();
 
 interface Prefs {
   theme: ThemePref;
+  look: LookPref;
   sidebar: SidebarPref;
   inboxDensity: "compact" | "medium" | "rich";
   showInboxAgentRail: boolean;
 }
 const PREF_DEFAULTS: Prefs = {
   theme: DEFAULT_THEME_PREF,
+  look: DEFAULT_LOOK_PREF,
   sidebar: "open",
   inboxDensity: "medium",
   showInboxAgentRail: false,
 };
-// The document's head reads the theme from the same place before first paint (contracts themeBootScript).
+// The document's head reads the theme and the look from the same place before first paint (contracts themeBootScript).
 const PREFS_KEY = DEVICE_PREFS_STORAGE;
 
 /** This device's preferences, with anything unknown or stale replaced by the default. */
@@ -269,7 +275,12 @@ function loadPrefs(): Prefs {
   try {
     const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<Prefs>;
     const p = { ...PREF_DEFAULTS, ...stored };
-    return { ...p, theme: themePrefOf(p.theme), sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar };
+    return {
+      ...p,
+      theme: themePrefOf(p.theme),
+      look: lookPrefOf(p.look),
+      sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar,
+    };
   } catch {
     return PREF_DEFAULTS;
   }
@@ -290,10 +301,27 @@ function useSystemDark(): boolean {
   return dark;
 }
 
+/**
+ * The theme and the look on the document, each stamped again whenever it changes: what the head's script stamped
+ * before first paint (contracts themeBootScript). The browser's own bars go with the theme, so switching it moves them
+ * with the page instead of leaving the phone's address bar in the other one's paper.
+ */
+function useDocumentStamps(theme: Theme, look: LookPref): void {
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    paintThemeColor(document, theme);
+  }, [theme]);
+  useEffect(() => {
+    document.documentElement.setAttribute("data-look", look);
+  }, [look]);
+}
+
 type ChanlyticsAppComponent = React.ComponentType<{
   theme: string;
   themePref: string;
   onTheme: (v: string) => void;
+  look: string;
+  onLook: (v: string) => void;
   sidebar: string;
   onSidebar: (v: string) => void;
   inboxDensity: string;
@@ -340,13 +368,8 @@ export default function LegacyApp() {
     });
   }, []);
 
-  // Theme stamp + viewport scoping, exactly what the inline boot script did —
-  // the browser's own bars included, so switching the theme moves them with the
-  // page instead of leaving the phone's address bar in the other one's paper.
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    paintThemeColor(document, theme);
-  }, [theme]);
+  useDocumentStamps(theme, prefs.look);
+  // Viewport scoping, exactly what the inline boot script did.
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");
     return () => document.documentElement.classList.remove("legacy-on");
@@ -473,6 +496,8 @@ export default function LegacyApp() {
         theme={theme}
         themePref={prefs.theme}
         onTheme={(v) => setPref("theme", themePrefOf(v))}
+        look={prefs.look}
+        onLook={(v) => setPref("look", lookPrefOf(v))}
         sidebar={prefs.sidebar}
         onSidebar={(v) => setPref("sidebar", isSidebarPref(v) ? v : PREF_DEFAULTS.sidebar)}
         inboxDensity={prefs.inboxDensity}
