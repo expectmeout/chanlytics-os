@@ -762,6 +762,7 @@ declare function speedOf(replies: readonly {
 };
 /** A caller's mood as the voice provider reads it ("Positive", "Neutral", "Negative", "Unknown"), as a status tone. */
 declare function callMoodTone(sentiment: string): "" | "ok" | "danger";
+/** The Reports page's view model: a builder per part, over the facts counted once. */
 declare function toReportVM(dto: ReportDto): ReportVM;
 
 /**

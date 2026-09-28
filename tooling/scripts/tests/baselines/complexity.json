@@ -859,11 +859,6 @@
     "branches": 84,
     "depth": 0
   },
-  "packages/contracts/src/reports/reports.ts::toReportVM#1": {
-    "lines": 237,
-    "branches": 37,
-    "depth": 0
-  },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
     "lines": 66,
     "branches": 36,
