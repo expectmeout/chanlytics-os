@@ -63,8 +63,9 @@ export interface Chain {
   /** The answer row the replay ends on: the next turn's `after`. */
   after: string;
   /**
-   * What happened since (D8): each outcome recorded on the chain's cards that no turn of it told, oldest first -- told
-   * by what each live turn kept (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
+   * What happened since (D8): each outcome recorded on the chain's cards -- every card of the thread's after a rebuild
+   * that kept what its lines told (chainFrom) -- that no turn of it told, oldest first: told by what each turn kept
+   * (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
    */
   since: CardOutcome[];
 }
@@ -316,7 +317,7 @@ function keptOf(v: unknown): Kept | null {
 /**
  * The chain as the model was sent it (D1–D3), from the raws of `ids`, newest first, as read: each one whole, the newest
  * begun under 4½ minutes ago, each live one naming the answer before it (`after`: two tabs interleaving, or a row
- * scrubbed mid-chain, break it), the oldest a base, which keeps the words history it was asked with. Put back together
+ * scrubbed mid-chain, break it), the oldest a base, which keeps the history it was asked with. Put back together
  * oldest first -- the base's history, then each turn's question, rounds and final -- with every marker a request carried
  * taken off, and held to LIVE_MESSAGES. What happened since is read off the cards on `rows`: every row's when the base
  * is a rebuild that kept what its lines said of them (`told`, PR 5.5), else the chain's own -- a words base from before

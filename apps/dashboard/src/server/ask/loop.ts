@@ -98,7 +98,7 @@ export interface TurnInput {
   language: AskLanguage;
   scope: AskScope | null;
   surface: string | null;
-  /** Prior turns of this thread, oldest first, as plain text. */
+  /** Prior turns of this thread, oldest first, as a cold turn is asked with them: each answer one line (memory.ts). */
   history: Array<{ role: "user" | "assistant"; text: string }>;
   /** The thread's warm turns as the model was sent them (memory.ts threadForTurn); none or null, the turn is cold. */
   chain?: Chain | null;
@@ -366,9 +366,9 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         }
       : { effort: model.effort },
   });
-  // The earlier turns (memory.ts, the Phase 5 plan, D1–D3): replayed as the model was sent them while the thread is
-  // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else words,
-  // the question after them (bp3 on the page's last block).
+  // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
+  // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
+  // rebuilt history, each answer one line, the question after it (bp3 on the page's last block).
   const cold = () => {
     const words = sayWords(false, dataDropped);
     const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
