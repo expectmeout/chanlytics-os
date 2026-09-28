@@ -96,7 +96,8 @@ mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
 pipeline board, the shared report viewer) stay in
 the tree and hidden from every real workspace, by decision; their files, the
 seeded twin of each real page and the seeds only they read live under
-`src/legacy/demo/`. The mockup's own
+`src/legacy/demo/`, listed by `src/legacy-bridge/manifest-demo.ts`, which the
+app loads only in a declared demo session. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
 **`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does

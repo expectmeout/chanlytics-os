@@ -39,7 +39,7 @@ const BC_SCHED_SEED = [
 
 const bcMoney = (s) => parseInt(String(s).replace(/[^0-9]/g, ""), 10) || 0;
 
-const BroadcastsPage = ({ initialSegment = null }) => {
+const BroadcastsSeed = ({ initialSegment = null }) => {
   const targets = React.useMemo(bcTargets, []);
   const [seg, setSeg] = React.useState(() => targets.some((t) => t.id === initialSegment) ? initialSegment : "lapsed-60");
   React.useEffect(() => {
@@ -393,5 +393,6 @@ const BroadcastsPage = ({ initialSegment = null }) => {
   );
 };
 
-// A real workspace renders its broadcasts (broadcasts-real.jsx); the seeded page keeps the demo.
-window.BroadcastsSeed = BroadcastsPage;
+// A real workspace renders its broadcasts (pages/broadcasts.jsx); the seeded page keeps the demo, drawn by that page
+// where the bridge has not fed it.
+window.BroadcastsSeed = BroadcastsSeed;
