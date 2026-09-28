@@ -6076,7 +6076,7 @@ test("the chain (the Phase 5 plan, D1, D3): each live turn names the answer it r
   );
 });
 
-test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is live and 49 cold; round one's request at 450,000 characters as sent is live, and at 450,001 cold", async () => {
+test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is live and 49 cold; round one's request at 360,000 characters as sent is live, and at 360,001 cold -- room under the edge's 700,000 for two rounds of four reads at their caps", async () => {
   // A chain of one turn, kept as a base with a words history of `history` messages and a question `pad` longer.
   const probe = await runAskTurn(turn(ctxFor()).input, ports(sentAs([ROUND([answer("x")])]).round));
   const chainOf = async ({ history = 0, pad = 0 } = {}) => {
@@ -6105,7 +6105,7 @@ test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is li
   );
   assert.equal((await chainOf({ history: 47 })).r.shape.replay, "rebuilt", "49 replayed: cold");
 
-  const LIMIT = 450_000;
+  const LIMIT = 360_000;
   const sized = await chainOf({ pad: 1_000 });
   const size = JSON.stringify(sized.s.requests[0]).length;
   const atLimit = await chainOf({ pad: 1_000 + LIMIT - size });

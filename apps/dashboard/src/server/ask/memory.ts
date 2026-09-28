@@ -39,12 +39,15 @@ const HISTORY_CHARS = 1200;
 const LIVE_WINDOW_MS = 4.5 * MIN_MS;
 /**
  * A replay's bound (D3): its turns, the base's included; its messages, under the edge's sixty with this turn's rounds;
- * and round one's request, in characters as sent, under the edge's 700,000 with room for this turn's own rounds -- one
- * turn at the caps kept 407,890 characters and sent its last request at 461,254 (PR 5.3).
+ * and round one's request, in characters as sent. A later round only appends, so round one must leave room under the
+ * edge's 700,000 (its body cap, a 413 past it) for the turn's own rounds: the heaviest measured is PR 5.3's caps
+ * turn, two rounds of four reads each at its tool's cap, whose rounds are 333,141 characters (ask-turn.test.mjs, "the
+ * raw at the caps"). 700,000 - 333,141 = 366,859, less the POST's envelope around the request and a margin: 360,000.
+ * Nothing caps a round's parallel calls, so the edge's 700,000 stays the hard stop for any turn, live or cold.
  */
 const LIVE_TURNS = 12;
 const LIVE_MESSAGES = 48;
-const LIVE_REQUEST_CHARS = 450_000;
+const LIVE_REQUEST_CHARS = 360_000;
 
 /**
  * A warm thread's earlier turns as the model was sent them, from the nearest base on (the Phase 5 plan, D1–D3): what
