@@ -789,16 +789,6 @@
     "branches": 49,
     "depth": 3
   },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM#1": {
-    "lines": 229,
-    "branches": 29,
-    "depth": 0
-  },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM/map(fn)#3": {
-    "lines": 70,
-    "branches": 55,
-    "depth": 1
-  },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 186,
     "branches": 53,
