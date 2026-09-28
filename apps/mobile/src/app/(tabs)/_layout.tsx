@@ -8,7 +8,7 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ComponentProps } from "react";
 import { useColorScheme } from "react-native";
-import { THEME_INK } from "@chanlytics/contracts";
+import { THEME_INK } from "@chanlytics/contracts/phone-app";
 import { useShell, type Tab } from "@/shell/state";
 import { front } from "@/shell/front";
 

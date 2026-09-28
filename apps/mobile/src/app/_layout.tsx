@@ -23,7 +23,7 @@ import { recallAndKeep } from "@/shell/remembered";
 import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
 import { Update } from "@/shell/Update";
 import * as Application from "expo-application";
-import { THEME_COLORS } from "@chanlytics/contracts";
+import { THEME_COLORS } from "@chanlytics/contracts/phone-app";
 import { SITE_ORIGIN } from "@/site";
 import { Observe, ObserveRoot } from "expo-observe";
 import { front } from "@/shell/front";
