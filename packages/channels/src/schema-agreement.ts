@@ -4,7 +4,7 @@
  * stops compiling, a list here and its column disagree.
  */
 import type { Exactly, Holds, SchemaSet, Within } from "@chanlytics/contracts";
-import type { A2P_STEPS } from "./a2p";
+import type { A2P_STEPS } from "./a2p/steps";
 import type { LineProviderName } from "./lines";
 
 export type ChannelsSchemaAgreement = [

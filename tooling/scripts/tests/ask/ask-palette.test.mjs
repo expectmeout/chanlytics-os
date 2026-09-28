@@ -2346,3 +2346,139 @@ test("a page is found by the name it goes by AND by the one it used to: 'templat
   // And an alias is not a wildcard: a word nothing answers to still finds nothing.
   assert.deepEqual(askJump("zzq", ASK_PAGES), []);
 });
+
+test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope the chip shows, else its conversation's own, which then holds it; the chip's × sends none next; a new conversation takes the chip's or none; and no send moves the chip, a resumed twin's included", async () => {
+  const hash = globalThis.window.location.hash;
+  const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1";
+  const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b2";
+  const row = (id) => ({ kind: "thread", id, label: "this thread" });
+  // An older conversation whose first question is asked again (the twin), kept with a scope of its own.
+  const TWIN = { ...TH(1), title: "Where did we leave it?", scope: { kind: "thread", id: ROW1, label: "Rosa" } };
+  const calls = ask([TWIN]);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: TH(5).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
+  };
+  /** The Line closed and opened again over a page, as a person does: the chip is that page's scope. */
+  const over = async (route) => {
+    await closes();
+    globalThis.window.location.hash = route;
+    return opens();
+  };
+  const asked = async (tree, words) => {
+    typed(tree, words);
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    return later(Palette, OPEN);
+  };
+  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
+  const sent = () => calls.inputs.at(-1).scope;
+  try {
+    render(Palette, CLOSED);
+    let tree = await asked(await over(`#/inbox/th-${ROW1}`), "What did they ask for?");
+    assert.deepEqual(sent(), row(ROW1), "(d) a new conversation takes the chip's scope");
+    tree = await asked(await over(`#/inbox/th-${ROW2}`), "And this one?");
+    assert.deepEqual(
+      sent(),
+      row(ROW2),
+      "(b) REGRESSION: a follow-up asked over another row went with the conversation's first scope",
+    );
+    tree = await asked(await over("#/today"), "And both of them?");
+    assert.deepEqual(sent(), row(ROW2), "(c) no chip: the conversation's own, which its last turn gave it");
+    assert.equal(chip(tree), null, "and the send moved no chip: Today has none");
+    tree = await over(`#/inbox/th-${ROW1}`);
+    assert.equal(chip(tree), "this thread", "the chip is the row's again");
+    press(find(byTestId(tree, "ask-scope"), (n) => n.type === "button"));
+    tree = await later(Palette, OPEN);
+    assert.equal(chip(tree), null, "the × empties the chip");
+    tree = await asked(tree, "Anything else?");
+    assert.equal(sent(), null, "(a) a cleared chip sends none, said as null, so the server clears the thread's");
+    tree = await asked(await over("#/today"), "And now?");
+    assert.equal(sent(), null, "(c) and the conversation holds none after it");
+    press(byTestId(tree, "ask-clear"));
+    tree = await asked(await later(Palette, OPEN), "What is new?");
+    assert.equal(sent(), null, "(d) a new conversation with no chip: none");
+    // The twin resumed over another row: asked with the chip it was typed under, and the chip stays that one.
+    press(byTestId(tree, "ask-clear"));
+    tree = await asked(await over(`#/inbox/th-${ROW2}`), TWIN.title);
+    assert.deepEqual([calls.opened.at(-1), sent()], [TWIN.id, row(ROW2)], "the twin resumed, with the chip's scope");
+    assert.equal(chip(tree), "this thread", "REGRESSION: the twin's stored scope took the chip the question went with");
+    tree = await asked(tree, "And after that?");
+    assert.deepEqual(sent(), row(ROW2), "so the next question goes with it too");
+    assert.deepEqual(
+      calls.inputs.map((i) => i.text),
+      [
+        "What did they ask for?",
+        "And this one?",
+        "And both of them?",
+        "Anything else?",
+        "And now?",
+        "What is new?",
+        TWIN.title,
+        "And after that?",
+      ],
+    );
+    await closes();
+  } finally {
+    globalThis.window.location.hash = hash;
+  }
+});
+
+test("a question the shell seeds as it opens the Line goes with the chip that opening shows, never the one the last opening showed: over a page with no row, its conversation's own; over a row, that row", async () => {
+  const hash = globalThis.window.location.hash;
+  const calls = ask([]);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: TH(5).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
+  };
+  const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000c1";
+  const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000c2";
+  const row = (id) => ({ kind: "thread", id, label: "this thread" });
+  const over = async (route) => {
+    await closes();
+    globalThis.window.location.hash = route;
+    return opens();
+  };
+  /** The shell opening the Line over a page and seeding a question in the same moment (askAbout({ prompt })). */
+  const seeded = async (route, prompt) => {
+    await closes();
+    globalThis.window.location.hash = route;
+    sent("ask:seed", { prompt });
+    return opens();
+  };
+  const chip = (tree) => (byTestId(tree, "ask-scope") ? textOf(byTestId(tree, "ask-scope")) : null);
+  const last = () => calls.inputs.at(-1);
+  try {
+    render(Palette, CLOSED);
+    let tree = await over(`#/inbox/th-${ROW1}`);
+    typed(tree, "What did they ask for?");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    await later(Palette, OPEN);
+    assert.deepEqual(last().scope, row(ROW1), "the conversation begins on the first row");
+    // Opened over the second row and closed unasked: that opening's chip was the second row's; the conversation's is
+    // still the first's. Then Today's "Ask why" (no row) opens the Line with its question.
+    await over(`#/inbox/th-${ROW2}`);
+    tree = await seeded("#/today", "Why did that one leak?");
+    assert.deepEqual(
+      [last().text, last().scope],
+      ["Why did that one leak?", row(ROW1)],
+      "REGRESSION: a question seeded over Today went with the chip the last opening showed, the second row's",
+    );
+    assert.equal(chip(tree), null, "Today opens with no chip");
+    // Opened over the first row and closed unasked; then a question seeded over the second row's own page.
+    await over(`#/inbox/th-${ROW1}`);
+    tree = await seeded(`#/inbox/th-${ROW2}`, "And this one?");
+    assert.deepEqual(
+      [last().text, last().scope],
+      ["And this one?", row(ROW2)],
+      "a question seeded over a row goes with that row, never the chip before it",
+    );
+    assert.equal(chip(tree), "this thread", "the chip the question went with");
+    await closes();
+  } finally {
+    globalThis.window.location.hash = hash;
+  }
+});

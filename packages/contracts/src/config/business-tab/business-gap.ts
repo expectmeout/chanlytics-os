@@ -2,7 +2,7 @@
  * The one fact most worth adding, with the row that adds it (businessGap), and what the booking link's row says
  * with nothing in it. The services, whose absence the gap line names, are services-words.ts.
  */
-import { bookingLinkOptional } from "../../deals/deals";
+import { bookingLinkOptional } from "../../deals/sells-by";
 import { offersBookingLink } from "../no-booking-link";
 
 /**

@@ -1,7 +1,7 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 227,
-    "branches": 47,
+    "lines": 215,
+    "branches": 40,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
@@ -614,7 +614,7 @@
     "branches": 50,
     "depth": 4
   },
-  "apps/dashboard/src/server/calendar/calendar.ts::calendarSources#1": {
+  "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
     "lines": 114,
     "branches": 36,
     "depth": 2
@@ -714,7 +714,7 @@
     "branches": 54,
     "depth": 8
   },
-  "apps/edge/lib/google/google.ts::syncProfile#1": {
+  "apps/edge/lib/google/profile-sync.ts::syncProfile#1": {
     "lines": 145,
     "branches": 31,
     "depth": 2
@@ -724,17 +724,17 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p.ts::campaignFactsFor#1": {
+  "apps/edge/lib/lines/a2p-campaign-facts.ts::campaignFactsFor#1": {
     "lines": 221,
     "branches": 12,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p.ts::registerLine#1": {
+  "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
     "lines": 215,
     "branches": 26,
     "depth": 1
   },
-  "apps/edge/lib/lines/a2p.ts::syncRegistration#1": {
+  "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
     "lines": 169,
     "branches": 34,
     "depth": 2
@@ -854,12 +854,12 @@
     "branches": 53,
     "depth": 2
   },
-  "packages/contracts/src/deals/deal-sheet.ts::dealSheetBody#1": {
+  "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {
     "lines": 73,
     "branches": 55,
     "depth": 3
   },
-  "packages/contracts/src/deals/deal-sheet.ts::dealSheetFor#1": {
+  "packages/contracts/src/deals/sheet/deal-sheet.ts::dealSheetFor#1": {
     "lines": 103,
     "branches": 69,
     "depth": 0

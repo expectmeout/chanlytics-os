@@ -5,7 +5,7 @@
 import { audienceMembers } from "../broadcasts/broadcasts";
 import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
 import { purposeOfPlaybook } from "../consent/consent";
-import type { DealPaceVM } from "../deals/deals";
+import type { DealPaceVM } from "../deals/deal-waits";
 import { GET_YES_ROUTE, type PersonRowVM, saidYesTo, saidYesWords, whyNotReceive } from "../people/people";
 import { breathHolds, followUpIsFor, followUpNames } from "./playbook-follow-ups";
 import { localDate } from "./playbook-schedule";

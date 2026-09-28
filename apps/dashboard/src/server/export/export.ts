@@ -10,7 +10,7 @@
  * Times are written in the business's own zone, once, in the header, so a
  * file read months later still says which clock it used.
  */
-import { csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
+import { callLength, csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
 interface ExportOpts {
@@ -129,7 +129,8 @@ export function transcriptText(
 
 /**
  * "2:05" from a count of SECONDS (a transcript turn's start), floored, "--:--" for none: the file's own, since
- * contracts' mmss takes milliseconds and rounds.
+ * contracts' mmss takes milliseconds and rounds. A turn's start is not a call's length: that is callLength's, the
+ * call card's rule.
  */
 function mmssFromSeconds(seconds: number | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--:--";
@@ -143,7 +144,8 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   const who = named !== "Unknown" ? named : (call.from_e164 ?? "Unknown caller");
   const phone = call.contact?.phone_e164 ?? call.from_e164;
   const at = opts.exportedAt ?? new Date();
-  const dur = call.duration_ms ? mmssFromSeconds(call.duration_ms / 1000) : null;
+  // The call's length as the call card says it (contracts callLength): rounded to the second, none for no length.
+  const dur = callLength(call.duration_ms);
   const head = [
     `Phone call with ${who}${phone && phone !== who ? ` (${phone})` : ""}`,
     `${opts.business} · ${call.direction === "outbound" ? "Outbound" : "Inbound"} call · ${stamp(call.started_at, opts.tz) || "time unknown"}${dur ? ` · ${dur}` : ""} · exported ${stamp(at.toISOString(), opts.tz)} · times in ${opts.tz}`,

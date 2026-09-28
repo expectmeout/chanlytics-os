@@ -72,7 +72,7 @@ export interface TemplateDraftInput {
    * booking link. STATIC on purpose: a button whose URL takes a value needs a
    * parameter at send time, and `sendTemplate` puts the body on the wire and
    * nothing else, so such a template is refused by Meta for every recipient
-   * (template-library.ts templateBlocked). A fixed link needs no parameter, so
+   * (template-parts.ts templateBlocked). A fixed link needs no parameter, so
    * this one sends exactly as it is written.
    */
   button?: { text: string; url: string } | null;
