@@ -239,6 +239,30 @@ menu is an `escape` `MoreMenu`, which closes on any captured scroll event
 being clicked closes it and the item is never there -- rare, likelier on the
 harness because its page is slower, and the nightly can hit it too.
 
+### Prove a style change
+
+A change that must not move anything on screen (a literal that becomes its token, a rule that moves into the kit, a
+class a page trades for the kit's) is proven by recording the pages before it and after it and comparing the two
+(`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.5):
+
+```bash
+node tooling/scripts/checks/style-equality.mjs record ../before.json   # on the base, before the change
+node tooling/scripts/checks/style-equality.mjs record ../after.json    # with the change in the working tree
+node tooling/scripts/checks/style-equality.mjs compare ../before.json ../after.json
+node tooling/scripts/checks/style-equality.mjs self-test               # two recordings agree, a planted token does not
+```
+
+`record` starts the harness above for each of its three records at one fixed moment, and opens each route at 1440 by
+900 and at a phone's 390 by 844 with a coarse pointer, dark and light, with the clock fixed and motion stopped. It
+writes every element's box and computed style (colours, borders, radii, shadows, filters, type, padding), each
+`::before` and `::after` that draws included. A box may land half a pixel from where it was and still be the same box;
+every style value is compared exactly. `compare` names the first differences by page, element and property and exits
+1 when there are any. A recording takes several minutes and stays out of the repository; the pull request says what
+was compared and that it was equal.
+
+It records what the harness draws, so a surface the harness does not serve is recorded as it waits, and a change to
+such a surface alone is proven in the running app instead.
+
 ## What CI proves
 
 | Workflow                          | On                                                    | Proves                                                                                                                                                                                                 |
