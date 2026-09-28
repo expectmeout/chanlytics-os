@@ -2678,13 +2678,14 @@ declare function isThreadUnknown(s: ThreadState): boolean;
 /**
  * Everything answerInbound reaches outside itself, as one object.
  *
- * The verb is the customer path: nine hundred lines of decisions, most of them
- * pure steps (./steps.ts), joined to the world by a dozen modules -- the
- * database, the memory, the tenant runtime, the sink and the sender, the
- * alerts, the pager, the model. On the edge those were module imports, which
- * is why no test could run the handler and fifty source reads pinned its text
- * instead; here they are named ports, and the adapter that knows the tables,
- * the provider and the environment is apps/edge/lib/whatsapp/ports.ts.
+ * The verb is the customer path: an order of phases (./answer.ts), each a
+ * module beside it, their decisions most of them pure steps (./steps.ts),
+ * joined to the world by a dozen modules -- the database, the memory, the
+ * tenant runtime, the sink and the sender, the alerts, the pager, the model.
+ * On the edge those were module imports, which is why no test could run the
+ * handler and fifty source reads pinned its text instead; here they are named
+ * ports, and the adapter that knows the tables, the provider and the
+ * environment is apps/edge/lib/whatsapp/ports.ts.
  *
  * Every member was `typeof someEdgeModule` there. Written out here because a
  * verb may not import the edge: the signature is the contract, copied from the

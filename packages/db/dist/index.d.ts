@@ -8262,6 +8262,8 @@ interface ReachOutStepRow {
     signed_by: string | null;
     include_unconfirmed: boolean | null;
     template_id: string | null;
+    /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
+    hand: unknown;
     run_hour: number;
     last_run_for: string | null;
     created_at: string;
