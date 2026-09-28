@@ -32,6 +32,8 @@ import {
   resolveContext,
   secondScope,
   secondTurn,
+  turnShapes,
+  usageRows,
 } from "../../eval-ask-context.mjs";
 
 const { surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
@@ -684,6 +686,76 @@ test("a put back that fails says what to put back by hand: someone saved since, 
   const unread = doors({ hold: { "GET /api/v1/settings": [{ status: 503, message: "Try again." }] } });
   const c = await approveBetween(unread.io, approved);
   assert.deepEqual([c.ok, c.why, c.approval], [false, "GET settings 503: Try again.", null]);
+});
+
+/* ---- what a run cost, turn by turn ---- */
+
+/** PostgREST over rows in memory, as the service role reads it: a thousand rows at most, whatever the limit says. */
+function postgrest(tables) {
+  const paths = [];
+  const rest = async (p) => {
+    paths.push(p);
+    const u = new URL(`https://db.example.com/rest/v1/${p}`);
+    const rows = tables[u.pathname.split("/").pop()] ?? [];
+    const offset = Number(u.searchParams.get("offset") ?? 0);
+    const limit = Math.min(Number(u.searchParams.get("limit") ?? 1000), 1000);
+    const ids = u.searchParams
+      .get("id")
+      ?.replace(/^in\.\(|\)$/g, "")
+      .split(",");
+    return (ids ? rows.filter((r) => ids.includes(r.id)) : rows).slice(offset, offset + limit);
+  };
+  return { rest, paths };
+}
+
+test("the usage rows are read past PostgREST's thousand, a page at a time on a whole order, and only Ask's", async () => {
+  const round = (i, purpose) => ({ data: { model: "claude-opus-5-5", input_tokens: i, output_tokens: 1, purpose } });
+  const events = [
+    ...Array.from({ length: 2400 }, (_, i) => round(i, "ask")),
+    ...Array.from({ length: 50 }, (_, i) => round(i, "brain")),
+  ];
+  const db = postgrest({ events });
+  const rows = await usageRows(db.rest, "T", "2026-09-27T09:00:00.000Z");
+  assert.equal(rows.length, 2400, "every round of the run, where one read stopped at a thousand");
+  assert.ok(rows.every((d) => d.purpose === "ask"));
+  assert.deepEqual(
+    db.paths.map((p) => new URL(`https://x/${p}`).searchParams.get("offset")),
+    ["0", "1000", "2000"],
+  );
+  for (const p of db.paths) {
+    assert.match(
+      p,
+      /^events\?tenant_id=eq\.T&kind=eq\.usage\.ask_tokens&created_at=gte\.2026-09-27T09%3A00%3A00\.000Z/,
+    );
+    assert.match(p, /&select=data&order=created_at\.asc,id\.asc&offset=\d+&limit=1000$/, "the id breaks a tie");
+  }
+});
+
+test("each answered turn's stored shape is read by its message id, selecting only content->shape", async () => {
+  const shape = (hit) => ({
+    tokens: { input: 10, cache_read: 90, cache_creation: 0, output: 5 },
+    cache_hit: hit,
+    follow_up: hit > 0,
+    since_last_ms: hit > 0 ? 1200 : null,
+    rounds: 1,
+    warm: "hit",
+  });
+  const ids = Array.from({ length: 120 }, (_, i) => U(500 + i));
+  const rows = ids.map((id, i) => ({ id, shape: i === 7 ? null : shape(i % 2 ? 0.9 : 0) }));
+  rows[3].shape.replay = "live";
+  const db = postgrest({ ask_messages: rows });
+  const got = await turnShapes(db.rest, [...ids, "unsaved-1735", ids[0]]);
+  assert.equal(got.size, 119, "a row with no shape has none; an unsaved turn is never asked for");
+  assert.deepEqual(got.get(ids[1]), {
+    tokens: { input: 10, cache_read: 90, cache_creation: 0, output: 5 },
+    cache_hit: 0.9,
+    follow_up: true,
+    since_last_ms: 1200,
+  });
+  assert.equal(got.get(ids[3]).replay, "live", "the history's kind, once PR 5.4 records it");
+  assert.equal(db.paths.length, 3, "fifty ids a read: a longer in.() list is a URI PostgREST refuses");
+  for (const p of db.paths) assert.match(p, /^ask_messages\?id=in\.\([0-9a-f,-]+\)&select=id,shape:content->shape$/);
+  assert.deepEqual(await turnShapes(db.rest, []), new Map());
 });
 
 test("a turn's lines are read across chunks as the bridge reads them, and a torn line is skipped, not the turn", () => {

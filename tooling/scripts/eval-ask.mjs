@@ -16,7 +16,9 @@
  * and reads what the run cost from Ask's own usage rows (usage.ask_tokens,
  * one per model round, written by the edge): the tokens, the dollars per
  * answered turn at the models' list prices, the rounds that stopped at the
- * cap, and which model answered (the model gate, spec 8.3).
+ * cap, and which model answered (the model gate, spec 8.3). The usage rows
+ * name no turn, so each answered turn's row keeps its own stored shape too:
+ * its tokens, its cache hit, whether it followed another and how long after.
  *
  * A case may carry the page it is asked on (`context`, eval-ask-context.mjs): its rows are read through the GETs the
  * page makes, once, before a turn is spent; the page is warmed (POST ask/warm) and rides with the question as the
@@ -68,6 +70,8 @@ import {
   resolveContext,
   secondScope,
   secondTurn,
+  turnShapes,
+  usageRows,
 } from "./eval-ask-context.mjs";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
@@ -148,15 +152,6 @@ async function workspaceOf(userId) {
   const rows = await rest(`memberships?user_id=eq.${userId}&select=tenant_id`);
   if (rows.length !== 1) throw new Error(`${EMAIL} belongs to ${rows.length} workspaces; the usage rows need one`);
   return rows[0].tenant_id;
-}
-
-/** Ask's usage rows for the workspace since `since`, oldest first: one per model round, as the edge recorded it. */
-async function usageSince(tenantId, since) {
-  const rows = await rest(
-    `events?tenant_id=eq.${tenantId}&kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}` +
-      `&select=data&order=created_at.asc&limit=2000`,
-  );
-  return rows.map((r) => r.data ?? {}).filter((d) => !d.purpose || d.purpose === "ask");
 }
 
 /** What the day's budget counts (ask-gateway.ts askTokensLast24h): uncached input plus output. */
@@ -424,7 +419,7 @@ const cookie = cookieHeader(session);
 // The budget before a case is asked: a run that starts near the cap ends in a wall of BUDGET refusals that say
 // nothing about the model (ask-gateway.ts refuses at ASK_TOKENS_DAY over the last day).
 const tenantId = await workspaceOf(session.user.id);
-const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
+const usedToday = budgetTokens(await usageRows(rest, tenantId, new Date(Date.now() - DAY_MS).toISOString()));
 // The pages' rows, read once through the GETs the pages make; each turn builds its page from them at its own clock.
 const answers = await readGets(cookie, tenantId, neededGets(cases));
 let drawn;
@@ -656,7 +651,18 @@ const pairs = results
 const pairsHeld = pairs.filter(([one, two]) => one?.pass && two.pass).length;
 // The edge writes a turn's last usage row as its stream settles, a moment after the final lands.
 await new Promise((res) => setTimeout(res, 5_000));
-const usage = summarizeUsage(await usageSince(tenantId, startedAt), results.filter((r) => r.message).length);
+const usage = summarizeUsage(await usageRows(rest, tenantId, startedAt), results.filter((r) => r.message).length);
+// Each answered turn's own cost and memory, from its stored shape (the usage rows name no turn): a second turn's cache
+// hit is what its first left it. A read that fails leaves the rows without, and says so.
+let shapesUnread = null;
+const shapes = await turnShapes(
+  rest,
+  answered.map((r) => r.message.id),
+).catch((e) => {
+  shapesUnread = e instanceof Error ? e.message : String(e);
+  return new Map();
+});
+for (const r of answered) r.shape = shapes.get(r.message.id) ?? null;
 const reported = results.reduce((s, r) => s + (r.rounds ?? 0), 0);
 const dollars = (n) => (n === null ? "unpriced" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
 const interval = (k, n) => {
@@ -670,7 +676,8 @@ console.log(
     (pairs.length ? `\n  two-turn cases held on both turns: ${pairsHeld}/${pairs.length}` : "") +
     `\n  model ${Object.keys(usage.byModel).join("+") || "?"} · ${dollars(usage.per_turn)} per answered turn` +
     ` (${dollars(usage.cost)} the run, ${usage.rounds} rounds recorded of ${reported} reported)` +
-    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}`,
+    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}` +
+    (shapesUnread ? `\n  the turns' stored shapes could not be read: ${shapesUnread}` : ""),
 );
 const surfaces = [...new Set(results.map((r) => r.surface))];
 for (const s of surfaces) {

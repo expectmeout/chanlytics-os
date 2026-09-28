@@ -36,6 +36,7 @@ import {
   proposalSpec,
   scopeFromRoute,
 } from "@chanlytics/contracts";
+import { readAllRows } from "@chanlytics/db";
 
 /** A row of a GET's answer: its id, the name the page shows for it, and when it last moved (for a merge by time). */
 const at = (...vs) => {
@@ -650,6 +651,55 @@ export async function putBack(io, approval) {
   const differ = configDiff(approval.before.config, after.config);
   if (differ.length) return lost(`the settings differ from the ones before at ${differ.join(", ")}`);
   return { ok: true, undone: true, recorded: told ? told.ok : null };
+}
+
+/* ---- what a run cost, turn by turn ---- */
+
+/**
+ * Ask's usage rows for a workspace since `since`, oldest first: one per model round, as the edge recorded it, every
+ * page of them. PostgREST answers a thousand rows at most whatever the limit says, so a run or a day past a thousand
+ * rounds was read short; this pages as the edge's budget read pages (packages/db readAllRows), on a whole order, the
+ * id breaking a tie. `rest(path)` answers a PostgREST path's rows, read with the service role.
+ */
+export async function usageRows(rest, tenantId, since) {
+  const path =
+    `events?tenant_id=eq.${tenantId}&kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}` +
+    `&select=data&order=created_at.asc,id.asc`;
+  const rows = await readAllRows("Ask's usage rows", async (from, to) => ({
+    data: await rest(`${path}&offset=${from}&limit=${to - from + 1}`),
+    error: null,
+  }));
+  return rows.map((r) => r.data ?? {}).filter((d) => !d.purpose || d.purpose === "ask");
+}
+
+/**
+ * What a turn's stored shape (AskTurnShape, ask_messages.content.shape) says of its cost and its memory: its tokens by
+ * kind, its cache hit, whether it followed another turn and how long after, and how its history was sent, once PR 5.4
+ * records that (`replay`).
+ */
+const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay"];
+/** Message ids named in one read: a much longer `in.(…)` list is a URI PostgREST refuses (about two hundred ids). */
+const IDS_PER_READ = 50;
+
+/**
+ * Each answered turn's stored shape, read by its message id with the service role, as ask-day.mjs reads the day's,
+ * selecting only `content->shape`: PR 5.3 stores the raw turn beside it on the same row, and that is large. A Map of
+ * message id to SHAPE_FIELDS; a row with no shape has none, and an id that is no saved row's (`unsaved-…`) is never
+ * asked for.
+ */
+export async function turnShapes(rest, ids) {
+  const saved = [...new Set(ids.filter((id) => UUID.test(id ?? "")))];
+  const out = new Map();
+  for (let i = 0; i < saved.length; i += IDS_PER_READ) {
+    const some = saved.slice(i, i + IDS_PER_READ).join(",");
+    for (const r of await rest(`ask_messages?id=in.(${some})&select=id,shape:content->shape`))
+      if (isObject(r.shape))
+        out.set(
+          r.id,
+          Object.fromEntries(SHAPE_FIELDS.filter((k) => r.shape[k] !== undefined).map((k) => [k, r.shape[k]])),
+        );
+  }
+  return out;
 }
 
 /* ---- a turn's stream ---- */
