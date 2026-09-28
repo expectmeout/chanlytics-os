@@ -139,7 +139,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "the row first, addressed or not",
   );
   assert.ok(notify.includes('L.error("notification_record_failed"'), "losing the row never loses the email");
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const wa = readCode("packages/core/src/inbound/ingest.ts");
   assert.ok(
     readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') &&
       wa.includes('route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",') &&

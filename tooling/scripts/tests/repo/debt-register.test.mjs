@@ -27,7 +27,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { BASELINES_DIR, BANK, RAISE, BANK_HINT, bank, readBaseline } from "../_ratchet.mjs";
+import {
+  BASELINES_DIR,
+  BANK,
+  RAISE,
+  BANK_HINT,
+  bank,
+  readBaseline,
+  readPage,
+  blockIn,
+  writeBlock,
+} from "../_ratchet.mjs";
 import {
   MEASURES,
   WIRE_CASING,
@@ -40,11 +50,7 @@ import {
 const REGISTER = "docs/debt.md";
 /** The pages that print the numbers: the register, and the takeover checklist scored from it. */
 const PAGES = [REGISTER, "docs/takeover.md"];
-const START = "<!-- measured:start -->";
-const END = "<!-- measured:end -->";
-
-/** Read normalised to LF: the register is prose, not code, and a Windows checkout must measure the same. */
-const readText = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
+const MARKERS = ["<!-- measured:start -->", "<!-- measured:end -->"];
 
 const baselineFiles = fs
   .readdirSync(path.join(ROOT, BASELINES_DIR))
@@ -92,7 +98,7 @@ function blockFrom(by, scanCounts) {
   return "```text\n" + lines.join("\n") + "\n```";
 }
 
-const sourceScanBaseline = () => JSON.parse(readText(SOURCE_SCAN_BASELINE));
+const sourceScanBaseline = () => JSON.parse(readPage(SOURCE_SCAN_BASELINE));
 
 const fromFiles = () =>
   blockFrom(Object.fromEntries(baselineFiles.map((f) => [f, readBaseline(f)])), sourceScanBaseline().counts);
@@ -113,26 +119,12 @@ const fromBank = () =>
     bankedSourceScan(sourceScan().counts, sourceScanBaseline(), RAISE),
   );
 
-const page = () => readText(REGISTER);
-
-/** What a page has between the markers, or null when it has no block. */
-function written(rel) {
-  const text = readText(rel);
-  const a = text.indexOf(START);
-  const b = text.indexOf(END);
-  return a >= 0 && b > a ? text.slice(a + START.length, b).trim() : null;
-}
+const page = () => readPage(REGISTER);
 
 if (BANK) {
   const block = fromBank();
-  for (const rel of PAGES) {
-    const now = readText(rel);
-    const a = now.indexOf(START);
-    const b = now.indexOf(END);
-    // A page without its markers is left alone, and the plain run says so.
-    if (a < 0 || b < a) continue;
-    fs.writeFileSync(path.join(ROOT, rel), now.slice(0, a + START.length) + "\n\n" + block + "\n\n" + now.slice(b));
-  }
+  // A page without its markers is left alone, and the plain run says so.
+  for (const rel of PAGES) writeBlock(rel, MARKERS, block);
 }
 
 test("every baseline the build holds is a row of the register", () => {
@@ -149,8 +141,8 @@ for (const rel of PAGES) {
       : `the numbers on ${rel} are the register's numbers`,
     { skip: BANK && "written from the bank; the next plain run checks the files" },
     () => {
-      const block = written(rel);
-      assert.ok(block !== null, `${rel} has no measured block (${START} … ${END})`);
+      const block = blockIn(rel, MARKERS);
+      assert.ok(block !== null, `${rel} has no measured block (${MARKERS.join(" … ")})`);
       assert.equal(block, fromFiles(), `${rel} is stale — rewrite it: ${BANK_HINT}`);
     },
   );

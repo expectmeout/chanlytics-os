@@ -11,7 +11,7 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
-import type { AskScope } from "@chanlytics/contracts";
+import type { AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 
 /**
  * What the assistant is told, and in what order.
@@ -70,6 +70,7 @@ export const ASK_RULES = [
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; a word the pages use is defined above, never read.",
   "When the page the person is on comes with their question, it comes as data before their words: the page's own figures first, then the rows on screen in the page's order, and the row they have open. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript, a person's profile, a report, openings, settings, or what another page holds. Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "You never act. When the person asks for something to happen, propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
+  "A card from earlier in this thread is the person's to press: when they ask for it (approve that one, do it), name it by its title and say it is one press above; never say it was done, and propose it again only when it was dismissed or failed.",
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business.",
   "Only in the US. Never find people at home: suggest businesses whose clients need the owner next. A lead is emailed or called by the owner from their own inbox and phone; texts and offers wait for the lead's own yes, so never propose a broadcast, a playbook or a consent change for a lead.",
   "A proposal is one card. When they ask for several things, propose each; when what they ask is not something a tool can propose, say what they can do and where, and offer to open it.",
@@ -269,6 +270,16 @@ export function stableSystem(f: WorkspaceFacts): string {
   ].join("\n");
 }
 
+/** A card from earlier in the thread, and what the person did with it and when it was recorded (the Phase 5 plan, D8). */
+export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt" | "atMs">;
+/** What a person's doing with a card is called, in the Line's words: a card done was approved. */
+const DID: Record<AskProposalOutcome["state"], string> = {
+  done: "was approved",
+  dismissed: "was dismissed",
+  failed: "failed",
+  undone: "was undone",
+};
+
 export interface TurnFacts {
   role: MembershipRole;
   personLabel: string;
@@ -284,17 +295,28 @@ export interface TurnFacts {
   crossPage?: boolean;
   /** The scope's row was read for this question and rode in before these words (cross-page.ts scopedRead). */
   scopeRead?: boolean;
+  /**
+   * On a live turn, what the person did with the chain's cards that no turn of it told yet (memory.ts, D8): said after
+   * the clock, in this question's words, never by an edit of an earlier message.
+   */
+  since?: CardOutcome[];
 }
 
 /**
  * This turn's words, in the user's message after the page's data and before
- * the question: the clock, who is asking, where they are, the language, and
- * that the data before them needs no second read. Never cached; they sit
- * after the context's breakpoint so its cache holds.
+ * the question: the clock, on a live turn what happened since, who is asking,
+ * where they are, the language, and that the data before them needs no second
+ * read. They sit after the page's breakpoint (bp3), so words that change every
+ * turn never cost the page its cache; a request's last block carries the fourth
+ * (bp4), so the turn's later rounds read them from the cache with the rest.
  */
 export function turnWords(t: TurnFacts): string {
   const lines: string[] = [];
   lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
+  if (t.since?.length) {
+    const did = t.since.map((o) => `“${o.title}” (${o.id}) ${DID[o.state]}${o.receipt ? `: ${o.receipt}` : ""}`);
+    lines.push(`Since the last answer, the person acted on cards from earlier in this thread: ${did.join("; ")}.`);
+  }
   if (t.context)
     lines.push(
       "The page they are on is in the search results before these words (page:// its figures, then its rows in the page's order): answer from it, and read only for what it does not hold.",

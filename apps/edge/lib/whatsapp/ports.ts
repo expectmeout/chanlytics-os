@@ -2,11 +2,11 @@
  * Everything the receptionist reaches outside itself, as one object.
  *
  * answerInbound (packages/core/src/inbound/answer.ts) is the customer path:
- * nine hundred lines of decisions, most of them pure steps, joined to the
- * world by a dozen modules -- the database, the memory, the tenant runtime,
- * the sink and the sender, the alerts, the pager, the model. Those were module
- * imports inside the handler, which is why no test could run it and fifty
- * source reads pinned its text instead.
+ * an order of phases, each a module beside it, their decisions most of them
+ * pure steps, joined to the world by a dozen modules -- the database, the
+ * memory, the tenant runtime, the sink and the sender, the alerts, the pager,
+ * the model. Those were module imports inside the handler, which is why no
+ * test could run it and fifty source reads pinned its text instead.
  *
  * The real modules are the default, so the runtime changes nothing; a test
  * hands in fakes and the handler's control flow runs for real against them.

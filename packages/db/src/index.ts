@@ -138,6 +138,8 @@ export {
   tenantZoneOf,
   heldNoticeDue,
   markHeldNotice,
+  leadNamesByIds,
+  handRun,
 } from "./repositories/reach-out-sheet";
 export type {
   ReachOutStepRow,
@@ -145,6 +147,7 @@ export type {
   OutreachMode,
   HeldNoticeMark,
   HeldNoticeRun,
+  HandItem,
 } from "./repositories/reach-out-sheet";
 export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";

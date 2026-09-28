@@ -12,6 +12,7 @@ import {
   type ReachOutReachDto,
   type ReachOutSavedDto,
 } from "./reach-out-dtos";
+import type { HandKind, StepHand } from "./reach-out-hand";
 import { REACH_OUT_SHEET_WORDS, startWords } from "./reach-out-sheet";
 import {
   REACH_OUT_AFTER_DAYS,
@@ -32,6 +33,8 @@ export interface ReachOutDraftStep {
   subject: string | null;
   body: string;
   after_days: number | null;
+  /** A call or a note for you instead of an email (Part 5, G20): the chain's last step only; null for an email. */
+  hand: StepHand | null;
 }
 
 export interface ReachOutDraft {
@@ -79,6 +82,7 @@ export function reachOutDraftOf(p: {
         subject: s.n === 0 ? s.subject : null,
         body: s.body,
         after_days: s.n === 0 ? null : s.after_days,
+        hand: s.hand,
       })),
     };
   return {
@@ -87,18 +91,47 @@ export function reachOutDraftOf(p: {
     gap_minutes: REACH_OUT_GAP_FIRST,
     domain_ids: [],
     signed_by: p.signedBy ?? "",
-    steps: [{ id: null, subject: REACH_OUT_FIRST_WORDS.subject, body: REACH_OUT_FIRST_WORDS.body, after_days: null }],
+    steps: [
+      {
+        id: null,
+        subject: REACH_OUT_FIRST_WORDS.subject,
+        body: REACH_OUT_FIRST_WORDS.body,
+        after_days: null,
+        hand: null,
+      },
+    ],
   };
 }
 
-/** Whether another step may be added (five at most), and the draft with one: a short nudge four days on. */
+/**
+ * Whether another step may be added (five at most, and nothing after a call or a note, which ends the chain), and the
+ * draft with one: a short nudge four days on.
+ */
 export function reachOutMayAddStep(d: ReachOutDraft): boolean {
-  return d.steps.length < REACH_OUT_STEPS_MAX;
+  return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
 }
 export function reachOutAddStep(d: ReachOutDraft): ReachOutDraft {
   if (!reachOutMayAddStep(d)) return d;
-  const step = { id: null, subject: null, body: REACH_OUT_FIRST_WORDS.nudge, after_days: REACH_OUT_AFTER_DAYS.first };
+  const step = {
+    id: null,
+    subject: null,
+    body: REACH_OUT_FIRST_WORDS.nudge,
+    after_days: REACH_OUT_AFTER_DAYS.first,
+    hand: null,
+  };
   return { ...d, steps: [...d.steps, step] };
+}
+/** The draft ending in a call or a note for you (Part 5, G20): as another step may be added, after the first email. */
+export function reachOutAddHandStep(d: ReachOutDraft, kind: HandKind): ReachOutDraft {
+  if (!reachOutMayAddStep(d)) return d;
+  const step = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
+  return { ...d, steps: [...d.steps, step] };
+}
+/** A hand step's words, as the member writes them. */
+export function reachOutSetHandWords(d: ReachOutDraft, i: number, words: string): ReachOutDraft {
+  const s = d.steps[i];
+  if (!s?.hand) return d;
+  return { ...d, steps: d.steps.map((x, j) => (j === i ? { ...x, hand: { kind: s.hand!.kind, words } } : x)) };
 }
 /** The draft without its last step; the first email always stays. */
 export function reachOutDropStep(d: ReachOutDraft): ReachOutDraft {
@@ -121,11 +154,13 @@ export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOu
     gap_minutes: d.gap_minutes,
     domain_ids: d.domain_ids,
     signed_by: d.signed_by.trim() || null,
+    // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
       ...(s.id ? { id: s.id } : {}),
       subject: i === 0 ? (s.subject ?? "") : null,
-      body: s.body,
+      body: s.hand ? "" : s.body,
       after_days: i === 0 ? null : s.after_days,
+      ...(s.hand ? { hand: { kind: s.hand.kind, words: s.hand.words } } : {}),
     })),
   };
 }

@@ -177,7 +177,7 @@ test("the description says whether an email address is on file, so the reception
 /* ------------------------------ the wiring -------------------------------- */
 
 const voice = read("apps/edge/lib/voice/call-start.ts");
-const wa = read("packages/core/src/inbound/answer.ts");
+const wa = read("packages/core/src/inbound/model-turn.ts");
 // describeLead is a VALUE from the db package, which a core verb may not
 // import, so the receptionist reaches the one description through a port. The
 // edge is where the two are joined.

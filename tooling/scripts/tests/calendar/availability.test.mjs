@@ -292,7 +292,7 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   );
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const wa = readCode("packages/core/src/inbound/model-turn.ts");
   assert.ok(wa.includes("const openings = rt ? await ports.calendar.openings(rt) : null;"));
   assert.ok(wa.includes('${openings ? `\\n\\n${openings}` : ""}'), "after describeNow, in the uncached block");
   // The phone's openings ride inside business_facts, and the facts rule from

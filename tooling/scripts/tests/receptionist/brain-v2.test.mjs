@@ -232,7 +232,8 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
 });
 
 test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  // The turn (model-turn.ts) and what it leaves on the draft and the escalation (dispatch.ts).
+  const wa = ["model-turn", "dispatch"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
   const steps = readCode("packages/core/src/inbound/steps.ts");
   assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
   assert.ok(wa.includes("brainMeta = r.meta;"));

@@ -239,9 +239,12 @@ export interface SendResult {
   leftAsWhy?: EmailLeftAsWhy;
 }
 
-/** Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). */
+/**
+ * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
+ * domain it was frozen with was held between the freeze and the send.
+ */
 export type EmailLeftAsWhy =
-  "no_own_route" | "domain_has_no_route" | "twin_names_another_recipient" | "route_refuses_twin";
+  "no_own_route" | "domain_has_no_route" | "domain_held" | "twin_names_another_recipient" | "route_refuses_twin";
 
 /**
  * Every Graph send goes through here. Two reasons:
