@@ -1265,3 +1265,183 @@ test("(C1) Twilio: each look is one read in the right account, matched on what t
   await assert.rejects(tw.findTrunk(sub, trunkDomain(LINE_ID)), /list trunks: internal error \(Twilio 20500\)/);
   await assert.rejects(tw.findSubaccount(master, name), TwilioError);
 });
+
+/* ---- the order of the saga's calls: every port call, every save, every clock check, and where each failure lands ---- */
+
+/**
+ * The ports of `f`, each call written to one trace, in order: a save as what it writes (a fact save as the facts it
+ * adds), every other port by its name. `fail` makes the call of that number throw; `kept` is what the store kept.
+ */
+function traced(f, { fail = 0, timeLeft } = {}) {
+  const trace = [];
+  let kept = freshLine();
+  const say = (name, fn) =>
+    function (...a) {
+      trace.push(name(...a));
+      if (trace.length === fail) throw new Error(`down at call ${fail}`);
+      return fn.apply(this, a);
+    };
+  const saved = (p) => {
+    const cols = Object.keys(p)
+      .filter((k) => k !== "facts")
+      .map((k) => (k === "step" || k === "voice_state" ? `${k}=${p[k]}` : k));
+    const facts = p.facts ? [`facts+${Object.keys(p.facts).filter((k) => !(k in kept.facts))}`] : [];
+    return `save ${[...cols, ...facts].join(" ")}`;
+  };
+  const provider = { ...f.provider };
+  for (const [m, fn] of Object.entries(f.provider))
+    if (typeof fn === "function") provider[m] = say(() => m, fn.bind(f.provider));
+  const ports = {
+    ...f.ports,
+    provider,
+    now: say(() => "now", f.ports.now),
+    store: {
+      save: say(saved, async (p) => {
+        await f.ports.store.save(p);
+        kept = { ...kept, ...p, facts: p.facts ? { ...p.facts } : kept.facts };
+      }),
+      getSecrets: say(() => "getSecrets", f.ports.store.getSecrets),
+      putSecrets: say((s) => `putSecrets ${Object.keys(s)}`, f.ports.store.putSecrets),
+    },
+    agent: { ensure: say(() => "agent.ensure", f.ports.agent.ensure) },
+    retell: { importNumber: say(() => "retell.importNumber", f.ports.retell.importNumber) },
+    channel: { ensure: say(() => "channel.ensure", f.ports.channel.ensure) },
+    smsChannel: { ensure: say(() => "smsChannel.ensure", f.ports.smsChannel.ensure) },
+    ...(timeLeft ? { timeLeft: say(() => "timeLeft", timeLeft) } : {}),
+  };
+  return { ports, trace, kept: () => kept };
+}
+
+/** Consecutive equal outcomes as one entry: `["trunk x7", ...]`. */
+const runsOf = (xs) =>
+  xs
+    .reduce((out, x) => {
+      if (out.at(-1)?.x === x) out.at(-1).n += 1;
+      else out.push({ x, n: 1 });
+      return out;
+    }, [])
+    .map(({ x, n }) => `${x} x${n}`);
+
+/** A fresh line's run: 65 port calls, 17 of them the clock. */
+const FRESH_RUN = [
+  "getSecrets",
+  "now",
+  "save voice_state=provisioning step=subaccount last_error state_since",
+  "timeLeft",
+  "save step=subaccount",
+  "timeLeft",
+  "save facts+asked_subaccount",
+  "createSubaccount",
+  "putSecrets auth_token",
+  "save subaccount_sid",
+  "timeLeft",
+  "save step=number",
+  "ownedNumber",
+  "timeLeft",
+  "buyNumber",
+  "save number_sid e164",
+  "timeLeft",
+  "save step=trunk",
+  "timeLeft",
+  "save facts+asked_trunk",
+  "createTrunk",
+  "save trunk_sid termination_uri",
+  "timeLeft",
+  "save facts+asked_credential_list",
+  "createCredentialList",
+  "save credential_list_sid",
+  "timeLeft",
+  "save facts+asked_credential",
+  "addCredential",
+  "putSecrets sip_username,sip_password",
+  "timeLeft",
+  "attachCredentialList",
+  "save facts+credential_list_attached",
+  "timeLeft",
+  "save facts+asked_origination",
+  "addOrigination",
+  "save facts+origination_sid",
+  "timeLeft",
+  "attachNumber",
+  "save facts+number_attached",
+  "save facts+trunk_ready",
+  "timeLeft",
+  "save step=agent",
+  "timeLeft",
+  "agent.ensure",
+  "save retell_agent_id facts+llm_id,agent_pinned",
+  "timeLeft",
+  "save step=import",
+  "retell.importNumber",
+  "save facts+retell_imported,retell_number_type",
+  "timeLeft",
+  "save step=messaging",
+  "createMessagingService",
+  "save messaging_service_sid",
+  "timeLeft",
+  "addNumberToService",
+  "save facts+number_in_service",
+  "timeLeft",
+  "save step=channel",
+  "channel.ensure",
+  "save facts+channel_id",
+  "smsChannel.ensure",
+  "save facts+sms_channel_id",
+  "now",
+  "save voice_state=answering step=null last_error state_since",
+];
+
+test("the saga's calls, in order: a fresh line's every port call and every save, the clock asked before each carrier call", async () => {
+  const t = traced(fakes(), { timeLeft: () => 60_000 });
+  const r = await runLineSaga(freshLine(), t.ports);
+  assert.equal(r.line.voice_state, "answering");
+  assert.deepEqual(t.trace, FRESH_RUN);
+});
+
+test("a failure at each of those calls lands at the step it was made in, with the port's words; the run after answers, and nothing is bought or made twice", async () => {
+  const outcomes = [];
+  for (let k = 1; k <= FRESH_RUN.length; k++) {
+    const f = fakes();
+    const t = traced(f, { fail: k, timeLeft: () => 60_000 });
+    const r = await runLineSaga(freshLine(), t.ports).catch((e) => ({ threw: e.message }));
+    outcomes.push(r.threw ? "threw" : r.ok ? "answering" : `failed at ${r.step}`);
+    assert.equal(r.threw ?? r.error, `down at call ${k}`, `call ${k} (${FRESH_RUN[k - 1]}): the port's own words`);
+    const again = await runLineSaga(t.kept(), f.ports);
+    assert.equal(again.line.voice_state, "answering", `call ${k}: the run after, from what was kept, answers`);
+    for (const once of ["createSubaccount", "buyNumber", "createTrunk", "createCredentialList", "addOrigination"])
+      assert.equal(ops(f.provider).filter((o) => o === once).length, 1, `call ${k}: one ${once}`);
+  }
+  assert.deepEqual(runsOf(outcomes), [
+    // The vault's read, the clock and the first save come before the saga starts: its caller hears them.
+    "threw x3",
+    "failed at subaccount x8",
+    "failed at number x6",
+    "failed at trunk x25",
+    "failed at agent x5",
+    "failed at import x4",
+    "failed at messaging x7",
+    "failed at channel x6",
+    // The last save, `answering`: the row's step is already null when it fails, so the failure is filed at the first.
+    "failed at subaccount x1",
+  ]);
+});
+
+test("out of time at each clock check, the run stops `later` at its step, and the run after makes what one fresh run makes", async () => {
+  const fresh = fakes();
+  await runLineSaga(freshLine(), fresh.ports);
+  // A look is a read, asked again by the run after when the clock stopped between it and what it guards.
+  const made = (f) => ops(f.provider).filter((o) => !/^find|^ownedNumber$/.test(o));
+  const laters = [];
+  for (let k = 1; k <= FRESH_RUN.filter((c) => c === "timeLeft").length; k++) {
+    const f = fakes();
+    let n = 0;
+    const first = await runLineSaga(freshLine(), { ...f.ports, timeLeft: () => (++n >= k ? 0 : 60_000) });
+    assert.equal(first.later, true, `check ${k}: later`);
+    laters.push(first.step);
+    assert.ok(!f.saves.some((s) => s.voice_state === "failed"), `check ${k}: nothing failed`);
+    const again = await runLineSaga(first.line, f.ports);
+    assert.equal(again.line.voice_state, "answering", `check ${k}: the run after answers`);
+    assert.deepEqual(made(f), made(fresh), `check ${k}: nothing made twice`);
+  }
+  assert.deepEqual(runsOf(laters), ["subaccount x3", "number x2", "trunk x7", "agent x2", "import x1", "messaging x2"]);
+});
