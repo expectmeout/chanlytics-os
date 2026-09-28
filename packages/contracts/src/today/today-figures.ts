@@ -263,9 +263,9 @@ export function figuresOf(
   };
 
   // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
-  // contacts created today; the threads the page holds may be fewer (a name is said only for a person the figure
-  // counts) or more (someone who existed before and wrote for the first time today is not new), so a wire or a name
-  // is said only when the two agree.
+  // people whose first word or call came today (00231: never one who has had neither); the threads the page holds may
+  // be fewer (a name is said only for a person the figure counts) or more (someone who existed before and wrote for
+  // the first time today is not new), so a wire or a name is said only when the two agree.
   const newThreads = conversations.filter((c) => {
     const first = [...c.messages]
       .filter((x) => x.meta?.backfill !== true)
@@ -288,8 +288,8 @@ export function figuresOf(
           ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
     // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
-    // the answer to what an owner is asking -- the count is every way somebody new reaches you, and the page
-    // only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
+    // the answer to what an owner is asking -- the count is everyone whose first word or call came today, and the
+    // page only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
     // under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length
       ? {
@@ -298,7 +298,7 @@ export function figuresOf(
         }
       : p.new_contacts > 0
         ? {
-            text: `Counted however they reached you — a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
+            text: `Counted however they reached you — a message or a call${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
             door: { label: "Open People", to: "clients/seg:new_week" },
           }
         : null,
