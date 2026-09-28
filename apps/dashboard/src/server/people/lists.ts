@@ -29,6 +29,8 @@ export type SavedListDto = SavedListRow;
 
 export const LIST_NAME_MAX = 60;
 export const LIST_BATCH_MAX = 500;
+/** A live list of the workspace already has the name (00169 segments_live_name): the routes' 409, and Ask's refusal. */
+export const LIST_NAME_TAKEN = "A list with that name already exists.";
 
 export function cleanListName(raw: unknown): string {
   const name = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";
@@ -100,15 +102,23 @@ export function cleanIdList(raw: unknown, what: string): string[] {
   return ids;
 }
 
-/** What a smart list's plain-English description is written into: the vocabulary, and nothing else. */
-// The fields and their ops come from the vocabulary itself (contracts listDraftFieldLines), so the prompt cannot name a
-// field the schema refuses or miss one it reads.
-const LIST_DRAFT_SYSTEM = [
-  "You turn a business owner's description of a group of their customers into a list rule.",
+/**
+ * The list vocabulary as a model writes a rule in it: what a condition is, the fields and their ops (contracts
+ * listDraftFieldLines, so no line can name a field the schema refuses or miss one it reads), what the days' ops mean,
+ * and what has no field. One derivation, read by the drafter below and by Ask's propose_list, whose model writes the
+ * rule itself (the Ask Rewired Phase 4 plan, D10).
+ */
+export const LIST_RULE_LINES: readonly string[] = [
   'Every condition in all must hold for a person to be on the list. A condition is one fact, or { any: [facts] } when one of two to six facts is enough ("on WhatsApp or text"). Use only these fields:',
   ...listDraftFieldLines(),
   "more_than N is more than N days ago (or away); within N is in the last (or next) N days; never is no such moment at all, ever is any.",
   "A month is 30 days, a week 7. 'Regulars' or 'loyal' have no field: say so in cannot rather than invent one.",
+];
+
+/** What a smart list's plain-English description is written into: the vocabulary, and nothing else. */
+const LIST_DRAFT_SYSTEM = [
+  "You turn a business owner's description of a group of their customers into a list rule.",
+  ...LIST_RULE_LINES,
   "Whatever the description asks that these fields cannot say -- a staff member, a service, a tag, a spend, what was said -- goes, in a few words, in cannot; empty when nothing was left out.",
   "name: a short name for the list, in the owner's words, at most 40 characters.",
 ].join("\n");

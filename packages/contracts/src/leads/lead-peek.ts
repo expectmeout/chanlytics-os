@@ -35,7 +35,7 @@ import {
   type LeadStage,
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 import { DAY_MS } from "../shared/time";
 
 /* ---------------------------------------------------------------- the peek */

@@ -18,7 +18,7 @@ import { maySpend, type SetupBillingFacts } from "../workspace/billing";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path";
 import type { ActivationRecord, CapabilityStatus } from "./capabilities";
 import type { EmailSetupDto } from "../email/mailbox";
-import type { ReceptionistState } from "../config/config";
+import type { ReceptionistState } from "../config/workspace-config/config-schema";
 
 export interface SetupDto {
   business: {

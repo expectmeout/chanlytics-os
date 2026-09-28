@@ -105,7 +105,7 @@ function ago(ms: number, nowMs: number): string {
  *
  * Three maps look like this one and answer different questions, deliberately:
  * `REPORT_CHANNELS` (reports.ts) labels a MEASUREMENT ("Calls", not "Phone
- * line"); `THREAD_CHANNEL_WORDS` (viewmodels.ts) and `PERSON_CHANNEL_WORDS`
+ * line"); `THREAD_CHANNEL_WORDS` (thread-channel.ts) and `PERSON_CHANNEL_WORDS`
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */

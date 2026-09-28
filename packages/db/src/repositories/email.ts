@@ -175,6 +175,48 @@ export async function lastInboundEmail(
   };
 }
 
+/** How many of a thread's latest outbound emails are asked which reach-out email a reply answers. */
+const ANSWERED_LOOKBACK = 50;
+
+/**
+ * The reach-out email a person's reply answers (Reach out Part 5, C15), on one thread of one workspace: the latest one
+ * whose Message-ID the reply's References name, else the latest one on the thread. Its From and Reply-To are as its
+ * request was frozen. Null when the thread holds no reach-out email that left: every other email reply.
+ */
+export async function answeredReachOutEmail(
+  db: Db,
+  p: { tenantId: string; conversationId: string; references: string[] },
+): Promise<{ messageId: string; from: string | null; replyTo: string | null } | null> {
+  const { data, error } = await db
+    .from("messages")
+    .select("id, meta, status")
+    .eq("tenant_id", p.tenantId)
+    .eq("conversation_id", p.conversationId)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .order("created_at", { ascending: false })
+    .limit(ANSWERED_LOOKBACK);
+  if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
+  const left = new Set(["sent", "delivered", "read"]);
+  const sent = (data ?? []).flatMap((m) => {
+    const meta = (m.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
+    if (meta.source !== "reach_out" || !left.has(String(m.status))) return [];
+    const req = (meta.email?.request ?? {}) as { from?: unknown; reply_to?: unknown };
+    const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
+    return [
+      {
+        messageId: m.id,
+        rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
+        from: typeof req.from === "string" ? req.from : null,
+        replyTo,
+      },
+    ];
+  });
+  const named = new Set(p.references);
+  const hit = sent.find((e) => e.rfc !== null && named.has(e.rfc)) ?? sent[0];
+  return hit ? { messageId: hit.messageId, from: hit.from, replyTo: hit.replyTo } : null;
+}
+
 /**
  * A sent email learns the provider's id and the Message-ID it left with
  * (00128, one statement, so it cannot overwrite a status stamp written beside
@@ -194,6 +236,25 @@ export async function stampEmailSent(
   if (error) throw new Error(`stamp_email_sent: ${error.message}`);
   const row = (data as Array<{ status: string; conversation_id: string }> | null)?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
+}
+
+/**
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
+ * Message-ID. False when there is no such outbound email. A write that fails throws.
+ */
+export async function stampEmailLeftAs(
+  db: Db,
+  p: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why,
+  } as never);
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
 }
 
 /**

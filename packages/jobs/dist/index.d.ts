@@ -1,8 +1,8 @@
 import { Database, Json } from '@chanlytics/db';
-import { JobKind, JobNews, PushMessage } from '@chanlytics/contracts';
+import { JobKind, JobNews, PushMessage, Unread } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
-import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
+import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, IncomingEmail } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -49,7 +49,7 @@ declare const FUNCTION_CEILING_MS = 60000;
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
- * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * (core runner/rules.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
  * ever in flight past its deadline and it needs no room after it. Its
  * deadline sits at the ceiling less the kill margin the runner already keeps.
  *
@@ -307,10 +307,33 @@ interface JobContext {
      */
     push?: PushPort;
     /**
+     * The reading of a reach-out's reply (Reach out Part 5), as the edge holds it. INJECTED like email's intake: the
+     * model's key, the workspace's spend and the notification door live on the edge. Optional so a test context need
+     * not supply one; a reply_read job in a runtime without it fails loudly rather than guessing.
+     */
+    replies?: {
+        /** The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past `deadline`. */
+        ask: (system: string, user: string, deadline: number) => Promise<unknown>;
+        /** One read taken, or why not: no model, a workspace that may not spend, the day's reads spent. */
+        mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
+        /** Tell the workspace once (notifyOnce): true only when the owner was told. */
+        tell: (tenantId: string, notice: ReplyNotice) => Promise<boolean>;
+        /**
+         * The receptionist's draft of an answer (decision 0017): its text, or the gate that stopped it or that it was not
+         * drafted. Throws when it failed; no call runs past `ask.deadline`.
+         */
+        draft: ReplyReadPorts["draft"];
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */
     schedule: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
+    /**
+     * Schedule a job of this tenant that the ledger holds at most one of per subject (scheduleJobOnce: a unique index on
+     * its payload, as reply_read's jobs_reply_read_once). A second one is answered already_scheduled, never thrown.
+     */
+    scheduleOnce: (kind: JobKind, dueAt: Date, payload: Json) => Promise<"scheduled" | "already_scheduled">;
     /**
      * Epoch ms. A handler that loops over outward work starts no new send after
      * this and leaves the rest to a follow-up job through `schedule`. The runner

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -64,6 +64,13 @@ interface WirePayload {
     email?: EmailRequest;
     /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
     purpose?: SendPurpose;
+    /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+    reply?: boolean;
+    /**
+     * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
+     * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+     */
+    ownEmail?: EmailRequest;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -74,37 +81,6 @@ type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * environment, which is how one business's message left on another's line.
  */
 type Wire = Partial<Record<Channel, Sender | null>>;
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-declare function whatsappSender(cfg: WaConfig | null): Sender | null;
-/**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
- */
-interface EmailRoute {
-    lane: "hosted" | "own";
-    cfg: ResendConfig;
-    as: EmailSendsAs;
-}
-/**
- * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider keys are the
- * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials).
- */
-declare function emailSender(routes: EmailRoute[]): Sender | null;
 interface Delivery {
     tenantId: string;
     conversationId: string;
@@ -120,6 +96,11 @@ interface Delivery {
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
     email?: EmailRequest;
+    /**
+     * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
+     * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+     */
+    ownEmail?: EmailRequest;
     /**
      * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
      * business closed or archived is refused even when its person has another lead still being written to.
@@ -184,6 +165,44 @@ declare function templatePurpose(db: Db, tenantId: string, template: {
  * name, and the caller alerts a person the way it does for a provider's no.
  */
 declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered>;
+
+/**
+ * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
+ * deliver() decides whether a send may leave; these only put it on the provider's wire, and refuse a request that
+ * would leave as somebody else.
+ */
+
+/**
+ * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
+ * so the "+" is stripped here rather than by a caller who should not know.
+ */
+declare function whatsappSender(cfg: WaConfig | null): Sender | null;
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
+interface EmailRoute {
+    lane: "hosted" | "own";
+    cfg: ResendConfig;
+    as: EmailSendsAs;
+}
+/**
+ * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider keys are the
+ * deployment's; the routes are what make the wire this workspace's: the hosted
+ * mailbox on the platform's account, and each of its own verified domains on
+ * the cold account (Reach out), so a cold email never spends the reputation
+ * every workspace's replies share. The route is chosen by the request's From,
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
+ */
+declare function emailSender(routes: EmailRoute[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -464,9 +483,14 @@ interface EmailReplyPorts {
         id: string;
         tenant_id: TenantId;
     }): Promise<EmailParentFacts | null>;
-    /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
+    /**
+     * The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send
+     * from. A reply to a reach-out on one of the workspace's own domains, verified now, is frozen a second time on that
+     * domain (`own`, C15): the edge sends it when that route still holds it, and the mailbox's request otherwise (N5).
+     */
     freeze(input: {
         tenantId: TenantId;
+        conversationId: string;
         messageId: string;
         to: string;
         parent: EmailParentFacts;
@@ -474,6 +498,7 @@ interface EmailReplyPorts {
     }): Promise<{
         request: Json;
         subject: string;
+        own?: Json | null;
     } | null>;
     /** The row's id before the row exists. */
     newId(): string;
@@ -587,6 +612,8 @@ interface SendQueuedPorts {
         channel: string | null;
         sender: string | null;
         /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+        /** A person's reply to a reach-out, frozen again on the chain's own domain (meta.email.own_request, G15). */
+        ownEmail?: Delivery["ownEmail"];
         /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
         leadId?: string | null;
     } | null>;
@@ -870,18 +897,172 @@ interface EmailIngestPorts {
         preview: string | null;
         claim: EmailClaim;
     }): Promise<void>;
+    /**
+     * Is this kept message a reply to one of the workspace's reach-outs (00222 reach_out_reply_of)? Throws when it cannot
+     * be asked: a reply taken for nobody's would never be read, and a no in it would be missed.
+     */
+    reachOutReply(tenantId: string, messageId: string): Promise<boolean>;
+    /** Hand the reply to the reading (a reply_read job), at most once per message however often this runs. */
+    readReply(tenantId: string, messageId: string): Promise<void>;
     markProcessed(tenantId: string, messageId: string): Promise<void>;
     received(mailboxId: string, at: string): Promise<void>;
     now(): number;
 }
-type EmailIngestOutcome = "kept_for_a_person" | "kept_quietly" | "already_handled" | "not_a_conversation" | "our_own" | "erased_person" | "no_sender" | "gone";
+type EmailIngestOutcome = "kept_for_a_person" | "kept_for_the_reading" | "kept_quietly" | "already_handled" | "not_a_conversation" | "our_own" | "erased_person" | "no_sender" | "gone";
 /** As much of one email's words as a thread keeps. The original stays with the provider; this is what a person reads and, one day, a model. */
 declare const EMAIL_BODY_MAX = 20000;
 /** What the person who opens the thread is told, by what the email claimed to be. */
-declare const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated">, string>;
+declare const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string>;
 declare function ingestEmail(ports: EmailIngestPorts, cmd: {
     payload: Record<string, unknown>;
 }): Promise<EmailIngestOutcome>;
+
+/**
+ * reply_read: one reply to a reach-out, read for what it means (Reach out Part 5; the plan's G1-G4, G6, G16).
+ *
+ * The email intake keeps the message and hands a reach-out's reply here, once per message (the ledger's
+ * jobs_reply_read_once). This asks the model what the reply means, applies what that reading does through the one
+ * door (the plan is contracts' readingPlan: the door executes it and decides nothing), and tells the workspace once.
+ *
+ *   - One reading per message (G3). A run that finds the reading already kept asks no model and pays nothing: it
+ *     carries on from what the row records (a re-read owed, a notice owed).
+ *   - What may be spent (G4): a workspace that may read, under the day's reads, taken before the call. A reply that is
+ *     not read (no model, a workspace that may not spend, the day's reads spent, a model that threw, ran out of time or
+ *     answered nothing usable) is `other`, with `unread` saying why. The chain has stopped for a person's reply
+ *     already (outreach_wrote_back), and the reply is read again later, so a missed no still becomes an opt-out.
+ *   - A re-read (stage reread-<n>) applies only while the reading is still unread and at the re-read before it, and
+ *     tells only what nobody was told (a no, and an automatic reply's first real reading).
+ *   - The draft (PR 5, decision 0017): for interested, a question and not now, the receptionist writes an answer (or a
+ *     line of thanks) and it is kept on the reading, never as a message: nothing sends it but a person. It is tried
+ *     once, after the apply and before the notice, so the notice carries it. A job with too little time left marks it
+ *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
+ *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
+ *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
+ *
+ * It sends nothing to the business. The pages (PRs 7 and 8) come later.
+ */
+
+/** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
+interface ReplyFacts {
+    conversationId: string;
+    claim: ReplyClaim;
+    /** Their words as the thread keeps them; the quoted history is cut here (replyTextOf). */
+    text: string | null;
+    subject: string | null;
+    /** The intake's bare sender address (its from.address), never the From header's display-name form. */
+    from: string | null;
+    /** When it arrived, epoch ms. */
+    receivedAt: number;
+    /** The email it answers, its first words. */
+    answered: string | null;
+    business: string;
+    /** The address the reach-out wrote to, and the lead's website. */
+    leadAddress: string | null;
+    leadWebsite: string | null;
+    /** The chain's signature ({{your name}}), which a draft ends with. */
+    signedBy: string | null;
+    /** The business's zone. */
+    tz: string;
+}
+/** A reading as it is kept. */
+interface KeptReading {
+    intent: ReplyIntent;
+    summary: string | null;
+    unread: Unread | null;
+    /** The re-reads already applied. */
+    rereads: number;
+    /** Whether its plan tells the owner. */
+    tell: boolean;
+    told: boolean;
+    undone: boolean;
+    /** What its plan drafts (contracts readingPlan), and how far the draft got: its text once written. */
+    draft: "answer" | "thanks" | null;
+    draftState: DraftState;
+    draftText: string | null;
+}
+/** reach_out_replies.draft_state. */
+type DraftState = "none" | "waiting" | "written" | "not_written";
+/** A draft's mark: waiting for a job of its own, written, or not written and why. */
+type DraftMark = {
+    state: "waiting";
+} | {
+    state: "written";
+    draft: string;
+} | {
+    state: "not_written";
+    why: DraftWhy;
+};
+/** The notice as the workspace is told it: words only; where it goes and how is the runtime's. */
+interface ReplyNotice {
+    conversationId: string;
+    subject: string;
+    body: string;
+    /** What the platform may be told when the workspace cannot be: no business, no words of theirs. */
+    redacted: string;
+}
+interface ReplyReadPorts {
+    /** Whose reply this is, and the reply: null when it answers no reach-out. Throws when it cannot be read. */
+    reply(tenantId: string, messageId: string): Promise<ReplyFacts | null>;
+    /** The reading kept for this message, if any. Throws when it cannot be read. */
+    reading(tenantId: string, messageId: string): Promise<KeptReading | null>;
+    /**
+     * Whether one read may be spent now, taken when it may: null when it was taken, else why not (no model, a workspace
+     * that may not spend, the day's reads spent). Throws when it cannot be asked.
+     */
+    mayRead(tenantId: string, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
+    /** The model's answer to the reader's question, unparsed; null when it answered nothing. Throws on a failed call. */
+    ask(system: string, user: string): Promise<unknown>;
+    /** The reading and its plan, applied once (reach_out_reply_apply). True when this call applied it. */
+    apply(tenantId: string, messageId: string, p: {
+        reading: ReplyReading;
+        unread: Unread | null;
+        plan: ReadingPlan;
+        reread: number;
+    }): Promise<boolean>;
+    /**
+     * The notice's first phase: this run's claim (its moment, as the row keeps it), or null when a live claim holds it or
+     * it was told. A claim older than `staleBefore` is claimed again.
+     */
+    claimTell(tenantId: string, messageId: string, staleBefore: number): Promise<string | null>;
+    /** Tell the workspace: true only when the owner was told. */
+    tell(tenantId: string, notice: ReplyNotice): Promise<boolean>;
+    /** The notice's second phase: marked told, only while this run's claim still holds it. */
+    told(tenantId: string, messageId: string, claim: string): Promise<void>;
+    /**
+     * The receptionist's draft of an answer to their reply, over the thread and the lead note: the text, or which gate
+     * stopped it (contracts draftRefusal) or that it was not drafted. Throws when it failed; no call runs past `deadline`.
+     */
+    draft(tenantId: string, ask: {
+        conversationId: string;
+        text: string;
+        note: string;
+        deadline: number;
+    }): Promise<{
+        text: string;
+    } | {
+        why: DraftWhy;
+    }>;
+    /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
+    markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
+    /** This message's next read, or its draft, at most once per stage. */
+    scheduleOnce(at: number, payload: {
+        message_id: string;
+        stage: string;
+    }): Promise<"scheduled" | "already_scheduled">;
+    now(): number;
+}
+interface ReadReplyCommand {
+    tenantId: string;
+    messageId: string;
+    /** The job's stage: absent or "read" for the first read, "reread-<n>" for the n-th re-read. */
+    stage?: unknown;
+    /** How long a claim on the notice holds before another run may take it: the job's lease. */
+    tellStaleMs: number;
+    /** When this job stops starting work (epoch ms): a draft needs DRAFT_NEEDS_MS of it. */
+    deadline: number;
+}
+type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told" | "drafted";
+declare function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome>;
 
 /**
  * How long a batch that reached nobody waits before it is tried again. The
@@ -1334,6 +1515,7 @@ interface ReachOutFollower extends ReachOutLead {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;
@@ -2021,7 +2203,7 @@ declare const JUDGE_TIMEOUT_MS = 28000;
  * (packages/jobs ledger.ts), so the least it is promised is 32 seconds; it
  * reads its page from the provider first (PAGE_READ_ALLOWANCE_MS), and the
  * judge, which is never started with less than its own timeout left
- * (runner.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
+ * (runner/rules.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
  * the ledger, so tick-geometry.test.mjs holds these numbers to each other.
  * A low-effort structured call over 25 places answers in well under this.
  */
@@ -2155,6 +2337,10 @@ declare function discoveryEnding(round: LeadRoundRow, runs: LeadRunRow[], x: {
  * The webhook token of a run row is derived from the row's id by the edge
  * (ports.webhookToken), so a job tried again can rebuild the URL its earlier
  * try sent without the row's stored hash ever being rewritten (E1).
+ *
+ * This module holds what the jobs share: the lease, the clocks and the page sizes, the reasons a place is held by
+ * rule, the deadline check and the provider's two kinds of trouble. Each job is a module beside it: start.ts,
+ * collect.ts, check.ts and sweep.ts.
  */
 
 declare const LEASE_SECONDS = 90;
@@ -2195,6 +2381,12 @@ declare class LeadRetry extends Error {
 }
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
 declare const targetOf: (round: LeadRoundRow) => number;
+
+/**
+ * lead_round_start: a run row per term, made by its deterministic id, claimed (claim.ts), and only then started at
+ * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts).
+ */
+
 type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already";
 type StartOutcome = {
     kind: "not_open";
@@ -2211,37 +2403,13 @@ type StartOutcome = {
     }[];
 };
 declare function startRound(p: LeadPorts, roundId: string, owner: string, resume?: boolean): Promise<StartOutcome>;
-type CollectOutcome = {
-    kind: "gone";
-} | {
-    kind: "not_started";
-} | {
-    kind: "round_ended";
-} | {
-    kind: "round_closing";
-} | {
-    kind: "busy";
-} | {
-    kind: "lost";
-    why: Exclude<CollectCommitResult, {
-        ok: true;
-    }>["why"];
-} | {
-    kind: "committed";
-    commits: number;
-    toOffset: number;
-    runState: LeadRunState | null;
-    roundState: LeadRoundState | null;
-    judgeRefused: string | null;
-} | {
-    kind: "checked";
-    results: number;
-    last: boolean;
-} | {
-    kind: "stopped";
-} | {
-    kind: "polling";
-};
+
+/**
+ * A place as the collect takes it: the next batch of a page's items, where the round measures from, and the member
+ * the commit writes, its class decided by code. The collect is collect.ts; the re-judging (rejudge.ts) makes its
+ * members here too.
+ */
+
 interface Prepared {
     index: number;
     clean: CleanPlace;
@@ -2273,7 +2441,51 @@ declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: numbe
     end: number;
     prepared: Prepared[];
 };
+
+/**
+ * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
+ * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
+ * follows a run's last item is round-decision.ts.
+ */
+
+type CollectOutcome = {
+    kind: "gone";
+} | {
+    kind: "not_started";
+} | {
+    kind: "round_ended";
+} | {
+    kind: "round_closing";
+} | {
+    kind: "busy";
+} | {
+    kind: "lost";
+    why: Exclude<CollectCommitResult, {
+        ok: true;
+    }>["why"];
+} | {
+    kind: "committed";
+    commits: number;
+    toOffset: number;
+    runState: LeadRunState | null;
+    roundState: LeadRoundState | null;
+    judgeRefused: string | null;
+} | {
+    kind: "checked";
+    results: number;
+    last: boolean;
+} | {
+    kind: "stopped";
+} | {
+    kind: "polling";
+};
 declare function collect(p: LeadPorts, runId: string, seq: string, owner: string): Promise<CollectOutcome>;
+
+/**
+ * An answer that changed the plan re-judges the places the probe already judged. The start (start.ts) calls it
+ * before it sizes the main phase; the members are made as the collect makes them (places.ts).
+ */
+
 type RejudgeOutcome = {
     changed: number;
     reused: number;
@@ -2295,6 +2507,38 @@ type RejudgeOutcome = {
  * lists (an expired dataset) is left as it was and counted as unread.
  */
 declare function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome>;
+
+/**
+ * The business's own mark, for the places a page is about to commit. What a home page declares is read by mark.ts
+ * and the bytes worth keeping are told by mark-image.ts, one folder up; the collect (collect.ts) and the re-judging
+ * (rejudge.ts) call it.
+ */
+
+/**
+ * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
+ * page, read for the logos it declares (mark.ts), then the first of those whose bytes are a mark worth keeping
+ * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
+ * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
+ * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
+ * next round's copy of that place fills it where it was empty.
+ *
+ * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
+ * Answers how many places were given a kept copy.
+ */
+declare const MARK_ALLOWANCE_MS = 8000;
+declare const MARK_AT_ONCE = 6;
+/**
+ * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
+ * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
+ */
+declare const MARK_TRIES = 2;
+declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number>;
+
+/**
+ * lead_check: one checker run per batch of the addresses still waiting, claimed first (claim.ts). The checker run's
+ * answers are read by the collect (collect.ts).
+ */
+
 type CheckOutcome = {
     kind: "not_open";
 } | {
@@ -2319,28 +2563,15 @@ type CheckAgain = {
 };
 /** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
 declare const isAgainRun: (run: Pick<LeadRunRow, "purpose" | "term">) => boolean;
-/**
- * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
- * page, read for the logos it declares (mark.ts), then the first of those whose bytes are a mark worth keeping
- * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
- * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
- * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
- * next round's copy of that place fills it where it was empty.
- *
- * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
- * Answers how many places were given a kept copy.
- */
-declare const MARK_ALLOWANCE_MS = 8000;
-declare const MARK_AT_ONCE = 6;
-/**
- * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
- * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
- */
-declare const MARK_TRIES = 2;
-declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number>;
 /** The members whose picked address still waits for its check, in one fixed order. */
 declare function checkable(members: LeadMemberRow[]): LeadMemberRow[];
 declare function check(p: LeadPorts, roundId: string, batch: number, owner: string, again?: CheckAgain | null): Promise<CheckOutcome>;
+
+/**
+ * The sweep's reconciliation: an unknown start looked for in the provider's own list (claim.ts), and reconciled, or
+ * failed once its grace is over.
+ */
+
 type ReconcileOutcome = {
     runId: string;
     kind: "reconciled" | "failed" | "waiting";
@@ -2922,4 +3153,4 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
  */
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, HOLD_EXPIRY_MS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, HOLD_EXPIRY_MS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

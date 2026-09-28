@@ -52,7 +52,7 @@ function windowOf({
       ),
     dispatchEvent: (e) => {
       (listeners.get(e.type) ?? []).forEach((fn) => fn(e));
-      return true;
+      return !e.defaultPrevented;
     },
   };
   return { win, posted, fire: (type, detail) => win.dispatchEvent(new CustomEvent(type, { detail })) };
@@ -357,4 +357,19 @@ test("a dialog Escape leaves standing twice running is not asked again: Back wal
   } finally {
     mock.timers.reset();
   }
+});
+
+test("the page hands the app a file it made (a chart's CSV): posted as the app parses it and the ask cancelled; no such file is left to the page", () => {
+  const { win, posted } = windowOf();
+  installAppBridge(win);
+  posted.length = 0;
+  const ask = (detail) => win.dispatchEvent(new CustomEvent("app:file", { cancelable: true, detail }));
+  assert.equal(ask({ name: "calls-by-day.csv", type: "text/csv", text: "day,calls" }), false, "cancelled: taken");
+  assert.deepEqual(posted, [{ t: "file", name: "calls-by-day.csv", type: "text/csv", text: "day,calls" }]);
+  assert.equal(
+    ask({ name: "page.html", type: "text/html", text: "<script>" }),
+    true,
+    "the page falls back to its own download",
+  );
+  assert.equal(posted.length, 1, "and nothing is posted");
 });

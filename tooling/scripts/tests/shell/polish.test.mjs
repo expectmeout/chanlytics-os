@@ -103,7 +103,10 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
       'title={typeof meta === "string" ? meta : undefined}',
     ),
   );
-  const today = readCode("packages/contracts/src/today/today.ts");
+  // tzClock, and the four places Today says a closing or a last time with it.
+  const today = ["clock", "facts", "figures", "rows", "queue"]
+    .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
+    .join("\n");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");

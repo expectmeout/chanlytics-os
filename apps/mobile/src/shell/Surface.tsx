@@ -30,6 +30,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Updates from "expo-updates";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
+import { useObserve } from "expo-observe";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister, signedOut } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
@@ -38,6 +39,7 @@ import { updateTodayWidget } from "./widget";
 import { endCallActivities } from "./live-activity";
 import { front } from "./front";
 import { Offline } from "./Offline";
+import { shareFile } from "./files";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
@@ -127,6 +129,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   );
 
   useFront(tab, ready && focused, handle);
+  useInteractiveOnReady(ready);
 
   // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
   useEffect(() => {
@@ -247,6 +250,7 @@ function actOnPageMessage(raw: string): PageMessage | null {
   if (effect === "theme") Appearance.setColorScheme(state.theme);
   const m = parsePageMessage(raw);
   if (m?.t === "today") updateTodayWidget(m.snapshot);
+  if (m?.t === "file") void shareFile(m);
   return m;
 }
 
@@ -275,6 +279,17 @@ function useAndroidBack(
     });
     return () => sub.remove();
   }, [focused, ref, canGoBack, overlay]);
+}
+
+/**
+ * The page drawn and answering for the first time is when this screen is interactive (EAS Observe's time to
+ * interactive, per tab through the router integration); only the first mark in a session is counted app-wide.
+ */
+function useInteractiveOnReady(ready: boolean): void {
+  const { markInteractive } = useObserve();
+  useEffect(() => {
+    if (ready) markInteractive();
+  }, [ready, markInteractive]);
 }
 
 /**
