@@ -141,6 +141,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/notes",
   "packages/contracts/src/playbooks",
   "packages/contracts/src/shared",
+  "packages/core/src/inbound",
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
   "apps/dashboard/src/lib",

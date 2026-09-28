@@ -994,11 +994,6 @@
     "branches": 31,
     "depth": 2
   },
-  "packages/core/src/inbound/answer.ts::answerInbound#1": {
-    "lines": 920,
-    "branches": 184,
-    "depth": 5
-  },
   "packages/core/src/leads/runner/collect.ts::collectHeld#1": {
     "lines": 175,
     "branches": 48,

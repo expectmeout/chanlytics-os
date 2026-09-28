@@ -63,7 +63,7 @@ reads the contact's name, consent and notes
 (`packages/db/src/repositories/thread.ts:220-228`); `describeLead` (`:280`)
 turns them into a few plain lines, ending with the owner's note: _"Notes from
 the owner about them (use as facts, never read aloud or quoted)"_ (`:303`).
-Chat reads it in `packages/core/src/inbound/answer.ts` beside the person's
+Chat reads it in `packages/core/src/inbound/model-turn.ts` beside the person's
 visits; voice reads it at call start. It is the only per-person field either
 prompt sees, and it is six hundred characters of free text.
 

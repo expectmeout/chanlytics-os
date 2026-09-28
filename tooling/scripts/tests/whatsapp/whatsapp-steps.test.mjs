@@ -180,16 +180,50 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // The message path is a verb over ports now, and apps/edge/lib/whatsapp/inbound.ts
   // is its adapter: handleInbound keeps its name and its seven parameters, which
   // whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
-  const inbound = readCode("packages/core/src/inbound/answer.ts");
-  for (const s of [
-    "export async function answerInbound(",
-    "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);",
-    "const gate = threadVerdict(thread, maxRepliesDay);",
-    "const plan = holdPlan(replyMode, replyLimits, brainMeta);",
-    "const two = layerTwo({",
-    "const hold = holdCopy({",
+  // The verb is answer.ts's order of phases, each declared in a module beside it
+  // (decision 0001), in the order it calls them; what each one does is run there.
+  const HOME = {
+    openInbound: "context",
+    ingestMessage: "ingest",
+    modeInForce: "gates",
+    firstGates: "gates",
+    seeingOf: "unreadable",
+    unreadableGate: "unreadable",
+    wordsOf: "unreadable",
+    lateOrConfirmed: "reply-gates",
+    heldForThePerson: "reply-gates",
+    photoOf: "unreadable",
+    modelTurn: "model-turn",
+    planTheHold: "dispatch",
+    heldOrKept: "dispatch",
+    sendNow: "dispatch",
+  };
+  const src = Object.fromEntries(
+    ["answer", ...new Set(Object.values(HOME))].map((m) => [m, readCode(`packages/core/src/inbound/${m}.ts`)]),
+  );
+  assert.ok(src.answer.includes("export async function answerInbound("));
+  const calls = Object.keys(HOME).map((f) => src.answer.indexOf(`${f}(`));
+  assert.ok(
+    calls.every((at) => at > 0),
+    "answer.ts calls every phase",
+  );
+  assert.deepEqual(
+    [...calls].sort((a, b) => a - b),
+    calls,
+    `and in this order: ${Object.keys(HOME).join(", ")}`,
+  );
+  for (const [f, m] of Object.entries(HOME))
+    assert.ok(new RegExp(`export (async )?function ${f}\\(`).test(src[m]), `${f} is ${m}.ts's`);
+  // Each phase asks the steps (steps.ts) for its decisions.
+  for (const [m, s] of [
+    ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? undefined);"],
+    ["reply-gates", "const gate = threadVerdict(thread, maxRepliesDay);"],
+    ["dispatch", "const plan = holdPlan(replyMode, replyLimits, brainMeta);"],
+    ["model-turn", "const two = layerTwo({"],
+    ["reply-gates", "const hold = holdCopy({"],
   ])
-    assert.ok(inbound.includes(s), s);
+    assert.ok(src[m].includes(s), `${m}.ts: ${s}`);
+  const inbound = Object.values(src).join("\n");
   assert.ok(
     !inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("),
     "the words are checked in one place",
@@ -212,9 +246,9 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
   // deliver.test.mjs runs the door).
   assert.ok(
-    inbound.includes("whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),") &&
+    src.ingest.includes("whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),") &&
       /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
-        inbound,
+        src.ingest,
       ),
     "the customer is texted on the tenant's credentials, through the door, or not at all",
   );
