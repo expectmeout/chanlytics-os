@@ -55,10 +55,10 @@ export async function threadForTurn(
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = found.turns;
-      // The thread's previous turn, before this question is appended: how long the person waited to ask again. A
-      // read that came back full holds the oldest turns, not the newest, so its last is not the previous turn.
+      // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
+      // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
-      sinceLastMs = !found.truncated && lastAt ? Math.max(0, Date.now() - lastAt) : null;
+      sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
       if (!scope) scope = found.thread.scope;
     } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
   }

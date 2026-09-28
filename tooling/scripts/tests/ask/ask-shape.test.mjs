@@ -327,7 +327,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
   }
 });
 
-test("since_last_ms is nothing on a thread longer than the read: the read keeps the oldest MESSAGES_CAP rows, so its last is not the previous turn; a short thread keeps the time since its last", async () => {
+test("since_last_ms is known however long the thread: the read keeps the newest MESSAGES_CAP rows, so its last is the previous turn, on seventy rows as on four", async () => {
   const written = answerJson("Nobody has booked this week yet.");
   setAskPorts({
     round: async (call, onText) => {
@@ -362,7 +362,7 @@ test("since_last_ms is nothing on a thread longer than the read: the read keeps 
         created_at: new Date(lastAt - (n - 1 - i) * 600_000).toISOString(),
       });
   };
-  seed(LONG, 60);
+  seed(LONG, 70);
   seed(SHORT, 4);
   const shapeOn = (thread) => tables.ask_messages.find((m) => m.thread_id === thread && m.content.shape)?.content.shape;
   try {
@@ -371,16 +371,16 @@ test("since_last_ms is nothing on a thread longer than the read: the read keeps 
     const long = shapeOn(LONG);
     const short = shapeOn(SHORT);
     assert.ok(long && short, "both turns stored their shape");
-    assert.deepEqual(
-      [long.follow_up, long.since_last_ms],
-      [true, null],
-      "sixty rows: the newest may be past the read, so no number",
-    );
-    assert.equal(short.follow_up, true);
-    assert.ok(
-      typeof short.since_last_ms === "number" && short.since_last_ms >= 60_000 && short.since_last_ms < 600_000,
-      `four rows: the time since the last of them, a minute; got ${short.since_last_ms}`,
-    );
+    for (const [sh, rows] of [
+      [long, "seventy rows, past the read's sixty"],
+      [short, "four rows"],
+    ]) {
+      assert.equal(sh.follow_up, true, rows);
+      assert.ok(
+        typeof sh.since_last_ms === "number" && sh.since_last_ms >= 60_000 && sh.since_last_ms < 600_000,
+        `${rows}: the time since the last of them, a minute; got ${sh.since_last_ms}`,
+      );
+    }
   } finally {
     setAskPorts(null);
   }

@@ -18,6 +18,20 @@
 import crypto from "node:crypto";
 
 /**
+ * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
+ * after the last one's at the least, as two statements' are in Postgres, which counts in microseconds. The wall clock
+ * alone gave a turn's answer and the next question one stamp in 21 of 150 runs, and a read ordered newest first with
+ * the id as the tiebreak (Ask's readThread) then put those two rows in their random ids' order. The rows of one
+ * statement share its stamp, as they share a transaction's now().
+ */
+const clocks = new WeakMap();
+function stampOf(tables) {
+  const at = Math.max(Date.now(), (clocks.get(tables) ?? 0) + 1);
+  clocks.set(tables, at);
+  return new Date(at).toISOString();
+}
+
+/**
  * A column, or a JSON path the way PostgREST spells one: `recording->>fetch_state`
  * reads the key inside the object. Modelled for the recordings purge, whose
  * candidates are "stored" rows -- a state that lives inside a jsonb column.
@@ -316,9 +330,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // none, and answers with them -- `.select()` after an insert reads back
       // what was written, as PostgREST does.
       if (q.op === "insert") {
+        const at = stampOf(tables);
         const made = q.values.map((v) => ({
           id: crypto.randomUUID(),
-          created_at: new Date().toISOString(),
+          created_at: at,
           ...v,
         }));
         // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
@@ -388,6 +403,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // saying it twice makes one row.
       if (q.op === "upsert") {
         const made = [];
+        const at = stampOf(tables);
         for (const v of q.values) {
           const existing = rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
           if (existing) {
@@ -399,7 +415,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             made.push(existing);
             continue;
           }
-          const r = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...v };
+          const r = { id: crypto.randomUUID(), created_at: at, ...v };
           rows().push(r);
           made.push(r);
         }

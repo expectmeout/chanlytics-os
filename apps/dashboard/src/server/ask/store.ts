@@ -106,7 +106,7 @@ export async function readThread(
   messages: AskMessageVM[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
-  /** The thread may have more rows than the read returns (MESSAGES_CAP): the newest would not be here. */
+  /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
   truncated: boolean;
   tenantId: string;
 } | null> {
@@ -117,14 +117,17 @@ export async function readThread(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!t) return null;
+  // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
+  // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
     .select("id, role, content, created_at")
     .eq("thread_id", id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  const rows = msgs ?? [];
+  const rows = (msgs ?? []).reverse();
   return {
     thread: toThreadVM(t),
     messages: rows.map(toMessageVM),

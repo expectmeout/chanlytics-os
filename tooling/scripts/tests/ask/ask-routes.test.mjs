@@ -853,3 +853,54 @@ test("a new search's card carries the thread it was planned in, for the commit t
     setAskPorts(null);
   }
 });
+
+/* ------------------------------------------------ a long thread, and the scope of each turn (Phase 5, 5.1) -- */
+
+/** A stored thread of `n` rows, a question and its answer in turn, a minute apart, the first at `from`. */
+const longThread = (n, from = Date.parse("2026-09-20T12:00:00Z")) =>
+  Array.from({ length: n }, (_, i) => ({
+    ...turn(
+      `eeeeeeee-eeee-4eee-8eee-${String(i).padStart(12, "0")}`,
+      T1,
+      A,
+      i % 2 ? "assistant" : "user",
+      i % 2 ? { v: 2, text: `Answer ${i}.` } : { text: `Question ${i}?` },
+    ),
+    created_at: new Date(from + i * 60_000).toISOString(),
+  }));
+const askWorld = (threads = [], messages = []) => ({
+  memberships: both("owner", "viewer"),
+  tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+  tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+  policies: [],
+  ask_threads: threads,
+  ask_messages: messages,
+});
+
+test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET ask/threads/[id] draws them oldest first, the newest last, a tie in the clock broken by the id; and a follow-up is asked with the newest turns, never the first", async () => {
+  const rows = longThread(70);
+  // The newest turn's question and answer in one millisecond: the id puts them in order, the same way every read.
+  rows[69].created_at = rows[68].created_at;
+  const tables = askWorld([threadRow(T1, A)], rows);
+  const read = await thread.GET.run(get(inA), ctxFor(tables, { id: T1 }));
+  assert.equal(read.messages.length, 60, "the read's sixty");
+  assert.deepEqual(
+    [read.messages[0].text, read.messages.at(-2).text, read.messages.at(-1).text],
+    ["Question 10?", "Question 68?", "Answer 69."],
+    "REGRESSION: a thread past thirty turns reopened on its first thirty and dropped the newest",
+  );
+  assert.deepEqual(
+    read.messages.map((m) => m.text),
+    rows.slice(10).map((r) => r.content.text),
+    "in the order they were written",
+  );
+  const requests = wordsOnly();
+  try {
+    await linesOf(await ask.POST.run(send("POST", { text: "And after that?", thread_id: T1 }, inA), ctxFor(tables)));
+    const history = requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]);
+    assert.deepEqual(history.at(-1), ["assistant", "Answer 69."], "the model reads the thread up to its newest turn");
+    assert.equal(lastUser(requests[0]), "And after that?");
+  } finally {
+    setAskPorts(null);
+  }
+});
