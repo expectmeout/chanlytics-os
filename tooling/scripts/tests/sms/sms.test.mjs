@@ -332,12 +332,12 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
 });
 
 test("the pilot allowlist gates the deployment's own number, never a tenant that brought its own", () => {
-  const code = readCode("packages/core/src/inbound/answer.ts");
+  const code = readCode("packages/core/src/inbound/ingest.ts");
   assert.ok(
     code.includes("if (isEnvDefault && allow.length && !allow.includes(digits(from))) {"),
     "REGRESSION: the pilot allowlist muted every tenant on every channel — a business that connected its own number had its customers persisted, marked processed and never answered",
   );
-  const raw = readRaw("packages/core/src/inbound/answer.ts");
+  const raw = readRaw("packages/core/src/inbound/ingest.ts");
   assert.ok(
     raw.includes("THE PILOT ALLOWLIST, scoped to the number it was made for."),
     "and the reason it is scoped stays written down",
@@ -357,13 +357,16 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // with its line as the carrier, an empty TwiML for every answer -- is run in
   // sms-door.test.mjs. Scans deleted rather than re-pointed: a behaviour a
   // test runs does not also need a test that reads it.
-  const road = readRaw("packages/core/src/inbound/answer.ts");
+  const road = readRaw("packages/core/src/inbound/gates.ts");
   assert.ok(
     road.indexOf("if (carrier?.held) {") > road.indexOf("if (optedOut) {") &&
       road.indexOf("if (carrier?.held) {") < road.indexOf("// Routing is on the NORMALIZED type"),
     "after consent, before any branch that speaks",
   );
-  const code = readCode("packages/core/src/inbound/answer.ts");
+  // Every module of the message path, so "every ingest" and "no sendText" speak for all of it.
+  const code = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
+    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
+    .join("\n");
   // EVERY ingest, not three of them: a count breaks whenever a legitimate new
   // ingest is added (the unreachable-sender guard was the fourth) and says
   // nothing about the one that might have dropped the channel.

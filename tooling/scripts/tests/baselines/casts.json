@@ -101,7 +101,7 @@
   "packages/contracts/src/config/business-tab/fold-limits.ts": 1,
   "packages/contracts/src/templates/template-languages.ts": 1,
   "packages/core/src/deliver.ts": 1,
-  "packages/core/src/inbound/answer.ts": 1,
+  "packages/core/src/inbound/dispatch.ts": 1,
   "packages/db/src/repositories/calls.ts": 1,
   "packages/db/src/repositories/control.ts": 1,
   "packages/db/src/repositories/ingest.ts": 1,

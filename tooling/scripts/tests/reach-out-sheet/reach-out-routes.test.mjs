@@ -375,6 +375,55 @@ test("the door's refusals are said in contracts' words: a search with a chain is
   );
 });
 
+test("a chain ending in a call reaches the door with its hand, an email with none; 00228's refusals are said (G20)", async () => {
+  const asked = serviceSave();
+  edge();
+  const hand = { kind: "call", words: "Ask whether our quote suited them" };
+  const body = CHAIN({ steps: [CHAIN().steps[0], { subject: null, body: "", after_days: 5, hand }] });
+  const out = await chain.PUT.run(send("PUT", body), ctxFor(tables(), { id: ROOT_ID }));
+  assert.equal(out.root_id, ROOT_ID);
+  const [first, last] = asked[0].p_chain.steps;
+  assert.equal("hand" in first, false, "the door reads a step with the key as a call or a note");
+  assert.deepEqual(last.hand, hand);
+  // A null hand is an email: sent without the key.
+  const plain = CHAIN();
+  plain.steps[1].hand = null;
+  await chain.PUT.run(send("PUT", plain), ctxFor(tables(), { id: ROOT_ID }));
+  assert.equal("hand" in asked[1].p_chain.steps[1], false);
+  // Checked before the door: a hand step first, or with nothing to do.
+  const empty = CHAIN({
+    steps: [CHAIN().steps[0], { subject: null, body: "", after_days: 5, hand: { ...hand, words: " " } }],
+  });
+  await refused(
+    chain.PUT.run(send("PUT", empty), ctxFor(tables(), { id: ROOT_ID })),
+    "validation",
+    422,
+    "Say what to do when they come up.",
+  );
+  const early = CHAIN({ steps: [{ subject: null, body: "", after_days: 5, hand }, CHAIN().steps[1]] });
+  await refused(chain.PUT.run(send("PUT", early), ctxFor(tables(), { id: ROOT_ID })), "validation", 422);
+  assert.equal(asked.length, 2, "the door was not asked for either");
+  // The door's own, said as they are.
+  serviceSave(() => {
+    throw pgError("22023", REACH_OUT_REFUSALS.handLast);
+  });
+  await refused(
+    chain.PUT.run(send("PUT", body), ctxFor(tables(), { id: ROOT_ID })),
+    "validation",
+    422,
+    REACH_OUT_REFUSALS.handLast,
+  );
+  serviceSave(() => {
+    throw pgError("23503", REACH_OUT_REFUSALS.stepRan);
+  });
+  await refused(
+    chain.PUT.run(send("PUT", body), ctxFor(tables(), { id: ROOT_ID })),
+    "conflict",
+    409,
+    REACH_OUT_REFUSALS.stepRan,
+  );
+});
+
 test("PUT reach-outs/[id] saves an edit and runs nothing; a step is not a chain (404)", async () => {
   serviceSave(() => ({ root_id: ROOT_ID, step_ids: [ROOT_ID], rechecked: 7 }));
   const calls = edge();

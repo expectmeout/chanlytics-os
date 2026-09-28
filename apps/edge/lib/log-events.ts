@@ -244,6 +244,7 @@ export const LOG_EVENTS = [
   "playbooks_swept",
   "policy_block_price",
   "push_schedule_failed",
+  "reach_out_booked_failed",
   "reach_out_check_error",
   "reach_out_check_gate_failed",
   "reach_out_check_gated",
