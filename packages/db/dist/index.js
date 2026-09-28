@@ -1494,7 +1494,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -3529,6 +3529,7 @@ async function reachOutReplyOf(db, p) {
     lead_contact_id: textOf(o.lead_contact_id),
     lead_email: textOf(o.lead_email),
     lead_website: textOf(o.lead_website),
+    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
     answered_message_id: textOf(o.answered_message_id),
     answered_text: textOf(o.answered_text),
     business: textOf(o.business) ?? "",

@@ -84,6 +84,8 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   const mailbox = await mailboxOfTenant(db, tenantId);
   if (!mailbox) return null;
   const routes: EmailRoute[] = [{ lane: "hosted", cfg: { apiKey }, as: sendsAs(mailbox, domain) }];
+  // A held domain has no route, but a person's reply frozen with it says so when it goes as the mailbox (left_as_why).
+  const held: string[] = [];
   const coldKey = env.RESEND_COLD_API_KEY;
   // Cold mail leaves only while its receipts can be read: without the cold account's webhook secret every bounce and
   // complaint would be refused at the door (email-ingress.ts), and no domain would ever be held for them.
@@ -92,20 +94,18 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
     // costs cold email its routes for this tick (its sends fail at the wire, and a cold failure is recorded on its
     // row, send.ts), never every other job.
     try {
-      for (const d of await sendingDomainsOf(db, tenantId))
-        if (d.state === "verified")
-          routes.push({
-            lane: "own",
-            cfg: { apiKey: coldKey },
-            // Answered on the cold reply domains when they are set (D17), and on the mail domain still: an email
-            // frozen before a switch leaves as it was frozen.
-            as: sendsAsOwnDomain(d, mailbox, domain, coldReplyDomains()),
-          });
+      for (const d of await sendingDomainsOf(db, tenantId)) {
+        // Answered on the cold reply domains when they are set (D17), and on the mail domain still: an email
+        // frozen before a switch leaves as it was frozen.
+        const as = sendsAsOwnDomain(d, mailbox, domain, coldReplyDomains());
+        if (d.state === "verified") routes.push({ lane: "own", cfg: { apiKey: coldKey }, as });
+        else if (d.state === "held") held.push(as.address);
+      }
     } catch (e) {
       logger({ tenant: tenantId }).error("email_own_domains_unread", { error: errField(e) });
     }
   }
-  return emailSender(routes);
+  return emailSender(routes, held);
 }
 
 type EmailWaiting = Parameters<NonNullable<JobContext["email"]>["tell"]>[1];

@@ -145,7 +145,7 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const realConsoleError = console.error;
 console.error = () => {};
-const { broadcastsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+const { broadcastsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
 console.error = realConsoleError;
 
 /**

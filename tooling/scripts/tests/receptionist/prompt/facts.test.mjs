@@ -261,7 +261,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // platform knows, and their conflicts -- is RUN: through the route in
   // settings-routes.test.mjs ("F1") and through its reader in readers.test.mjs.
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes(
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts").includes(
       "w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };",
     ),
     "and publishes them once",

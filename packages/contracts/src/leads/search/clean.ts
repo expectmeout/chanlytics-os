@@ -184,6 +184,19 @@ export function usPhone(raw: string | null | undefined): string | null {
   return e164;
 }
 
+/**
+ * Whether a website is its host's root ("/", with or without a query), read the way siteHost reads it. A page under a
+ * host (an ISP's "/~joe/", a directory's "/listing/42") is no proof the host is the business's own.
+ */
+export function isSiteRoot(url: string | null | undefined): boolean {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
+
 /** The website's host, www. removed; null when there is none of their own (a platform, a social page). */
 export function siteHost(url: string | null | undefined): string | null {
   if (!url) return null;

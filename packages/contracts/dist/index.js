@@ -1120,6 +1120,14 @@ function usPhone(raw) {
   if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
   return e164;
 }
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
 function siteHost(url) {
   if (!url) return null;
   let host;
@@ -6575,7 +6583,7 @@ function v1FromAnswer(a) {
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -6731,6 +6739,14 @@ var PageContextSchema = z11.object({
   rows: z11.array(z11.object({ kind: z11.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z11.number().int().nonnegative()
 }).strict();
+var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
+function itemFocus(m, n) {
+  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  if (!item) return void 0;
+  const { kind: cited, id, label } = item.source;
+  const kind = cited === "broadcast" ? "run" : cited;
+  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
+}
 
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
@@ -13745,20 +13761,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -13832,7 +13840,7 @@ function readingPlan(reading, c) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite) ?? ownedDomainOf(c.replyFrom, c.leadWebsite)
+        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite, c.leadWebsiteRoot) ?? ownedDomainOf(c.replyFrom, c.leadWebsite, c.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c.readAt, c.tz);
@@ -14014,7 +14022,8 @@ function replyLeftAsOf(meta) {
   const went = bareAddress(email.request?.from);
   const own = bareAddress(email.own_request?.from);
   if (!went) return null;
-  return own ? `Went from ${went}: ${own} could not send it.` : `Went from ${went}.`;
+  if (!own) return `Went from ${went}.`;
+  return email.left_as_why === "domain_held" ? `Went from ${went}: ${own}'s domain is held.` : `Went from ${went}: ${own} could not send it.`;
 }
 
 // src/conversations/inbox-thread.ts
@@ -28646,6 +28655,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  clip,
   clipAtWord,
   clockDate,
   clockDateYear,
@@ -28912,6 +28922,7 @@ export {
   isReplyUndoRefusal,
   isSellsBy,
   isSidebarPref,
+  isSiteRoot,
   isThemePref,
   isTimezone,
   isTypingTarget,
@@ -28921,6 +28932,7 @@ export {
   isUuid,
   isWaitRefusal,
   isYes,
+  itemFocus,
   jobNewsWords,
   judgeAsked,
   judgeDomain,

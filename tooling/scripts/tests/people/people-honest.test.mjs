@@ -168,7 +168,9 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { peopleOverride } = await quietly(() => import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+const { peopleOverride } = await quietly(
+  () => import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
+);
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
 // The bridge's own save, for a test that goes through it over the wire rather than a stand-in.

@@ -8,6 +8,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ASK_MODEL } from "@chanlytics/contracts";
@@ -733,17 +734,20 @@ test("an answer to a search's question lands in the thread it was planned in: th
       ],
       "the conversation where the search was planned rides in",
     );
-    // A later turn in the thread still knows what that answer was about.
+    // A later turn in the thread still knows what that answer was about. Asked at once, the thread is warm: the answer's
+    // turn is replayed as the model was sent it (the Phase 5 plan, PR 5.4), its words in the question's blocks.
     await linesOf(
       await ask.POST.run(send("POST", { text: "And how many is that?", thread_id: PLANNED }, inA), ctxFor(tables)),
     );
-    const replayed = requests[1].messages.map((m) => (typeof m.content === "string" ? m.content : ""));
+    const textOf = (c) => (typeof c === "string" ? c : c.map((b) => b.text ?? "").join("\n"));
+    const replayed = requests[1].messages.map((m) => textOf(m.content));
     assert.ok(
       replayed.some(
         (c) => c.includes(`(search id ${SEARCH})`) && c.includes("My answer: Include the franchise ones too."),
       ),
       "the answer is replayed with what it answered",
     );
+    assert.equal(tables.ask_messages.at(-1).content.shape.replay, "live", "replayed, not rebuilt");
     assert.equal(lastUser(requests[1]), "And how many is that?", "a plain turn is only its words");
     assert.equal(
       tables.ask_threads[0].title,
@@ -983,4 +987,673 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
   } finally {
     setAskPorts(null);
   }
+});
+
+/* ------------------------------------ the turn as the model was sent it, kept on its row (Phase 5, 5.3) -- */
+
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+/**
+ * The prefix a request says (the Phase 5 plan, D2): the sha256 of what it sent besides its messages -- system and tools
+ * as sent, the tool choice, and the output config.
+ */
+const prefixOf = (request) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({
+        system: request.system,
+        tools: request.tools,
+        tool_choice: request.tool_choice,
+        output_config: request.output_config,
+      }),
+    )
+    .digest("hex");
+/**
+ * A request's messages less the cache's markers it carried (the Phase 5 plan, D10): the markers ride on each request's
+ * own copy, so what the turn keeps of a request is these.
+ */
+const unmark = (messages) =>
+  messages.map((m) =>
+    Array.isArray(m.content) ? { ...m, content: m.content.map(({ cache_control: _cc, ...b }) => b) } : m,
+  );
+/** A card the scripted model proposes, the same bytes every turn. */
+const CARD = {
+  id: "p-1",
+  kind: "policy",
+  needs: "operator",
+  title: "Autonomy: reply",
+  summary: "Ask first on every reply.",
+  payload: { class: "reply", mode: "ask" },
+  undo: null,
+};
+const SIGNATURE = "EmwKAhgBEgxzaWduYXR1cmU=";
+/**
+ * The model, scripted: one round that thinks, proposes a card and answers beside it -- a turn that ends on a call no
+ * request answered -- each request kept as it was sent.
+ */
+function besideACard() {
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      onText(answered);
+      return {
+        blocks: [
+          { type: "thinking", id: "", name: "", text: "", json: "", thinking: "", signature: SIGNATURE },
+          {
+            type: "tool_use",
+            id: "t-card",
+            name: "propose_autonomy",
+            text: "",
+            json: '{"class":"reply","mode":"ask"}',
+          },
+          { type: "text", id: "", name: "", text: answered, json: "" },
+        ],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
+  });
+  return requests;
+}
+/** What `fn` answered, and every line console.log printed while it ran. */
+async function printed(fn) {
+  const said = [];
+  const was = console.log;
+  console.log = (...parts) => said.push(parts.join(" "));
+  try {
+    return { value: await fn(), said };
+  } finally {
+    console.log = was;
+  }
+}
+
+/** A caller over a database in memory that keeps a turn's content as jsonb does: its objects' keys in jsonb's order. */
+const asJsonb = (tables, params = {}) => ({
+  supabase: fakeDb(tables, {}, {}, { jsonb: ["ask_messages.content"] }),
+  userId: USER,
+  email: "ada@example.com",
+  params,
+});
+
+test("the turn as the model was sent it rides on the answer's row, at content.raw (the Phase 5 plan, D11): its messages and blocks one JSON string beside its scalars, so they come back the bytes that were sent though jsonb reorders every object's keys; the words history the turn was asked with among them; nowhere else -- not on the stream, not in a log line; a turn that failed keeps none", async () => {
+  const tables = askWorld();
+  const requests = besideACard();
+  try {
+    const { value: lines, said } = await printed(async () =>
+      linesOf(
+        await ask.POST.run(send("POST", { text: "Ask me before every reply", surface: "today" }, inA), asJsonb(tables)),
+      ),
+    );
+    const row = tables.ask_messages[1];
+    assert.equal(row.role, "assistant");
+    const raw = row.content.raw;
+    assert.ok(raw, "the answer's row keeps the turn as it was sent");
+    // The trap: what the row keeps as objects comes back in jsonb's order, never the writer's.
+    assert.deepEqual(Object.keys(raw), ["at", "model", "blocks", "prefix"], "jsonb's order: shorter keys first");
+    assert.deepEqual(Object.keys(row.content.answer), ["v", "do", "say", "form", "show", "language"]);
+    assert.deepEqual(Object.keys(lines.at(-1).message.answer), ["v", "form", "say", "show", "do", "language"]);
+    // The string comes back as it went.
+    const sent = requests[0];
+    assert.equal(requests.length, 1);
+    const blocks = JSON.parse(raw.blocks);
+    assert.deepEqual(Object.keys(blocks), ["base", "question", "rounds", "final", "results"]);
+    assert.equal(
+      JSON.stringify([...blocks.base, { role: "user", content: blocks.question }, ...blocks.rounds]),
+      JSON.stringify(unmark(sent.messages)),
+      "read back, the last request's messages, byte for byte, less the cache's markers the request carried",
+    );
+    assert.ok(!raw.blocks.includes("cache_control"), "the row keeps no marker");
+    assert.deepEqual([blocks.base, blocks.rounds], [[], []], "a thread's first turn, one round");
+    assert.deepEqual(blocks.final, [
+      { type: "thinking", thinking: "", signature: SIGNATURE },
+      { type: "tool_use", id: "t-card", name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
+      { type: "text", text: answered },
+    ]);
+    assert.deepEqual(
+      blocks.results,
+      [
+        {
+          type: "tool_result",
+          tool_use_id: "t-card",
+          content: JSON.stringify({ proposed: true, id: CARD.id }),
+          is_error: false,
+        },
+      ],
+      "the card's result, which no request carried",
+    );
+    assert.equal(raw.model, ASK_MODEL);
+    assert.equal(raw.prefix, prefixOf(sent), "the prefix the request says");
+    assert.ok(Number.isInteger(raw.at) && raw.at <= Date.parse(row.created_at), "the round began before the save");
+
+    assert.equal(lines.at(-1).t, "final");
+    assert.deepEqual(
+      lines.at(-1).message.proposals.map((p) => p.id),
+      [CARD.id],
+      "the final line is the answer the Line draws",
+    );
+    for (const l of lines)
+      assert.ok(!JSON.stringify(l).includes('"raw"') && !JSON.stringify(l).includes(SIGNATURE), `${l.t}: no raw`);
+    const logged = said.filter((l) => l.includes('"event":"ask_turn'));
+    assert.equal(logged.length, 2, "ask_turn_shape and ask_turn");
+    for (const l of logged) assert.ok(!l.includes('"raw"') && !l.includes(SIGNATURE), "no log line carries it");
+
+    // A follow-up at once: the thread is warm, so it replays the first turn as the model was sent it (the Phase 5 plan,
+    // PR 5.4), the card's result first in its question. Its raw keeps no base -- its history is the chain it replayed --
+    // and names the answer it followed.
+    const follow = { text: "And the reminders?", thread_id: row.thread_id };
+    await linesOf(await ask.POST.run(send("POST", follow, inA), asJsonb(tables)));
+    const nextRaw = tables.ask_messages[3].content.raw;
+    const next = JSON.parse(nextRaw.blocks);
+    assert.deepEqual(Object.keys(next), ["question", "rounds", "final", "results"], "a live turn keeps no base");
+    assert.equal(nextRaw.after, row.id, "the answer it followed");
+    assert.deepEqual(next.question[0], blocks.results[0], "the card's result opens its question");
+    const firstTurn = [...blocks.base, { role: "user", content: blocks.question }, ...blocks.rounds];
+    assert.equal(
+      JSON.stringify([
+        ...firstTurn,
+        { role: "assistant", content: blocks.final },
+        { role: "user", content: next.question },
+        ...next.rounds,
+      ]),
+      JSON.stringify(unmark(requests[1].messages)),
+      "the follow-up's: the first turn as it was sent, its final, then its own, byte for byte",
+    );
+    assert.equal(tables.ask_messages[3].content.shape.replay, "live");
+
+    // A turn that failed keeps nothing to replay.
+    setAskPorts({
+      round: async () => {
+        throw new GatewayRefused({ kind: "budget", used: 1, cap: 1 });
+      },
+      shape: async () => "",
+    });
+    await linesOf(await ask.POST.run(send("POST", { ...follow, text: "And tomorrow?" }, inA), asJsonb(tables)));
+    const failed = tables.ask_messages[5].content;
+    assert.deepEqual([failed.failed, failed.failure, failed.raw], [true, "budget", null]);
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("through the route a thread stays live turn after turn (the Phase 5 plan, PR 5.4): a card-ending turn, then a follow-up asked on a page -- its question the card's result, the page's data, the words and the question in one message, after the first turn as it was sent -- then a third that follows the second's link; the raws are read by id, only the chain's; each shape says how its history went", async () => {
+  const tables = askWorld();
+  const page = {
+    blocks: [
+      {
+        type: "search_result",
+        source: "page://today",
+        title: "Today",
+        content: [{ type: "text", text: "Today: 2 need you" }],
+        citations: { enabled: false },
+      },
+    ],
+    refs: [{ kind: "page", id: "today", route: "today", label: "Today" }],
+    rows: 0,
+    chars: 30,
+    stamp: 1,
+    failed: false,
+    warm: "hit",
+  };
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      onText(answered);
+      const n = requests.length;
+      const card = {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_autonomy",
+        text: "",
+        json: '{"class":"reply","mode":"ask"}',
+      };
+      const thought = {
+        type: "thinking",
+        id: "",
+        name: "",
+        text: "",
+        json: "",
+        thinking: "",
+        signature: `${SIGNATURE}${n}`,
+      };
+      return {
+        blocks: [thought, ...(n === 1 ? [card] : []), { type: "text", id: "", name: "", text: answered, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    context: async () => page,
+    propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
+  });
+  const onToday = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
+  try {
+    const [opened] = await linesOf(
+      await ask.POST.run(send("POST", { text: "Ask me before every reply" }, inA), asJsonb(tables)),
+    );
+    const thread_id = opened.id;
+    const body = { text: "And the reminders?", thread_id, context: onToday };
+    await linesOf(await ask.POST.run(send("POST", body, inA), asJsonb(tables)));
+    const third = asJsonb(tables);
+    await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id }, inA), third));
+
+    const answers = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(
+      answers.map((m) => m.content.shape.replay),
+      ["none", "live", "live"],
+    );
+    assert.deepEqual(
+      answers.map((m) => m.content.raw.after ?? null),
+      [null, answers[0].id, answers[1].id],
+      "each follows the answer before it",
+    );
+    const [one, two, three] = requests;
+    const finalOf = (m) => JSON.parse(m.content.raw.blocks).final;
+    assert.equal(
+      JSON.stringify(unmark(two.messages.slice(0, one.messages.length))),
+      JSON.stringify(unmark(one.messages)),
+      "turn 2 begins with turn 1's request, byte for byte",
+    );
+    assert.deepEqual(two.messages[one.messages.length], { role: "assistant", content: finalOf(answers[0]) });
+    assert.deepEqual(
+      two.messages.at(-1).content.map((b) => b.tool_use_id ?? b.source ?? b.type),
+      ["t-card", "page://today", "text", "text"],
+      "the card's result, then the page's data, the words and the question: one message",
+    );
+    assert.equal(
+      JSON.stringify(unmark(three.messages.slice(0, two.messages.length))),
+      JSON.stringify(unmark(two.messages)),
+      "turn 3 begins with turn 2's request, byte for byte",
+    );
+    assert.deepEqual(three.messages[two.messages.length], { role: "assistant", content: finalOf(answers[1]) });
+    assert.deepEqual(
+      three.messages.at(-1).content.map((b) => b.type),
+      ["text", "text"],
+      "turn 2 left no call unanswered",
+    );
+    const rawReads = third.supabase.seen.filter((q) => q.table === "ask_messages" && /\braw\b/.test(q.columns ?? ""));
+    assert.deepEqual(
+      rawReads.map((q) => [q.columns, q.filters]),
+      [["id, raw:content->raw", [["in", "id", [answers[1].id, answers[0].id]]]]],
+      "one read of the raws, the chain's answers by id",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("what happened since, through the route (the Phase 5 plan, D8): a card approved between two turns is said in the next live turn's words, after the clock -- its title, its id, approved, its receipt -- that turn keeps what it told, and the turn after it says it no more", async () => {
+  const tables = askWorld();
+  const requests = [];
+  // A reply's card: its approval sends a reply and leaves system as it was, so the next turn stays live. (An autonomy
+  // or a settings card's approval changes system, which carries the policies and the settings: the next turn is cold.)
+  const REPLY = {
+    id: "p-1",
+    kind: "reply",
+    needs: "operator",
+    title: "Reply to Rosa",
+    summary: "We open at nine on Saturday.",
+    payload: { conversation_id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1", text: "We open at nine on Saturday." },
+    undo: null,
+  };
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      onText(answered);
+      const draft = {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_reply",
+        text: "",
+        json: JSON.stringify({ action: "draft", conversation_id: REPLY.payload.conversation_id, text: REPLY.summary }),
+      };
+      return {
+        blocks: [
+          ...(requests.length === 1 ? [draft] : []),
+          { type: "text", id: "", name: "", text: answered, json: "" },
+        ],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    propose: async () => ({
+      proposal: REPLY,
+      result: JSON.stringify({ proposed: true, id: REPLY.id }),
+      isError: false,
+    }),
+  });
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  /** The words of a request's question: the text block that says who is asking, line by line. */
+  const wordsOf = (req) =>
+    req.messages
+      .at(-1)
+      .content.find((b) => b.type === "text" && b.text.includes("You are speaking with"))
+      .text.split("\n");
+  try {
+    const [opened] = await linesOf(
+      await ask.POST.run(send("POST", { text: "Tell Rosa we open at nine" }, inA), asJsonb(tables)),
+    );
+    const card = tables.ask_messages.find((m) => m.role === "assistant");
+    const outcome = asJsonb(tables, { id: card.id, pid: REPLY.id });
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    for (const text of ["And the reminders?", "And tomorrow?"])
+      await linesOf(await ask.POST.run(send("POST", { text, thread_id: opened.id }, inA), asJsonb(tables)));
+
+    const answers = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(
+      answers.map((m) => m.content.shape.replay),
+      ["none", "live", "live"],
+    );
+    assert.equal(
+      wordsOf(requests[1])[1],
+      `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`,
+      "the second turn says it, after the clock",
+    );
+    assert.deepEqual(answers[1].content.raw.told, ["p-1:done:1000"], "and keeps what it told");
+    assert.ok(!wordsOf(requests[2]).some((l) => l.startsWith(SINCE)), "the third turn says it no more");
+    assert.deepEqual(answers[2].content.raw.told, []);
+    assert.ok(!wordsOf(requests[0]).some((l) => l.startsWith(SINCE)), "a first turn has nothing to say");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a card beside an answer naming a row of the page -- gone cold, turn 2 is asked with it as one line and rebuilt, its row keeping the lines as its base and what they told, through jsonb; the card approved, turn 3 at once replays turn 2 as it was sent and tells the approval once", async () => {
+  const tables = askWorld();
+  const ROSA = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+  const rosa = { kind: "thread", id: ROSA, label: "Rosa" };
+  const page = {
+    blocks: [
+      {
+        type: "search_result",
+        source: "page://inbox",
+        title: "Inbox",
+        content: [{ type: "text", text: `Rosa · needs you · route: inbox/th-${ROSA}` }],
+        citations: { enabled: false },
+      },
+    ],
+    refs: [
+      { kind: "page", id: "inbox", route: "inbox", label: "Inbox" },
+      { kind: "thread", id: ROSA, route: `inbox/th-${ROSA}`, label: "Rosa" },
+    ],
+    rows: 1,
+    chars: 40,
+    stamp: 1,
+    failed: false,
+    warm: "hit",
+  };
+  const REPLY = {
+    id: "p-1",
+    kind: "reply",
+    needs: "operator",
+    title: "Reply to Rosa",
+    summary: "We open at nine on Saturday.",
+    payload: { conversation_id: ROSA, text: "We open at nine on Saturday." },
+    undo: null,
+  };
+  const naming = JSON.stringify({
+    say: { headline: "Rosa needs you.", detail: "She asked first." },
+    show: {
+      figures: [],
+      items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }],
+      breakdown: { label: "", total: 0, parts: [], source: nothing },
+    },
+    do: { open: { source: nothing, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      const first = requests.length === 1;
+      const words = first ? naming : answered;
+      onText(words);
+      const draft = {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_reply",
+        text: "",
+        json: JSON.stringify({ action: "draft", conversation_id: ROSA, text: REPLY.summary }),
+      };
+      return {
+        blocks: [...(first ? [draft] : []), { type: "text", id: "", name: "", text: words, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    context: async () => page,
+    propose: async () => ({
+      proposal: REPLY,
+      result: JSON.stringify({ proposed: true, id: REPLY.id }),
+      isError: false,
+    }),
+  });
+  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], askedAt: 1 };
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  const wordsOf = (req) =>
+    req.messages
+      .at(-1)
+      .content.find((b) => b.type === "text" && b.text.includes("You are speaking with"))
+      .text.split("\n");
+  try {
+    const [opened] = await linesOf(
+      await ask.POST.run(send("POST", { text: "Who needs me?", context: onInbox }, inA), asJsonb(tables)),
+    );
+    // Ten minutes go by: turn 1's round began then, and its rows were saved then.
+    const tenAgo = Date.now() - 10 * 60_000;
+    const [question, first] = tables.ask_messages;
+    question.created_at = new Date(tenAgo - 1_000).toISOString();
+    first.created_at = new Date(tenAgo).toISOString();
+    first.content.raw.at = tenAgo;
+    const asked = (text) => ({ text, thread_id: opened.id, context: onInbox });
+    await linesOf(await ask.POST.run(send("POST", asked("What did she ask?"), inA), asJsonb(tables)));
+
+    const line = `Rosa needs you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${ROSA} Rosa.`;
+    assert.deepEqual(
+      requests[1].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      [
+        ["user", "Who needs me?"],
+        ["assistant", line],
+      ],
+      "turn 1's question as it was asked, its answer one line",
+    );
+    const second = tables.ask_messages[3];
+    assert.equal(second.content.shape.replay, "rebuilt");
+    assert.deepEqual(Object.keys(second.content.raw), ["at", "told", "model", "blocks", "prefix"], "no link, `told`");
+    assert.deepEqual(second.content.raw.told, [], "nothing was recorded on turn 1's card when it read");
+    assert.equal(
+      JSON.stringify(JSON.parse(second.content.raw.blocks).base),
+      JSON.stringify(unmark(requests[1].messages.slice(0, -1))),
+      "its base: the lines as sent, byte for byte",
+    );
+
+    const outcome = asJsonb(tables, { id: first.id, pid: REPLY.id });
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await linesOf(await ask.POST.run(send("POST", asked("Did it go?"), inA), asJsonb(tables)));
+    await linesOf(await ask.POST.run(send("POST", asked("And tomorrow?"), inA), asJsonb(tables)));
+    const [, , third, fourth] = requests;
+    const answers = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(
+      answers.map((m) => m.content.shape.replay),
+      ["none", "rebuilt", "live", "live"],
+    );
+    assert.equal(
+      JSON.stringify(unmark(third.messages.slice(0, requests[1].messages.length))),
+      JSON.stringify(unmark(requests[1].messages)),
+      "turn 3 begins with turn 2's request, byte for byte: the line as it was made",
+    );
+    assert.equal(wordsOf(third)[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`, "told once");
+    assert.deepEqual([answers[2].content.raw.after, answers[2].content.raw.told], [answers[1].id, ["p-1:done:1000"]]);
+    assert.ok(!wordsOf(fourth).some((l) => l.startsWith(SINCE)), "and never again");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("the database in memory keeps a column named jsonb as jsonb keeps it: what is written comes back with every object's keys, at every depth, shortest first, then by their bytes -- a call's input and a card's reordered -- and a string as it went; a column not named keeps the writer's order", async () => {
+  const world = { t: [] };
+  const db = fakeDb(world, {}, {}, { jsonb: ["t.content"] });
+  const input = {
+    action: "search",
+    words: "parking",
+    card: [{ action: "invite", email: "a@example.com", role: "viewer" }],
+  };
+  await db.from("t").insert({ id: "b", content: input, other: input });
+  const [kept] = world.t;
+  assert.deepEqual(Object.keys(kept.content), ["card", "words", "action"]);
+  assert.deepEqual(Object.keys(kept.content.card[0]), ["role", "email", "action"]);
+  assert.deepEqual(kept.content, input, "the same values");
+  assert.deepEqual(Object.keys(kept.other), ["action", "words", "card"], "a column not named: the writer's order");
+  await db
+    .from("t")
+    .update({ content: { action: "search", words: "parking" } })
+    .eq("id", "b");
+  assert.equal(JSON.stringify(world.t[0].content), '{"words":"parking","action":"search"}', "an update the same");
+  await db
+    .from("t")
+    .update({ content: { a: JSON.stringify(input) } })
+    .eq("id", "b");
+  assert.equal(world.t[0].content.a, JSON.stringify(input), "a string comes back as it went");
+});
+
+/**
+ * Every read of a turn's rows `ctx` made: none of the whole content and none of the raw turn, each key of a turn it
+ * reads by its JSON path (PostgREST's alias:column->key).
+ */
+function readByPath(ctx) {
+  const reads = ctx.supabase.seen.filter((q) => q.table === "ask_messages" && q.op === "select");
+  assert.ok(reads.length > 0, "the turns were read");
+  for (const { columns } of reads) {
+    const cols = columns.split(",").map((c) => c.trim());
+    assert.ok(!cols.includes("content") && !cols.includes("*"), `never the whole content: ${columns}`);
+    assert.ok(!columns.includes("raw"), `never the raw turn: ${columns}`);
+    assert.ok(
+      cols.filter((c) => c.includes("content")).every((c) => /^\w+:content->\w+$/.test(c)),
+      `each key by its path: ${columns}`,
+    );
+  }
+}
+
+test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET ask/threads/[id] and the history a follow-up is asked with read each key of a turn they read by its JSON path, never the whole content, and answer what the whole rows give, byte for byte; a card's outcome recorded later writes the row back whole, the raw turn beside it", async () => {
+  const { toMessageVM, modelTurnOf } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const raw = {
+    at: Date.parse("2026-09-10T00:00:01Z"),
+    model: ASK_MODEL,
+    prefix: "0".repeat(64),
+    blocks: JSON.stringify({
+      base: [],
+      question: [{ type: "text", text: "Which drafts are held?" }],
+      rounds: [],
+      final: [{ type: "thinking", thinking: "", signature: SIGNATURE }],
+      results: [],
+    }),
+  };
+  // Every key the Line (toMessageVM) and the history (modelTurnOf) read, each away from its default, beside the raw turn.
+  const asked = turn(M1, T1, A, "user", {
+    text: "Include the franchise ones too",
+    answering: {
+      search_id: SEARCH,
+      name: "Pilates studios · Denver",
+      question: "Most of the first 25 are franchises, which I'm leaving out. Is that what you meant?",
+      asked: "Pilates studios in Denver, no franchises",
+      leaving_out: ["Franchises"],
+    },
+  });
+  const answer = {
+    ...turn("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2", T1, A, "assistant", {
+      v: 2,
+      answer: {
+        v: 2,
+        form: "structured",
+        say: { headline: "Dos borradores esperan.", detail: "Desde el mediodía." },
+        show: { figures: [], items: [], breakdown: null },
+        do: { open: null, next: [] },
+        language: "es",
+      },
+      text: "Dos borradores esperan.",
+      citations: [{ kind: "thread", id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1", label: "Rosa", to: "" }],
+      followups: ["¿Y mañana?"],
+      navigate: { to: "inbox", label: "Inbox", now: false },
+      proposals: [CARD],
+      language: "es",
+      ungrounded: true,
+      tools: ["inbox.list"],
+      latency_ms: 1234,
+      rounds: 2,
+      failed: true,
+      failure: "cap",
+      model: ASK_MODEL,
+      shape: { v: 1 },
+      raw,
+    }),
+    created_at: "2026-09-10T00:00:02Z",
+  };
+  const tables = askWorld([threadRow(T1, A)], [asked, answer]);
+  const whole = [asked, answer].map((r) => structuredClone(r));
+
+  const reader = asJsonb(tables, { id: T1 });
+  const read = await thread.GET.run(get(inA), reader);
+  assert.equal(
+    JSON.stringify(read.messages),
+    JSON.stringify(whole.map(toMessageVM)),
+    "the thread as the Line draws it: byte for byte what the whole rows give",
+  );
+  assert.ok(!JSON.stringify(read).includes('"raw"') && !JSON.stringify(read).includes(SIGNATURE), "no raw in its JSON");
+  readByPath(reader);
+
+  const requests = wordsOnly();
+  try {
+    const asker = asJsonb(tables);
+    await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id: T1 }, inA), asker));
+    // The question in the person's words (modelTurnOf), the answer one line (answerLine, the Phase 5 plan, D4).
+    assert.deepEqual(
+      requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      whole.map((r) =>
+        r.role === "assistant"
+          ? ["assistant", answerLine(toMessageVM(r), 1200)]
+          : [r.role, modelTurnOf(r).text.slice(0, 1200)],
+      ),
+      "the history a follow-up is asked with: what the whole rows give",
+    );
+    assert.equal(
+      requests[0].messages[1].content,
+      "(This turn failed.) Dos borradores esperan. Cards: p-1 · policy · Autonomy: reply · not pressed yet.",
+    );
+    assert.ok(requests[0].messages[0].content.includes("Pilates studios · Denver"), "the search an answer answered");
+    readByPath(asker);
+  } finally {
+    setAskPorts(null);
+  }
+
+  // A card's outcome, recorded later: the row is read and written back whole, so the raw turn stays beside it.
+  const outcome = asJsonb(tables, { id: answer.id, pid: CARD.id });
+  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", atMs: 0 }), outcome);
+  assert.equal(done.proposal.outcome.receipt, "Set");
+  const row = tables.ask_messages.find((m) => m.id === answer.id);
+  assert.equal(row.content.proposals[0].outcome.receipt, "Set");
+  assert.deepEqual(row.content.raw, raw, "the raw turn kept");
+  assert.equal(row.content.raw.blocks, raw.blocks, "its blocks byte for byte");
+  const [write] = outcome.supabase.seen.filter((q) => q.table === "ask_messages" && q.op === "update");
+  assert.deepEqual(write.values.content.raw, raw, "written back whole");
+});
+
+test("the database in memory answers a select that names a JSON path as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key; a select with no path still answers whole rows, as it always has here; a spelling it does not model is refused by name", async () => {
+  const db = fakeDb({ t: [{ id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" }] });
+  const one = (columns) => db.from("t").select(columns).eq("id", "a").maybeSingle();
+  assert.deepEqual((await one("id, v:content->x, y:content->y, n:content->n, gone:content->w")).data, {
+    id: "a",
+    v: 1,
+    y: { z: [2] },
+    n: null,
+    gone: null,
+  });
+  assert.deepEqual((await one("id, content->x")).data, { id: "a", x: 1 }, "a path with no alias is named by its key");
+  assert.deepEqual((await one("id")).data, { id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" });
+  for (const columns of ["id, x:content->>x", "id, z:content->y->z", "id, contacts(name), x:content->x"])
+    await assert.rejects(one(columns), /fakeDb: .* is not modelled/, columns);
 });

@@ -718,10 +718,10 @@ test(
     assert.ok(mailboxSend, "it left as the mailbox");
     assert.match(mailboxSend.body.from, new RegExp(`<${mailboxAddress}>$`));
     const stamped = await messageRow(second.id);
-    // The held domain is not among the wire's routes, and it was the workspace's only one.
+    // The held domain is not among the wire's routes, and the row says it was held.
     assert.deepEqual(
       [stamped.status, stamped.meta.email.left_as, stamped.meta.email.left_as_why],
-      ["sent", "mailbox", "no_own_route"],
+      ["sent", "mailbox", "domain_held"],
     );
   },
 );

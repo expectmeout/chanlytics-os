@@ -385,8 +385,12 @@ test("a single act tells the page the moment the server takes it, while the Inbo
       },
     });
   };
-  const { inboxOverride, conversationsOverride, todayOverride } = await quiet(
-    () => import("../../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"),
+  const [{ inboxOverride }, { conversationsOverride }, { todayOverride }] = await quiet(() =>
+    Promise.all(
+      ["inbox", "conversations", "today"].map(
+        (m) => import(`../../../../../apps/dashboard/src/legacy-bridge/surfaces/${m}.ts`),
+      ),
+    ),
   );
   let joined = 0;
   const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride], () => {
