@@ -53,7 +53,7 @@
     "people/erasure/erasure.test.mjs": 1,
     "people/lists/saved-lists.test.mjs": 14,
     "people/person-mode-enforcement.test.mjs": 3,
-    "people/threads-people.test.mjs": 6,
+    "people/threads-people.test.mjs": 5,
     "platform/back-office.test.mjs": 23,
     "platform/delete-tenant.test.mjs": 3,
     "playbooks/playbooks.test.mjs": 22,
