@@ -71,6 +71,30 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   assert.ok(y.includes("permissions:\n  contents: read"));
 });
 
+test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, and a crossed line never turns the suite red", () => {
+  const y = readRaw(".github/workflows/nightly-e2e.yml");
+  const step = y.slice(
+    y.indexOf("- name: Ask's cache and first words hold their lines"),
+    y.indexOf("- run: pnpm e2e:install"),
+  );
+  assert.ok(
+    step.includes("run: node tooling/scripts/ops/ask-day.mjs --check | tee ask-day.txt"),
+    "the check, its line kept",
+  );
+  assert.ok(
+    step.includes("id: ask_day") && step.includes("continue-on-error: true"),
+    "its own outcome, never the job's",
+  );
+  assert.ok(step.includes("shell: bash"), "bash with pipefail: the check's exit, not tee's, is the step's");
+  for (const s of ["E2E_SUPABASE_URL", "E2E_SERVICE_ROLE_KEY"]) assert.ok(step.includes(`secrets.${s}`), s);
+  assert.ok(step.includes("if: ${{ steps.ask_day.outcome == 'failure' }}"), "an issue only when a line was crossed");
+  assert.ok(
+    step.includes("gh issue create") && step.includes("tail -n 1 ask-day.txt"),
+    "the verdict's line in the issue",
+  );
+  assert.ok(y.includes("issues: write"));
+});
+
 /** The edge's time limits, from where Vercel reads them. */
 const FUNCTIONS = JSON.parse(readRaw("apps/edge/vercel.json")).functions;
 
