@@ -24897,6 +24897,11 @@ async function countRecipients(db, tenantId, broadcastId, state) {
   if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
   return count ?? 0;
 }
+function withTemplate(row) {
+  if (!row) return null;
+  const { template_name, template_language } = row;
+  return template_name && template_language ? { ...row, template_name, template_language } : null;
+}
 async function broadcastSend(ctx, job) {
   const p = job.payload;
   const db = ctx.db;
@@ -24905,7 +24910,7 @@ async function broadcastSend(ctx, job) {
       broadcast: async (id) => {
         const { data, error } = await db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
-        return data;
+        return withTemplate(data);
       },
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
       // is not a workspace that is paying.

@@ -382,7 +382,9 @@ export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStan
   const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : undefined;
   return {
     run: run.data?.state ?? null,
-    step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    step: step?.template_id
+      ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id }
+      : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
     signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
   };

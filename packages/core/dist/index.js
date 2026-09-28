@@ -9013,6 +9013,10 @@ var REACH_OUT_SHEET_PARTS2 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
 var AppError = class extends Error {
@@ -13855,6 +13859,7 @@ async function uuidV5(name) {
 var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
 var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
 var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
+var handStepIdFor = (stepId, leadId) => uuidV5(`reach_out_hand:${stepId}:${leadId}`);
 
 // src/campaigns/run-reach-out.ts
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
@@ -13956,6 +13961,32 @@ async function runReachOut(ports, step, cmd) {
     return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
   }
   return { outcome: "sent", planned: plan.placed.length };
+}
+
+// src/campaigns/run-hand-step.ts
+var doorRefuses = (f) => outreachRefusalOf({
+  leadStage: f.facts.lead_stage,
+  suppressed: f.facts.suppressed,
+  wroteBack: f.facts.wrote_back,
+  away: f.facts.away === true
+}) !== null;
+async function runHandStep(ports, step, cmd) {
+  if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
+  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const names = await ports.businessNames(leads.map((l) => l.lead_id));
+  const runId = await reachOutRunIdFor(step.id, cmd.runFor);
+  const items = await Promise.all(
+    leads.map(async (l) => ({
+      send_id: await sendIdFor(runId, l.lead_id),
+      lead_id: l.lead_id,
+      contact_id: l.contact_id,
+      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      source_id: await handStepIdFor(step.id, l.lead_id)
+    }))
+  );
+  const r4 = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
+  return r4.made > 0 ? { outcome: "sent", planned: r4.made } : { outcome: "empty", reason: "already_ran", planned: 0 };
 }
 
 // src/leads/zcta-centroids.json
@@ -49383,6 +49414,7 @@ export {
   factsOf,
   foldDuplicates,
   handBack,
+  handStepIdFor,
   hasContact,
   haversineM,
   holdCopy,
@@ -49420,6 +49452,7 @@ export {
   resolveConsent,
   resolveEscalation,
   runCaps,
+  runHandStep,
   runIdFor,
   runPlaybook,
   runReachOut,

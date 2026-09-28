@@ -1422,7 +1422,15 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** 00228 first. The edge's run of a hand step ships here, and the door that makes one ships in PR 11.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `4bc3e49a`). What departed from the tasks, and why:
+>
+> - **A hand step has no template, so the template columns may be null**, on `playbooks` and on `broadcasts` (a hand step's day's run is a run with no template). Two CHECKs say when: `playbooks_template_or_hand` (a template, or a reach-out later step's hand of two kinds with 1–280 characters of words and nothing else) and `broadcasts_template_or_hand` (a template, or a reach-out run whose audience names the hand's kind). Each is added NOT VALID and then validated; a dry run on production validated all four new CHECKs against its rows, and 00228 was then applied and read back (every body's md5 equal to the file's). The types that read these columns take the null where it can arrive: contracts' template tallies skip a run with no template name, the moments' proposal follow-up reads none as nothing to send, the broadcast job reads a run with none as no run, and a send's step with none is no step of its own.
+> - **The guard is not re-created.** 00197's `reach_out_sends_guard` names every move it allows, and none from `handed`, so a handed send already never moves; the test proves it.
+> - **The run's ids are handed in**, as every reach-out run's are: `reach_out_hand_run(tenant, step, run_id, day, items)` takes the run's id and each item's `send_id` and `source_id`, derived in core (`reach-out-ids.ts`, with `handStepIdFor(step, lead)` new), so the one derivation stays in one place. A second run of the step on the same day, under another id, is refused (`23505`).
+> - **`reach_out_save`** takes a last step `{ hand, after_days }`, refuses a hand anywhere else ("A call or a note ends the chain."), lets a step that never ran change what it is (its template hidden or made), refuses that once it ran ("That step has run already. Add a new step instead."), and never drops a step that handed anyone.
+> - **The reach and who is handed.** The step's followers are an email step's; a lead the send door would refuse (`outreachRefusalOf`: wrote back, said no, away, no longer being written to) is not handed either, and a bounced email is no reason not to call. The team's step is worded by contracts `handStepWords` (`reach-out/reach-out-hand.ts`, with `handOf`, which reads a row's hand), over the businesses' names read by `leadNamesByIds`.
+> - **Where it lives.** There is no `run-step.ts` in core: the edge's `lib/reach-out/run-step.ts` dispatches a hand step to core's `runHandStep` (`packages/core/src/campaigns/run-hand-step.ts`). The run context's later-step ports (followers, names, the run) moved into one helper, which keeps `reachOutRunContext` under its line limit. The db reads sit in `reach-out-sheet.ts`, since the repositories directory is at its twenty modules.
+> - **Tests:** `reach-out-stops/hand-step.test.mjs` (the verb over fakes, the words, `handOf`) and `reach-out-stops/hand-step.db.test.mjs` (the save, the CHECKs, the run made once, the guard, the followers, the report's `handed`).
 
 ### Task 10.1: The migration
 
