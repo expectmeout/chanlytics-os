@@ -43,7 +43,7 @@
   },
   "apps/dashboard/src/legacy/styles/components.css": {
     "font": 183,
-    "radius": 78,
+    "radius": 75,
     "shadow": 13,
     "colour": 13,
     "blur": 1
@@ -85,7 +85,7 @@
   },
   "apps/dashboard/src/legacy/styles/inbox.css": {
     "font": 126,
-    "radius": 54,
+    "radius": 53,
     "shadow": 10,
     "colour": 2,
     "blur": 2

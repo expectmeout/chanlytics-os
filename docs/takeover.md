@@ -42,7 +42,7 @@ copies                               52   of 14 names
 as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    76   in 37 files
-literal style values               1709   in 21 stylesheets
+literal style values               1705   in 21 stylesheets
 primitives outside the kit         2569   selectors naming 964 classes
 inline style props                  285   in 48 files
 wire names not in snake_case         54   in 26 routes
