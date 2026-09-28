@@ -557,6 +557,339 @@ function offerLead(offer) {
 // src/leads/lead-plan.ts
 import { z as z5 } from "zod";
 
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
+// src/leads/search/caps.ts
+var LEAD_MONTHLY_ALLOWANCE = 500;
+var LEAD_MONTHLY_BUDGET_USD = 25;
+var LEAD_DAY_CAP_USD = 10;
+var LEAD_PLATFORM_DAY_CAP_USD = 50;
+var LEAD_QUESTION_THRESHOLD = 0.6;
+var LEAD_QUESTION_MIN_EVIDENCE = 10;
+var LEAD_PROBE_PLACES = 25;
+var LEAD_JUDGE_BATCH = 25;
+var LEAD_MAX_PLACES = 1e3;
+var LEAD_FACT_MAX = 120;
+var LEAD_REASON_MAX_WORDS = 12;
+var LEAD_ASSUMED_YIELD = 0.5;
+var LEAD_ESTIMATE_MARGIN = 1.3;
+var LEAD_ASK_MIN_FACTOR = 1.2;
+var LEAD_ASK_MAX_FACTOR = 4;
+var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
+function leadMonth(zone, at2) {
+  const d = dayInZone(zone, at2.getTime());
+  return `${d.y}-${String(d.m).padStart(2, "0")}`;
+}
+
+// src/leads/search/plan.ts
+import { z as z2 } from "zod";
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+var KEY = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words = (min, max) => z2.string().transform((s) => stripUnsafe(s).trim()).pipe(z2.string().min(min).max(max));
+var LeadSearchPlanSchema = z2.object({
+  version: z2.number().int().min(1),
+  card: z2.literal("local_businesses"),
+  name: words(2, 80),
+  asked: words(1, 400),
+  terms: z2.array(words(2, 60)).min(1).max(5),
+  area: z2.object({
+    kind: z2.enum(["zip", "city", "radius"]),
+    label: words(2, 80),
+    state: z2.string().regex(/^[A-Z]{2}$/),
+    center: z2.object({ lat: z2.number().min(-90).max(90), lng: z2.number().min(-180).max(180) }).nullable(),
+    radius_m: z2.number().int().min(500).max(2e5),
+    zip: z2.string().regex(/^\d{5}$/).optional(),
+    query: words(2, 120)
+  }),
+  count: z2.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z2.enum(["phone", "email"]),
+  criteria: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
+      text: words(2, 120),
+      standard: z2.enum(["likely", "seen"]),
+      required: z2.boolean()
+    })
+  ).max(8),
+  exclusions: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
+      text: words(2, 80),
+      origin: z2.enum(["claude", "you_said"]),
+      category_key: z2.string().regex(KEY).optional()
+    })
+  ).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+function stableStringify(v) {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
+  if (v && typeof v === "object") {
+    const keys = Object.keys(v).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+var same = (a, b) => stableStringify(a) === stableStringify(b);
+function planVersionOf(plan, changed) {
+  const next = { ...plan, ...changed, version: plan.version };
+  const material = ["area", "count", "contact", "criteria", "exclusions"].some(
+    (k) => !same(plan[k], next[k])
+  );
+  return { ...next, version: material ? plan.version + 1 : plan.version };
+}
+
+// src/leads/search/sentence.ts
+var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+var PLACE_CLAUSE = /\s+(?:in|near|around|within|across|throughout|at|inside|serving)\s+\S.*$/i;
+var SAYS_WHERE = /^(?:in|near|around|within|across|throughout|at|inside)\s+/i;
+var US_NAMES = Object.fromEntries(
+  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
+);
+var bits = (s) => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+function planWho(plan) {
+  const m = PLACE_CLAUSE.exec(plan.name);
+  const a = plan.area;
+  const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
+  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
+  const cut = whole ? "" : m && bits(m[0]).some((w) => known.has(w)) ? plan.name.slice(0, m.index).trim() : plan.name.trim();
+  return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
+}
+function planWhere(area) {
+  const label = area.label.trim();
+  return SAYS_WHERE.test(label) ? label : `in ${label}`;
+}
+function planArea(area) {
+  const bare = area.label.trim().replace(/^within\s+[\d.]+\s*\w+\s+of\s+/i, "").replace(/^(?:in|at|inside|near|around|throughout|across)\s+/i, "").trim();
+  return bare || area.label.trim();
+}
+function planWords(plan) {
+  const out = [
+    { text: "Find ", pick: null },
+    { text: String(plan.count), pick: "count" },
+    { text: " ", pick: null },
+    { text: planWho(plan), pick: "who" },
+    { text: " ", pick: null },
+    { text: planWhere(plan.area), pick: "where" }
+  ];
+  for (const c of plan.criteria) {
+    out.push({ text: " ", pick: null });
+    out.push({
+      text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
+      pick: "criterion",
+      key: c.key
+    });
+  }
+  out.push({ text: ", ", pick: null });
+  out.push({
+    text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
+    pick: "contact"
+  });
+  out.push({ text: ".", pick: null });
+  return out;
+}
+function planSaid(plan) {
+  return planWords(plan).map((w) => w.text).join("");
+}
+function planLeavingOut(plan) {
+  const out = plan.exclusions.map((e) => lowerFirst(e.text));
+  return out.length ? ` Leaving out: ${list(out)}.` : "";
+}
+function planSentence(plan) {
+  return `${planSaid(plan)}${planLeavingOut(plan)}`;
+}
+
+// src/leads/search/cards.ts
+var LEAD_CARDS = [
+  {
+    id: "local_businesses",
+    goodFor: [
+      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
+      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
+      "emails and social profiles from the business's own website",
+      "a mailbox check on the email found"
+    ],
+    notFor: [
+      "people at home, or anyone who is not a business",
+      "online sellers and shops with no local listing",
+      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
+      "businesses outside the US"
+    ],
+    settings: [
+      "terms (up to five search phrases, widest first)",
+      "area (a city, a ZIP, or a center and radius)",
+      "count (1 to 1000)",
+      "contact standard (phone, or email checked)"
+    ],
+    costPerPlaceUsd: 3e-3,
+    contactsPerPlaceUsd: 2e-3,
+    judgePerPlaceUsd: 23e-4,
+    checkPerEmailUsd: 89e-5,
+    startUsd: 5e-5,
+    maxPerTerm: 120,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
+    examples: [
+      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
+      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
+      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
+    ],
+    approved: true
+  }
+];
+var cardOf = (plan) => {
+  const c = LEAD_CARDS.find((x) => x.id === plan.card);
+  if (!c) throw new Error(`no card ${plan.card}`);
+  return c;
+};
+var round4 = (n) => Math.round(n * 1e4) / 1e4;
+function estimateRoundUsd(plan, purpose, placesToAsk2) {
+  const c = cardOf(plan);
+  const places = Math.max(0, Math.floor(placesToAsk2));
+  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
+  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
+}
+function spread(total, n, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n));
+  const rest = Math.min(total - each * n, n);
+  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+}
+function placesToAsk(plan, remaining, yieldSoFar) {
+  const n = Math.max(1, plan.terms.length);
+  const cap2 = cardOf(plan).maxPerTerm;
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (yieldSoFar === null) {
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
+  }
+  const left = Math.max(1, Math.ceil(remaining));
+  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
+  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
+  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap2);
+  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
+}
+var LEAD_COUNT_CHOICES = [50, 100, 200, 500];
+function planCeiling(plan) {
+  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
+}
+function planMinutes(plan) {
+  const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
+  return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
+}
+
 // src/email/free-mail.ts
 var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
   "gmail.com",
@@ -581,9 +914,6 @@ var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
 function isFreeMail(host) {
   return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
 }
-
-// src/leads/lead-search.ts
-import { z as z4 } from "zod";
 
 // src/shared/email-address.ts
 var MAX_ADDRESS = 254;
@@ -706,13 +1036,13 @@ function formatPhoneDisplay(e164) {
 }
 
 // src/config/workspace-config/brain-config.ts
-import { z as z3 } from "zod";
+import { z as z4 } from "zod";
 
 // src/config/workspace-config/business-profile.ts
-import { z as z2 } from "zod";
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
+import { z as z3 } from "zod";
+var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z3.object({ open: TIME, close: TIME });
+var HoursSchema = z3.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
   open: TIME.nullable().optional(),
   close: TIME.nullable().optional(),
@@ -721,37 +1051,37 @@ var HoursSchema = z2.object({
    * actually keeps. Additive: a day that has always been one stretch keeps
    * saying so with open/close, and no stored config is rewritten.
    */
-  intervals: z2.array(IntervalSchema).optional()
+  intervals: z3.array(IntervalSchema).optional()
 }).strip();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
+var DATE = z3.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z3.object({
   date: DATE,
   until: DATE.optional(),
-  note: z2.string().max(200).optional()
+  note: z3.string().max(200).optional()
 });
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
+var ServiceSchema = z3.object({
+  name: z3.string().min(1).max(80),
   /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
+  duration_min: z3.number().int().min(1).max(1440).optional(),
   /**
    * Free text, not a number, and deliberately so: "from $45", "quoted at
    * consult", "varies by length". A price the business cannot state flatly
    * must not be forced into a field that looks like it can.
    */
-  price_note: z2.string().max(120).optional()
+  price_note: z3.string().max(120).optional()
 }).strip();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
+var GuardrailsSchema = z3.object({
+  never_quote_prices: z3.boolean().optional(),
+  never_confirm_booking: z3.boolean().optional(),
+  disclose_ai: z3.boolean().optional(),
   /**
    * OPT-IN, unlike the three above. Those default on because absent means
    * "the safe reading"; this one arrived after prompts were live, and a
    * rule that defaulted on would have changed every composed prompt in
    * production the moment it deployed.
    */
-  no_health_advice: z2.boolean().optional()
+  no_health_advice: z3.boolean().optional()
 }).strip();
 function guardrailsInForce(g) {
   return {
@@ -761,51 +1091,51 @@ function guardrailsInForce(g) {
     no_health_advice: g?.no_health_advice === true
   };
 }
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
+var NoteSchema = z3.object({
+  title: z3.string().min(1).max(80),
+  text: z3.string().min(1).max(1200)
 }).strip();
-var BookingRulesSchema = z2.object({
+var BookingRulesSchema = z3.object({
   /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
+  lead_hours: z3.number().int().min(0).max(168).optional(),
   /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
+  buffer_min: z3.number().int().min(0).max(120).optional(),
   /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
+  max_days_ahead: z3.number().int().min(1).max(90).optional(),
   /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
+  slot_min: z3.number().int().min(15).max(240).optional(),
   /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
+  consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
+  party_max: z3.number().int().min(1).max(20).optional(),
   /**
    * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
    * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
    */
-  ask_email: z2.boolean().optional(),
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
+  notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
+var BusinessProfileSchema = z3.object({
+  address: z3.string().max(300).optional(),
+  hours: z3.partialRecord(z3.enum(DAYS), HoursSchema).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
+  closures: z3.array(ClosureSchema).optional(),
+  services: z3.array(ServiceSchema).max(60).optional(),
+  languages: z3.array(z3.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema.optional(),
   /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
+  escalate_when: z3.array(z3.string().min(1).max(200)).max(20).optional(),
+  tone: z3.string().max(200).optional(),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z2.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
+  website: z3.string().url().max(500).optional(),
+  notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
   /**
    * Anything the owner wants said that no field covers.
@@ -817,7 +1147,7 @@ var BusinessProfileSchema = z2.object({
    * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
    * the form carries that prompt into it.
    */
-  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
+  extra_instructions: z3.string().max(INSTRUCTIONS_MAX).optional()
 }).strip();
 
 // src/config/facts.ts
@@ -1017,8 +1347,8 @@ function unknownDetails(text) {
 }
 
 // src/config/workspace-config/brain-config.ts
-var BrainConfigSchema = z3.object({
-  business_name: z3.string().min(1).max(120),
+var BrainConfigSchema = z4.object({
+  business_name: z4.string().min(1).max(120),
   /**
    * The number the receptionist tells customers to call — an OVERRIDE, and
    * optional because it should almost never be set.
@@ -1036,16 +1366,16 @@ var BrainConfigSchema = z3.object({
    * business deliberately publishes something else — a tracking line, a
    * shopfront — and the pane says so in those words.
    */
-  phone_display: z3.string().min(3).max(40).optional(),
+  phone_display: z4.string().min(3).max(40).optional(),
   /**
    * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
    * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
    * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
-  booking_link: z3.string().url().max(500).optional(),
+  booking_link: z4.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
+  system_prompt: z4.string().min(40).max(INSTRUCTIONS_MAX),
   /**
    * The business's facts, as fields.
    *
@@ -1054,13 +1384,13 @@ var BrainConfigSchema = z3.object({
    * it REPLACES system_prompt as the source the prompt is built from.
    */
   profile: BusinessProfileSchema.optional(),
-  fallbacks: z3.object({
+  fallbacks: z4.object({
     /** Sent when no model key is configured. */
-    greeting: z3.string().min(1).max(2e3),
+    greeting: z4.string().min(1).max(2e3),
     /** Sent when the model call failed. */
-    error: z3.string().min(1).max(2e3),
+    error: z4.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
-    non_text: z3.string().min(1).max(2e3)
+    non_text: z4.string().min(1).max(2e3)
   }).strip()
 }).strip();
 function newReceptionistDefaults(businessName) {
@@ -1144,500 +1474,7 @@ function bookingPageOf(raw) {
   return page.length <= BOOKING_PAGE_MAX ? page : null;
 }
 
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
-
-// src/leads/lead-search.ts
-var LEAD_SEARCH_VIAS = ["people", "ask"];
-var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
-var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
-var LEAD_ROUND_ENDINGS = [
-  "target_reached",
-  "searched_everything",
-  "month_leads_used",
-  "budget_used",
-  "few_new_matches",
-  "stopped",
-  "source_failed",
-  "question_unanswered",
-  "paused"
-];
-var LEAD_ROUND_ANSWERS = ["keep", "include", "stop"];
-var LEAD_RUN_PURPOSES = ["discover", "check"];
-var LEAD_RUN_STATES = [
-  "claimed",
-  "starting",
-  "running",
-  "succeeded",
-  "failed",
-  "aborted",
-  "timed_out",
-  "unknown"
-];
-var LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
-var LEAD_STAGES = ["ready", "nurture", "converted", "archived"];
-var LEAD_CLOSED_REASONS = ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
-var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
-var LEAD_FITS = ["strong", "look", "long"];
-var LEAD_COUNTER_KINDS = ["allowance", "budget", "day"];
-var LEAD_OPERATION_KINDS = [
-  "undo_search",
-  "keep",
-  "exclude",
-  "put_back",
-  "include",
-  "stop",
-  "stage",
-  "bulk"
-];
-var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
-var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"];
-var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased", "said_no"];
-var LEAD_MONTHLY_ALLOWANCE = 500;
-var LEAD_MONTHLY_BUDGET_USD = 25;
-var LEAD_DAY_CAP_USD = 10;
-var LEAD_PLATFORM_DAY_CAP_USD = 50;
-var LEAD_QUESTION_THRESHOLD = 0.6;
-var LEAD_QUESTION_MIN_EVIDENCE = 10;
-var LEAD_PROBE_PLACES = 25;
-var LEAD_JUDGE_BATCH = 25;
-var LEAD_MAX_PLACES = 1e3;
-var LEAD_FACT_MAX = 120;
-var LEAD_REASON_MAX_WORDS = 12;
-var LEAD_KIND_KEY = "kind";
-var leadKindWord = (name) => `Not one of the ${name}`;
-var LEAD_UNREACHABLE_KEY = "unreachable";
-var LEAD_ASSUMED_YIELD = 0.5;
-var LEAD_ESTIMATE_MARGIN = 1.3;
-var LEAD_ASK_MIN_FACTOR = 1.2;
-var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
-function leadPhoneState(phone) {
-  if (!phone) return "none";
-  return phoneDialable(phone) ? "ok" : "invalid";
-}
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-var KEY = /^[a-z][a-z0-9_]{0,39}$/;
-var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
-var LeadSearchPlanSchema = z4.object({
-  version: z4.number().int().min(1),
-  card: z4.literal("local_businesses"),
-  name: words(2, 80),
-  asked: words(1, 400),
-  terms: z4.array(words(2, 60)).min(1).max(5),
-  area: z4.object({
-    kind: z4.enum(["zip", "city", "radius"]),
-    label: words(2, 80),
-    state: z4.string().regex(/^[A-Z]{2}$/),
-    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
-    radius_m: z4.number().int().min(500).max(2e5),
-    zip: z4.string().regex(/^\d{5}$/).optional(),
-    query: words(2, 120)
-  }),
-  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z4.enum(["phone", "email"]),
-  criteria: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
-      text: words(2, 120),
-      standard: z4.enum(["likely", "seen"]),
-      required: z4.boolean()
-    })
-  ).max(8),
-  exclusions: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
-      text: words(2, 80),
-      origin: z4.enum(["claude", "you_said"]),
-      category_key: z4.string().regex(KEY).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
-var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-var PLACE_CLAUSE = /\s+(?:in|near|around|within|across|throughout|at|inside|serving)\s+\S.*$/i;
-var SAYS_WHERE = /^(?:in|near|around|within|across|throughout|at|inside)\s+/i;
-var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
-);
-var bits = (s) => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
-function planWho(plan) {
-  const m = PLACE_CLAUSE.exec(plan.name);
-  const a = plan.area;
-  const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
-  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
-  const cut = whole ? "" : m && bits(m[0]).some((w) => known.has(w)) ? plan.name.slice(0, m.index).trim() : plan.name.trim();
-  return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
-}
-function planWhere(area) {
-  const label = area.label.trim();
-  return SAYS_WHERE.test(label) ? label : `in ${label}`;
-}
-function planArea(area) {
-  const bare = area.label.trim().replace(/^within\s+[\d.]+\s*\w+\s+of\s+/i, "").replace(/^(?:in|at|inside|near|around|throughout|across)\s+/i, "").trim();
-  return bare || area.label.trim();
-}
-function planWords(plan) {
-  const out = [
-    { text: "Find ", pick: null },
-    { text: String(plan.count), pick: "count" },
-    { text: " ", pick: null },
-    { text: planWho(plan), pick: "who" },
-    { text: " ", pick: null },
-    { text: planWhere(plan.area), pick: "where" }
-  ];
-  for (const c of plan.criteria) {
-    out.push({ text: " ", pick: null });
-    out.push({
-      text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
-      pick: "criterion",
-      key: c.key
-    });
-  }
-  out.push({ text: ", ", pick: null });
-  out.push({
-    text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
-    pick: "contact"
-  });
-  out.push({ text: ".", pick: null });
-  return out;
-}
-function planSaid(plan) {
-  return planWords(plan).map((w) => w.text).join("");
-}
-function planLeavingOut(plan) {
-  const out = plan.exclusions.map((e) => lowerFirst(e.text));
-  return out.length ? ` Leaving out: ${list(out)}.` : "";
-}
-function planSentence(plan) {
-  return `${planSaid(plan)}${planLeavingOut(plan)}`;
-}
-var LEAD_COUNT_CHOICES = [50, 100, 200, 500];
-function planCeiling(plan) {
-  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
-}
-function planMinutes(plan) {
-  const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
-  return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
-}
-function stableStringify(v) {
-  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
-  if (v && typeof v === "object") {
-    const keys = Object.keys(v).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(",")}}`;
-  }
-  return JSON.stringify(v);
-}
-var same = (a, b) => stableStringify(a) === stableStringify(b);
-function planVersionOf(plan, changed) {
-  const next = { ...plan, ...changed, version: plan.version };
-  const material = ["area", "count", "contact", "criteria", "exclusions"].some(
-    (k) => !same(plan[k], next[k])
-  );
-  return { ...next, version: material ? plan.version + 1 : plan.version };
-}
-var LEAD_ENDING_WORDS = {
-  target_reached: "Found what you asked for",
-  searched_everything: "Searched everything this plan covers",
-  month_leads_used: "This month's leads are used",
-  budget_used: "This month's searching budget is used",
-  few_new_matches: "Few new matches",
-  stopped: "Stopped by you",
-  source_failed: "The source failed",
-  question_unanswered: "Question unanswered",
-  paused: "Paused for everyone"
-};
-function endingOfRound(x) {
-  if (x.counted >= x.target) return "target_reached";
-  if (x.paused) return "paused";
-  if (x.stopped) return "stopped";
-  if (x.sourceFailed) return "source_failed";
-  if (x.unanswered) return "question_unanswered";
-  if (x.allowanceLeft <= 0) return "month_leads_used";
-  if (x.budgetLeftUsd <= 0) return "budget_used";
-  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
-  return "few_new_matches";
-}
-var LEAD_CARDS = [
-  {
-    id: "local_businesses",
-    goodFor: [
-      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
-      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
-      "emails and social profiles from the business's own website",
-      "a mailbox check on the email found"
-    ],
-    notFor: [
-      "people at home, or anyone who is not a business",
-      "online sellers and shops with no local listing",
-      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
-      "businesses outside the US"
-    ],
-    settings: [
-      "terms (up to five search phrases, widest first)",
-      "area (a city, a ZIP, or a center and radius)",
-      "count (1 to 1000)",
-      "contact standard (phone, or email checked)"
-    ],
-    costPerPlaceUsd: 3e-3,
-    contactsPerPlaceUsd: 2e-3,
-    judgePerPlaceUsd: 23e-4,
-    checkPerEmailUsd: 89e-5,
-    startUsd: 5e-5,
-    maxPerTerm: 120,
-    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
-    placesPerMinute: 8,
-    examples: [
-      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
-      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
-      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
-    ],
-    approved: true
-  }
-];
-var cardOf = (plan) => {
-  const c = LEAD_CARDS.find((x) => x.id === plan.card);
-  if (!c) throw new Error(`no card ${plan.card}`);
-  return c;
-};
-var round4 = (n) => Math.round(n * 1e4) / 1e4;
-function estimateRoundUsd(plan, purpose, placesToAsk2) {
-  const c = cardOf(plan);
-  const places = Math.max(0, Math.floor(placesToAsk2));
-  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
-  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
-  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
-}
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
-  const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
-}
-function placesToAsk(plan, remaining, yieldSoFar) {
-  const n = Math.max(1, plan.terms.length);
-  const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
-  if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
-    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
-  }
-  const left = Math.max(1, Math.ceil(remaining));
-  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
-  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
-  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
-}
-var LEAD_EMAIL_REASON = /^email:/;
-function classify(plan, answer, facts, emailState, inArea, phoneState) {
-  if (facts.phone_matches_site === null && facts.emails.length === 0)
-    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
-  const reasons = [];
-  const rubric = [
-    { key: LEAD_KIND_KEY, standard: "likely", required: true },
-    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
-    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
-  ];
-  let excludedBy = null;
-  let softFail = false;
-  let unknown = false;
-  for (const r2 of rubric) {
-    const a = answer.criteria.find((x) => x.key === r2.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
-    if (verdict === "fail") {
-      if (r2.required) {
-        excludedBy = excludedBy ?? r2.key;
-        reasons.push(`fail:${r2.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (verdict === "unknown") {
-      if (r2.required) {
-        unknown = true;
-        reasons.push(`unknown:${r2.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (r2.standard === "seen" && readOnly) {
-      if (r2.required) {
-        unknown = true;
-        reasons.push(`inferred:${r2.key}`);
-      } else {
-        softFail = true;
-      }
-    }
-  }
-  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
-  if (!inArea) reasons.push("out_of_area");
-  if (phoneState !== "ok" && emailState !== "ok") {
-    if (emailState !== "none") reasons.push(`email:${emailState}`);
-    else reasons.push(`phone:${phoneState}`);
-  }
-  const fit = softFail ? "long" : unknown ? "look" : "strong";
-  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
-}
-function questionAfterProbe(plan, members) {
-  const n = members.length;
-  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
-  const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
-  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
-  const tally2 = /* @__PURE__ */ new Map();
-  for (const m of members)
-    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
-      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
-  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!top) return { ask: false };
-  const textOf2 = (key) => lowerFirst(
-    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
-  );
-  const namedShare = top[1] / n;
-  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
-  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
-  let dropTerm = null;
-  if (plan.terms.length > 1) {
-    const statOf = (term) => {
-      const of = members.filter((m) => m.term === term);
-      return {
-        count: of.length,
-        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
-      };
-    };
-    for (const term of plan.terms) {
-      const s = statOf(term);
-      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some(
-        (other) => other !== term && (() => {
-          const o = statOf(other);
-          return o.count >= 5 && o.excludedShare < 2 / 3;
-        })()
-      );
-      if (anotherWorks) {
-        dropTerm = term;
-        break;
-      }
-    }
-  }
-  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return {
-    ask: true,
-    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
-    criterionKey: top[0],
-    dropTerm
-  };
-}
+// src/leads/search/clean.ts
 var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
   "square.site",
@@ -1798,9 +1635,76 @@ function stateCode(raw) {
   if (up.length === 2 && US_CODES.has(up)) return up;
   return US_STATES[s.toLowerCase()] ?? null;
 }
-function leadMonth(zone, at2) {
-  const d = dayInZone(zone, at2.getTime());
-  return `${d.y}-${String(d.m).padStart(2, "0")}`;
+
+// src/leads/search/sets.ts
+var LEAD_SEARCH_VIAS = ["people", "ask"];
+var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
+var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
+var LEAD_ROUND_ENDINGS = [
+  "target_reached",
+  "searched_everything",
+  "month_leads_used",
+  "budget_used",
+  "few_new_matches",
+  "stopped",
+  "source_failed",
+  "question_unanswered",
+  "paused"
+];
+var LEAD_ROUND_ANSWERS = ["keep", "include", "stop"];
+var LEAD_RUN_PURPOSES = ["discover", "check"];
+var LEAD_RUN_STATES = [
+  "claimed",
+  "starting",
+  "running",
+  "succeeded",
+  "failed",
+  "aborted",
+  "timed_out",
+  "unknown"
+];
+var LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
+var LEAD_STAGES = ["ready", "nurture", "converted", "archived"];
+var LEAD_CLOSED_REASONS = ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
+var LEAD_FITS = ["strong", "look", "long"];
+var LEAD_COUNTER_KINDS = ["allowance", "budget", "day"];
+var LEAD_OPERATION_KINDS = [
+  "undo_search",
+  "keep",
+  "exclude",
+  "put_back",
+  "include",
+  "stop",
+  "stage",
+  "bulk"
+];
+var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
+var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"];
+var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased", "said_no"];
+
+// src/leads/search/endings.ts
+var LEAD_ENDING_WORDS = {
+  target_reached: "Found what you asked for",
+  searched_everything: "Searched everything this plan covers",
+  month_leads_used: "This month's leads are used",
+  budget_used: "This month's searching budget is used",
+  few_new_matches: "Few new matches",
+  stopped: "Stopped by you",
+  source_failed: "The source failed",
+  question_unanswered: "Question unanswered",
+  paused: "Paused for everyone"
+};
+function endingOfRound(x) {
+  if (x.counted >= x.target) return "target_reached";
+  if (x.paused) return "paused";
+  if (x.stopped) return "stopped";
+  if (x.sourceFailed) return "source_failed";
+  if (x.unanswered) return "question_unanswered";
+  if (x.allowanceLeft <= 0) return "month_leads_used";
+  if (x.budgetLeftUsd <= 0) return "budget_used";
+  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
+  return "few_new_matches";
 }
 
 // src/shared/words.ts
@@ -4099,6 +4003,64 @@ var milesLabel = (m) => {
   const mi = m / METRES_PER_MILE;
   return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
 };
+
+// src/leads/search/class.ts
+var LEAD_KIND_KEY = "kind";
+var leadKindWord = (name) => `Not one of the ${name}`;
+var LEAD_UNREACHABLE_KEY = "unreachable";
+function leadPhoneState(phone) {
+  if (!phone) return "none";
+  return phoneDialable(phone) ? "ok" : "invalid";
+}
+var LEAD_EMAIL_REASON = /^email:/;
+function classify(plan, answer, facts, emailState, inArea, phoneState) {
+  if (facts.phone_matches_site === null && facts.emails.length === 0)
+    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
+  const reasons = [];
+  const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely", required: true },
+    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
+    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
+  ];
+  let excludedBy = null;
+  let softFail = false;
+  let unknown = false;
+  for (const r2 of rubric) {
+    const a = answer.criteria.find((x) => x.key === r2.key);
+    const verdict = a?.answer ?? "unknown";
+    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+    if (verdict === "fail") {
+      if (r2.required) {
+        excludedBy = excludedBy ?? r2.key;
+        reasons.push(`fail:${r2.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (verdict === "unknown") {
+      if (r2.required) {
+        unknown = true;
+        reasons.push(`unknown:${r2.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (r2.standard === "seen" && readOnly) {
+      if (r2.required) {
+        unknown = true;
+        reasons.push(`inferred:${r2.key}`);
+      } else {
+        softFail = true;
+      }
+    }
+  }
+  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
+  if (!inArea) reasons.push("out_of_area");
+  if (phoneState !== "ok" && emailState !== "ok") {
+    if (emailState !== "none") reasons.push(`email:${emailState}`);
+    else reasons.push(`phone:${phoneState}`);
+  }
+  const fit = softFail ? "long" : unknown ? "look" : "strong";
+  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
+}
 
 // src/leads/lead-facts.ts
 function leadTodayLine(hours, tz, now) {
@@ -16025,6 +15987,58 @@ function sendingDomainsFootWords(count2, max) {
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
+}
+
+// src/leads/search/question.ts
+function questionAfterProbe(plan, members) {
+  const n = members.length;
+  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const excluded = members.filter((m) => m.class === "excluded").length;
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const m of members)
+    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
+      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
+  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!top) return { ask: false };
+  const textOf2 = (key) => lowerFirst(
+    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
+  );
+  const namedShare = top[1] / n;
+  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
+  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
+  let dropTerm = null;
+  if (plan.terms.length > 1) {
+    const statOf = (term) => {
+      const of = members.filter((m) => m.term === term);
+      return {
+        count: of.length,
+        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
+      };
+    };
+    for (const term of plan.terms) {
+      const s = statOf(term);
+      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
+      const anotherWorks = plan.terms.some(
+        (other) => other !== term && (() => {
+          const o = statOf(other);
+          return o.count >= 5 && o.excludedShare < 2 / 3;
+        })()
+      );
+      if (anotherWorks) {
+        dropTerm = term;
+        break;
+      }
+    }
+  }
+  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
+  return {
+    ask: true,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    criterionKey: top[0],
+    dropTerm
+  };
 }
 
 // src/voice/greeting.ts

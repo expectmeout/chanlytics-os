@@ -74,7 +74,7 @@ import type {
   LEAD_STAGES,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
-} from "../leads/lead-search";
+} from "../leads/search/sets";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
