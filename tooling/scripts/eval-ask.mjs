@@ -47,7 +47,8 @@
  * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
  * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
  * no credit refuses every turn the same way, and the turns after the third say nothing about the model. `--list`
- * says the same and stops there: every case, its page, the turns and their cost, with nothing read and nothing spent.
+ * says the same and stops there: every case and its second turn, their pages, the turns (a case of two turns is two)
+ * and their cost, with nothing read and nothing spent.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
@@ -60,6 +61,7 @@ import {
   claimsWrite,
   contextFails,
   describeContext,
+  describeSecondTurn,
   followUpFails,
   fromContext,
   jsonLines,
@@ -404,10 +406,13 @@ if (unbuildable.length) {
 }
 
 if (LIST) {
-  for (const c of cases)
+  for (const c of cases) {
     console.log(
       `${c.id} · ${c.surface}${c.must_never ? " · must-never" : ""}${c.context ? ` · ${describeContext(c.context)}` : ""}\n    ${c.text}`,
     );
+    // A case's second turn, on its own lines under it.
+    if (c.then) console.log(describeSecondTurn(c));
+  }
   process.stdout.write(
     `\n${announcement(cases, REPS, PER_TURN)}Nothing was read or spent: --list only says what a run would do.\n`,
   );

@@ -17,6 +17,7 @@ import {
   claimsWrite,
   contextFails,
   contextProblems,
+  describeSecondTurn,
   dropsFirstScope,
   followUpFails,
   fromContext,
@@ -866,7 +867,51 @@ test("the case set: every surface has an on-page case, an off-page read and a de
   }
 });
 
-test("--list says every case, its page, the turns and their cost, with no credentials, and spends nothing", () => {
+test("the announcement counts turns: a case of two is two, each on its own surface, and a warm only where a page is sent again", () => {
+  const settingsPage = { surface: "settings", route: "admin", view: "workspace" };
+  const cases = [
+    { id: "a", surface: "today", text: "a", expect: {} },
+    { ...TWO_TURNS, then: { ...TWO_TURNS.then, context: { ...PEOPLE_PAGE, focus: "2" } } },
+    {
+      id: "c",
+      surface: "settings",
+      text: "remember that …",
+      context: settingsPage,
+      expect: { proposals_any: ["settings"] },
+      then: { text: "where can people park?", between: "approve", expect: {} },
+    },
+    {
+      id: "d",
+      surface: "people",
+      text: "d",
+      context: PEOPLE_PAGE,
+      expect: {},
+      then: { text: "e", context: null, surface: "today", expect: {} },
+    },
+  ];
+  assert.equal(
+    announcement(cases, 3, 0.012),
+    [
+      "  today: 1 case(s), 2 turn(s) × 3 = 6 turns ≈ $0.07",
+      "  people: 2 case(s), 3 turn(s) (3 with the page) × 3 = 9 turns ≈ $0.11",
+      "  settings: 1 case(s), 2 turn(s) (2 with the page) × 3 = 6 turns ≈ $0.07",
+      "4 cases, 7 turns × 3 = 21 turns ≈ $0.25 at the baseline $0.012 a turn (spec §9), and 12 warms (POST ask/warm, no model); 3 settings note(s) approved between the turns and put back",
+      "",
+    ].join("\n"),
+  );
+  assert.equal(
+    describeSecondTurn(cases[1]),
+    "    then · people · #/clients · GET contacts:40 · focus 2\n      open the second",
+  );
+  assert.equal(
+    describeSecondTurn(cases[2]),
+    "    then · settings · between: approve · the same page\n      where can people park?",
+  );
+  assert.equal(describeSecondTurn(cases[3]), "    then · today · no page\n      e");
+  assert.equal(describeSecondTurn(cases[0]), "");
+});
+
+test("--list says every case and its second turn, its page, the turns and their cost, with no credentials, and spends nothing", () => {
   const env = { ...process.env, REPS: "3" };
   for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "E2E_USER_EMAIL"])
     delete env[k];
@@ -877,12 +922,16 @@ test("--list says every case, its page, the turns and their cost, with no creden
   });
   assert.equal(run.status, 0, run.stderr);
   for (const c of CASES) assert.ok(run.stdout.includes(`${c.id} · ${c.surface ?? "today"}`), c.id);
+  // A turn is a turn: a case of two turns is two, each priced at the baseline.
   const n = CASES.length;
+  const turns = CASES.reduce((k, c) => k + 1 + (c.then ? 1 : 0), 0);
   assert.ok(
-    run.stdout.includes(`${n} cases × 3 = ${n * 3} turns ≈ $${(n * 3 * 0.012).toFixed(2)}`),
+    run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
   );
-  assert.match(run.stdout, /inbox: 5 case\(s\) \(5 with the page\) × 3 = 15 turns/);
+  assert.match(run.stdout, /\n {2}inbox: 5 case\(s\), 5 turn\(s\) \(5 with the page\) × 3 = 15 turns/);
+  for (const c of CASES.filter((x) => x.then))
+    assert.ok(run.stdout.includes(`\n    then · `) && run.stdout.includes(`\n      ${c.then.text}`), c.id);
   assert.match(run.stdout, /Nothing was read or spent/);
   // The same words the run announces before its first turn.
   assert.ok(

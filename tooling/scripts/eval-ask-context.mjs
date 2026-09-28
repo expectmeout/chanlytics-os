@@ -320,22 +320,45 @@ export function pageProblems(cases) {
 }
 
 /**
- * What a run is about to spend, by surface, before it spends a turn (D17): the cases, how many carry their page, the
- * turns and their cost at `perTurn` dollars a turn, and the warms, which reach no model.
+ * What a run is about to spend, by surface, before it spends a turn (D17): the cases, their turns -- a case of two
+ * turns is two, each on its own surface -- and how many carry their page, the turns and their cost at `perTurn`
+ * dollars a turn; the warms, which reach no model, one for each turn whose page is sent again (secondTurn's `warm`);
+ * and the settings notes approved between the turns and put back, the only writes a run makes but its threads.
  */
 export function announcement(cases, reps, perTurn) {
   const cost = (n) => `$${(n * reps * perTurn).toFixed(2)}`;
-  const lines = [...new Set(cases.map((c) => c.surface))].map((s) => {
-    const cs = cases.filter((c) => c.surface === s);
-    const paged = cs.filter((c) => c.context).length;
-    return `  ${s}: ${cs.length} case(s)${paged ? ` (${paged} with the page)` : ""} × ${reps} = ${cs.length * reps} turns ≈ ${cost(cs.length)}`;
+  const turns = cases.flatMap((c) => {
+    const two = secondTurn(c);
+    return [
+      { surface: c.surface, paged: !!c.context, warm: !!c.context },
+      ...(two ? [{ surface: two.surface, paged: !!two.context, warm: two.warm }] : []),
+    ];
   });
-  const warms = cases.filter((c) => c.context).length * reps;
+  const lines = [...new Set(turns.map((t) => t.surface))].map((s) => {
+    const n = cases.filter((c) => c.surface === s).length;
+    const ts = turns.filter((t) => t.surface === s);
+    const paged = ts.filter((t) => t.paged).length;
+    return `  ${s}: ${n} case(s), ${ts.length} turn(s)${paged ? ` (${paged} with the page)` : ""} × ${reps} = ${ts.length * reps} turns ≈ ${cost(ts.length)}`;
+  });
+  const warms = turns.filter((t) => t.warm).length * reps;
+  const notes = cases.filter((c) => secondTurn(c)?.between === "approve").length * reps;
   lines.push(
-    `${cases.length} cases × ${reps} = ${cases.length * reps} turns ≈ ${cost(cases.length)} at the baseline $${perTurn} a turn (spec §9)` +
-      (warms ? `, and ${warms} warms (POST ask/warm, no model)` : ""),
+    `${cases.length} cases, ${turns.length} turns × ${reps} = ${turns.length * reps} turns ≈ ${cost(turns.length)} at the baseline $${perTurn} a turn (spec §9)` +
+      (warms ? `, and ${warms} warms (POST ask/warm, no model)` : "") +
+      (notes ? `; ${notes} settings note(s) approved between the turns and put back` : ""),
   );
   return lines.join("\n") + "\n";
+}
+
+/**
+ * A case's second turn for the listing, on its own lines under its case: where it is asked, what happens before it,
+ * its page (the case's own, one of its own, or none), and its words. "" for a case of one turn.
+ */
+export function describeSecondTurn(c) {
+  const two = secondTurn(c);
+  if (!two) return "";
+  const page = !two.context ? "no page" : c.then.context === undefined ? "the same page" : describeContext(two.context);
+  return `    then · ${two.surface}${two.between ? ` · between: ${two.between}` : ""} · ${page}\n      ${two.text}`;
 }
 
 /** A context in a few words, for the listing and the log: its route, its rows and its focus. */
