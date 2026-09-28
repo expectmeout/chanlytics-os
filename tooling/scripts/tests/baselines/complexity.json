@@ -55,7 +55,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 181,
+    "lines": 172,
     "branches": 11,
     "depth": 1
   },
@@ -140,7 +140,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 209,
+    "lines": 210,
     "branches": 35,
     "depth": 0
   },

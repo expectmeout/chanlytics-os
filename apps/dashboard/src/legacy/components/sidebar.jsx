@@ -252,12 +252,14 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
 };
 
 // The account: who you are, the doors to your name and your alerts, the
-// theme, the shortcuts sheet, and sign out. Alerts on this device reuse the
-// bell's own switch (the notifications bridge), not a second one.
-const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
+// theme and the look, the shortcuts sheet, and sign out. Alerts on this device
+// reuse the bell's own switch (the notifications bridge), not a second one.
+const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, flash }) => {
   const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
   const [alerts, setAlerts] = React.useState(() => (real ? real.alerts() : null));
   const themes = window.__chrome ? window.__chrome.themes : [];
+  // The look is drawn only once the chrome offers it (contracts LOOK_OFFERED); until then there is no Look here.
+  const looks = window.__chrome && window.__chrome.lookOffered ? window.__chrome.looks : [];
   const toggleAlerts = async () => {
     if (!real) return;
     await real.setAlerts(!alerts.on);
@@ -301,6 +303,19 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
           </button>
         ))}
       </div>
+      {looks.length > 0 && (
+        <>
+          <div className="more-header">Look</div>
+          {/* .sb-theme-seg is the theme's three columns: step 5.5, which offers the look, sizes it for two. */}
+          <div className="sb-theme-seg" role="radiogroup" aria-label="Look">
+            {looks.map((l) => (
+              <button key={l.id} role="radio" aria-checked={look === l.id} className={`sb-theme-opt ${look === l.id ? "active" : ""}`} onClick={() => onLook(l.id)} data-testid={`sb-look-${l.id}`}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); window.dispatchEvent(new CustomEvent("shortcuts:open")); }} data-testid="sb-me-shortcuts">
         <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span><span className="more-item-meta kbd">?</span>
@@ -322,6 +337,7 @@ const Sidebar = ({
   onToggleCollapse = () => {},
   themePref = "dark",
   onTheme = () => {},
+  look, onLook,
 }) => {
   const [, setTick] = React.useState(0);
   const [needs, setNeeds] = React.useState(sbNeedsCount);
@@ -514,7 +530,7 @@ const Sidebar = ({
           {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
         </button>
         <SbMenu menu={meMenu} side="up" collapsed={collapsed} label="Account" testid="sb-account-menu">
-          <UserMenu who={who} themePref={themePref} onTheme={onTheme} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
+          <UserMenu who={who} themePref={themePref} onTheme={onTheme} look={look} onLook={onLook} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
         </SbMenu>
       </div>
       {toastNode}

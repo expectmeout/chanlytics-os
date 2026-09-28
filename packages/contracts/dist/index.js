@@ -12598,6 +12598,14 @@ function resolveTheme(pref, systemDark) {
 }
 var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
+var LOOK_OPTIONS = [
+  { id: "classic", label: "Classic" },
+  { id: "glass", label: "Glass" }
+];
+var isLookPref = (v) => v === "classic" || v === "glass";
+var DEFAULT_LOOK_PREF = "classic";
+var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
+var LOOK_OFFERED = false;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
 var THEME_INK = { light: "#161616", dark: "#fbfaf8" };
@@ -12607,13 +12615,17 @@ function themeColorOf(theme) {
 var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
   const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
+  const looks = JSON.stringify(LOOK_OPTIONS.map((o) => o.id));
   return [
     "try{",
-    `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
-    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
+    `var p=${JSON.stringify(DEFAULT_THEME_PREF)},k=${JSON.stringify(DEFAULT_LOOK_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
+    `if(s&&${known}.indexOf(s.theme)>=0)p=s.theme;`,
+    `if(s&&${looks}.indexOf(s.look)>=0)k=s.look}catch(e){}`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
     'var t=p==="system"?(d?"dark":"light"):p;',
     "document.documentElement.dataset.theme=t;",
+    "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
     `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
@@ -28312,6 +28324,7 @@ export {
   DEFAULT_BUSINESS_TYPE,
   DEFAULT_COMPANY_TYPE,
   DEFAULT_INDUSTRY,
+  DEFAULT_LOOK_PREF,
   DEFAULT_THEME_PREF,
   DEFAULT_TIMEZONE,
   DEFAULT_WEEK,
@@ -28521,6 +28534,8 @@ export {
   LIST_STANDINGS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  LOOK_OFFERED,
+  LOOK_OPTIONS,
   LeadDraftAnswerSchema,
   LeadDraftInputSchema,
   LeadExportQuerySchema,
@@ -29240,6 +29255,7 @@ export {
   isHeldDraft,
   isIdentifierName,
   isLiveCall,
+  isLookPref,
   isOpeningFactKey,
   isOpeningProblem,
   isOptedOut,
@@ -29366,6 +29382,7 @@ export {
   localDaysBetween,
   localHour,
   localToUtcMs,
+  lookPrefOf,
   maskedEmail,
   matchColumns,
   matchPerson,
