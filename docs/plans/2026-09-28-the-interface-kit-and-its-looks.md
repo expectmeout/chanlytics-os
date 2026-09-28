@@ -427,6 +427,12 @@ variant appears (decision 7).
 - A move never changes a page's look, and neither does anything else in the same pull request. For each surface, three
   pull requests in this order: **the move** (0015) → **the kit** (the surface's primitives come from the kit and its
   own are deleted) → **the look** (its canvas layout, under Glass only).
+- **A moved surface waits in `KIT_PENDING` for its kit step.** The move draws what the JSX drew, raw `<button>`s and
+  all, so it adds the surface's folder to `KIT_PENDING` (`eslint.config.mjs`), which lifts the rule on raw elements
+  (§3.7, item 4) there and nothing else; the kit step draws the surface's controls with the kit and takes the folder
+  out. The function limits stay: `src/surfaces` is in `LIMITED_TREES` from its first file (step 1.7), so a surface
+  moves with its functions under the limits. The pilot therefore splits `ReportsSections`
+  (`legacy/pages/reports-sections.jsx`, 206 lines and 39 branches on 28 September) before its move or in it.
 - The kit's CSS reaches pages before they move, so Phases 1, 2 and the Glass tokens do not wait on 0015. The React
   components arrive with each surface's move.
 - A shared component moves with the first surface that draws it and is published under its old name (§3.4).
@@ -446,8 +452,12 @@ in `docs/debt.md`:
 3. **`inline-styles.json`:** per file, `style={…}` props under `src/legacy` and `src/surfaces` (148 today), counted
    with the TypeScript parser.
 4. **A lint error in `src/surfaces`:** a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` outside
-   `src/surfaces/kit/` (`no-restricted-syntax`, with the message naming the kit's component), proved by a probe in
-   `repo/lint-boundaries.test.mjs`.
+   `src/surfaces/kit/`, written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement`, `jsx`,
+   `jsxs`, `jsxDEV`) (`no-restricted-syntax`, with the message naming the kit's component), proved by a probe in
+   `repo/lint-boundaries.test.mjs`. A surface moved before its kit step is listed in `KIT_PENDING`
+   (`eslint.config.mjs`, empty until the first move), and the rule passes over it alone: a pure move under decision
+   0015 adds its surface's folder, and that surface's kit step (Phase 4) removes it (§3.6). A test fails an entry
+   that names no surface's folder.
 
 Each measure's advice names the kit: "Take the kit's Chip (`src/surfaces/kit/`). If the kit has no variant for this,
 add one there with its gallery entry." The style tests live in a new `tooling/scripts/tests/styles/` folder, since
