@@ -2347,7 +2347,7 @@ test("a page is found by the name it goes by AND by the one it used to: 'templat
   assert.deepEqual(askJump("zzq", ASK_PAGES), []);
 });
 
-test("the scope per turn (D9): a question goes with the scope the chip shows, else its conversation's own, which then holds it; the chip's × sends none next; a new conversation takes the chip's or none; and no send moves the chip, a resumed twin's included", async () => {
+test("the scope per turn (the Phase 5 plan, D9): a question goes with the scope the chip shows, else its conversation's own, which then holds it; the chip's × sends none next; a new conversation takes the chip's or none; and no send moves the chip, a resumed twin's included", async () => {
   const hash = globalThis.window.location.hash;
   const ROW1 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1";
   const ROW2 = "aaaaaaaa-aaaa-4aaa-8aaa-0000000000b2";

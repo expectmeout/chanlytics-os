@@ -515,7 +515,7 @@ test("answering: the panel says the question, sends the owner's words as one tur
     },
     "the owner's words and nothing else as the text; the search by id for the route to read and tell the model " +
       "(ask-routes.test.mjs); the thread the search was planned in; and no scope, so the planning thread keeps its " +
-      "own (a null would clear it, D9)",
+      "own (a null would clear it: the Phase 5 plan, D9)",
   );
   assert.deepEqual(
     [st.stage, st.trace, st.refusal, card.id, st.plan.version, st.plan.count, st.plan.exclusions],

@@ -406,7 +406,7 @@ test("the client sends opened_ms with the question when the palette measured one
   await api.send({ text: "q", threadId: null, scope: null, surface: "today" }, () => {});
   assert.equal(bodies[0].opened_ms, 4200);
   assert.ok(!("opened_ms" in bodies[1]));
-  // The scope three ways (D9): the Line's, sent; none, said as null, which clears the thread's; and from a caller with
+  // The scope three ways (the Phase 5 plan, D9): the Line's, sent; none, said as null, which clears the thread's; and from a caller with
   // no opinion (the Leads answer row), not sent at all, so the thread keeps its own.
   const scope = { kind: "person", id: "p1", label: "Rosa" };
   await api.send({ text: "q", threadId: "t1", scope, surface: "people" }, () => {});

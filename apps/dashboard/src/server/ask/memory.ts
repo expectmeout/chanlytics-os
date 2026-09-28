@@ -65,8 +65,8 @@ export async function threadForTurn(
     } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
   }
   if (!thread) {
-    // A thread keeps its first question as its title (D9); an answer's is the search's name, never the sentence
-    // the model is given.
+    // A thread keeps its first question as its title (the Line's spec, D9); an answer's is the search's name, never
+    // the sentence the model is given.
     const title = answering ? titleFromSearch(answering.name) : titleFromQuestion(text);
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };

@@ -72,6 +72,7 @@ import { finishTurn, type TurnEnd } from "./memory";
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
 // one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
 // is not a spend, only a ceiling on what may be generated.
+
 /**
  * The earlier turns a question is asked with, as words: counted as turns -- a person's message and what follows it
  * until the next -- never as messages (the Phase 5 plan, D3's fallback until the replay). Twelve messages were six.

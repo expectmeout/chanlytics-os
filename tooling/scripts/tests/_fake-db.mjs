@@ -22,7 +22,8 @@ import crypto from "node:crypto";
  * after the last one's at the least, as two statements' are in Postgres, which counts in microseconds. The wall clock
  * alone gave a turn's answer and the next question one stamp in 21 of 150 runs, and a read ordered newest first with
  * the id as the tiebreak (Ask's readThread) then put those two rows in their random ids' order. The rows of one
- * statement share its stamp, as they share a transaction's now().
+ * statement share its stamp, as they share a transaction's now(). Under a frozen or mocked `Date`, each later
+ * statement is still a millisecond on, and a clock mocked backwards does not move a world's stamps back.
  */
 const clocks = new WeakMap();
 function stampOf(tables) {

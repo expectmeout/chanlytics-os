@@ -107,7 +107,7 @@ export const POST = write({
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
     const threadId =
       typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
-    const asked = scopeAsked(body?.scope);
+    const askedScope = scopeAsked(body?.scope);
     // The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the
     // schema refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a
     // context is a help to the answer, not a condition of it. The turn reads the page again from these identities.
@@ -163,7 +163,7 @@ export const POST = write({
 
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
-    const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: asked, answering });
+    const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: askedScope, answering });
     const { thread: turn, history, sinceLastMs, scope } = kept;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 

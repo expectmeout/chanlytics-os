@@ -911,7 +911,7 @@ test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET
   }
 });
 
-test("the scope is each turn's (D9): a follow-up asked on another row is asked about that row -- the scope line in its words and the row read before the model -- and the thread keeps it; no scope sent is the thread's own, unchanged, and so is one not in the palette's shape; null is none, and clears the thread's", async () => {
+test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on another row is asked about that row -- the scope line in its words and the row read before the model -- and the thread keeps it; no scope sent is the thread's own, unchanged, and so is one not in the palette's shape; null is none, and clears the thread's", async () => {
   const ROSA = { kind: "person", id: "cccccccc-cccc-4ccc-8ccc-cccccccccc01", label: "Rosa" };
   const NORA = { kind: "person", id: "cccccccc-cccc-4ccc-8ccc-cccccccccc02", label: "Nora" };
   const tables = askWorld();
