@@ -255,6 +255,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     scope_kind: input.scope?.kind ?? null,
     follow_up: input.history.length > 0,
     since_last_ms: input.sinceLastMs ?? null,
+    replay: input.history.length > 0 ? "rebuilt" : "none",
     opened_ms: input.openedMs ?? null,
     context_rows: built ? built.rows : null,
     context_chars: built ? built.chars : null,

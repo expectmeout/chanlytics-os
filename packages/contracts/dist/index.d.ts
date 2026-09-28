@@ -10079,6 +10079,12 @@ interface AskTurnShape {
     /** A second or later question on its thread, and how long after the thread's previous turn it came. */
     follow_up: boolean;
     since_last_ms: number | null;
+    /**
+     * How the thread's earlier turns reached the model (the Phase 5 plan, PR 5.4): replayed as it was sent them, while
+     * the thread was warm (live); as words, or again as words after the API refused a replay (rebuilt); or none, on a
+     * thread's first turn. A turn stored before it has no such key: unknown.
+     */
+    replay: "live" | "rebuilt" | "none";
     /** From the palette opening to the question being sent, as the tab measured it. */
     opened_ms: number | null;
     /**
