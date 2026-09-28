@@ -33,10 +33,25 @@ import type { ParamSpec } from "../templates/templates";
 import type { AskedPurpose } from "../consent/consent";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
-export * from "./broadcast-audience";
-export * from "./broadcast-failures";
-export * from "./broadcast-number";
-export * from "./run-report";
+export {
+  AUDIENCE_KINDS,
+  EVERYONE_LABEL,
+  eligibleFor,
+  audienceMembers,
+  heardWords,
+  audiencePreview,
+} from "./broadcast-audience";
+export type { AudienceKind, Audience, PreviewPerson, AudiencePreview } from "./broadcast-audience";
+export {
+  BROADCAST_FAILURE_WORDS,
+  BROADCAST_FAILURE_FIX,
+  broadcastFailureFix,
+  broadcastFailureWords,
+} from "./broadcast-failures";
+export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
+export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
+export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
+export type { RunFigureId, RunFigure, RunFilterId, RunTone, RunPersonVM, RunReplyVM, RunReportVM } from "./run-report";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
