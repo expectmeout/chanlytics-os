@@ -16,7 +16,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { everyone } from "./people";
-import { withVisits, type PeopleVisits, type ZoneAndSettings } from "../calendar/calendar";
+import { withVisits, type PeopleVisits, type ZoneAndSettings } from "../calendar/people-visits";
 import { sellsByOf } from "./deals";
 import { lazily, type Lazy } from "../lazy";
 
