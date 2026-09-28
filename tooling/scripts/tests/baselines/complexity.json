@@ -809,7 +809,7 @@
     "branches": 51,
     "depth": 0
   },
-  "packages/contracts/src/ask/ask.ts::buildAskSuggestions#1": {
+  "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
     "lines": 85,
     "branches": 49,
     "depth": 3

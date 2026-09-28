@@ -9267,6 +9267,48 @@ type SchemaAgreement = [
 ];
 
 /**
+ * The languages Ask answers in (ASK_LANGUAGES), and the guess at a question's language made before the model's
+ * (detectLanguage). The message carries its language (ask.ts); the suggestions and the Open button speak it
+ * (ask-suggestions.ts, answer-text.ts).
+ */
+declare const ASK_LANGUAGES: readonly ["en", "es", "other"];
+type AskLanguage = (typeof ASK_LANGUAGES)[number];
+/** A light guess at the language of a question; the model settles it. */
+declare function detectLanguage(text: string): AskLanguage;
+
+interface FastCall {
+    callId: string;
+    who: string;
+    missed: boolean;
+    live: boolean;
+    startedAtMs: number | null;
+}
+/** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
+declare function dayFromQuestion(q: string, now: number, tz?: string | null): string | null;
+/** What a quick question asks for, answered without a model; ask-answer.ts words the answer. */
+type AskIntent = {
+    kind: "needs";
+} | {
+    kind: "calls";
+} | {
+    kind: "openings";
+    day: string | null;
+    service: string;
+} | null;
+/**
+ * The three questions an owner asks most, answered without a model: who
+ * needs me, did anyone call, what is open. This only says which one a
+ * question is; the bridge reads Today's queue, the calls or the openings
+ * route, and ask-answer.ts says the answer. Everything else is the model's.
+ */
+declare function askIntent(question: string, now: number, tz?: string | null): AskIntent;
+/** Today's missed calls by the business's clock, and the calls on the line now. */
+declare function callsToday(calls: FastCall[], now: number, tz?: string | null): {
+    missed: FastCall[];
+    live: FastCall[];
+};
+
+/**
  * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
  * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
  * format the model writes (answer-format.ts). Pure; it imports nothing.
@@ -9642,6 +9684,12 @@ declare const PROPOSAL_WORDS: {
  * -- ask-answer.ts's, and the format the model writes it in answer-format.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
+ *
+ * This module holds the limits, the message and its cards (and what became of each), and where a question is asked
+ * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES). The rest is beside
+ * it: the languages and the guess at a question's (ask-language.ts), the rules an answer's text passes
+ * (answer-text.ts), the jump index (ask-jump.ts), the suggestions (ask-suggestions.ts), the three questions answered
+ * without a model (ask-fast-paths.ts) and the settings a card may change (ask-settings-change.ts).
  */
 
 /** One question, in characters. Longer than this is a document, not a question. */
@@ -9682,15 +9730,6 @@ declare const ASK_CAPS: {
     readonly followups: 3;
     readonly needsRows: 10;
 };
-declare const ASK_LANGUAGES: readonly ["en", "es", "other"];
-type AskLanguage = (typeof ASK_LANGUAGES)[number];
-declare function cleanAnswer(raw: string): string;
-/**
- * An answer that states a figure without having read anything is not from
- * the workspace. Times, counts and money all carry digits; a turn with no
- * read tool behind such an answer is marked so the palette can say so.
- */
-declare function isUngrounded(answer: string, reads: number): boolean;
 type AskRole = SchemaSet<"ask_messages.role">;
 /**
  * The Inbox verbs the assistant may propose on a thread. One list, read by
@@ -9799,8 +9838,41 @@ interface AskScope {
  * the Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts), never a second one.
  */
 declare function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null;
-/** A light guess at the language of a question; the model settles it. */
-declare function detectLanguage(text: string): AskLanguage;
+/**
+ * The pages Ask knows it is on. The route accepts exactly these; the prompt names them. Thirteen (the Phase 2 plan,
+ * D1): the Pipeline, the Calendar, the campaign pages (Playbooks, Broadcasts, Messages) and Start are pages of their
+ * own, no longer People's or "other".
+ */
+declare const ASK_SURFACES: readonly ["today", "inbox", "people", "leads", "conversations", "live", "reports", "settings", "pipeline", "calendar", "campaigns", "start", "other"];
+type AskSurface = (typeof ASK_SURFACES)[number];
+
+/**
+ * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
+ * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, and a next question
+ * that echoes a place already offered. The answer's shape and its normaliser are ask-answer.ts's.
+ */
+
+declare function cleanAnswer(raw: string): string;
+/**
+ * An answer that states a figure without having read anything is not from
+ * the workspace. Times, counts and money all carry digits; a turn with no
+ * read tool behind such an answer is marked so the palette can say so.
+ */
+declare function isUngrounded(answer: string, reads: number): boolean;
+/** Two questions are the same thread when they differ only in case, spacing and punctuation. */
+declare function sameQuestion(a: string, b: string): boolean;
+/** The Open button's words, by where it goes; the model's label only for a page. */
+declare function navigateLabel(nav: {
+    to: string;
+    label: string;
+} | null, language: AskLanguage): string | null;
+/** A next question that points at a place already offered: its words, and the route it echoes. */
+declare const FOLLOWUP_ECHO: Array<[RegExp, RegExp]>;
+
+/**
+ * The palette's jump: the pages a real workspace has (ASK_PAGES), and a few typed words matched against them and
+ * against the people, threads and calls the browser already holds (askJump). A question is not a jump.
+ */
 interface JumpEntry {
     label: string;
     to: string;
@@ -9825,13 +9897,12 @@ declare const ASK_PAGES: JumpEntry[];
  * long sentence is a question, not a jump.
  */
 declare function askJump(query: string, index: JumpEntry[], limit?: number): JumpEntry[];
+
 /**
- * The pages Ask knows it is on. The route accepts exactly these; the prompt names them. Thirteen (the Phase 2 plan,
- * D1): the Pipeline, the Calendar, the campaign pages (Playbooks, Broadcasts, Messages) and Start are pages of their
- * own, no longer People's or "other".
+ * The questions and the acts the palette offers for where the person is (buildAskSuggestions): built from the
+ * workspace's data, in English or Spanish, never from a seed. The pages it knows are ask.ts's (ASK_SURFACES).
  */
-declare const ASK_SURFACES: readonly ["today", "inbox", "people", "leads", "conversations", "live", "reports", "settings", "pipeline", "calendar", "campaigns", "start", "other"];
-type AskSurface = (typeof ASK_SURFACES)[number];
+
 interface AskSuggestion {
     /** The words sent, or placed in the input when `compose` is set. */
     q: string;
@@ -9866,37 +9937,13 @@ interface SuggestionInput {
  * never from a seed; a workspace with no missed call is not offered a question about missed calls.
  */
 declare function buildAskSuggestions(input: SuggestionInput): AskSuggestion[];
-interface FastCall {
-    callId: string;
-    who: string;
-    missed: boolean;
-    live: boolean;
-    startedAtMs: number | null;
-}
-/** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
-declare function dayFromQuestion(q: string, now: number, tz?: string | null): string | null;
-/** What a quick question asks for, answered without a model; ask-answer.ts words the answer. */
-type AskIntent = {
-    kind: "needs";
-} | {
-    kind: "calls";
-} | {
-    kind: "openings";
-    day: string | null;
-    service: string;
-} | null;
+
 /**
- * The three questions an owner asks most, answered without a model: who
- * needs me, did anyone call, what is open. This only says which one a
- * question is; the bridge reads Today's queue, the calls or the openings
- * route, and ask-answer.ts says the answer. Everything else is the model's.
+ * The settings change a card may apply: its shape and schema, the change applied to a parsed config
+ * (applySettingsChange) and the card's one line (describeSettingsChange). The workspace's cards propose it
+ * (ask-proposals/workspace.ts).
  */
-declare function askIntent(question: string, now: number, tz?: string | null): AskIntent;
-/** Today's missed calls by the business's clock, and the calls on the line now. */
-declare function callsToday(calls: FastCall[], now: number, tz?: string | null): {
-    missed: FastCall[];
-    live: FastCall[];
-};
+
 /**
  * The few settings an owner changes from the floor, as a change the model
  * may propose and a card may apply: a closure, a day's hours, a note the
@@ -9957,15 +10004,6 @@ type Cfg = {
 declare function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C;
 /** One line for a card: what the change does, in the person's words. */
 declare function describeSettingsChange(change: AskSettingsChange): string;
-/** Two questions are the same thread when they differ only in case, spacing and punctuation. */
-declare function sameQuestion(a: string, b: string): boolean;
-/** The Open button's words, by where it goes; the model's label only for a page. */
-declare function navigateLabel(nav: {
-    to: string;
-    label: string;
-} | null, language: AskLanguage): string | null;
-/** A next question that points at a place already offered: its words, and the route it echoes. */
-declare const FOLLOWUP_ECHO: Array<[RegExp, RegExp]>;
 
 /**
  * The shape of one Ask turn, as the loop measured it: where the time went and
