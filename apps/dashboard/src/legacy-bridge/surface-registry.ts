@@ -164,7 +164,19 @@ export function personRouteId(page: string, param?: string | null): string | nul
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
-  today: ["setup", "calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "google", "people"],
+  today: [
+    "setup",
+    "calendar",
+    "broadcasts",
+    "reports",
+    "playbooks",
+    "notifications",
+    "live",
+    "google",
+    "people",
+    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
+    "reach_out_replies",
+  ],
   calendar: ["people"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).

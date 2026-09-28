@@ -1331,7 +1331,14 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard and contracts only, after PR 7: Today and the bell read `window.__REPLIES`, which PR 7 installs.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `914d421b`). What departed from the tasks, and why:
+>
+> - **No `AWAY_NOUN` move.** `today.ts` was already split by domain (`today/today-away.ts` holds the nouns), so the kind is a row there and `today-vm.ts` gains `reply` at no cost in length.
+> - **`replyRowOf`, `withReplies` and `bellActionOf` are a file of their own**, contracts `reach-out/reach-out-reply-today.ts`, since `reach-out-reply-words.ts` is the Inbox's and Today's words would have grown it past a screen. A reading's thread is its newest; a no, an automatic reply and an undone reading leave the handoff as it was.
+> - **`pushFor` takes no words per kind.** The notice's own title and summary are what a phone is sent (the redacted body, never their words); the test proves it for a reply.
+> - **The kinds reach Settings through `__today.notificationKinds`, not `__SETTINGS`.** `__SETTINGS` is fed by `surface-data.ts`, which is at its file and function caps; `__today` is contracts' Today helpers, which the page reads already elsewhere, and the pane's rows are words, not a read. `settings.jsx` fell by seven lines; the test is in `settings-owner-panes.test.mjs` beside the pane's others, and `settings-truth.test.mjs` now executes the kinds rather than reading the page's text.
+> - **A reach-out run's meta** says "Reach-out · ready" and "Reach-out · sends …" beside the playbooks' "Playbook · …", which moved from the page into `todayRunWords`. Stop on a reach-out run is the broadcasts route's own, already proved by Part 4's approval tests; it is not proved again here.
+> - **A clock-dependent test from Part 4** (`reach-out-approval.test.mjs`) failed every night from 10 PM to midnight in Chicago; it was fixed on PR 7's branch to say the first send as the page does (`firstSendWhen`).
 
 ### Task 8.1: Today's reply row
 

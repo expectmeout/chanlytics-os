@@ -457,6 +457,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "setup",
     "google",
     "billing",
+    "reach_out_replies",
   ];
   const draws = ROUTE_DRAWS.today;
   for (const k of ["calendar", "broadcasts", "reports"])
@@ -468,7 +469,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
   let known;
   try {
     const modules = await Promise.all(
-      ["surface-data", "setup", "leads", "google", "billing"].map((m) =>
+      ["surface-data", "setup", "leads", "google", "billing", "reach-out/replies"].map((m) =>
         importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`),
       ),
     );

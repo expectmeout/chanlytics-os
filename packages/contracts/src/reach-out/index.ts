@@ -243,6 +243,7 @@ export type {
   ReplyStrip,
   ReplyDoor,
 } from "./reach-out-reply-words";
+export { replyRowOf, withReplies, bellActionOf } from "./reach-out-reply-today";
 export type {
   ReplyIntent,
   ReplyReading,

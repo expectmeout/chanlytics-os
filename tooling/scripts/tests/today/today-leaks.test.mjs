@@ -872,9 +872,16 @@ test("the sentences the queue and the card say about a playbook's run come from 
   const w = todayRunWords(run);
   assert.equal(w.people, "3 people");
   assert.deepEqual(w.waiting, {
+    meta: "Playbook · ready",
     sentence: "3 people. Nothing sends until you say so.",
     status: ["Waiting for your approval"],
   });
+  // A reach-out's run writes to businesses, and says it is a reach-out (Reach out Part 5, PR 8).
+  const reach = todayRunWords({ ...run, recipient_count: 44, audience: { kind: "reach_out", label: "Movers" } });
+  assert.equal(reach.waiting.sentence, "44 businesses. Nothing sends until you say so.");
+  assert.equal(reach.waiting.meta, "Reach-out · ready");
+  assert.equal(reach.soon.meta, "Reach-out · sends today 9:00 AM");
+  assert.equal(todayRunWords({ ...run, recipient_count: 1, audience: { kind: "reach_out" } }).people, "1 business");
   assert.deepEqual(w.soon, {
     meta: "Playbook · sends today 9:00 AM",
     sentence: "3 people. Stop it if you'd rather not.",
