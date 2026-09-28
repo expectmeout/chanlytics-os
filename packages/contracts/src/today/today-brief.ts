@@ -15,7 +15,9 @@
  * figures (today-figures.ts), the rows (today-rows.ts) and the queue (today-queue.ts), in the shape today-vm.ts
  * declares.
  */
-import type { ConversationDto, EscalationDto, CallDto } from "../conversations/viewmodels";
+import type { CallDto } from "../conversations/call-dto";
+import type { EscalationDto } from "../conversations/escalations";
+import type { ConversationDto } from "../conversations/thread-dto";
 import type { LeadSearchDto } from "../leads/leads";
 import {
   todayAskFacts,

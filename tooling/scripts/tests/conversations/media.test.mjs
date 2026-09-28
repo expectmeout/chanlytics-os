@@ -91,8 +91,10 @@ test("the thread's line above an attachment names it, and the attachment itself 
     messageText(msg({ media: { mime_type: null, fetch_state: "pending" }, meta: { raw_type: "document" } })),
     "Document",
   );
-  // The view models carry it through.
-  const vm = readCode("packages/contracts/src/conversations/viewmodels.ts");
+  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (conversation-vm.ts).
+  const vm = ["inbox-thread", "conversation-vm"]
+    .map((m) => readCode(`packages/contracts/src/conversations/${m}.ts`))
+    .join("\n");
   assert.ok(vm.includes("...(media ? { media } : {}),"), "the Inbox timeline entry");
   assert.ok(vm.includes("...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),"), "the Conversations message");
 });
