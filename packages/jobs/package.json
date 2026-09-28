@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
+    "build": "tsup src/index.ts --format esm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,6 +25,6 @@
   },
   "devDependencies": {
     "tsup": "^8.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "catalog:"
   }
 }

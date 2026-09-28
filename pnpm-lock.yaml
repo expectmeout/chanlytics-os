@@ -5,6 +5,12 @@ settings:
   excludeLinksFromLockfile: false
   injectWorkspacePackages: true
 
+catalogs:
+  default:
+    typescript:
+      specifier: 6.0.3
+      version: 6.0.3
+
 overrides:
   postcss@<8.5.23: ^8.5.28
   esbuild@<0.28.1: ^0.28.2
@@ -52,6 +58,9 @@ importers:
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
       typescript-eslint:
         specifier: ^8.70.0
         version: 8.70.0(eslint@10.10.0(jiti@2.7.0))(typescript@6.0.3)
@@ -120,8 +129,8 @@ importers:
         specifier: ^19
         version: 19.3.0(@types/react@19.3.0)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   apps/edge:
     dependencies:
@@ -154,8 +163,8 @@ importers:
         specifier: ^22
         version: 22.20.2
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   apps/mobile:
     dependencies:
@@ -284,7 +293,7 @@ importers:
         specifier: ^1.20.4
         version: 1.20.4
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
 
   packages/channels:
@@ -304,10 +313,10 @@ importers:
         version: 9.0.4
       tsup:
         specifier: ^8.3.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/contracts:
     dependencies:
@@ -317,10 +326,10 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.3.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/core:
     dependencies:
@@ -339,10 +348,10 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.3.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/db:
     dependencies:
@@ -358,10 +367,10 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.3.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/jobs:
     dependencies:
@@ -383,10 +392,10 @@ importers:
     devDependencies:
       tsup:
         specifier: ^8.3.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
 
   tooling/scripts:
     dependencies:
@@ -413,8 +422,8 @@ importers:
         specifier: 22.6.2
         version: 22.6.2(@types/node@22.20.2)
       typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
+        specifier: 'catalog:'
+        version: 6.0.3
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -5507,11 +5516,6 @@ packages:
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
-
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
@@ -11608,7 +11612,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1):
+  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.28.2)
       cac: 6.7.14
@@ -11629,7 +11633,7 @@ snapshots:
       tree-kill: 1.2.2
     optionalDependencies:
       postcss: 8.5.28
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - jiti
       - supports-color
@@ -11692,8 +11696,6 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
-
-  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 
