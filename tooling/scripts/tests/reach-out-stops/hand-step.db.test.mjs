@@ -103,6 +103,23 @@ async function chainWithACall(ago = 5) {
       run_for: new Date(Date.now() - ago * DAY).toISOString().slice(0, 10),
     }),
   );
+  // The first email itself: the followers are read from the email that left (00226 reach_out_followers).
+  const thread = await one(db.from("conversations").insert({ tenant_id: A, contact_id: person }));
+  const sent = await one(
+    db.from("messages").insert({
+      tenant_id: A,
+      conversation_id: thread,
+      contact_id: person,
+      channel: "email",
+      direction: "outbound",
+      sender: "ai",
+      type: "text",
+      body: "Saw your shop on the map, and had a quick question.",
+      status: "sent",
+      meta: { email: { message_id: `<hand-${stamp}-${n}@send.example>` } },
+      created_at: iso(Date.now() - ago * DAY),
+    }),
+  );
   ok(
     await db.from("reach_out_sends").insert({
       id: crypto.randomUUID(),
@@ -115,6 +132,7 @@ async function chainWithACall(ago = 5) {
       state: "sent",
       send_at: iso(Date.now() - ago * DAY),
       sent_at: iso(Date.now() - ago * DAY),
+      message_id: sent,
     }),
   );
   return { root, hand, lead, person };
