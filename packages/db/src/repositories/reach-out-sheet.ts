@@ -24,13 +24,15 @@ export interface ReachOutStepRow {
   signed_by: string | null;
   include_unconfirmed: boolean | null;
   template_id: string | null;
+  /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
+  hand: unknown;
   run_hour: number;
   last_run_for: string | null;
   created_at: string;
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {

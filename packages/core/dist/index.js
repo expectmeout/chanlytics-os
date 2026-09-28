@@ -3066,6 +3066,8 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -3081,7 +3083,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -3478,6 +3482,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -7712,6 +7719,12 @@ function clipAtWord(text, max) {
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
+var HAND_KINDS2 = ["call", "note"];
+var HAND_WORDS_MAX2 = 280;
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
 var OPENING_WORDS_MAX2 = 40;
@@ -7730,7 +7743,9 @@ var ReachOutStepSchema2 = z142.object({
   id: z142.string().uuid().nullable().optional(),
   subject: z142.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
   body: z142.string().max(REACH_OUT_BODY_MAX2 * 2),
-  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z142.object({ kind: z142.enum(HAND_KINDS2), words: z142.string().max(HAND_WORDS_MAX2 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema2 = z142.object({
   name: z142.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
@@ -9030,6 +9045,9 @@ var REACH_OUT_REFUSALS2 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -9086,10 +9104,6 @@ var REACH_OUT_SHEET_PARTS2 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
-function handStepWords(kind, business, words4) {
-  const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
-}
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
 var AppError = class extends Error {
@@ -11506,6 +11520,8 @@ var CHECKOUT_OUTCOME_WORDS3 = {
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var HAND_KINDS3 = ["call", "note"];
+var HAND_WORDS_MAX3 = 280;
 var REACH_OUT_SUBJECT_MAX3 = 80;
 var REACH_OUT_BODY_MAX3 = 1200;
 var OPENING_WORDS_MAX3 = 40;
@@ -11521,7 +11537,9 @@ var ReachOutStepSchema3 = z143.object({
   id: z143.string().uuid().nullable().optional(),
   subject: z143.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
   body: z143.string().max(REACH_OUT_BODY_MAX3 * 2),
-  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z143.object({ kind: z143.enum(HAND_KINDS3), words: z143.string().max(HAND_WORDS_MAX3 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema3 = z143.object({
   name: z143.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
@@ -11910,6 +11928,9 @@ var REACH_OUT_REFUSALS3 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
