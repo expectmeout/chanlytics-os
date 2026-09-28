@@ -38,12 +38,12 @@ const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-
  */
 const FIRST_MS = Date.now() + 2 * 3_600_000;
 const FIRST_AT = new Date(FIRST_MS).toISOString();
-const FIRST_TIME = contracts.clockTime(FIRST_MS, ZONE);
-/**
- * How Approve says it: the time alone on the day it is said, and with its day on another (contracts firstSendWhen).
- * Two hours on is tomorrow there from ten at night, so a suite run then sees "tomorrow 12:02 AM".
- */
-const FIRST_WHEN = dayKey(FIRST_MS) === TODAY ? FIRST_TIME : contracts.clockWhen(FIRST_MS, ZONE, Date.now());
+// Said as the page says it: the time alone on the run's own day, else with its day ("tomorrow 12:12 AM"), since two
+// hours on from late evening in Chicago is tomorrow there; the test once failed every night from 10 PM to midnight.
+const FIRST_TIME =
+  dayKey(FIRST_MS) === dayKey(Date.now())
+    ? contracts.clockTime(FIRST_MS, ZONE)
+    : contracts.clockWhen(FIRST_MS, ZONE, Date.now());
 const RUN = (over = {}) => ({
   root_id: "r1",
   chain_name: "Reach out · Personal trainers",
@@ -172,7 +172,7 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   assert.match(rules, /all from harbor-mail\.example, 3 clean days/, "R22: the run's own domain, its days sent");
   assert.equal(textOf(byTestId(tree, "ro-run-opening")), "A 4.9 from 16 reviews says people find you.");
   assert.match(textOf(byTestId(tree, "ro-run-reader")), /^as Studio Two reads it/);
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), `Approve — 30 from ${FIRST_WHEN}`);
+  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), `Approve — 30 from ${FIRST_TIME}`);
   press(byTestId(tree, "ro-run-approve"));
   assert.equal(sheet.approved, 1);
   assert.equal(

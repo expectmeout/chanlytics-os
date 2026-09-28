@@ -375,6 +375,7 @@ const InboxList = ({
                         {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill ix-name-pill" testid="thread-theirs" />}
                         {/* A thread you have is yours to answer, not waiting on you (I2). */}
                         {t.real && t.takenOver && <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />}
+                        {window.ReplyChip && <window.ReplyChip thread={t} />}
                         {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
                         {t.real && t.state === "done" && t.lastWord && t.lastWord.short && <StatePill kind="tone" value={t.lastWord.tone} label={t.lastWord.short} className="ix-state-pill" testid="thread-last-word" />}
                         {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only

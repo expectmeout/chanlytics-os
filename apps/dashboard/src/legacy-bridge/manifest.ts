@@ -70,6 +70,8 @@ import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
+// A reply to a reach-out, read: the thread's strip and the row's chip (Reach out Part 5, PR 7), before the Inbox draws them.
+import "@/legacy/pages/reach-out/reply-strip.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";
 // The one thread, both tabs mount it: after the drawing it wraps, before the pages that use it.
