@@ -22,5 +22,7 @@ export type {
   ReplyReadPorts,
   ReadReplyCommand,
   ReadReplyOutcome,
+  DraftState,
+  DraftMark,
 } from "./reply-read";
 export { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS } from "./broadcast";

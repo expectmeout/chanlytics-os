@@ -17558,6 +17558,25 @@ var REACH_OUT_SHEET_PARTS22 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+var DRAFT_NEEDS_MS = 25e3;
+var DRAFT_NOTICE_MAX = 240;
+var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
+function leadReplyNote(p) {
+  const business = flatClip(p.business, 120) || "a business";
+  const answered = flatClip(p.answered, 600);
+  const signedBy = flatClip(p.signedBy, 60);
+  return [
+    `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
+    `answer for the owner to read, change and send: it is not sent until they do.`,
+    answered ? `The reach-out they answered said: "${answered}"` : null,
+    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
+    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
+    p.kind === "thanks" ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.` : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`
+  ].filter((l2) => l2 !== null).join("\n");
+}
+function draftExcerpt(draft) {
+  return flatClip(draft, DRAFT_NOTICE_MAX);
+}
 var REPLY_INTENTS2 = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent2 = (v) => REPLY_INTENTS2.includes(v);
 var REPLY_INTENT_WORDS = {
@@ -17869,7 +17888,7 @@ function replyNoticeWords(p) {
     quote ? `\u201C${withinChars(quote, REPLY_QUOTE_MAX)}\u201D` : null,
     doneWords(intent),
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
-    p.draft ? "The receptionist drafted an answer. Nothing is sent without you." : null
+    p.draft ? `The receptionist drafted an answer: \u201C${draftExcerpt(p.draft)}\u201D Nothing is sent without you.` : null
   ].filter((l2) => l2 !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
@@ -21440,6 +21459,7 @@ function metaOf(e2) {
     }
   };
 }
+var DRAFT_STAGE = "draft";
 function rereadOf(stage) {
   if (stage === void 0 || stage === null || stage === "read") return 0;
   const m = typeof stage === "string" ? /^reread-([1-3])$/.exec(stage) : null;
@@ -21469,7 +21489,48 @@ async function readNow(ports, cmd, facts) {
   }
   return { reading, unread: reading ? null : "model_failed", now };
 }
+async function draftNow(ports, cmd, facts, kind) {
+  let out;
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      deadline: cmd.deadline
+    });
+  } catch {
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  await ports.markDraft(
+    cmd.tenantId,
+    cmd.messageId,
+    text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" }
+  );
+}
+async function draftStage(ports, cmd, facts, kept) {
+  if (!kept.draft || kept.draftState !== "none") return kept.draftText;
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS) {
+    await ports.markDraft(cmd.tenantId, cmd.messageId, { state: "waiting" });
+    await ports.scheduleOnce(ports.now(), { message_id: cmd.messageId, stage: DRAFT_STAGE });
+    return null;
+  }
+  await draftNow(ports, cmd, facts, kept.draft);
+  return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
+}
+async function draftLater(ports, cmd) {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  if (!kept || kept.undone || !kept.draft || kept.draftState !== "none" && kept.draftState !== "waiting")
+    return "already_read";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to draft; the ledger tries again");
+  await draftNow(ports, cmd, facts, kept.draft);
+  return "drafted";
+}
 async function readReply(ports, cmd) {
+  if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
   const n2 = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -21497,6 +21558,7 @@ async function readReply(ports, cmd) {
     const at = rereadAt(kept.unread, n2, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n2 + 1}` });
   }
+  const draft = await draftStage(ports, cmd, facts, kept);
   if (!kept.tell || kept.told) return "read";
   const claim = await ports.claimTell(tenantId, messageId, ports.now() - cmd.tellStaleMs);
   if (!claim) throw new Error("reply_read: another run holds the notice; tried again once its claim is stale");
@@ -21505,7 +21567,7 @@ async function readReply(ports, cmd) {
     business: facts.business,
     summary: kept.summary ?? "",
     quote: replyTextOf(facts.text),
-    draft: false,
+    draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n2 > 0
@@ -24709,9 +24771,20 @@ async function reachOutReplyOf(db, p) {
   };
 }
 async function replyReadingOf(db, p) {
-  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
+}
+async function markReplyDraft(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why
+  });
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
 }
 async function applyReplyReading(db, p) {
   const { data, error } = await db.rpc("reach_out_reply_apply", {
@@ -25022,6 +25095,7 @@ function replyFactsOf(r6) {
     business: r6.business,
     leadAddress: r6.lead_email,
     leadWebsite: r6.lead_website,
+    signedBy: r6.signed_by,
     tz: r6.tz ?? DEFAULT_TIMEZONE
   };
 }
@@ -25030,6 +25104,8 @@ function keptReadingOf(row) {
   if (row.unread !== null && !isUnread(row.unread))
     throw new Error(`reply_read: a reading was not read for ${row.unread}`);
   const plan = row.plan && typeof row.plan === "object" && !Array.isArray(row.plan) ? row.plan : {};
+  if (!DRAFT_STATES.includes(row.draft_state))
+    throw new Error(`reply_read: a draft is ${row.draft_state}`);
   return {
     intent: row.intent,
     summary: row.summary,
@@ -25038,8 +25114,18 @@ function keptReadingOf(row) {
     rereads: row.rereads,
     tell: plan.tell === true,
     told: row.told_at !== null,
-    undone: row.undone_at !== null
+    undone: row.undone_at !== null,
+    draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
+    draftState: row.draft_state,
+    // one of DRAFT_STATES, checked above
+    draftText: row.draft
   };
+}
+var DRAFT_STATES = ["none", "waiting", "written", "not_written"];
+function draftMarkOf(m) {
+  if (m.state === "written") return { state: m.state, draft: m.draft, why: null };
+  if (m.state === "not_written") return { state: m.state, draft: null, why: m.why };
+  return { state: m.state, draft: null, why: null };
 }
 async function replyRead(ctx, job) {
   const replies = ctx.replies;
@@ -25075,6 +25161,8 @@ async function replyRead(ctx, job) {
       }),
       claimTell: (tenantId, id, staleBefore) => claimReplyTell(db, { ...where(tenantId, id), staleBefore: new Date(staleBefore) }),
       tell: (tenantId, notice) => replies.tell(tenantId, notice),
+      draft: (tenantId, ask) => replies.draft(tenantId, ask),
+      markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
       now: Date.now
@@ -25086,7 +25174,8 @@ async function replyRead(ctx, job) {
       tenantId: job.tenant_id,
       messageId,
       stage: job.payload.stage,
-      tellStaleMs: LEASE_SECONDS * 1e3 - FUNCTION_CEILING_MS
+      tellStaleMs: LEASE_SECONDS * 1e3 - FUNCTION_CEILING_MS,
+      deadline: ctx.deadline
     }
   );
   console.log(JSON.stringify({ level: "info", event: "reply_read", tenant: job.tenant_id, job: job.id, outcome }));
