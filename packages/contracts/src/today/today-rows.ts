@@ -4,19 +4,13 @@
  * today-queue.ts.
  */
 import { standingOf } from "../conversations/standing";
-import {
-  toCallVM,
-  abandonedCall,
-  spokenDuration,
-  contactName,
-  contactMeta,
-  threadChannelWords,
-  messageText,
-  ESCALATION_REASON_LABELS,
-  DISCONNECTION_LABELS,
-  formatWaited,
-  type CallDto,
-} from "../conversations/viewmodels";
+import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import { toCallVM, spokenDuration } from "../conversations/call-vm";
+import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { messageText } from "../conversations/message-words";
+import { threadChannelWords } from "../conversations/thread-channel";
+import { formatWaited } from "../conversations/thread-clock";
+import { contactName, contactMeta } from "../conversations/thread-contact";
 import { waWindow } from "../config/policy";
 import { ANALYSIS_GRACE_MS } from "../voice/live";
 import { MIN_MS, HOUR_MS } from "../shared/time";

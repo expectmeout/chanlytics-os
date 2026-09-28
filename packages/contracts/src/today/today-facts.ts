@@ -4,15 +4,12 @@
  * build the bands from them; today-brief.ts composes the view model.
  */
 import { standingOf } from "../conversations/standing";
-import {
-  toCallVM,
-  contactName,
-  messageWords,
-  clipAtWord,
-  type ConversationDto,
-  type EscalationDto,
-  type CallDto,
-} from "../conversations/viewmodels";
+import type { CallDto } from "../conversations/call-dto";
+import { toCallVM } from "../conversations/call-vm";
+import type { EscalationDto } from "../conversations/escalations";
+import { messageWords, clipAtWord } from "../conversations/message-words";
+import { contactName } from "../conversations/thread-contact";
+import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";

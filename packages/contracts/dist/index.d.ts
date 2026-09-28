@@ -7426,582 +7426,9 @@ declare function todayStepsDue<T extends {
 };
 
 /**
- * What the receptionist says back, as a record and not just a string.
- *
- * The brain used to return text with a handoff token hidden in it, and
- * nothing else: no reading of what the customer wanted, no sense of how sure
- * it was, no trace of which fact it leaned on. Every "why did it say that?"
- * had to be guessed from the words. This is the shape it answers in now,
- * constrained by the API (output_config.format), validated here, carried on
- * the message row's meta, and read by the Inbox.
- *
- * Kept to what a salon owner can act on: the intent names the class of
- * question, the confidence drives the hold-for-review dial, the reason is one
- * sentence for the rail, the facts are what to check when the answer is
- * wrong.
+ * A call on the wire: the call DTO, whether an inbound caller left with nothing (`abandonedCall`), and why a
+ * call ended, in the owner's words. The call's row is call-vm.ts; Live and Today read these too.
  */
-
-declare const BRAIN_INTENTS: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
-type BrainIntent = (typeof BRAIN_INTENTS)[number];
-declare const INTENT_LABELS: Record<BrainIntent, string>;
-declare const BRAIN_LANGUAGES: readonly ["en", "es", "other"];
-/**
- * The JSON Schema the API constrains decoding to. Only what the API supports:
- * no numeric ranges, no length limits, no nullable unions — those are checked
- * by the zod schema below after the fact, and clamped rather than refused.
- */
-declare const BRAIN_OUTPUT_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly properties: {
-        readonly reply: {
-            readonly type: "string";
-            readonly description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.";
-        };
-        readonly intent: {
-            readonly type: "string";
-            readonly enum: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
-            readonly description: "What the customer is after.";
-        };
-        readonly escalate: {
-            readonly type: "boolean";
-            readonly description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.";
-        };
-        readonly reason: {
-            readonly type: "string";
-            readonly description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.";
-        };
-        readonly confidence: {
-            readonly type: "number";
-            readonly description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.";
-        };
-        readonly facts_used: {
-            readonly type: "array";
-            readonly items: {
-                readonly type: "string";
-            };
-            readonly description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.";
-        };
-        readonly language: {
-            readonly type: "string";
-            readonly enum: readonly ["en", "es", "other"];
-            readonly description: "The language the reply is written in.";
-        };
-    };
-    readonly required: readonly ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"];
-    readonly additionalProperties: false;
-};
-/** The read side: tolerant of what a model might still do, strict about shape. */
-declare const BrainOutputSchema: z.ZodObject<{
-    reply: z.ZodString;
-    intent: z.ZodCatch<z.ZodEnum<{
-        other: "other";
-        booking: "booking";
-        complaint: "complaint";
-        hours: "hours";
-        services: "services";
-        location: "location";
-        pricing: "pricing";
-        smalltalk: "smalltalk";
-    }>>;
-    escalate: z.ZodCatch<z.ZodBoolean>;
-    reason: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
-    confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
-    facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
-    language: z.ZodCatch<z.ZodEnum<{
-        other: "other";
-        en: "en";
-        es: "es";
-    }>>;
-}, z.core.$strip>;
-type BrainOutput = z.infer<typeof BrainOutputSchema>;
-/**
- * Parse what the model returned. With constrained decoding the JSON is well
- * formed unless the answer was cut off by max_tokens; a truncated document
- * fails here and the caller falls back to the holding reply, as it always
- * did for a capped answer.
- */
-declare function parseBrainOutput(raw: string): {
-    ok: true;
-    value: BrainOutput;
-} | {
-    ok: false;
-    error: string;
-};
-/**
- * What a message row remembers about its own reasoning. Written by the edge
- * beside source/delay_ms; read back by the Inbox through the meta the DTO
- * already carries.
- */
-interface BrainMeta {
-    intent: BrainIntent;
-    confidence: number;
-    reason: string;
-    facts_used: string[];
-    language: (typeof BRAIN_LANGUAGES)[number];
-    model: string;
-}
-declare function brainMetaOf(out: BrainOutput, model: string): BrainMeta;
-/** The rail beside a reply: why it said what it said. */
-interface ReplyWhyVM {
-    intent: BrainIntent;
-    intentLabel: string;
-    /** 0–100, or null when the row predates this. */
-    confidence: number | null;
-    reason: string | null;
-    facts: string[];
-    /** Why the draft is waiting, when it is. */
-    heldFor: "low_confidence" | "veto_window" | null;
-    /** One line for a chip: "Pricing question · 62% sure". */
-    summary: string;
-}
-/** From a message row's meta; null when the row carries no reasoning. */
-declare function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null;
-/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
-declare const CONFIDENCE_STEPS: readonly [0, 0.6, 0.75, 0.9];
-
-/**
- * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
- * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
- * nothing invented: summaries are factual lines, never fabricated analysis.
- */
-interface MessageDto {
-    id: string;
-    direction: "inbound" | "outbound";
-    sender: "customer" | "ai" | "human" | "system";
-    /** The wire it travelled — whatsapp · sms · voice; absent from older readers. */
-    channel?: string;
-    type: string;
-    body: string | null;
-    /** The attachment facts a browser may see; the bytes are behind
-     *  /api/v1/messages/:id/media. Absent for words. */
-    media: {
-        mime_type?: string | null;
-        fetch_state?: string;
-        filename?: string | null;
-        caption?: string | null;
-    } | null;
-    meta: Record<string, unknown> | null;
-    status?: string;
-    created_at: string;
-    /**
-     * When the event actually happened on its channel, as the provider reported
-     * it — Meta's message timestamp, or the moment a call started.
-     *
-     * `created_at` is when WE wrote the row, which is the same thing for a live
-     * WhatsApp message and emphatically not for a call: three calls placed at
-     * 20:59, 21:01 and 23:39 were imported in one batch and rendered as three
-     * rows one second apart, all reading "1:59 AM". The true time was already in
-     * this column; nothing selected it.
-     */
-    channel_ts?: string | null;
-}
-/** When a message happened, preferring the channel's own clock over ours. */
-declare function messageAt(m: MessageDto): string;
-interface ConversationDto {
-    id: string;
-    state: "open" | "needs_human" | "snoozed" | "archived";
-    paused_until: string | null;
-    snooze_until?: string | null;
-    assignee_user_id?: string | null;
-    assignee_is_me?: boolean;
-    last_wa_inbound_at?: string | null;
-    last_message_at: string | null;
-    contact: {
-        id: string;
-        display_name: string | null;
-        wa_profile_name: string | null;
-        phone_e164: string | null;
-        /** As stored (00125). Absent on payloads read without it. */
-        email?: string | null;
-        /** The owner's proposal link (00154). Absent on payloads read without it. */
-        proposal_url?: string | null;
-        /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
-         *  opt-out was enforced, which is why every reader treats it as optional
-         *  and only 'opted_out'/dnc blocks — never the absence of a value. */
-        consent?: string | null;
-        dnc?: boolean | null;
-        /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
-        marketing_consent?: string | null;
-    };
-    messages: MessageDto[];
-}
-/** The customer asked not to be contacted. Delegates to the one predicate in
- *  ./consent so the view model and every send path cannot disagree. */
-declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
-interface ConversationMessageVM {
-    from: "client" | "agent";
-    /** Where it happened. A call note is not a WhatsApp bubble, and the
-     *  viewer must not draw it as one -- and neither is a text or an email. */
-    channel: "whatsapp" | "sms" | "email" | "phone";
-    at: string;
-    text: string;
-    /** The attachment, when the message is one. */
-    media?: MediaVM;
-    /** Why the receptionist said it, when the row remembers. */
-    why?: ReplyWhyVM;
-    /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
-     *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
-    by?: string;
-    /** "Canceled before sending", "Sending…" — absent when there is nothing to
-     *  say, which for an ordinary sent message is the honest answer. */
-    statusLabel?: string;
-    /** False when these words never reached the customer. The bubble must not
-     *  read as part of the conversation, because it was not. */
-    reachedCustomer?: boolean;
-}
-/**
- * What happened to a message we tried to send, in the operator's words.
- *
- * ONE vocabulary. The Inbox had its own ternary and the Conversations pane had
- * nothing at all, so the same message read as "Canceled before sending" on one
- * screen and as an ordinary delivered reply on the other — and Conversations is
- * the screen whose entire job is "what is my receptionist saying to people".
- */
-declare function messageStatusLabel(status: string | undefined): string | undefined;
-/** Did the customer actually receive these words? */
-declare function reachedCustomer(status: string | undefined): boolean;
-interface ConversationVM {
-    id: string;
-    who: string;
-    /** First name, or the whole thing when it is a number. */
-    whoShort: string;
-    initials: string;
-    clientId: string | null;
-    /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
-    threadId: string;
-    /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
-    answeredBy: MessageAuthor["kind"] | null;
-    /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
-    channel: "whatsapp" | "sms" | "email" | "phone";
-    agent: {
-        glyph: string;
-        name: string;
-    };
-    at: string;
-    outcome: "escalated" | "handled" | "open";
-    snippet: string;
-    summary: {
-        headline: string;
-        bullets: string[];
-    };
-    messages: ConversationMessageVM[];
-    /** Epoch ms of the previewed message — the SORT key. Rows were being
-     *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
-     *  which is not an ordering at all. */
-    ts: number;
-    live?: boolean;
-    /** False when the customer has only ever phoned. Their calls already have
-     *  their own rows, so a chat row with nothing to preview is pure duplication. */
-    hasChat: boolean;
-}
-
-declare function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): {
-    glyph: string;
-    name: string;
-};
-/**
- * A time in a thread or a call, by the business's clock (clock.ts). The two
- * formatters here were built without a zone, so a message read in the browser's
- * zone and "the same day" meant the browser's day: one call read as two times
- * (the 12 September audit's D5). The formatters are built once per zone there,
- * which keeps what these hoisted ones were for: these mappers run twice per
- * refresh over every message, and constructing a formatter per call froze the
- * page when a message arrived.
- */
-declare function shortTime(iso: string | null, tz: string, now: Date): string;
-/** The display name for a contact, without building a whole thread viewmodel
- *  to read one field (Today was doing exactly that per open escalation). */
-declare function contactName(dto: ConversationDto): string;
-/** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
-declare function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email";
-/**
- * The wire a thread's written words LAST travelled; "phone" when it has none.
- *
- * One derivation, because three surfaces were each answering it their own way
- * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
- * the word onto every escalation, so an email arriving read "WhatsApp \u00b7 waited
- * 12m"; the conversation row derived it properly only after the same defect
- * was found there. A row that names the wrong wire is worse than one that
- * names none: the owner replies in the wrong place, or does not recognise the
- * thread they are being asked about.
- */
-declare function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone";
-/** The same question, in the words a row shows. */
-declare function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone";
-/**
- * What an email carried that the thread does not show. The intake keeps the
- * names of an email's files and never the files, and a bounded amount of its
- * words (core email-ingest.ts); an owner reading "see the attached floor plan"
- * above nothing at all would take the email for the whole of it. Said in one
- * line under the words, and only when something was left out.
- */
-declare function emailLeftOutOf(meta: unknown): string | null;
-/**
- * A name that is an identifier, a number or an address, has no first name to
- * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
- */
-declare function isIdentifierName(name: string): boolean;
-/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone" | "Text" | "Email"): string;
-declare function initialsOf(name: string): string;
-/**
- * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
- * window, and until that expires a human can withdraw or replace it.
- *
- * The distinction matters most in the UI: rendered as an ordinary agent bubble a
- * held draft looks exactly like a message the customer has already read, so an
- * operator would either ignore it or apologise for something that never went out.
- */
-declare function isHeldDraft(m: MessageDto): boolean;
-/** When a held draft is due to send, in epoch ms. */
-declare function draftSendsAtMs(m: MessageDto): number;
-/** An attachment as the thread draws it. */
-interface MediaVM {
-    messageId: string;
-    kind: "image" | "audio" | "video" | "document" | "other";
-    mime: string | null;
-    filename: string | null;
-    caption: string | null;
-    /** Stored and servable; false while it is fetching or after a failed fetch. */
-    available: boolean;
-}
-/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
-declare function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"];
-/** The attachment on a message, as the thread draws it; null for words. */
-declare function mediaVM(m: MessageDto): MediaVM | null;
-/** An email's own words, and the chain it quoted back at us. `quoted` is null when there is none. */
-declare function splitQuotedReply(body: string): {
-    text: string;
-    quoted: string | null;
-};
-declare function messageWords(m: MessageDto): string;
-declare function messageText(m: MessageDto): string;
-interface EscalationDto {
-    id: string;
-    reason: string;
-    details: string | null;
-    state: "open" | "resolved";
-    created_at: string;
-}
-declare const ESCALATION_REASON_LABELS: Record<string, string>;
-/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
- *  brief, and "561 min" is not a number anyone reads as half a day. */
-/** A wait, in the one family every surface reads (time.ts): "1m" at the least, "3h", "2d". */
-declare function formatWaited(ms: number): string;
-interface InboxThreadVM {
-    id: string;
-    real: true;
-    conversationId: string;
-    /** The contact behind the thread — where "Open client" goes now that People is real. */
-    clientId: string | null;
-    escalationId: string | null;
-    windowOpen: boolean;
-    /** The customer asked to stop receiving messages. Stronger than a closed
-     *  24h window: an approved template can't reach them either. */
-    optedOut: boolean;
-    /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
-    offersOk: boolean;
-    /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
-    proposalUrl: string | null;
-    who: string;
-    whoMeta: string;
-    avatar: string;
-    state: "escalated" | "snoozed" | "done";
-    takenOver: boolean;
-    /** A teammate has this thread: the page names them and offers no take-over. */
-    claimedByOther: boolean;
-    /** Who has it, when someone does -- the page names them from the team. */
-    assigneeUserId: string | null;
-    /**
-     * The customer's own words beside the decision: what they last wrote, quoted,
-     * or what the call left behind for a call back. Null when nothing is being decided.
-     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
-     * band does not say it again beneath; the row and its search still read `text`.
-     */
-    ask: {
-        kind: "call" | "wrote" | "sent";
-        label: string;
-        text: string;
-        quoted: boolean;
-    } | null;
-    /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
-    archived: boolean;
-    /**
-     * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
-     * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
-     * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
-     */
-    lastWord: {
-        text: string;
-        tone: "ok" | "plain" | "warn" | "danger";
-        short: string | null;
-    } | null;
-    /**
-     * This thread is waiting on a human, and no human has it yet.
-     *
-     * THE definition of "needs you", emitted once. It was previously re-derived
-     * in the Inbox JSX and separately approximated by /metrics' escalations_open,
-     * which Today then dispatched over the top of the Inbox's number to "correct"
-     * it — two rules that disagree whenever an escalation is open on a thread
-     * someone has already claimed, racing to write the same badge.
-     */
-    needsYou: boolean;
-    /**
-     * The receptionist's reply, written and waiting out its veto window.
-     *
-     * Lifted to the thread so the pane can offer the controls without scanning
-     * the timeline for them — and so "is there still something I can stop?" is a
-     * single truthy check rather than a search that could miss.
-     */
-    heldDraft: {
-        messageId: string;
-        body: string;
-        sendsAtMs: number;
-    } | null;
-    /**
-     * The SAME shape the mockup's VetoBar and Composer already read.
-     *
-     * The design for this existed before the backend did — a countdown, Edit /
-     * Hold / Take over, and a composer pre-filled with the draft. Mapping the
-     * real held reply onto it means the feature arrives as the product was
-     * drawn, rather than as a second control that looks nothing like it.
-     *
-     * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
-     * VW_STORE and fabricates the send at zero; on a real thread the job fires
-     * server-side and the UI only reports what is already true.
-     */
-    veto?: {
-        window: number;
-        draft: string;
-        endsAtMs: number;
-        messageId: string;
-        why?: ReplyWhyVM;
-    };
-    /** The channels the thread has actually used: "whatsapp", "phone", or both. */
-    channels: string[];
-    primaryChannel: "whatsapp" | "phone" | "sms" | "email";
-    /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
-    replyVia: string;
-    /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
-    hasChat: boolean;
-    /** The number to call back, E.164, when known. */
-    phone: string | null;
-    /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
-    phoneDisplay: string | null;
-    /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
-    waited?: string;
-    /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
-    agent: {
-        name: string;
-        glyph: string;
-    };
-    /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
-    subject: string;
-    /** The last thing that happened: the newest message that came in or reached them, never a draft. */
-    preview: string;
-    summary: string;
-    lastAt: string;
-    lastAtFull: string;
-    /** Absolute times, epoch ms, for anything that must not drift with the
-     *  clock — the bell keys its read state on them. */
-    lastAtMs: number;
-    escalatedAtMs?: number;
-    unread: boolean;
-    pinned: false;
-    value?: number;
-    tags: string[];
-    confidence?: number;
-    priority: "P2";
-    waitingMin?: number;
-    wake?: string;
-    timeline: Array<{
-        type: "msg";
-        from: "client" | "agent";
-        channel: string;
-        at: string;
-        body: string;
-        /** An email's subject line; absent on every other wire. */
-        subject?: string;
-        /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
-        quoted?: string;
-        /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
-        leftOut?: string;
-        /** The attachment, when the message is one. */
-        media?: MediaVM;
-        /** Why the receptionist said it, when the row remembers. */
-        why?: ReplyWhyVM;
-        byYou?: boolean;
-        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
-        byWords?: string;
-        /** Sent by a broadcast, not typed: the name the owner gave it. */
-        via?: {
-            kind: "broadcast" | "playbook";
-            name: string;
-        };
-        status?: string;
-        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
-        statusLabel?: string;
-        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
-        reachedCustomer?: boolean;
-        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
-        messageId?: string;
-        /** Written but NOT sent — sitting out its veto window. */
-        pending?: true;
-        /** When it fires, epoch ms. Drives the countdown. */
-        sendsAtMs?: number;
-        /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
-        agentName?: string;
-        agentGlyph?: string;
-    } | {
-        type: "event";
-        kind: string;
-        at: string;
-        body: string;
-    }>;
-}
-/**
- * Where a thread sits and who owes it work — the single implementation.
- *
- * Exported so the sidebar badge and Today's brief can agree without either one
- * re-deriving it. /metrics' `escalations_open` is NOT this number: it counts
- * open escalations, including ones a teammate has already claimed, so it reads
- * high exactly when someone is doing the work.
- */
-declare function threadStanding(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): {
-    state: InboxThreadVM["state"];
-    takenOver: boolean;
-    needsYou: boolean;
-    claimedByOther: boolean;
-};
-declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
-/** The workspace's zone: every time in the thread is said by its clock. */
-tz: string, now?: Date): InboxThreadVM;
-interface MessageAuthor {
-    kind: "receptionist" | "team" | "broadcast" | "playbook";
-    /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
-    words: string;
-}
-/**
- * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
- * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
- * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
- */
-declare function messageVia(m: Pick<MessageDto, "meta">): {
-    kind: "broadcast" | "playbook";
-    name: string;
-} | null;
-/**
- * Who sent one of our messages, in the words the Inbox and Conversations both use.
- *
- * A person's reply is the team's: the row does not record which member sent
- * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
- * run is named from the run. The customer's words and a call note have no
- * author here.
- */
-declare function messageAuthor(m: MessageDto): MessageAuthor | null;
-/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
-declare function clipAtWord(text: string, max: number): string;
-declare function toConversationVM(dto: ConversationDto, tz: string, now?: Date): ConversationVM;
 interface CallDto {
     id: string;
     retell_call_id: string;
@@ -8089,60 +7516,71 @@ declare const ABANDONED_MS = 15000;
 declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail">): boolean;
 /** Why the call ended, in words a salon owner uses. */
 declare const DISCONNECTION_LABELS: Record<string, string>;
-interface CallVM {
+
+interface MessageDto {
     id: string;
-    real: true;
-    callId: string;
-    who: string;
-    whoShort: string;
-    initials: string;
-    clientId: string | null;
-    channel: "phone";
-    agent: {
-        glyph: string;
-        name: string;
-    };
-    at: string;
-    duration?: string;
-    ts: number;
-    /** live: in progress under the heartbeat rule · missed: the dial never
-     *  connected (Retell's not_connected) · handled: everything else. */
-    outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
-    live?: boolean;
-    snippet: string;
-    summary: {
-        headline: string;
-        bullets: string[];
-    };
-    /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
-     *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
-    transcript: Array<{
-        t: string;
-        speaker: "agent" | "client" | "whisper";
-        text: string;
-        start: number | null;
-        end: number | null;
-    }>;
-    /** The call's length in seconds: the player's track before the audio says its own. */
-    durationSec: number | null;
-    recordingState: "ready" | "pending" | "failed" | "purged" | "none";
-    recordingUrl?: string;
-    threadId?: string;
-    /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
-    messageId?: string;
     direction: "inbound" | "outbound";
-    /** It never connected. */
-    missed: boolean;
-    /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
-     *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
-    about: string | null;
-    /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
-     *  card's one quiet line. */
-    facts: string[];
+    sender: "customer" | "ai" | "human" | "system";
+    /** The wire it travelled — whatsapp · sms · voice; absent from older readers. */
+    channel?: string;
+    type: string;
+    body: string | null;
+    /** The attachment facts a browser may see; the bytes are behind
+     *  /api/v1/messages/:id/media. Absent for words. */
+    media: {
+        mime_type?: string | null;
+        fetch_state?: string;
+        filename?: string | null;
+        caption?: string | null;
+    } | null;
+    meta: Record<string, unknown> | null;
+    status?: string;
+    created_at: string;
+    /**
+     * When the event actually happened on its channel, as the provider reported
+     * it — Meta's message timestamp, or the moment a call started.
+     *
+     * `created_at` is when WE wrote the row, which is the same thing for a live
+     * WhatsApp message and emphatically not for a call: three calls placed at
+     * 20:59, 21:01 and 23:39 were imported in one batch and rendered as three
+     * rows one second apart, all reading "1:59 AM". The true time was already in
+     * this column; nothing selected it.
+     */
+    channel_ts?: string | null;
 }
-/** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
-declare function spokenDuration(ms: number | null): string;
-declare function toCallVM(dto: CallDto, tz: string, now?: Date): CallVM;
+/** When a message happened, preferring the channel's own clock over ours. */
+declare function messageAt(m: MessageDto): string;
+interface ConversationDto {
+    id: string;
+    state: "open" | "needs_human" | "snoozed" | "archived";
+    paused_until: string | null;
+    snooze_until?: string | null;
+    assignee_user_id?: string | null;
+    assignee_is_me?: boolean;
+    last_wa_inbound_at?: string | null;
+    last_message_at: string | null;
+    contact: {
+        id: string;
+        display_name: string | null;
+        wa_profile_name: string | null;
+        phone_e164: string | null;
+        /** As stored (00125). Absent on payloads read without it. */
+        email?: string | null;
+        /** The owner's proposal link (00154). Absent on payloads read without it. */
+        proposal_url?: string | null;
+        /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
+         *  opt-out was enforced, which is why every reader treats it as optional
+         *  and only 'opted_out'/dnc blocks — never the absence of a value. */
+        consent?: string | null;
+        dnc?: boolean | null;
+        /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
+        marketing_consent?: string | null;
+    };
+    messages: MessageDto[];
+}
+/** The customer asked not to be contacted. Delegates to the one predicate in
+ *  ./consent so the view model and every send path cannot disagree. */
+declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 
 /**
  * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
@@ -13627,6 +13065,140 @@ declare function offersBookingLink(brain: {
 declare function priceNextStep(hasBookingLink: boolean): string;
 
 /**
+ * What the receptionist says back, as a record and not just a string.
+ *
+ * The brain used to return text with a handoff token hidden in it, and
+ * nothing else: no reading of what the customer wanted, no sense of how sure
+ * it was, no trace of which fact it leaned on. Every "why did it say that?"
+ * had to be guessed from the words. This is the shape it answers in now,
+ * constrained by the API (output_config.format), validated here, carried on
+ * the message row's meta, and read by the Inbox.
+ *
+ * Kept to what a salon owner can act on: the intent names the class of
+ * question, the confidence drives the hold-for-review dial, the reason is one
+ * sentence for the rail, the facts are what to check when the answer is
+ * wrong.
+ */
+
+declare const BRAIN_INTENTS: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+type BrainIntent = (typeof BRAIN_INTENTS)[number];
+declare const INTENT_LABELS: Record<BrainIntent, string>;
+declare const BRAIN_LANGUAGES: readonly ["en", "es", "other"];
+/**
+ * The JSON Schema the API constrains decoding to. Only what the API supports:
+ * no numeric ranges, no length limits, no nullable unions — those are checked
+ * by the zod schema below after the fact, and clamped rather than refused.
+ */
+declare const BRAIN_OUTPUT_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly reply: {
+            readonly type: "string";
+            readonly description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.";
+        };
+        readonly intent: {
+            readonly type: "string";
+            readonly enum: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+            readonly description: "What the customer is after.";
+        };
+        readonly escalate: {
+            readonly type: "boolean";
+            readonly description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.";
+        };
+        readonly reason: {
+            readonly type: "string";
+            readonly description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.";
+        };
+        readonly confidence: {
+            readonly type: "number";
+            readonly description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.";
+        };
+        readonly facts_used: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+            };
+            readonly description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.";
+        };
+        readonly language: {
+            readonly type: "string";
+            readonly enum: readonly ["en", "es", "other"];
+            readonly description: "The language the reply is written in.";
+        };
+    };
+    readonly required: readonly ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"];
+    readonly additionalProperties: false;
+};
+/** The read side: tolerant of what a model might still do, strict about shape. */
+declare const BrainOutputSchema: z.ZodObject<{
+    reply: z.ZodString;
+    intent: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        booking: "booking";
+        complaint: "complaint";
+        hours: "hours";
+        services: "services";
+        location: "location";
+        pricing: "pricing";
+        smalltalk: "smalltalk";
+    }>>;
+    escalate: z.ZodCatch<z.ZodBoolean>;
+    reason: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+    confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
+    facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
+    language: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        en: "en";
+        es: "es";
+    }>>;
+}, z.core.$strip>;
+type BrainOutput = z.infer<typeof BrainOutputSchema>;
+/**
+ * Parse what the model returned. With constrained decoding the JSON is well
+ * formed unless the answer was cut off by max_tokens; a truncated document
+ * fails here and the caller falls back to the holding reply, as it always
+ * did for a capped answer.
+ */
+declare function parseBrainOutput(raw: string): {
+    ok: true;
+    value: BrainOutput;
+} | {
+    ok: false;
+    error: string;
+};
+/**
+ * What a message row remembers about its own reasoning. Written by the edge
+ * beside source/delay_ms; read back by the Inbox through the meta the DTO
+ * already carries.
+ */
+interface BrainMeta {
+    intent: BrainIntent;
+    confidence: number;
+    reason: string;
+    facts_used: string[];
+    language: (typeof BRAIN_LANGUAGES)[number];
+    model: string;
+}
+declare function brainMetaOf(out: BrainOutput, model: string): BrainMeta;
+/** The rail beside a reply: why it said what it said. */
+interface ReplyWhyVM {
+    intent: BrainIntent;
+    intentLabel: string;
+    /** 0–100, or null when the row predates this. */
+    confidence: number | null;
+    reason: string | null;
+    facts: string[];
+    /** Why the draft is waiting, when it is. */
+    heldFor: "low_confidence" | "veto_window" | null;
+    /** One line for a chip: "Pricing question · 62% sure". */
+    summary: string;
+}
+/** From a message row's meta; null when the row carries no reasoning. */
+declare function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null;
+/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
+declare const CONFIDENCE_STEPS: readonly [0, 0.6, 0.75, 0.9];
+
+/**
  * The Business tab's prompt view: the composed prompt, cut into the blocks that
  * wrote it.
  *
@@ -14171,6 +13743,492 @@ interface DeskSignVM {
 declare function deskSignVM(f: ConsentPageFacts): DeskSignVM;
 /** The desk sign's tab: the sheet it is and whose it is, or Not found. Never indexed, like the page it prints from. */
 declare function deskSignMetadata(f: ConsentPageFacts | null): PublicPageMetadata;
+
+/**
+ * Which wire a thread's words travelled, and who answers on it: the channel of a message and of a thread, and
+ * that channel in the words a row shows. The Inbox (inbox-thread.ts) and Conversations (conversation-vm.ts)
+ * both read it here.
+ */
+
+declare function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): {
+    glyph: string;
+    name: string;
+};
+/** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
+declare function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email";
+/**
+ * The wire a thread's written words LAST travelled; "phone" when it has none.
+ *
+ * One derivation, because three surfaces were each answering it their own way
+ * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
+ * the word onto every escalation, so an email arriving read "WhatsApp \u00b7 waited
+ * 12m"; the conversation row derived it properly only after the same defect
+ * was found there. A row that names the wrong wire is worse than one that
+ * names none: the owner replies in the wrong place, or does not recognise the
+ * thread they are being asked about.
+ */
+declare function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone";
+/** The same question, in the words a row shows. */
+declare function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone";
+
+/** The display name for a contact, without building a whole thread viewmodel
+ *  to read one field (Today was doing exactly that per open escalation). */
+declare function contactName(dto: ConversationDto): string;
+/**
+ * A name that is an identifier, a number or an address, has no first name to
+ * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
+ */
+declare function isIdentifierName(name: string): boolean;
+/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
+declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone" | "Text" | "Email"): string;
+declare function initialsOf(name: string): string;
+
+/**
+ * A time in a thread or a call, by the business's clock (clock.ts). The two
+ * formatters here were built without a zone, so a message read in the browser's
+ * zone and "the same day" meant the browser's day: one call read as two times
+ * (the 12 September audit's D5). The formatters are built once per zone there,
+ * which keeps what these hoisted ones were for: these mappers run twice per
+ * refresh over every message, and constructing a formatter per call froze the
+ * page when a message arrived.
+ */
+declare function shortTime(iso: string | null, tz: string, now: Date): string;
+/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
+ *  brief, and "561 min" is not a number anyone reads as half a day. */
+/** A wait, in the one family every surface reads (time.ts): "1m" at the least, "3h", "2d". */
+declare function formatWaited(ms: number): string;
+
+/**
+ * A message's attachment: what kind of thing it is, and the shape the thread draws it in. message-words.ts
+ * names it in words; the view models (inbox-thread.ts, conversation-vm.ts) carry it on the bubble.
+ */
+
+/** An attachment as the thread draws it. */
+interface MediaVM {
+    messageId: string;
+    kind: "image" | "audio" | "video" | "document" | "other";
+    mime: string | null;
+    filename: string | null;
+    caption: string | null;
+    /** Stored and servable; false while it is fetching or after a failed fetch. */
+    available: boolean;
+}
+/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
+declare function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"];
+/** The attachment on a message, as the thread draws it; null for words. */
+declare function mediaVM(m: MessageDto): MediaVM | null;
+
+/**
+ * What an email carries beyond its own words: its subject, what the intake left out, and the chain it quoted
+ * back at us. message-words.ts says an email's words with it; the Inbox's thread (inbox-thread.ts) shows the rest.
+ */
+
+/**
+ * What an email carried that the thread does not show. The intake keeps the
+ * names of an email's files and never the files, and a bounded amount of its
+ * words (core email-ingest.ts); an owner reading "see the attached floor plan"
+ * above nothing at all would take the email for the whole of it. Said in one
+ * line under the words, and only when something was left out.
+ */
+declare function emailLeftOutOf(meta: unknown): string | null;
+/** An email's own words, and the chain it quoted back at us. `quoted` is null when there is none. */
+declare function splitQuotedReply(body: string): {
+    text: string;
+    quoted: string | null;
+};
+
+/**
+ * What a message says and what became of it: its words wherever they are shown, its send status in the
+ * operator's words, whether it reached the customer, whether it is a held draft, and words clipped at a whole
+ * word. Its attachment is message-media.ts, an email's quoted chain message-email.ts, its sender message-author.ts.
+ */
+
+/**
+ * What happened to a message we tried to send, in the operator's words.
+ *
+ * ONE vocabulary. The Inbox had its own ternary and the Conversations pane had
+ * nothing at all, so the same message read as "Canceled before sending" on one
+ * screen and as an ordinary delivered reply on the other — and Conversations is
+ * the screen whose entire job is "what is my receptionist saying to people".
+ */
+declare function messageStatusLabel(status: string | undefined): string | undefined;
+/** Did the customer actually receive these words? */
+declare function reachedCustomer(status: string | undefined): boolean;
+/**
+ * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
+ * window, and until that expires a human can withdraw or replace it.
+ *
+ * The distinction matters most in the UI: rendered as an ordinary agent bubble a
+ * held draft looks exactly like a message the customer has already read, so an
+ * operator would either ignore it or apologise for something that never went out.
+ */
+declare function isHeldDraft(m: MessageDto): boolean;
+/** When a held draft is due to send, in epoch ms. */
+declare function draftSendsAtMs(m: MessageDto): number;
+declare function messageWords(m: MessageDto): string;
+declare function messageText(m: MessageDto): string;
+/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
+declare function clipAtWord(text: string, max: number): string;
+
+/**
+ * Who sent one of our messages: the receptionist, the team, or the broadcast or playbook run that sent it, and
+ * a chat row's line saying who had the last word. The Inbox (inbox-thread.ts) and Conversations
+ * (conversation-vm.ts) say it in these words.
+ */
+
+interface MessageAuthor {
+    kind: "receptionist" | "team" | "broadcast" | "playbook";
+    /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
+    words: string;
+}
+/**
+ * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
+ * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
+ * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
+ */
+declare function messageVia(m: Pick<MessageDto, "meta">): {
+    kind: "broadcast" | "playbook";
+    name: string;
+} | null;
+/**
+ * Who sent one of our messages, in the words the Inbox and Conversations both use.
+ *
+ * A person's reply is the team's: the row does not record which member sent
+ * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
+ * run is named from the run. The customer's words and a call note have no
+ * author here.
+ */
+declare function messageAuthor(m: MessageDto): MessageAuthor | null;
+
+/**
+ * Why a person is needed on a thread: the escalation as the wire gives it, each reason's label for a row, and
+ * the sentence the operator reads first. The Inbox's thread (inbox-thread.ts) and Today read them here.
+ */
+interface EscalationDto {
+    id: string;
+    reason: string;
+    details: string | null;
+    state: "open" | "resolved";
+    created_at: string;
+}
+declare const ESCALATION_REASON_LABELS: Record<string, string>;
+
+/**
+ * The Inbox's thread view model: the shape the thread and its row draw (`InboxThreadVM`). Types only; the
+ * mapping that builds it is inbox-thread.ts.
+ */
+
+interface InboxThreadVM {
+    id: string;
+    real: true;
+    conversationId: string;
+    /** The contact behind the thread — where "Open client" goes now that People is real. */
+    clientId: string | null;
+    escalationId: string | null;
+    windowOpen: boolean;
+    /** The customer asked to stop receiving messages. Stronger than a closed
+     *  24h window: an approved template can't reach them either. */
+    optedOut: boolean;
+    /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
+    offersOk: boolean;
+    /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
+    proposalUrl: string | null;
+    who: string;
+    whoMeta: string;
+    avatar: string;
+    state: "escalated" | "snoozed" | "done";
+    takenOver: boolean;
+    /** A teammate has this thread: the page names them and offers no take-over. */
+    claimedByOther: boolean;
+    /** Who has it, when someone does -- the page names them from the team. */
+    assigneeUserId: string | null;
+    /**
+     * The customer's own words beside the decision: what they last wrote, quoted,
+     * or what the call left behind for a call back. Null when nothing is being decided.
+     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+     * band does not say it again beneath; the row and its search still read `text`.
+     */
+    ask: {
+        kind: "call" | "wrote" | "sent";
+        label: string;
+        text: string;
+        quoted: boolean;
+    } | null;
+    /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
+    archived: boolean;
+    /**
+     * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
+     * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
+     * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+     */
+    lastWord: {
+        text: string;
+        tone: "ok" | "plain" | "warn" | "danger";
+        short: string | null;
+    } | null;
+    /**
+     * This thread is waiting on a human, and no human has it yet.
+     *
+     * THE definition of "needs you", emitted once. It was previously re-derived
+     * in the Inbox JSX and separately approximated by /metrics' escalations_open,
+     * which Today then dispatched over the top of the Inbox's number to "correct"
+     * it — two rules that disagree whenever an escalation is open on a thread
+     * someone has already claimed, racing to write the same badge.
+     */
+    needsYou: boolean;
+    /**
+     * The receptionist's reply, written and waiting out its veto window.
+     *
+     * Lifted to the thread so the pane can offer the controls without scanning
+     * the timeline for them — and so "is there still something I can stop?" is a
+     * single truthy check rather than a search that could miss.
+     */
+    heldDraft: {
+        messageId: string;
+        body: string;
+        sendsAtMs: number;
+    } | null;
+    /**
+     * The SAME shape the mockup's VetoBar and Composer already read.
+     *
+     * The design for this existed before the backend did — a countdown, Edit /
+     * Hold / Take over, and a composer pre-filled with the draft. Mapping the
+     * real held reply onto it means the feature arrives as the product was
+     * drawn, rather than as a second control that looks nothing like it.
+     *
+     * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
+     * VW_STORE and fabricates the send at zero; on a real thread the job fires
+     * server-side and the UI only reports what is already true.
+     */
+    veto?: {
+        window: number;
+        draft: string;
+        endsAtMs: number;
+        messageId: string;
+        why?: ReplyWhyVM;
+    };
+    /** The channels the thread has actually used: "whatsapp", "phone", or both. */
+    channels: string[];
+    primaryChannel: "whatsapp" | "phone" | "sms" | "email";
+    /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
+    replyVia: string;
+    /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
+    hasChat: boolean;
+    /** The number to call back, E.164, when known. */
+    phone: string | null;
+    /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
+    phoneDisplay: string | null;
+    /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
+    waited?: string;
+    /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
+    agent: {
+        name: string;
+        glyph: string;
+    };
+    /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
+    subject: string;
+    /** The last thing that happened: the newest message that came in or reached them, never a draft. */
+    preview: string;
+    summary: string;
+    lastAt: string;
+    lastAtFull: string;
+    /** Absolute times, epoch ms, for anything that must not drift with the
+     *  clock — the bell keys its read state on them. */
+    lastAtMs: number;
+    escalatedAtMs?: number;
+    unread: boolean;
+    pinned: false;
+    value?: number;
+    tags: string[];
+    confidence?: number;
+    priority: "P2";
+    waitingMin?: number;
+    wake?: string;
+    timeline: Array<{
+        type: "msg";
+        from: "client" | "agent";
+        channel: string;
+        at: string;
+        body: string;
+        /** An email's subject line; absent on every other wire. */
+        subject?: string;
+        /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
+        quoted?: string;
+        /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
+        leftOut?: string;
+        /** The attachment, when the message is one. */
+        media?: MediaVM;
+        /** Why the receptionist said it, when the row remembers. */
+        why?: ReplyWhyVM;
+        byYou?: boolean;
+        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
+        byWords?: string;
+        /** Sent by a broadcast, not typed: the name the owner gave it. */
+        via?: {
+            kind: "broadcast" | "playbook";
+            name: string;
+        };
+        status?: string;
+        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
+        statusLabel?: string;
+        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
+        reachedCustomer?: boolean;
+        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
+        messageId?: string;
+        /** Written but NOT sent — sitting out its veto window. */
+        pending?: true;
+        /** When it fires, epoch ms. Drives the countdown. */
+        sendsAtMs?: number;
+        /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
+        agentName?: string;
+        agentGlyph?: string;
+    } | {
+        type: "event";
+        kind: string;
+        at: string;
+        body: string;
+    }>;
+}
+
+/**
+ * Where a thread sits and who owes it work — the single implementation.
+ *
+ * Exported so the sidebar badge and Today's brief can agree without either one
+ * re-deriving it. /metrics' `escalations_open` is NOT this number: it counts
+ * open escalations, including ones a teammate has already claimed, so it reads
+ * high exactly when someone is doing the work.
+ */
+declare function threadStanding(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): {
+    state: InboxThreadVM["state"];
+    takenOver: boolean;
+    needsYou: boolean;
+    claimedByOther: boolean;
+};
+declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
+/** The workspace's zone: every time in the thread is said by its clock. */
+tz: string, now?: Date): InboxThreadVM;
+
+/**
+ * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
+ * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
+ * nothing invented: summaries are factual lines, never fabricated analysis.
+ *
+ * This module is the Conversations page's row and transcript (`toConversationVM`). The Inbox's thread is
+ * inbox-thread.ts and a call's row call-vm.ts; the wire they read is thread-dto.ts, and the words they share
+ * are the thread-* and message-* modules beside them.
+ */
+
+interface ConversationMessageVM {
+    from: "client" | "agent";
+    /** Where it happened. A call note is not a WhatsApp bubble, and the
+     *  viewer must not draw it as one -- and neither is a text or an email. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
+    at: string;
+    text: string;
+    /** The attachment, when the message is one. */
+    media?: MediaVM;
+    /** Why the receptionist said it, when the row remembers. */
+    why?: ReplyWhyVM;
+    /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
+     *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
+    by?: string;
+    /** "Canceled before sending", "Sending…" — absent when there is nothing to
+     *  say, which for an ordinary sent message is the honest answer. */
+    statusLabel?: string;
+    /** False when these words never reached the customer. The bubble must not
+     *  read as part of the conversation, because it was not. */
+    reachedCustomer?: boolean;
+}
+interface ConversationVM {
+    id: string;
+    who: string;
+    /** First name, or the whole thing when it is a number. */
+    whoShort: string;
+    initials: string;
+    clientId: string | null;
+    /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
+    threadId: string;
+    /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
+    answeredBy: MessageAuthor["kind"] | null;
+    /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    outcome: "escalated" | "handled" | "open";
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    messages: ConversationMessageVM[];
+    /** Epoch ms of the previewed message — the SORT key. Rows were being
+     *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
+     *  which is not an ordering at all. */
+    ts: number;
+    live?: boolean;
+    /** False when the customer has only ever phoned. Their calls already have
+     *  their own rows, so a chat row with nothing to preview is pure duplication. */
+    hasChat: boolean;
+}
+declare function toConversationVM(dto: ConversationDto, tz: string, now?: Date): ConversationVM;
+
+interface CallVM {
+    id: string;
+    real: true;
+    callId: string;
+    who: string;
+    whoShort: string;
+    initials: string;
+    clientId: string | null;
+    channel: "phone";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    duration?: string;
+    ts: number;
+    /** live: in progress under the heartbeat rule · missed: the dial never
+     *  connected (Retell's not_connected) · handled: everything else. */
+    outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
+    live?: boolean;
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
+     *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
+    transcript: Array<{
+        t: string;
+        speaker: "agent" | "client" | "whisper";
+        text: string;
+        start: number | null;
+        end: number | null;
+    }>;
+    /** The call's length in seconds: the player's track before the audio says its own. */
+    durationSec: number | null;
+    recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+    recordingUrl?: string;
+    threadId?: string;
+    /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
+    messageId?: string;
+    direction: "inbound" | "outbound";
+    /** It never connected. */
+    missed: boolean;
+    /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
+     *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
+    about: string | null;
+    /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
+     *  card's one quiet line. */
+    facts: string[];
+}
+/** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
+declare function spokenDuration(ms: number | null): string;
+declare function toCallVM(dto: CallDto, tz: string, now?: Date): CallVM;
 
 /**
  * How long a workspace's yeses take (0004, 0008 amended): the one rule Reports' median and the workspace's pace both
@@ -16944,7 +17002,7 @@ interface ChannelVM {
  *
  * Three maps look like this one and answer different questions, deliberately:
  * `REPORT_CHANNELS` (reports.ts) labels a MEASUREMENT ("Calls", not "Phone
- * line"); `THREAD_CHANNEL_WORDS` (viewmodels.ts) and `PERSON_CHANNEL_WORDS`
+ * line"); `THREAD_CHANNEL_WORDS` (thread-channel.ts) and `PERSON_CHANNEL_WORDS`
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */
