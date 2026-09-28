@@ -1694,6 +1694,96 @@ test("on a phone the newest question stands at the top once per question, never 
   }
 });
 
+test("REGRESSION: on a phone Latest holds back while a new question glides to the top -- it flashed on every follow-up in a thread longer than the screen (D7)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const heard = {};
+  const fire = (type) => {
+    for (const fn of [...(heard[type] || [])]) fn({ type });
+  };
+  // The thread's scroller as the glide begins: the newest question 1,500px down, a 600px screen, 400px scrolled.
+  const body = {
+    scrollTop: 0,
+    clientHeight: 600,
+    dataset: {},
+    querySelector: (sel) => (sel === "#ask-now-q" ? { offsetTop: 1500 } : null),
+    scrollTo() {
+      this.scrollTop = 400;
+    },
+    addEventListener(type, fn) {
+      (heard[type] ||= new Set()).add(fn);
+    },
+    removeEventListener(type, fn) {
+      if (heard[type]) heard[type].delete(fn);
+    },
+    dispatchEvent(ev) {
+      fire(ev.type);
+      return true;
+    },
+  };
+  const raf = [globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame];
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 0;
+  };
+  globalThis.cancelAnimationFrame = () => {};
+  try {
+    const calls = ask([]);
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(5).id, title: input.text });
+      on({ t: "final", message: said(`m-${calls.sent.length}`, `Answer ${calls.sent.length}.`) });
+    };
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    byClass(tree, "ask-line-body")[0].props.ref.current = body;
+    tree = await asks(tree, props, "first?");
+    tree = await asks(tree, props, "second?");
+    assert.equal(body.dataset.pinning, "1", "the question glides up");
+    fire("scroll");
+    tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-latest"), null, "REGRESSION: Latest while the question was on its way up");
+    body.scrollTop = 1486;
+    fire("scrollend");
+    tree = await later(Palette, props);
+    assert.equal(body.dataset.pinning, undefined, "the glide is over");
+    assert.equal(byTestId(tree, "ask-latest"), null, "the question at the top: nothing to offer");
+    body.scrollTop = 0;
+    fire("scroll");
+    tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-latest"), "scrolled back by hand: Latest");
+  } finally {
+    [globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame] = raf;
+    await closes();
+    ph.restore();
+  }
+});
+
+test("REGRESSION: a hold on the three keeps its pointer, so a mouse's hold outlasts the three hiding under it as they listen -- it ended at once in a narrow desktop window (D4)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  try {
+    ask([]);
+    render(Palette, props);
+    const tree = await later(Palette, props);
+    const stage = byTestId(tree, "ask-hero-stage");
+    const captured = [];
+    stage.props.onPointerDown({
+      ...pressOf(),
+      pointerId: 7,
+      clientX: 20,
+      clientY: 20,
+      currentTarget: { setPointerCapture: (id) => captured.push(id) },
+    });
+    assert.deepEqual(captured, [7], "the press keeps its pointer");
+    assert.equal(typeof stage.props.onLostPointerCapture, "function", "and a pointer lost ends the hold");
+    stage.props.onPointerUp();
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
 test("on a phone the next questions over the field keep the ids the keys walk after the answer's rows and its Open, and the arrows reach them (D6)", async () => {
   const ph = phoneWindow();
   const props = { open: true, onClose() {} };
