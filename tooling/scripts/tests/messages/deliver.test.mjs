@@ -1282,6 +1282,136 @@ test("email's wire picks its route by the request's From: the hosted mailbox on 
   }
 });
 
+/* ------------------------------------------ Part 5.4: a person's reply may leave by its own domain (G15, N5) */
+
+/** A person's reply to a reach-out, frozen a second time on the chain's own domain: the same row, the same words. */
+const ownTwin = (over = {}) => frozen({ identity: ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"), ...over });
+
+test("a person's reply leaves by its own domain when that route still holds it, and as the mailbox's request otherwise, saying why", async () => {
+  const hosted = { lane: "hosted", cfg: { apiKey: "platform-key" }, as: sendsAs(MAILBOX, "mail.chanlytics.com") };
+  const own = { lane: "own", cfg: { apiKey: "cold-key" }, as: sendsAsOwnDomain(OWN, MAILBOX, "mail.chanlytics.com") };
+  const real = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (_url, init) => {
+    sent.push([init.headers.Authorization, JSON.parse(init.body).from]);
+    return new Response(JSON.stringify({ id: "re_7" }), { status: 200 });
+  };
+  const mailbox = frozen({
+    identity: {
+      fromName: "Best Movers",
+      fromAddress: "bestmovers@mail.chanlytics.com",
+      replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com",
+    },
+  });
+  const reply = (ownEmail, extra = {}) => ({ body: "x", email: mailbox, reply: true, ownEmail, ...extra });
+  try {
+    const both = emailSender([hosted, own]);
+    const byOwn = await both(ADDRESS, reply(ownTwin()));
+    assert.deepEqual([byOwn.ok, byOwn.leftAs, byOwn.leftAsWhy], [true, "own", undefined]);
+    assert.deepEqual(
+      sent.pop(),
+      ["Bearer cold-key", '"Sam at Harbor" <sam@getharbor.com>'],
+      "the twin, on the cold key",
+    );
+
+    const asMailbox = async (send, twin, why) => {
+      const r = await send(ADDRESS, reply(twin));
+      assert.deepEqual([r.ok, r.leftAs, r.leftAsWhy], [true, "mailbox", why], why);
+      assert.deepEqual(sent.pop(), ["Bearer platform-key", '"Best Movers" <bestmovers@mail.chanlytics.com>'], why);
+    };
+    // No own route at all: the cold lane's keys unset.
+    await asMailbox(emailSender([hosted]), ownTwin(), "no_own_route");
+    // The twin's domain has no route: held or removed after the freeze, or somebody else's.
+    const elsewhere = ownTwin({
+      identity: ownDomainIdentity({ ...OWN, host: "other.example" }, MAILBOX, "mail.chanlytics.com"),
+    });
+    await asMailbox(both, elsewhere, "domain_has_no_route");
+    // The route refuses the twin's Reply-To: a retired reply route.
+    const retired = ownTwin({
+      identity: {
+        ...ownDomainIdentity(OWN, MAILBOX, "mail.chanlytics.com"),
+        replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com",
+      },
+    });
+    await asMailbox(both, retired, "route_refuses_twin");
+    // A twin to somebody else is never sent: the reply goes to the address it was written to, as the mailbox.
+    await asMailbox(both, ownTwin({ to: OWNER }), "twin_names_another_recipient");
+
+    // Only a reply carries a twin: without `reply` the request leaves exactly as before, whatever else it holds.
+    const plain = await both(ADDRESS, { body: "x", email: mailbox, ownEmail: ownTwin() });
+    assert.deepEqual([plain.ok, plain.leftAs], [true, undefined]);
+    assert.equal(sent.pop()[0], "Bearer platform-key");
+    // And a reply whose own request names an own domain is still refused: the twin is the one way out by it.
+    const refused = { ok: false, wamid: null, status: 0, errorBody: "request_leaves_as_another_sender" };
+    assert.deepEqual(await both(ADDRESS, { body: "x", email: ownTwin(), reply: true }), refused);
+    // Outreach is outreach's lane, never the twin's: it leaves by its own route only, as before.
+    const coldOut = await both(OWNER, {
+      body: "x",
+      email: coldRequest(),
+      purpose: "outreach",
+      reply: true,
+      ownEmail: ownTwin(),
+    });
+    assert.deepEqual([coldOut.ok, coldOut.leftAs], [true, undefined]);
+    assert.equal(sent.pop()[0], "Bearer cold-key");
+    assert.equal(sent.length, 0, "no refusal reached a provider");
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("the door hands the twin to the wire only for a person's reply, and records how it left on the row", async () => {
+  const stamped = [];
+  const rpc = (t) => ({
+    ...outreachRpc(t),
+    stamp_email_left_as: (args) => {
+      stamped.push(args);
+      return true;
+    },
+  });
+  const run = async (over, result) => {
+    const t = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail(over.row ?? {})] });
+    const w = emailWire(result);
+    const out = await deliver(
+      { db: fakeDb(t, {}, rpc(t)), wire: w.wire, now: () => NOW },
+      emailed({ ownEmail: ownTwin(), ...over.delivery }),
+    );
+    return { out, p: w.calls[0]?.p };
+  };
+  // A person's reply: the twin goes with it, and how it left is stamped.
+  const own = await run(
+    { delivery: { sender: "human", proactive: false } },
+    { ok: true, wamid: "re_1", status: 200, leftAs: "own" },
+  );
+  assert.equal(own.out.outcome, "sent");
+  assert.deepEqual([own.p.reply, own.p.ownEmail?.from], [true, '"Sam at Harbor" <sam@getharbor.com>']);
+  const mailbox = await run(
+    { delivery: { sender: "human", proactive: false } },
+    { ok: true, wamid: "re_1", status: 200, leftAs: "mailbox", leftAsWhy: "domain_has_no_route" },
+  );
+  assert.equal(mailbox.out.outcome, "sent");
+  assert.deepEqual(stamped, [
+    { p_tenant_id: T, p_message_id: "m1", p_left_as: "own", p_why: null },
+    { p_tenant_id: T, p_message_id: "m1", p_left_as: "mailbox", p_why: "domain_has_no_route" },
+  ]);
+  // A draft the receptionist wrote, a person's first email and a system send never carry it.
+  for (const delivery of [
+    { sender: "ai", proactive: false },
+    { sender: "human", proactive: true },
+    { sender: "system", proactive: false, kind: "system" },
+  ]) {
+    const r = await run({ delivery }, undefined);
+    assert.equal(r.p?.reply, undefined, JSON.stringify(delivery));
+    assert.equal(r.p?.ownEmail, undefined, JSON.stringify(delivery));
+  }
+  assert.equal(stamped.length, 2, "nothing stamped for a send that did not say how it left");
+  // A twin frozen under another row's id is a caller's mistake, said before anything is read.
+  await assert.rejects(
+    run({ delivery: { sender: "human", proactive: false, ownEmail: ownTwin({ messageId: "m9" }) } }, undefined),
+    /leaves only from the queued row its request was frozen for/,
+  );
+});
+
 /* ------------------------------------------------ Part 2.5: the door holds cold email to every rule (00177) */
 
 test("a cold email is a broadcast whoever the row says wrote it: every pause holds it (D1)", async () => {

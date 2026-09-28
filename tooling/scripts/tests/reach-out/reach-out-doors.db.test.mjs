@@ -351,7 +351,7 @@ test(
         p_lead_id: closed,
       }),
     );
-    assert.deepEqual(own, { lead_stage: "archived", suppressed: false, wrote_back: false });
+    assert.deepEqual(own, { lead_stage: "archived", suppressed: false, wrote_back: false, away: false });
     // A lead of somebody else's is no lead of this person's.
     const other = await lead({ stage: "ready" });
     assert.equal((await facts({ p_lead_id: other })).lead_stage, null);

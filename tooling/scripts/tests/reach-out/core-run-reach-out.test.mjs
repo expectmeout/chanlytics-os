@@ -200,6 +200,8 @@ test("a step writes to the leads sent the step before, less anyone the door woul
       f("c", { bounced: true }),
       f("d", { facts: { lead_stage: "archived", suppressed: false, wrote_back: false } }),
       f("e", { facts: { lead_stage: "ready", suppressed: true, wrote_back: false } }),
+      // An automatic out-of-office (00226): skipped outreach_away, which the followers pass over after the day.
+      f("w", { facts: { lead_stage: "ready", suppressed: false, wrote_back: false, away: true } }),
       f("n", { facts: { lead_stage: "nurture", suppressed: false, wrote_back: false } }),
     ],
   });
@@ -222,11 +224,12 @@ test("a step writes to the leads sent the step before, less anyone the door woul
       ["c", "outreach_bounced", null, null, "kc"],
       ["d", "outreach_lead_closed", null, null, "kd"],
       ["e", "outreach_suppressed", null, null, "ke"],
+      ["w", "outreach_away", null, null, "kw"],
     ],
   );
   assert.equal(made.runs[0].recipient_count, 2, "the run counts who it writes to");
   assert.deepEqual(made.runs[0].audience, { kind: "reach_out", root_id: "p1", step_id: "p2", search_id: null });
-  assert.deepEqual(made.recorded, [[made.runs[0].id, "scheduled", { planned: 2, skipped: 4 }]]);
+  assert.deepEqual(made.recorded, [[made.runs[0].id, "scheduled", { planned: 2, skipped: 5 }]]);
 });
 
 test("a lead that keeps no open hour all week is skipped, and the step's share goes to the next", async () => {
