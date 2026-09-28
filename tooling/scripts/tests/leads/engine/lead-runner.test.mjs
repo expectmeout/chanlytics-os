@@ -5,18 +5,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { startRound } from "../../../../../packages/core/src/leads/runner/start.ts";
+import { collect } from "../../../../../packages/core/src/leads/runner/collect.ts";
+import { check } from "../../../../../packages/core/src/leads/runner/check.ts";
+import { reconcileUnknownRuns } from "../../../../../packages/core/src/leads/runner/sweep.ts";
+import { rejudgeProbe } from "../../../../../packages/core/src/leads/runner/rejudge.ts";
 import {
-  startRound,
-  collect,
-  check,
-  reconcileUnknownRuns,
   LeadRetry,
   INPUT_MARKER,
   OUT_OF_AREA_REASON,
   CLOSED_REASON,
   JUDGE_MARGIN_MS,
-  rejudgeProbe,
-} from "../../../../../packages/core/src/leads/runner.ts";
+} from "../../../../../packages/core/src/leads/runner/rules.ts";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../../../packages/core/src/leads/ids.ts";
 import { ApifyRefused, ApifyRetryable } from "../../../../../packages/channels/src/apify.ts";

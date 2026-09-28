@@ -767,6 +767,9 @@ const SOURCES = {
   lead_set_stage: ["00142", "create or replace function public.lead_set_stage("],
 };
 
+/** The migration that re-creates a function after 00220, whose own suite holds it to 00220's body. */
+const LATER = { outreach_lead_facts: "00226" };
+
 test("every function re-created whole is its source's body but for the lines it meant to change", { skip }, () => {
   const now = migration("00220");
   for (const [name, [from, header, signature]] of Object.entries(SOURCES)) {
@@ -790,7 +793,9 @@ test("every function re-created whole is its source's body but for the lines it 
         ? `select prosrc from pg_proc where oid = '${signature}'::regprocedure`
         : `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
     );
-    assert.equal(live.prosrc, want, `${name}: the database runs it`);
+    // A later migration that re-creates it whole runs now, and proves itself against this body (00226's suite).
+    const later = LATER[name];
+    assert.equal(live.prosrc, later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
   }
 });
 

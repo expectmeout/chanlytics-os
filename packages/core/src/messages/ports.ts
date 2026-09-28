@@ -21,6 +21,8 @@ export interface SendQueuedPorts {
     channel: string | null;
     sender: string | null;
     /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+    /** A person's reply to a reach-out, frozen again on the chain's own domain (meta.email.own_request, G15). */
+    ownEmail?: Delivery["ownEmail"];
     /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
     leadId?: string | null;
   } | null>;

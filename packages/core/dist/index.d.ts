@@ -64,6 +64,13 @@ interface WirePayload {
     email?: EmailRequest;
     /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
     purpose?: SendPurpose;
+    /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+    reply?: boolean;
+    /**
+     * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
+     * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+     */
+    ownEmail?: EmailRequest;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -74,37 +81,6 @@ type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * environment, which is how one business's message left on another's line.
  */
 type Wire = Partial<Record<Channel, Sender | null>>;
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-declare function whatsappSender(cfg: WaConfig | null): Sender | null;
-/**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
- */
-interface EmailRoute {
-    lane: "hosted" | "own";
-    cfg: ResendConfig;
-    as: EmailSendsAs;
-}
-/**
- * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider keys are the
- * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials).
- */
-declare function emailSender(routes: EmailRoute[]): Sender | null;
 interface Delivery {
     tenantId: string;
     conversationId: string;
@@ -120,6 +96,11 @@ interface Delivery {
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
     email?: EmailRequest;
+    /**
+     * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
+     * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+     */
+    ownEmail?: EmailRequest;
     /**
      * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
      * business closed or archived is refused even when its person has another lead still being written to.
@@ -184,6 +165,44 @@ declare function templatePurpose(db: Db, tenantId: string, template: {
  * name, and the caller alerts a person the way it does for a provider's no.
  */
 declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered>;
+
+/**
+ * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
+ * deliver() decides whether a send may leave; these only put it on the provider's wire, and refuse a request that
+ * would leave as somebody else.
+ */
+
+/**
+ * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
+ * so the "+" is stripped here rather than by a caller who should not know.
+ */
+declare function whatsappSender(cfg: WaConfig | null): Sender | null;
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
+interface EmailRoute {
+    lane: "hosted" | "own";
+    cfg: ResendConfig;
+    as: EmailSendsAs;
+}
+/**
+ * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider keys are the
+ * deployment's; the routes are what make the wire this workspace's: the hosted
+ * mailbox on the platform's account, and each of its own verified domains on
+ * the cold account (Reach out), so a cold email never spends the reputation
+ * every workspace's replies share. The route is chosen by the request's From,
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
+ */
+declare function emailSender(routes: EmailRoute[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -587,6 +606,8 @@ interface SendQueuedPorts {
         channel: string | null;
         sender: string | null;
         /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+        /** A person's reply to a reach-out, frozen again on the chain's own domain (meta.email.own_request, G15). */
+        ownEmail?: Delivery["ownEmail"];
         /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
         leadId?: string | null;
     } | null>;
@@ -1448,6 +1469,7 @@ interface ReachOutFollower extends ReachOutLead {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;
@@ -2135,7 +2157,7 @@ declare const JUDGE_TIMEOUT_MS = 28000;
  * (packages/jobs ledger.ts), so the least it is promised is 32 seconds; it
  * reads its page from the provider first (PAGE_READ_ALLOWANCE_MS), and the
  * judge, which is never started with less than its own timeout left
- * (runner.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
+ * (runner/rules.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
  * the ledger, so tick-geometry.test.mjs holds these numbers to each other.
  * A low-effort structured call over 25 places answers in well under this.
  */
@@ -2269,6 +2291,10 @@ declare function discoveryEnding(round: LeadRoundRow, runs: LeadRunRow[], x: {
  * The webhook token of a run row is derived from the row's id by the edge
  * (ports.webhookToken), so a job tried again can rebuild the URL its earlier
  * try sent without the row's stored hash ever being rewritten (E1).
+ *
+ * This module holds what the jobs share: the lease, the clocks and the page sizes, the reasons a place is held by
+ * rule, the deadline check and the provider's two kinds of trouble. Each job is a module beside it: start.ts,
+ * collect.ts, check.ts and sweep.ts.
  */
 
 declare const LEASE_SECONDS = 90;
@@ -2309,6 +2335,12 @@ declare class LeadRetry extends Error {
 }
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
 declare const targetOf: (round: LeadRoundRow) => number;
+
+/**
+ * lead_round_start: a run row per term, made by its deterministic id, claimed (claim.ts), and only then started at
+ * the provider. A round whose answer changed the plan re-judges its probe first (rejudge.ts).
+ */
+
 type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already";
 type StartOutcome = {
     kind: "not_open";
@@ -2325,37 +2357,13 @@ type StartOutcome = {
     }[];
 };
 declare function startRound(p: LeadPorts, roundId: string, owner: string, resume?: boolean): Promise<StartOutcome>;
-type CollectOutcome = {
-    kind: "gone";
-} | {
-    kind: "not_started";
-} | {
-    kind: "round_ended";
-} | {
-    kind: "round_closing";
-} | {
-    kind: "busy";
-} | {
-    kind: "lost";
-    why: Exclude<CollectCommitResult, {
-        ok: true;
-    }>["why"];
-} | {
-    kind: "committed";
-    commits: number;
-    toOffset: number;
-    runState: LeadRunState | null;
-    roundState: LeadRoundState | null;
-    judgeRefused: string | null;
-} | {
-    kind: "checked";
-    results: number;
-    last: boolean;
-} | {
-    kind: "stopped";
-} | {
-    kind: "polling";
-};
+
+/**
+ * A place as the collect takes it: the next batch of a page's items, where the round measures from, and the member
+ * the commit writes, its class decided by code. The collect is collect.ts; the re-judging (rejudge.ts) makes its
+ * members here too.
+ */
+
 interface Prepared {
     index: number;
     clean: CleanPlace;
@@ -2387,7 +2395,51 @@ declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: numbe
     end: number;
     prepared: Prepared[];
 };
+
+/**
+ * lead_collect: one batch of a run's items per commit (clean, identity, judge, classify, distance, commit), a Stop,
+ * and a checker run's answers. The places it commits are made in places.ts and marked in mark-places.ts; what
+ * follows a run's last item is round-decision.ts.
+ */
+
+type CollectOutcome = {
+    kind: "gone";
+} | {
+    kind: "not_started";
+} | {
+    kind: "round_ended";
+} | {
+    kind: "round_closing";
+} | {
+    kind: "busy";
+} | {
+    kind: "lost";
+    why: Exclude<CollectCommitResult, {
+        ok: true;
+    }>["why"];
+} | {
+    kind: "committed";
+    commits: number;
+    toOffset: number;
+    runState: LeadRunState | null;
+    roundState: LeadRoundState | null;
+    judgeRefused: string | null;
+} | {
+    kind: "checked";
+    results: number;
+    last: boolean;
+} | {
+    kind: "stopped";
+} | {
+    kind: "polling";
+};
 declare function collect(p: LeadPorts, runId: string, seq: string, owner: string): Promise<CollectOutcome>;
+
+/**
+ * An answer that changed the plan re-judges the places the probe already judged. The start (start.ts) calls it
+ * before it sizes the main phase; the members are made as the collect makes them (places.ts).
+ */
+
 type RejudgeOutcome = {
     changed: number;
     reused: number;
@@ -2409,6 +2461,38 @@ type RejudgeOutcome = {
  * lists (an expired dataset) is left as it was and counted as unread.
  */
 declare function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<RejudgeOutcome>;
+
+/**
+ * The business's own mark, for the places a page is about to commit. What a home page declares is read by mark.ts
+ * and the bytes worth keeping are told by mark-image.ts, one folder up; the collect (collect.ts) and the re-judging
+ * (rejudge.ts) call it.
+ */
+
+/**
+ * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
+ * page, read for the logos it declares (mark.ts), then the first of those whose bytes are a mark worth keeping
+ * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
+ * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
+ * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
+ * next round's copy of that place fills it where it was empty.
+ *
+ * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
+ * Answers how many places were given a kept copy.
+ */
+declare const MARK_ALLOWANCE_MS = 8000;
+declare const MARK_AT_ONCE = 6;
+/**
+ * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
+ * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
+ */
+declare const MARK_TRIES = 2;
+declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number>;
+
+/**
+ * lead_check: one checker run per batch of the addresses still waiting, claimed first (claim.ts). The checker run's
+ * answers are read by the collect (collect.ts).
+ */
+
 type CheckOutcome = {
     kind: "not_open";
 } | {
@@ -2433,28 +2517,15 @@ type CheckAgain = {
 };
 /** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
 declare const isAgainRun: (run: Pick<LeadRunRow, "purpose" | "term">) => boolean;
-/**
- * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
- * page, read for the logos it declares (mark.ts), then the first of those whose bytes are a mark worth keeping
- * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
- * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
- * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
- * next round's copy of that place fills it where it was empty.
- *
- * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
- * Answers how many places were given a kept copy.
- */
-declare const MARK_ALLOWANCE_MS = 8000;
-declare const MARK_AT_ONCE = 6;
-/**
- * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
- * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
- */
-declare const MARK_TRIES = 2;
-declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number>;
 /** The members whose picked address still waits for its check, in one fixed order. */
 declare function checkable(members: LeadMemberRow[]): LeadMemberRow[];
 declare function check(p: LeadPorts, roundId: string, batch: number, owner: string, again?: CheckAgain | null): Promise<CheckOutcome>;
+
+/**
+ * The sweep's reconciliation: an unknown start looked for in the provider's own list (claim.ts), and reconciled, or
+ * failed once its grace is over.
+ */
+
 type ReconcileOutcome = {
     runId: string;
     kind: "reconciled" | "failed" | "waiting";

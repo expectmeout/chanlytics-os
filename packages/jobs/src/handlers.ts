@@ -61,8 +61,13 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.
-        const meta = data.meta as { email?: { request?: unknown }; reach_out?: { lead_id?: unknown } } | null;
+        const meta = data.meta as {
+          email?: { request?: unknown; own_request?: unknown };
+          reach_out?: { lead_id?: unknown };
+        } | null;
         const request = meta?.email?.request;
+        // A person's reply to a reach-out, frozen again on the chain's own domain (G15): the door may send it instead.
+        const own = meta?.email?.own_request;
         // A reach-out's email names the lead it was written for, so the door asks that lead's facts and no other's.
         const leadId = meta?.reach_out?.lead_id;
         return {
@@ -71,6 +76,7 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
           channel: data.channel,
           sender: data.sender,
           email: isEmailRequest(request) ? request : null,
+          ownEmail: isEmailRequest(own) ? own : undefined,
           leadId: typeof leadId === "string" && leadId ? leadId : null,
         };
       },

@@ -3201,6 +3201,16 @@ async function stampEmailSent(db, p) {
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
 async function sentEmailRequestOf(db, p) {
   return (await sentEmailOf(db, p))?.request ?? null;
 }
@@ -3400,6 +3410,8 @@ async function outreachFactsOf(db, p) {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00226: not away, as it was.
+    away: f.away === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -5220,6 +5232,7 @@ export {
   setPolicyMode,
   staleSends,
   stampEmailComplaint,
+  stampEmailLeftAs,
   stampEmailSent,
   stampMailboxReceived,
   stampReachOutStep,
