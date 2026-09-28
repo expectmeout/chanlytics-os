@@ -196,7 +196,7 @@ test("the brand does not buy a vetting a low-volume campaign cannot use", () => 
   const edge = readCode("apps/edge/lib/lines/a2p.ts");
   assert.ok(edge.includes("useCase: LOW_VOLUME_USECASE,") && edge.includes("skipVetting: true,"));
   assert.ok(
-    readRaw("packages/channels/src/a2p.ts").includes("A brand can be vetted later"),
+    readRaw("packages/channels/src/a2p/brand-campaign.ts").includes("A brand can be vetted later"),
     "and says how to get it when a workspace needs it",
   );
 });
@@ -731,7 +731,7 @@ test("everything is filed as the workspace's own subaccount, with our primary pr
     "the address belongs to the same account as the profile",
   );
   assert.ok(lib.includes("const acct = sub;"), "one account for every call");
-  const raw = readRaw("packages/channels/src/a2p.ts");
+  const raw = readRaw("packages/channels/src/a2p/wire.ts");
   assert.ok(
     raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"),
     "REGRESSION: a brand on the parent is refused at the campaign, after it is registered and paid for",
