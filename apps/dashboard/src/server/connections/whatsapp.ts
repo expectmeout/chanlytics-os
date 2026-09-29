@@ -1,7 +1,7 @@
 import "server-only";
 import { deployment } from "../deployment";
 import { MIN_MS } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
 /** What the browser needs to start signup is read from the edge's environment: a second's work. */
 const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;
@@ -49,7 +49,7 @@ type ConnectOutcome =
       qualityRating: string | null;
       registration: string;
     }
-  | { ok: false; reason: string; detail?: string };
+  | { ok: false; reason: EdgeReason; detail?: string };
 
 /** The owner's number becomes a channel: the edge exchanges the code, registers the number and stores the token. */
 export async function connectWhatsApp(
@@ -70,7 +70,6 @@ export async function connectWhatsApp(
     verified_name?: string | null;
     quality_rating?: string | null;
     registration?: string;
-    error?: string;
     detail?: string;
   };
   if (edgeAnswered(r) && j.ok && j.channel_id) {
@@ -83,5 +82,5 @@ export async function connectWhatsApp(
       registration: j.registration ?? "registered",
     };
   }
-  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
 }

@@ -356,8 +356,7 @@
     "@typescript-eslint/no-unnecessary-type-assertion": 2
   },
   "apps/dashboard/src/server/campaigns/reach-outs.ts": {
-    "@typescript-eslint/no-base-to-string": 1,
-    "@typescript-eslint/no-redundant-type-constituents": 4
+    "@typescript-eslint/no-base-to-string": 1
   },
   "apps/dashboard/src/server/campaigns/templates.ts": {
     "@typescript-eslint/no-base-to-string": 2
@@ -393,56 +392,21 @@
   "apps/dashboard/src/server/with-route.ts": {
     "@typescript-eslint/no-misused-promises": 1
   },
-  "apps/edge/api/admin/eval.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/hand-over.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/handover-invite.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/llm.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "apps/edge/api/admin/playbooks-run.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/edge/api/admin/setup-request.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/signup-notify.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/steer.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/stop-call.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "apps/edge/api/admin/voice-converge.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 3,
-    "@typescript-eslint/no-unsafe-assignment": 1,
     "@typescript-eslint/restrict-template-expressions": 1
   },
   "apps/edge/api/admin/voice-provision.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1,
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/whatsapp/connect.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "apps/edge/api/admin/whatsapp/signup-config.ts": {
     "@typescript-eslint/require-await": 1
   },
   "apps/edge/api/admin/whatsapp/templates-create.ts": {
     "@typescript-eslint/no-base-to-string": 1
-  },
-  "apps/edge/api/admin/whisper.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/you-are-live.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
   },
   "apps/edge/api/cron/leads.ts": {
     "@typescript-eslint/no-base-to-string": 1,
@@ -462,10 +426,6 @@
   },
   "apps/edge/api/whatsapp.ts": {
     "@typescript-eslint/require-await": 1
-  },
-  "apps/edge/lib/admin-door.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1,
-    "@typescript-eslint/no-unsafe-return": 1
   },
   "apps/edge/lib/ask-gateway.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 2,

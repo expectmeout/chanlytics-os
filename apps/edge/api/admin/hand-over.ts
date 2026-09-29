@@ -22,6 +22,7 @@
  * the role door has been checked there. Body: { call_id, line }.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameHandOver } from "../../lib/packages/contracts.js";
@@ -37,12 +38,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
-  let body: { call_id?: string; line?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{ call_id?: string; line?: string }>(request);
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !E164.test(line)) {

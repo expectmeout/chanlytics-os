@@ -201,6 +201,7 @@ export {
   setPolicyMode,
   personReplyMode,
   setPersonReplyMode,
+  workspaceAnswersOnItsOwn,
 } from "./repositories/control-plane";
 export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
 export {

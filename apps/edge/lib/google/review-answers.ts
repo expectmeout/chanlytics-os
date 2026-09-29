@@ -5,7 +5,7 @@
  * a person's answer posted (`replyOnProfile`). The model's draft itself is
  * review-reply.ts.
  */
-import { emitEvent, listPolicies } from "../packages/db.js";
+import { emitEvent, listPolicies, workspaceAnswersOnItsOwn } from "../packages/db.js";
 import { replyToReview, reviewParent, type PlacesHttp } from "../packages/channels.js";
 import {
   autoReplyCandidates,
@@ -86,6 +86,9 @@ async function answerNewReviews(
 ): Promise<Array<{ id: string; author: string | null; text: string }>> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
+  // Not while the workspace is paused or ended or its plan has stopped the receptionist: a public reply, with nobody
+  // left to read it (workspaceAnswersOnItsOwn says which).
+  if (!(await workspaceAnswersOnItsOwn(db, conn.tenant_id))) return [];
   const unreplied = await db
     .from("google_reviews")
     .select("id, review_id, origin, rating, author, body, published_at, reply_text")

@@ -2839,7 +2839,8 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -7136,7 +7137,8 @@ function hoursLines(hours) {
     return `${label}: ${r22.text}`;
   });
 }
-var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var PRICE_PATTERNS = [
   /\$\s?\d/,
   /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
@@ -11499,7 +11501,8 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   15 * MIN_MS3,
   30 * MIN_MS3
 ];
-var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
 var REPLY_LIMITS3 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },

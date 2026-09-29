@@ -27,6 +27,8 @@ import {
   parseTenantConfigResult,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  withFirstAlertAddress,
+  withStoredKeysKept,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -152,11 +154,91 @@ test("a save that is malformed as well is refused on what is malformed; an unkno
   ]);
 });
 
-test("the save drops a section it has never heard of, as it always did, and keeps the rest", () => {
+test("a section a page SENDS that this build has never heard of is dropped from the save, and the rest kept", () => {
   const r = TenantConfigWriteSchema.safeParse({ brain, guardrails: { no_prices: true } });
   assert.equal(r.success, true, JSON.stringify(r.error?.issues));
   assert.equal("guardrails" in r.data, false);
   assert.equal(r.data.brain.business_name, "Test Salon");
+});
+
+/** Every path in a JSON value, an array's elements by index, as the dotted names `ignored` uses. */
+const pathsOf = (v, at = []) =>
+  v && typeof v === "object"
+    ? Object.entries(v).flatMap(([k, x]) => [[...at, k].join("."), ...pathsOf(x, [...at, k])])
+    : [];
+
+test("REGRESSION (defect 19): a save after a rollback keeps what a newer build stored, at every depth", () => {
+  // A newer build wrote a section and fields inside sections; this build's read (the settings GET) leaves them out,
+  // and the page sends back what it was shown with one edit. The column is written whole, so the save puts back
+  // every stored key the read left out, and the page's edit lands.
+  const stored = {
+    brain: {
+      ...brain,
+      a_new_brain_field: { on: true },
+      fallbacks: { ...brain.fallbacks, sms: "later" },
+      profile: { services: [{ name: "Cut" }, { name: "Colour", colour_code: "7N" }] },
+    },
+    notifications,
+    guardrails: { no_prices: true },
+  };
+  const read = parseTenantConfigResult(stored);
+  assert.deepEqual(read.ignored.sort(), [
+    "brain.a_new_brain_field",
+    "brain.fallbacks.sms",
+    "brain.profile.services.1.colour_code",
+    "guardrails",
+  ]);
+  const page = structuredClone(read.config);
+  page.brain.business_name = "Test Salon & Spa";
+  const sent = TenantConfigWriteSchema.safeParse(page);
+  assert.equal(sent.success, true, JSON.stringify(sent.error?.issues));
+  const saved = withStoredKeysKept(sent.data, stored);
+  assert.deepEqual(
+    pathsOf(stored).filter((p) => !pathsOf(saved).includes(p)),
+    [],
+    "a stored path the page never saw was deleted",
+  );
+  assert.equal(saved.brain.business_name, "Test Salon & Spa", "the page's edit lands");
+  assert.deepEqual(saved.guardrails, { no_prices: true });
+  assert.deepEqual(saved.brain.profile.services[1], { name: "Colour", colour_code: "7N" });
+  assert.deepEqual(parseTenantConfigResult(saved).config, sent.data, "what this build reads is what the page sent");
+});
+
+test("the save keeps only what the read left out: a known field the page cleared, a section it removed and an element it changed are the page's", () => {
+  const stored = {
+    brain: {
+      ...brain,
+      booking_link: "https://example.com/book",
+      profile: {
+        services: [
+          { name: "Cut", tint: "a" },
+          { name: "Colour", tint: "b" },
+        ],
+      },
+    },
+    calendar: { ical_url: "https://calendar.example.com/a.ics", feed_v2: true },
+  };
+  const page = structuredClone(parseTenantConfigResult(stored).config);
+  delete page.brain.booking_link;
+  delete page.calendar;
+  // The services reordered, and Cut renamed: Colour came back as it was shown, so it keeps its tint wherever it
+  // sits; Trim is not an element the read showed, so which stored one it was is not guessed.
+  page.brain.profile.services = [{ name: "Colour" }, { name: "Trim" }];
+  const saved = withStoredKeysKept(TenantConfigWriteSchema.parse(page), stored);
+  assert.equal("booking_link" in saved.brain, false, "a known field the page cleared stays cleared");
+  assert.equal("calendar" in saved, false, "a section the page removed stays removed, its unknown keys with it");
+  assert.deepEqual(saved.brain.profile.services, [{ name: "Colour", tint: "b" }, { name: "Trim" }]);
+  // A stored config the read refuses keeps nothing: which of its keys are unknown cannot be told.
+  const broken = { brain: { ...brain, booking_link: "not-a-url", extra: 1 } };
+  assert.deepEqual(withStoredKeysKept({ brain }, broken), { brain });
+});
+
+test("the first alert address is added to a config without deleting what a newer build stored in it", () => {
+  const stored = { brain: { ...brain, a_new_brain_field: 1 }, guardrails: { no_prices: true } };
+  const next = withFirstAlertAddress(stored, "Owner@Example.com");
+  assert.deepEqual(next.notifications, { escalation_emails: ["owner@example.com"] });
+  assert.equal(next.brain.a_new_brain_field, 1);
+  assert.deepEqual(next.guardrails, { no_prices: true });
 });
 
 test("a malformed section reports WHERE, not just that it failed", () => {

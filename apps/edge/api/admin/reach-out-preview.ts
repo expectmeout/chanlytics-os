@@ -12,6 +12,7 @@
  * tokens is a 429 before anything is asked, and what a preview cost is recorded against the member who asked.
  */
 import { json } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -102,12 +103,7 @@ async function recordPreviewSpend(
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
-  let body: Body = {};
-  try {
-    body = (JSON.parse(await request.text()) as Body) ?? {};
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<Body>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
