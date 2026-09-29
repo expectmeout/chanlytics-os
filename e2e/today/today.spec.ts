@@ -155,7 +155,8 @@ test.describe("Today on a real workspace", () => {
     });
     expect(first, "nothing stands above the queue but a line that is down").toMatch(/dash-a-v2-core|today-alert/);
     expect(gap, "the first band keeps the page's gap under the top bar").toBeGreaterThanOrEqual(8);
-    // The local harness installs no Ask client, so its palette is the mockup's; only a workspace opens the real one.
+    // A page with no Ask client (the standalone mockup) draws the mockup's palette; a workspace, and the local harness
+    // since Ask Rewired's Phase 7, open the real one.
     if (!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask))) return;
     await page.getByTestId("tb-ask").click();
     const pal = page.getByTestId("ask-real");
@@ -246,8 +247,8 @@ test.describe("Today on a phone", () => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("today-face")).toHaveCount(0);
-    // The local harness installs no Ask client, so it has no takeover to open; only a workspace does.
-    test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
+    // A page with no Ask client (the standalone mockup) has no takeover to open; a workspace and the local harness do.
+    test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask client on this page");
     await page.getByTestId("phone-ask").tap();
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();

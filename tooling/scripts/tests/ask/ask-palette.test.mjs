@@ -3170,3 +3170,50 @@ test("a question the shell seeds as it opens the Line goes with the chip that op
     globalThis.window.location.hash = hash;
   }
 });
+
+/* ------------------------------ the first run ------------------------------ */
+
+test("over the first run the Line is on the start surface: it asks about setting up, what is left first, draws no key, and a question goes with the step the page is on (Ask Rewired, Phase 7)", async () => {
+  const hash = globalThis.window.location.hash;
+  const { pageContext } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/context.ts");
+  const calls = ask([]);
+  // The bridge's own reading of the page (ask.ts installAsk): the start provider, over this window.
+  globalThis.window.__ask.context = (route, words, thread) => pageContext(globalThis.window, route, words, thread);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: TH(6).id, title: input.text });
+    on({ t: "final", message: said("m-start", "Two of four are set up; next is your number.") });
+  };
+  try {
+    globalThis.window.location.hash = "#/start/phone";
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    assert.deepEqual(
+      byClass(tree, "ask-rows-label").map(textOf),
+      ["Ask about setting up"],
+      "the page's questions, under the first run's name",
+    );
+    assert.deepEqual(
+      all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf),
+      ["What is left to set up?", "What are our hours this week?", "How did the week go?"],
+      "what is left first; never an offer or a playbook here",
+    );
+    assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
+    press(byTestId(tree, "ask-row-sug"));
+    tree = await later(Palette, OPEN);
+    assert.equal(calls.inputs.length, 1, "one turn, the model's: no quick answer reads the steps a second time");
+    const [asked] = calls.inputs;
+    assert.equal(asked.text, "What is left to set up?");
+    assert.equal(asked.surface, "start");
+    assert.deepEqual(
+      [asked.context.surface, asked.context.route, asked.context.view],
+      ["start", "start/phone", "phone"],
+      "the step the address names rides along: the server's start provider reads Setup's steps beside it",
+    );
+    assert.equal(textOf(byTestId(tree, "ask-say")), "Two of four are set up; next is your number.");
+    await closes();
+  } finally {
+    delete globalThis.window.__ask.context;
+    globalThis.window.location.hash = hash;
+  }
+});

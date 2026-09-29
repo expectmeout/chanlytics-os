@@ -193,8 +193,8 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
-    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts it at for a record with
-    // people), and every file it names from there is the tree's own.
+    // The page may stand at its workspace's address (/w/<slug>/, which the fixture puts every record at in a browser),
+    // and every file it names from there is the tree's own.
     const p = decodeURIComponent(url.pathname).replace(new RegExp(`^/w/${WORKSPACE.slug}(?=/|$)`), "") || "/";
     const method = (req.method || "GET").toUpperCase();
     try {

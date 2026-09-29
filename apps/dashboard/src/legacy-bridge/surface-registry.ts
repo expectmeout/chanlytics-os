@@ -30,22 +30,22 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
-  clients: "real", // People · Clients; Leads / Deal board / Lists stay demo
+  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline where deals are on (clients/pipeline, 0008) and the lists (seg:, list:)
   reports: "real", // the receptionist's numbers; the share link stays demo
   live: "real", // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
-  // Render entirely from seed data. Each becomes one edited line here the day
-  // its slice ships.
-  // The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
-  // the shared report viewer) stay in the tree and stay hidden from
-  // every real workspace: no nav entry, no tab, the Not-in-this-release card for
-  // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
-  // revisited when the product is at 100%, and none of those features is built
-  // before then. Nothing here is a promise to a customer or an operator.
+  // The rest: each real from the day its slice shipped, or demo, drawn from the
+  // mockup's seeds. The mockup surfaces (Agents: fleet, store, studio, tasks;
+  // Content; the Deal board; the shared report viewer) stay in the tree and stay
+  // hidden from every real workspace: no nav entry, no tab, the
+  // Not-in-this-release card for a hand-typed address. Ruben's decision, 11
+  // September 2026: most of it is revisited when the product is at 100%, and none
+  // of those features is built before then. Nothing here is a promise to a
+  // customer or an operator.
   // Lifted 18 Sep 2026 (Ruben): a scope of People at clients/leads, fed by the leads surface.
   leads: "real", // the route itself still redirects (SURFACE_RETIRED): the scope is clients/leads
   segments: "real", // People › Lists: the lists kept by hand and the computed ones, with their people
-  pipeline: "demo", // retired into People, like leads
+  pipeline: "demo", // the mockup's Deal board, retired: its address lands on People (SURFACE_RETIRED); the real Pipeline is People's scope, clients/pipeline (0008)
   calendar: "real", // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
   shared: "demo", // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
@@ -68,7 +68,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // Billing is real on every workspace (billing-real.jsx). Memory is not built,
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
-  // instead (settings.jsx PaneSoon).
+  // instead (settings.jsx PaneSoon). ⌘K's Memory jump lands on Business, where
+  // what the receptionist knows lives (contracts ask-jump.ts).
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/activity": "real", // both ledgers, from GET /activity, owners only
