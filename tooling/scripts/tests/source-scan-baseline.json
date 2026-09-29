@@ -56,7 +56,7 @@
     "people/threads-people.test.mjs": 5,
     "platform/back-office.test.mjs": 23,
     "platform/delete-tenant.test.mjs": 3,
-    "playbooks/playbooks.test.mjs": 22,
+    "playbooks/playbooks.test.mjs": 20,
     "playbooks/visit-playbooks.test.mjs": 5,
     "public/business-page.test.mjs": 10,
     "receptionist/brain-v2.test.mjs": 8,

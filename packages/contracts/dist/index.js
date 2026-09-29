@@ -3262,6 +3262,12 @@ var SENDING_HOURS_WORDS = {
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
@@ -9271,12 +9277,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -9294,7 +9300,7 @@ var POLICY_CLASS_WORDS = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -20390,7 +20396,7 @@ var REACH_OUT_SHEET_WORDS = {
   opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: "Starts today. The first run waits on you. After that, a run gives you thirty minutes to stop it.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
   slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
@@ -20512,7 +20518,7 @@ function startWords(s) {
     case "sent":
       return {
         tone: "good",
-        text: `Planned ${n}. They go in each business's hours; you have thirty minutes to stop them.`
+        text: `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
       };
     case "held":
       switch (s.reason) {
@@ -29497,6 +29503,7 @@ export {
   PLAYBOOK_TOUCH_WINDOW_MS,
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_MS,
+  PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
@@ -29919,6 +29926,7 @@ export {
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
+  delayWords,
   deltaOf,
   describeNow,
   describeOpenings,

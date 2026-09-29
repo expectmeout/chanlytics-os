@@ -454,6 +454,7 @@ var BrainConfigSchema = z4.object({
   }).strip()
 }).strip();
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
+var plural = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -951,6 +952,12 @@ var SENDING_HOURS_WORDS = {
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 var LEAD_LIST_MAX = 500;
 var nullableText = (max) => z9.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema = z9.object({
@@ -1955,12 +1962,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -1978,7 +1985,7 @@ var POLICY_CLASS_WORDS = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema = z13.object({
@@ -2723,6 +2730,31 @@ var NOTE_SUGGEST_SCHEMA = {
   },
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
+};
+var REACH_OUT_SHEET_WORDS = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
@@ -8316,6 +8348,7 @@ var BrainConfigSchema2 = z42.object({
   }).strip()
 }).strip();
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
+var plural2 = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -8801,6 +8834,12 @@ var SENDING_HOURS_WORDS2 = {
 };
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS2;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * MIN_MS2;
+function delayWords2(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS2);
+  if (minutes < 60 || minutes % 60) return plural2(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural2(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS2 = delayWords2(PLAYBOOK_VETO_DELAY_MS2);
 var LEAD_LIST_MAX2 = 500;
 var nullableText2 = (max) => z92.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema2 = z92.object({
@@ -9805,12 +9844,12 @@ var POLICY_CLASS_WORDS2 = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS2} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS2} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -9828,7 +9867,7 @@ var POLICY_CLASS_WORDS2 = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS2} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema2 = z132.object({
@@ -10576,6 +10615,31 @@ var NOTE_SUGGEST_SCHEMA2 = {
   },
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
+};
+var REACH_OUT_SHEET_WORDS2 = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS2} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS2 = {
   exists: "This search has a reach-out already.",
@@ -12254,6 +12318,7 @@ var BrainConfigSchema3 = z43.object({
   }).strip()
 }).strip();
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
+var plural3 = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -12739,6 +12804,12 @@ var SENDING_HOURS_WORDS3 = {
 };
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * MIN_MS3;
+function delayWords3(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS3);
+  if (minutes < 60 || minutes % 60) return plural3(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural3(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS3 = delayWords3(PLAYBOOK_VETO_DELAY_MS3);
 var LEAD_LIST_MAX3 = 500;
 var nullableText3 = (max) => z93.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema3 = z93.object({
@@ -13743,12 +13814,12 @@ var POLICY_CLASS_WORDS3 = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS3} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS3} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -13766,7 +13837,7 @@ var POLICY_CLASS_WORDS3 = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS3} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema3 = z133.object({
@@ -14514,6 +14585,31 @@ var NOTE_SUGGEST_SCHEMA3 = {
   },
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
+};
+var REACH_OUT_SHEET_WORDS3 = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS3} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS3 = {
   exists: "This search has a reach-out already.",
@@ -15300,6 +15396,7 @@ function siteHost(url) {
   return host;
 }
 var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
+var plural22 = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
 var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -15845,6 +15942,12 @@ var SENDING_HOURS_WORDS22 = {
 };
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS22;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * MIN_MS22;
+function delayWords22(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS22);
+  if (minutes < 60 || minutes % 60) return plural22(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural22(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS22 = delayWords22(PLAYBOOK_VETO_DELAY_MS22);
 var LEAD_LIST_MAX22 = 500;
 var nullableText22 = (max) => z922.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema22 = z922.object({
@@ -16936,12 +17039,12 @@ var POLICY_CLASS_WORDS22 = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS22} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS22} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -16959,7 +17062,7 @@ var POLICY_CLASS_WORDS22 = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS22} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema22 = z1322.object({
@@ -18082,6 +18185,31 @@ var NOTE_SUGGEST_SCHEMA22 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+var REACH_OUT_SHEET_WORDS22 = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS22} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
+};
 var REACH_OUT_REFUSALS22 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -18749,6 +18877,7 @@ var BrainConfigSchema32 = z432.object({
   }).strip()
 }).strip();
 var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
+var plural32 = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
 var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -19234,6 +19363,12 @@ var SENDING_HOURS_WORDS32 = {
 };
 var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * MIN_MS32;
+function delayWords32(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS32);
+  if (minutes < 60 || minutes % 60) return plural32(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural32(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS32 = delayWords32(PLAYBOOK_VETO_DELAY_MS32);
 var LEAD_LIST_MAX32 = 500;
 var nullableText32 = (max) => z932.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema32 = z932.object({
@@ -20239,12 +20374,12 @@ var POLICY_CLASS_WORDS32 = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS32} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS32} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -20262,7 +20397,7 @@ var POLICY_CLASS_WORDS32 = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS32} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema32 = z1332.object({
@@ -21002,6 +21137,31 @@ var NOTE_SUGGEST_SCHEMA32 = {
   },
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
+};
+var REACH_OUT_SHEET_WORDS32 = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS32} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS32 = {
   exists: "This search has a reach-out already.",
@@ -22701,6 +22861,7 @@ var BrainConfigSchema4 = z44.object({
   }).strip()
 }).strip();
 var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
+var plural4 = (n2, one, many2 = `${one}s`) => `${n2} ${n2 === 1 ? one : many2}`;
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
 var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -23186,6 +23347,12 @@ var SENDING_HOURS_WORDS4 = {
 };
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS4;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * MIN_MS4;
+function delayWords4(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS4);
+  if (minutes < 60 || minutes % 60) return plural4(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural4(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS4 = delayWords4(PLAYBOOK_VETO_DELAY_MS4);
 var LEAD_LIST_MAX4 = 500;
 var nullableText4 = (max) => z94.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema4 = z94.object({
@@ -24190,12 +24357,12 @@ var POLICY_CLASS_WORDS4 = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS4} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS4} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -24213,7 +24380,7 @@ var POLICY_CLASS_WORDS4 = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS4} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var PolicyLimitsSchema4 = z134.object({
@@ -24953,6 +25120,31 @@ var NOTE_SUGGEST_SCHEMA4 = {
   },
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
+};
+var REACH_OUT_SHEET_WORDS4 = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS4} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS4 = {
   exists: "This search has a reach-out already.",

@@ -4,6 +4,7 @@
  * are ../policy.ts.
  */
 import type { SchemaSet } from "../../shared/schema-sets";
+import { PLAYBOOK_VETO_DELAY_WORDS } from "../../playbooks/playbook-triggers";
 import { z } from "zod";
 
 /* --------------------------------------------------------------- E3 policy */
@@ -42,12 +43,12 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing",
+    note: `the win-back and save-our-number playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing",
+    note: `the welcome and month's-offer playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
   },
   reviews: {
     name: "Google reviews",
@@ -65,7 +66,7 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends · its first run always waits for you; later runs send 30 minutes after they are made unless you stop them · never sends none",
+    note: `every email a reach-out sends · its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them · never sends none`,
   },
 };
 
