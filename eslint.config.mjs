@@ -81,7 +81,9 @@ const OUR_TS_RULES = { ...js.configs.recommended.rules, ...OURS };
  * plus switch-exhaustiveness-check, where a `default` counts as exhaustive (noImplicitReturns holds the rest), and
  * no-deprecated. Every rule is an error but those in HELD_TYPED, which had findings the day this landed: each is a
  * warning, held per file and rule by tooling/scripts/checks/lint.mjs (baselines/lint-warnings.json), and becomes an
- * error in the change that banks its last finding. It costs about a minute over the tree, once per lint run.
+ * error in the change that banks its last finding. It costs about a minute over the tree, once per lint run, and about
+ * 4 GB of heap (the dashboard's program alone is 2.8 GB, and every project's stays loaded), which is why the `lint` script
+ * in package.json raises Node's heap limit: at the default 2 GB the run dies out of memory on CI's runner.
  */
 const TYPED = { projectService: true, tsconfigRootDir: import.meta.dirname };
 const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? {}));
