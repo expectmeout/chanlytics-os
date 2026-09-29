@@ -50,8 +50,19 @@ jobs:
       # platform, the one check that proves Metro resolves everything the app imports from this workspace.
       - run: pnpm --filter @chanlytics/mobile typecheck
       - run: pnpm --filter @chanlytics/mobile lint
-      # Named check:doctor because `pnpm doctor` is pnpm's own command and shadows a script by that name.
+      # Named check:doctor because `pnpm doctor` is pnpm's own command and shadows a script by that name. Every doctor
+      # check fails the job but one: whether the packages are the versions the installed SDK expects, which Expo's
+      # own switch hands to the next step. Expo ships patch releases inside an SDK, and matching one changes the app's
+      # fingerprint: a new preview APK, and no update reaches the installed one until it is replaced. That is the phone
+      # app lane's to schedule, so drift warns here (docs/debt.md, the phone app's Expo packages).
       - run: pnpm --filter @chanlytics/mobile check:doctor
+        env:
+          EXPO_DOCTOR_SKIP_DEPENDENCY_VERSION_CHECK: "1"
+      - name: The Expo SDK's package versions, as a warning
+        run: >-
+          pnpm --filter @chanlytics/mobile exec expo install --check ||
+          echo "::warning title=Expo packages behind the SDK::The versions above are not the ones the installed Expo SDK
+          expects. Matching them builds a new preview APK; see docs/debt.md."
       - run: pnpm --filter @chanlytics/mobile export:check
         env:
           EXPO_PUBLIC_SITE_ORIGIN: https://example.com
