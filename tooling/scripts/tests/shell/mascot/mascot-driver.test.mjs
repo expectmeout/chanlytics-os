@@ -5,7 +5,9 @@
  * quiet alone and draws nothing it has already drawn, wakes when the pointer comes near its button, and gathers under
  * a press; any face looks at a pointer near it, never one across the page; at rest the mark is drawn in 2D, while the
  * tiles may fuse the page's liquid drawing -- asked for then, never at mount -- is copied into the face's own canvas
- * (its share given back at the end), and where it cannot draw, the 2D drawing stands in.
+ * (its share given back at the end), and where it cannot draw, the 2D drawing stands in. A face listens in one order
+ * (the tab, the screen, the size, the pointer, the theme, its button) and its unmount stops the loop, gives back its
+ * share, then lets each go in that order; a loop restarted as the tab comes back counts its first frame as no time.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -359,4 +361,91 @@ test("no 2D context, no driver", () => {
   const F = fakeEnv();
   assert.equal(mountCharacter({ getContext: () => null, clientWidth: 10, clientHeight: 10 }, { env: F.env }), null);
   assert.equal(mountCharacter({ clientWidth: 10, clientHeight: 10 }, { env: F.env }), null);
+});
+
+/** The env's calls in order, each listener's undo as "off <door>", and the button's listeners as "+<name>" and "-<name>". */
+function sayingEnv(F, button) {
+  const said = [];
+  const env = { ...F.env };
+  for (const [k, v] of Object.entries(F.env)) {
+    if (typeof v !== "function" || k === "dpr") continue;
+    env[k] = (...a) => {
+      said.push(k);
+      const r = v(...a);
+      return k.startsWith("on")
+        ? () => {
+            said.push(`off ${k}`);
+            r();
+          }
+        : r;
+    };
+  }
+  env.liquid = () => (said.push("liquid"), { draw: () => true, release: () => said.push("release") });
+  if (button) {
+    const add = button.addEventListener;
+    const remove = button.removeEventListener;
+    button.addEventListener = (n, fn) => (said.push(`+${n}`), add(n, fn));
+    button.removeEventListener = (n, fn) => (said.push(`-${n}`), remove(n, fn));
+  }
+  return { env, said };
+}
+
+test("a face reads the theme and the tab, then listens in order: the tab, the screen, the size, the pointer, the theme, its button; its unmount stops the loop, gives back its GPU share, then lets each go in that order", () => {
+  const button = fakeButton();
+  const C = fakeCanvas({ w: 30, h: 24, button });
+  const F = fakeEnv();
+  const { env, said } = sayingEnv(F, button);
+  const m = mountCharacter(C.canvas, { env });
+  assert.deepEqual(said.splice(0), [
+    "theme",
+    "tokens",
+    "hidden",
+    "onVisibility",
+    "onScreen",
+    "raf", // on screen at once: the loop starts
+    "onResize",
+    "onPointer",
+    "onTheme",
+    "+pointerdown",
+    "+pointerup",
+    "+pointercancel",
+    "+pointerleave",
+    "+focusin",
+    "+focusout",
+  ]);
+  m.set("listening");
+  F.run(0.5);
+  assert.ok(said.includes("liquid"), "the tiles may fuse: the GPU is asked");
+  said.splice(0);
+  m.destroy();
+  assert.deepEqual(said, [
+    "caf",
+    "release",
+    "off onVisibility",
+    "off onScreen",
+    "off onResize",
+    "off onPointer",
+    "off onTheme",
+    "-pointerdown",
+    "-pointerup",
+    "-pointercancel",
+    "-pointerleave",
+    "-focusin",
+    "-focusout",
+  ]);
+});
+
+test("the loop restarted as the tab comes back counts its first frame as no time passed", () => {
+  const C = fakeCanvas();
+  const F = fakeEnv();
+  const m = mountCharacter(C.canvas, { env: F.env });
+  F.run(0.5);
+  m.hear(1);
+  F.hide(true);
+  F.hide(false);
+  F.frame(F.env.now() + 10_000);
+  assert.equal(m.level(), 1, "ten seconds away is not a frame of silence");
+  F.run(0.1);
+  assert.ok(m.level() < 1);
+  m.destroy();
 });

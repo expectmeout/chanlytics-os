@@ -44,11 +44,6 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
-    "lines": 218,
-    "branches": 17,
-    "depth": 2
-  },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
     "lines": 173,
     "branches": 4,
