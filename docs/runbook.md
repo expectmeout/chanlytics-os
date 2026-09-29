@@ -262,11 +262,15 @@ protocol. It checks that every class in `classes.json` is drawn; that every sele
 drawn by an entry, each selector of a list alone and a press's with the presses forced; that every `var()` a kit rule
 reads moves every longhand it feeds when that token is planted on the element, and a longhand a page's rule keeps is
 named; and that a new primitive computes every longhand its source computes, on every element and pseudo-element,
-pressed or not, but those its entry excepts. It fails on faults planted in the page, which is its own proof, and it
-prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, and the twins. What it
-cannot see is in the header of `e2e/kit/kit-checks.ts`. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the
-classes in `corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against
-production the spec skips, and the nightly's skip ceiling does not count it.
+pressed or not, but those its entry excepts. In both looks and at both widths, a toast raised over an open sheet must
+stand clear of the sheet's foot. Under Glass, at both widths and in both themes, every control an entry draws must show
+the house's ring when a key focuses it, and every word an entry draws must read 4.5:1, a large one 3:1, on the pixels
+drawn under it (a control that cannot be used is not held). It fails on faults planted in the page, which is its own
+proof, and it prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, the twins,
+the controls it focused and each run's lowest ratio. What it cannot see is in the header of `e2e/kit/kit-checks.ts`.
+`tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in `corepack pnpm test`, where no browser runs:
+a kit class added without its entry is red there. Against production the spec skips, and the nightly's skip ceiling
+does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 
