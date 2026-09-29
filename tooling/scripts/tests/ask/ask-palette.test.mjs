@@ -2244,6 +2244,55 @@ test("a hold whose recogniser ends on its own asks the words heard, and the lift
   }
 });
 
+test("REGRESSION (G:0): closing Ask while it listens drops what it heard -- the recogniser's end asked it in a Line that was gone", async () => {
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.stopped = true;
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  // The field the words are for, focused as listening begins; closing the Line takes it off the page.
+  const field = { isConnected: true };
+  const was = globalThis.document.activeElement;
+  try {
+    const calls = ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    globalThis.document.activeElement = field;
+    byTestId(tree, "ask-talk").props.onPointerDown({ ...pressOf(), pointerId: 4, currentTarget: {} });
+    hears(recs[0], "who wrote today");
+    field.isConnected = false;
+    hears(recs[0], "who wrote today and");
+    assert.equal(recs[0].stopped, true, "a word after the close stops the recogniser");
+    recs[0].onend();
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, [], "nothing is asked in a Line that is gone");
+
+    // The Line still there: its end asks, as it always did.
+    field.isConnected = true;
+    typed(tree, "");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown({ ...pressOf(), pointerId: 5, currentTarget: {} });
+    hears(recs[1], "how did the week go");
+    recs[1].onend();
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["how did the week go"]);
+  } finally {
+    globalThis.document.activeElement = was;
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+  }
+});
+
 test("the phone's three listen to a press held a beat; a shorter press, or one that drags, does nothing (S11, S7)", async () => {
   const said = [];
   const talk = { start: () => said.push("start"), stop: () => said.push("stop") };
