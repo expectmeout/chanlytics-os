@@ -649,11 +649,6 @@
     "branches": 32,
     "depth": 3
   },
-  "apps/edge/api/cron/calls.ts::POST#1": {
-    "lines": 191,
-    "branches": 36,
-    "depth": 3
-  },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,
     "branches": 35,
