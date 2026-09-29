@@ -57,6 +57,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { pipelineHelpers } from "../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
+import { EVERY_EVENT, changesOf, toldFor } from "../_live-feed.mjs";
 
 const TZ = "America/New_York";
 const H = 3_600_000;
@@ -1819,35 +1820,20 @@ test("the peek's head and facts are the row's: who, the group and the service, w
   });
 });
 
-test("People repaints on a teammate's deal: the surface asks for the deals table, and the db client watches it", async () => {
+test("People repaints on a teammate's deal: the surface asks for the deals table, and the database tells the workspace of it", async () => {
   const { wantsRefresh } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   assert.equal(wantsRefresh(peopleOverride, "deals"), true);
   assert.equal(wantsRefresh(peopleOverride, "messages"), true, "the default trio still");
   assert.equal(wantsRefresh(peopleOverride, "calls"), false, "a live call's turns are not People's");
-  // The one subscription (packages/db realtime.ts) must carry the table, or a surface asking for it hears nothing.
-  const { subscribeMessagesInserts } = await import("../../../../packages/db/src/realtime.ts");
-  const watched = [];
-  const chan = {
-    on: (_kind, spec) => {
-      watched.push([spec.table, spec.event, spec.filter]);
-      return chan;
-    },
-    subscribe: () => chan,
-  };
-  const client = {
-    auth: { getSession: async () => ({ data: { session: null } }) },
-    realtime: { setAuth() {} },
-    channel: () => chan,
-    removeChannel: async () => {},
-  };
-  const off = subscribeMessagesInserts(client, () => {}, { tenantId: TID, onStatus: () => {} });
-  await new Promise((r) => setTimeout(r, 0));
+  // The live feed (packages/db realtime.ts) must be told of the table, or a surface asking for it hears nothing: the
+  // database tells every event on deals (00265), and a notice of one reaches the runner as the deals table's change.
+  assert.deepEqual(toldFor("deals"), EVERY_EVENT, "every deal event");
+  const heard = await changesOf({ event: "UPDATE", payload: { table: "deals", op: "UPDATE" } }, TID);
   assert.deepEqual(
-    watched.find(([table]) => table === "deals"),
-    ["deals", "*", `tenant_id=eq.${TID}`],
-    "every deal event, this workspace's only",
+    heard.map((c) => [c.table, c.event, c.row.tenant_id, wantsRefresh(peopleOverride, c.table, c)]),
+    [["deals", "UPDATE", TID, true]],
+    "this workspace's deal, as the deals table's change: People repaints",
   );
-  off();
 });
 
 /** A person as the peek reads them (contracts DealPerson over the People row), for the card the peek draws. */
