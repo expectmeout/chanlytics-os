@@ -8,17 +8,18 @@
  * the code with one compiler and the typecheck with another, and nothing said so. Under 6.0.3 three packages failed to
  * typecheck (45 errors, all from 6.0's new `types: []` default), which is how far apart the two had drifted.
  *
- * So the version is written once, in the catalog, at an exact version, and `catalogMode: strict` makes `pnpm add`
- * refuse a version the catalog does not pin. This module holds what is written; typescript-is-installed-once.test.mjs
- * holds what an install made of it. Why TypeScript 7 waits is written once, beside the Dependabot rule that
- * holds it back (.github/dependabot.yml).
+ * So the version is written once, in the catalog, at an exact version, and every package.json names it `catalog:`. A
+ * `pnpm add` that writes a version instead fails here. (`catalogMode: strict` held that at the command too until 29 Sep
+ * 2026, and broke every Dependabot update: repo/pnpm-settings.test.mjs says why.) This module holds what is written;
+ * typescript-is-installed-once.test.mjs holds what an install made of it. Why TypeScript 7 waits is written once,
+ * beside the Dependabot rule that holds it back (.github/dependabot.yml).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { catalogPins, setting, workspaceProjects } from "../_pnpm-workspace.mjs";
+import { catalogPins, workspaceProjects } from "../_pnpm-workspace.mjs";
 
 const TS = "typescript";
 const FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
@@ -61,8 +62,4 @@ test("the catalog pins TypeScript once, in the default catalog, at an exact vers
     'one `typescript:` in pnpm-workspace.yaml, under `catalog:` (what "catalog:" names), and in no named catalog',
   );
   assert.match(pins[0].version, EXACT, `the catalog's typescript is "${pins[0].version}"; pin a version, not a range`);
-});
-
-test("catalogMode is strict, so `pnpm add` cannot write a second version", () => {
-  assert.equal(setting("catalogMode"), "strict", "pnpm-workspace.yaml: catalogMode: strict");
 });

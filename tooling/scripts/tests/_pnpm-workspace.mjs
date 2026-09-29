@@ -60,6 +60,11 @@ export function catalogPins(dependency) {
   return pins;
 }
 
+/** A top-level block of `key: value` lines (`overrides:`, `patchedDependencies:`) as an object; {} when absent. */
+export function settingBlock(name) {
+  return Object.fromEntries(block(name).map(entry));
+}
+
 /** The workspace's projects, as repo-relative directories: the root, and each match of `packages:`. */
 export function workspaceProjects() {
   const projects = ["."];
