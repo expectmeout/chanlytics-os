@@ -44,11 +44,6 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
-    "lines": 218,
-    "branches": 17,
-    "depth": 2
-  },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
     "lines": 173,
     "branches": 4,
@@ -629,11 +624,6 @@
     "branches": 34,
     "depth": 4
   },
-  "apps/edge/api/admin/voice-provision.ts::POST#1": {
-    "lines": 202,
-    "branches": 43,
-    "depth": 2
-  },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
     "lines": 192,
     "branches": 47,
@@ -654,11 +644,6 @@
     "branches": 40,
     "depth": 3
   },
-  "apps/edge/api/stripe-webhook.ts::POST#1": {
-    "lines": 256,
-    "branches": 70,
-    "depth": 4
-  },
   "apps/edge/api/whatsapp.ts::POST#1": {
     "lines": 186,
     "branches": 54,
@@ -673,11 +658,6 @@
     "lines": 273,
     "branches": 1,
     "depth": 0
-  },
-  "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
-    "lines": 213,
-    "branches": 26,
-    "depth": 1
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
     "lines": 164,
