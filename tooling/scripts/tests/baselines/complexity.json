@@ -600,7 +600,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 257,
+    "lines": 250,
     "branches": 50,
     "depth": 1
   },

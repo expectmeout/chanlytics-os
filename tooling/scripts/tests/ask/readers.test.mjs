@@ -11,7 +11,14 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { callerName, describeNow, newReceptionistDefaults, personName, toCallVM } from "@chanlytics/contracts";
+import {
+  callerName,
+  describeNow,
+  newReceptionistDefaults,
+  personName,
+  toCallVM,
+  toPersonVM,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -1192,11 +1199,17 @@ const personTables = ({ threads = false } = {}) => ({
   tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/marisa " } } }],
   tenants: [],
 });
-/** A request for the person `id` names, over `tbls`, `faults` failing a read: people_list answers harbor's P1 alone. */
-const personCtx = (tbls, id, faults = {}) => ({
-  supabase: fakeDb(tbls, faults, {
-    people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []),
-  }),
+/**
+ * A request for the person `id` names, over `tbls`, `faults` failing a read: people_list answers harbor's P1 alone.
+ * `opts` are the fake's (maxRows: PostgREST's cap on every select).
+ */
+const personCtx = (tbls, id, faults = {}, opts = {}) => ({
+  supabase: fakeDb(
+    tbls,
+    faults,
+    { people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []) },
+    opts,
+  ),
   userId: USER,
   email: "ada@example.com",
   params: { id },
@@ -1384,6 +1397,81 @@ test("a config read that fails keeps the route's place in the error order: a per
       },
     );
   });
+});
+
+test("a person's page holds their newest 2,000 messages, as it asks: PostgREST answers a thousand rows to a select, so the reader pages them newest first, the id breaking a moment's ties, and one that arrives between the pages is held once; past 2,000 the oldest drop, and the read says it stopped", async () => {
+  // `n` messages across their two threads, two a minute, m0000 the oldest: a moment is shared, so only the id orders it.
+  const heavy = (n) => {
+    const tbls = personTables({ threads: true });
+    const first = Date.parse("2026-08-01T00:00:00Z");
+    tbls.messages = Array.from({ length: n }, (_, i) => {
+      const at = new Date(first + Math.floor(i / 2) * 60_000).toISOString();
+      return message(`m${String(i).padStart(4, "0")}`, i % 2 ? C2 : C1, A, { created_at: at, channel_ts: at });
+    });
+    return tbls;
+  };
+  const held = (p) => p.conversations.flatMap((c) => c.messages.map((m) => m.id)).sort();
+  const pages = (ctx) =>
+    selects(ctx, "messages").map((q) => [q.range, q.orders.map((o) => `${o.col}${o.desc ? " desc" : ""}`)]);
+  const NEWEST_FIRST = ["created_at desc", "id desc"];
+
+  // 1,500: every one, in two pages, where `.limit(2000)` was answered with the newest 1,000.
+  const some = heavy(1500);
+  const ctx = personCtx(some, P1, {}, { maxRows: 1000 });
+  const r = await kernel.load(turnIn(ctx), onePerson, { id: P1 });
+  assert.deepEqual(held(r.data.person), some.messages.map((m) => m.id).sort(), "all 1,500");
+  assert.deepEqual(pages(ctx), [
+    [[0, 999], NEWEST_FIRST],
+    [[1000, 1999], NEWEST_FIRST],
+  ]);
+  for (const c of r.data.person.conversations) {
+    const ids = c.messages.map((m) => m.id);
+    assert.deepEqual(ids, [...ids].sort(), "each thread's oldest first, as the page draws it");
+  }
+  const timeline = toPersonVM(r.data.person, "America/New_York", new Date(), USER).timeline.map((i) => i.id);
+  assert.ok(timeline.includes("m-m0000"), "the page's timeline reaches their first message");
+  const page = await personRoute.GET.run(req(`?workspace=${A}`), personCtx(some, P1, {}, { maxRows: 1000 }));
+  assert.deepEqual(held(page.person), held(r.data.person), "and GET contacts/:id answers the same");
+
+  // A message that arrives between the two pages moves the rest down a place, so the second opens with the first's
+  // last: the page holds it once, and the new one waits for the next read.
+  const moving = heavy(1500);
+  const before = moving.messages.map((m) => m.id).sort();
+  const live = personCtx(moving, P1, {}, { maxRows: 1000 });
+  const from = live.supabase.from;
+  let asked = 0;
+  live.supabase.from = (table) => {
+    if (table === "messages" && ++asked === 2) {
+      moving.messages.push(message("m-new", C1, A, { created_at: "2026-08-02T00:00:00Z" }));
+    }
+    return from(table);
+  };
+  const r2 = await kernel.load(turnIn(live), onePerson, { id: P1 });
+  assert.equal(selects(live, "messages").length, 2);
+  assert.deepEqual(held(r2.data.person), before, "each of the 1,500 once");
+
+  // 2,500: the newest 2,000, the oldest 500 left out, and one line that says the read stopped at its cap.
+  const many = heavy(2500);
+  const capped = personCtx(many, P1, {}, { maxRows: 1000 });
+  const { result, lines } = await logged("paged_read_capped", () => kernel.load(turnIn(capped), onePerson, { id: P1 }));
+  assert.deepEqual(
+    held(result.data.person),
+    many.messages
+      .slice(500)
+      .map((m) => m.id)
+      .sort(),
+    "the newest 2,000",
+  );
+  assert.deepEqual(pages(capped), [
+    [[0, 999], NEWEST_FIRST],
+    [[1000, 1999], NEWEST_FIRST],
+  ]);
+  assert.deepEqual(lines, [[JSON.stringify({ what: "person messages", cap: 2000 })]]);
+
+  // A person with a thread's worth: one page, as before.
+  const few = personCtx(heavy(40), P1, {}, { maxRows: 1000 });
+  await kernel.load(turnIn(few), onePerson, { id: P1 });
+  assert.deepEqual(pages(few), [[[0, 999], NEWEST_FIRST]]);
 });
 
 /* ------------------------------------------------------------------------ the reports (PR 1.5) */
