@@ -55,6 +55,7 @@ import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
+import type { PAGE_VITALS } from "../shell/vitals";
 import type { DMARC_STATES, DOMAIN_HOLDS, DOMAIN_RESUMERS, SENDING_DOMAIN_STATES } from "../email/sending-domains";
 import type {
   LEAD_CLOSED_REASONS,
@@ -203,4 +204,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
   // Who lifts a reputation hold (00188, D16).
   Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
+  // Field data (00255): the five numbers a page load reports.
+  Holds<Exactly<Of<typeof PAGE_VITALS>, SchemaSet<"page_vitals.metric">>>,
 ];

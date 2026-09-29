@@ -184,6 +184,7 @@ export const ROUTE_KEYS = [
   "POST templates/draft",
   "POST templates/starter",
   "POST templates/sync",
+  "POST vitals",
   "POST workspaces/create",
   "PUT business-record",
   "PUT contacts/[id]/consent",

@@ -172,6 +172,8 @@ export const RATE = {
   export: { limit: 10, windowMs: MIN_MS, noun: "exports" },
   /** A page remembering its view: a sort, a tab. One small write per click at most. */
   view_set: { limit: 60, windowMs: MIN_MS, noun: "view changes" },
+  /** A page load's timings (vitals), sent each time a tab is put away: sixty a minute is a loop, not a person. */
+  vitals: { limit: 60, windowMs: MIN_MS, noun: "page timings" },
   /** A lead search: a provider run and a judge on the platform's account (the door reserves the month; this stops a loop). */
   lead_search: { limit: 10, windowMs: HOUR_MS, noun: "lead searches" },
   /** An answer to the question after 25, or a Stop. */

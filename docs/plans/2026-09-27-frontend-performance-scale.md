@@ -70,7 +70,13 @@ use, and no whole-shell re-render or whole-surface refetch for an event that con
 - **One surface's data, one surface's re-render.** A per-surface data signal replaces the global notice
   (above); message events go to the surfaces that draw messages. Each surface's freshness is a product
   rule, so each move says what it drops.
-- **Field data.** p75 LCP and INP from the browser to the logs, so the budget is judged against what people see.
+- **Field data: built, in the database rather than the logs.** Each page load's LCP, INP, CLS, FCP and TTFB, from
+  Next's own web-vitals hook, sent as one beacon when the page is hidden and kept under the browser's own ids
+  (`page_vitals`, 00255); the back office shows the 75th percentile of each, over every page and over each page a load
+  landed on. The logs were the first idea, and they cannot hold a percentile: Vercel keeps runtime logs for an hour to
+  a few days, by plan, unless a paid add-on or a drain keeps them longer, and nothing here computes a p75 from a log
+  line. Speed Insights would, as a paid add-on with a new dependency; the table costs a row per metric per load, kept
+  thirty days and read within a fixed bound.
 
 ### 36 · Scalability
 

@@ -52,6 +52,7 @@ function fakes(over = {}) {
     remaining: 0,
     state: "sending",
     tally: { sent: 2, held: 0 },
+    wireUnavailable: null,
     now: () => NOW,
     fail: undefined,
     startSending: true,
@@ -256,6 +257,34 @@ test("a batch whose prior sends could not be read is left queued as well: 'could
   });
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+});
+
+test("a wire that could not be BOUND claims nobody: the batch waits whole, still queued, and nobody is told to reconnect a number that may well be connected", async () => {
+  // The workspace's credentials could not be READ (Vault, the database). That
+  // is not a number that is absent: nobody knows. A claim settles only to sent
+  // or skipped (00182), never back to queued, so the question is asked before
+  // anyone is claimed, and the whole batch is left for the next tick the way a
+  // batch whose people could not be read is.
+  for (const state of ["scheduled", "sending"]) {
+    const { ports, log, ops } = fakes({
+      broadcast: broadcast({ state }),
+      wireUnavailable: "vault unavailable",
+      remaining: 2,
+      template: new Error("must not be read"),
+    });
+    await sendBroadcastBatch(ports, cmd());
+    assert.deepEqual(ops(), ["scheduleNext"], `${state}: nobody claimed, nothing failed, nobody told`);
+    assert.deepEqual(log[0], ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+  }
+  // A number that IS absent is the door's to answer, as it always was (the test below).
+  const absent = fakes({
+    wireUnavailable: null,
+    deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: null },
+    remaining: 1,
+  });
+  await sendBroadcastBatch(absent.ports, cmd());
+  assert.deepEqual(absent.ops(), ["startSending", "mark", "deliver", "mark", "fail", "alert"]);
+  assert.match(absent.log.at(-1)[1].body, /Reconnect the number/);
 });
 
 test("a wire that is down stops the run at the first person it cannot reach, says why, and burns nobody else as refused", async () => {

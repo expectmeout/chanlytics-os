@@ -16,7 +16,57 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
-import type { Sender } from "./deliver";
+import type { Channel, Delivery, Sender, Wire } from "./deliver";
+
+/**
+ * What a read of a workspace's credentials came back as, from wherever they
+ * are kept (the edge's Vault, for WhatsApp). Three answers, because two of
+ * them used to be one: `present` is the pair; `absent` is a channel that
+ * carries none -- not connected, refused at the door and said to the owner;
+ * `unavailable` is a read that FAILED (Vault, the database) whose truth nobody
+ * has. The number may well be connected, so it is neither a refusal nor "not
+ * connected": a send that meets it waits (WireUnavailable) rather than fail
+ * for good and send the owner to reconnect a number that works.
+ */
+export type CredentialsRead<C> =
+  { outcome: "present"; credentials: C } | { outcome: "absent" } | { outcome: "unavailable"; error: string };
+
+/**
+ * A wire that could not be BOUND this run: the workspace's credentials could
+ * not be read (CredentialsRead unavailable). A plain object rather than a
+ * class, because the value is built on the edge and read inside core's dist
+ * and jobs' bundle of it, and `instanceof` does not cross a bundle.
+ */
+export interface WireUnavailable {
+  unavailable: true;
+  /** The read's own words, for the log and the pager; an owner meets them only if every wait is spent (sendQueued). */
+  error: string;
+}
+export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
+export function isWireUnavailable(w: unknown): w is WireUnavailable {
+  return typeof w === "object" && w !== null && "unavailable" in w && w.unavailable === true;
+}
+
+/**
+ * The door could not be opened: this channel's wire could not be bound
+ * (Wire's WireUnavailable). Thrown before anything is written -- a queued row
+ * stays queued, no event is emitted -- as every read that fails at the door
+ * throws: "we could not check" is not "not connected". A caller that speaks to
+ * a person tries again later (sendQueued, sendBroadcastBatch); deliverSafely
+ * says it as `wire_unreadable`. Told apart by name, not by class, for the same
+ * reason WireUnavailable is an object.
+ */
+export class WireUnavailableError extends Error {
+  readonly channel: Channel;
+  constructor(channel: Channel, error: string) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+}
+export function isWireUnavailableError(e: unknown): e is WireUnavailableError {
+  return e instanceof Error && e.name === "WireUnavailableError";
+}
 
 /**
  * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
@@ -28,6 +78,12 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
+}
+
+/** WhatsApp's wire from a credentials READ: the sender, none to refuse with, or a wire that could not be bound. */
+export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | WireUnavailable {
+  if (read.outcome === "unavailable") return wireUnavailable(read.error);
+  return whatsappSender(read.outcome === "present" ? read.credentials : null);
 }
 
 /**
@@ -94,4 +150,30 @@ function ownRouteOf(
   const route = owns.find((r) => r.as.address === from);
   if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
+}
+
+/** What the wire said, or why there was none to ask. */
+type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
+
+/**
+ * The words on this workspace's wire for the channel, or why there is none (deliver's last step, once the send may
+ * go). A wire that could not be BOUND (its credentials could not be read) throws before anything is written: asked only
+ * of words that may go, so a refusal is still recorded during an outage, and the row stays queued for the caller's next
+ * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by an own domain (G15); any other send
+ * never carries the twin.
+ */
+export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Promise<WireResult> {
+  const send = wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
+  if (send === undefined)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+    ...reply,
+  });
 }

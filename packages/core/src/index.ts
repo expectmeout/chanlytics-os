@@ -3,8 +3,16 @@
  * export * of a module (repo/contracts-barrels.test.mjs holds every package's).
  */
 export { deliver, templatePurpose, deliverSafely } from "./deliver";
-export { whatsappSender, emailSender } from "./wire-senders";
-export type { EmailRoute } from "./wire-senders";
+export {
+  whatsappSender,
+  whatsappWire,
+  emailSender,
+  wireUnavailable,
+  isWireUnavailable,
+  isWireUnavailableError,
+  WireUnavailableError,
+} from "./wire-senders";
+export type { EmailRoute, CredentialsRead, WireUnavailable } from "./wire-senders";
 export type {
   DeliveryRefusal,
   Db,
