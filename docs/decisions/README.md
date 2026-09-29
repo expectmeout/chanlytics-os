@@ -27,6 +27,7 @@ once it is built: it is the record of why the code has that shape.
 | [0020](0020-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                                                 |
 | [0021](0021-people-are-paged-by-a-moment-the-database-keeps.md) | People are paged by a moment the database keeps            | Accepted by Ruben, 28 Sep 2026. Decided; step 1, the kept moments, built (00259); steps 2 to 5 to come                                                                                      |
 | [0022](0022-the-wire-says-snake-case.md)                        | The wire says snake_case                                   | Proposed (the naming review's D1), taken with Road to Ten's Phase 1; Ruben's confirmation owed. Step 1 built with it: the test, its bank, PUT policies' body                                |
+| [0023](0023-how-the-packages-ship.md)                           | How the packages ship                                      | Decided 29 Sep 2026, built in part: step 1, third-party code stays an import; the workspace's packages by relative path, and the committed dist, to come                                    |
 
 Open pull request #1039, the pricing note, is written as 0011, which the bearer token has held since #1149: it
 takes the next free number when it lands. A number never changes once it is on `main`.

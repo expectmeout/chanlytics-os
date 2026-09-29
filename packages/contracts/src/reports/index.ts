@@ -58,7 +58,7 @@ export type {
   ReachOutFunnelRow,
   ReachOutAngleRow,
   ReachOutDomainRow,
-  ReachOutSourceRow,
+  ReachOutSourceLine,
   ReachOutReportVM,
   ReachOutDayNumbers,
 } from "./reach-out-report";

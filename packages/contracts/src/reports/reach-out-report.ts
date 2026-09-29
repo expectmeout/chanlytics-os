@@ -96,7 +96,7 @@ export interface ReachOutDomainRow {
 }
 
 /** A line of the sources table: a reach-out, then each of its steps on its own line. */
-export interface ReachOutSourceRow {
+export interface ReachOutSourceLine {
   id: string;
   kind: "chain" | "step";
   name: string;
@@ -125,7 +125,7 @@ export interface ReachOutReportVM {
   domains: ReachOutDomainRow[];
   points: Array<{ day: string; label: string; short: string; written: number }>;
   table: { columns: string[]; rows: Array<Array<string | number>> };
-  sources: ReachOutSourceRow[];
+  sources: ReachOutSourceLine[];
   lines: { funnel: string; angles: string; domains: string; written: string; empty: string };
 }
 
@@ -203,7 +203,7 @@ function domainsOf(dto: ReachOutReportDto, nowMs: number): ReachOutDomainRow[] {
 /** A count and its share of what was written: "12% (3)". */
 const shareOf = (n: number, of: number): string => (of ? `${pct(n, of)}% (${n})` : String(n));
 
-function chainRowOf(c: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutSourceRow {
+function chainLineOf(c: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutSourceLine {
   const sum = (k: keyof ReachOutReportCounts) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum("written");
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
@@ -232,7 +232,7 @@ function chainRowOf(c: ReachOutReportChainDto, nowMs: number, tz: string): Reach
   };
 }
 
-function stepRowOf(root: string, s: ReachOutReportStepDto): ReachOutSourceRow {
+function stepLineOf(root: string, s: ReachOutReportStepDto): ReachOutSourceLine {
   const name = `${s.n + 1} · ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
   if (s.hand)
     return {
@@ -323,10 +323,10 @@ export function toReachOutReportVM(raw: ReachOutReportDto, nowMs: number = Date.
     short: String(dayDate(d.day).getDate()),
     written: d.written,
   }));
-  const sources: ReachOutSourceRow[] = [];
+  const sources: ReachOutSourceLine[] = [];
   for (const c of dto.chains) {
-    sources.push(chainRowOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepRowOf(c.root_id, s));
+    sources.push(chainLineOf(c, nowMs, dto.timezone));
+    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
   }
   return {
     present: dto.has_reach_out,

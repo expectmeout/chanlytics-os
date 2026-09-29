@@ -53,6 +53,7 @@ source-text reads in tests          821
 lint warnings                       321   in 62 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      982   the shell included
 workspace route CSS, KB gzipped     126
+trees the lint's limits hold         38   14 of them with max-params waiting
 ```
 
 <!-- measured:end -->

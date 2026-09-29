@@ -72,7 +72,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 A new table is plural snake_case; a foreign key is named for its table; a new function is
 `<domain>_<verb>[_<object>]` (`lead_set_stage`, `reach_out_claim`); a trigger's function is named for its table and
 what it does (`messages_guard`); every name is under 63 bytes, where Postgres truncates. An applied name is never
-renamed, so today's exceptions stay: singular tables (`tenant_config`, `waitlist`, `lead_platform`, `sweep_status`),
+renamed, so today's exceptions stay: singular tables (`tenant_config`, `waitlist`, `lead_platform`, `sweep_status`, and
+`erasure_keying`, added by 00263 the day after this rule was written: one row that says whether the erased digests
+have been re-keyed, applied in production, and a table is never renamed),
 functions that start with their verb (`create_person`, `set_contact_consent`, the `trigger_*_sweep` clocks), and
 `playbooks.list_id`, which references `segments`. `database/names.db.test.mjs` (owed) reads the catalog and holds
 today's exceptions by name; `database/migrations.test.mjs` holds the file names.

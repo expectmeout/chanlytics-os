@@ -22691,7 +22691,7 @@ function domainsOf(dto, nowMs) {
   }));
 }
 var shareOf = (n, of) => of ? `${pct(n, of)}% (${n})` : String(n);
-function chainRowOf(c, nowMs, tz) {
+function chainLineOf(c, nowMs, tz) {
   const sum = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum("written");
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
@@ -22717,7 +22717,7 @@ function chainRowOf(c, nowMs, tz) {
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
 }
-function stepRowOf(root, s) {
+function stepLineOf(root, s) {
   const name = `${s.n + 1} \xB7 ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
   if (s.hand)
     return {
@@ -22798,8 +22798,8 @@ function toReachOutReportVM(raw, nowMs = Date.now()) {
   }));
   const sources = [];
   for (const c of dto.chains) {
-    sources.push(chainRowOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepRowOf(c.root_id, s));
+    sources.push(chainLineOf(c, nowMs, dto.timezone));
+    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
   }
   return {
     present: dto.has_reach_out,
