@@ -36,11 +36,12 @@ export async function POST(request: Request): Promise<Response> {
 
   let body: { condition?: unknown; detail?: unknown } = {};
   try {
-    body = JSON.parse(await request.text());
+    const parsed: unknown = JSON.parse(await request.text());
+    if (typeof parsed === "object" && parsed !== null) body = parsed;
   } catch {
     /* validated below */
   }
-  const condition = body?.condition;
+  const condition = body.condition;
   if (!isCondition(condition))
     return refuse(400, "bad_request", `condition is one of ${Object.keys(OUTSIDE_CONDITIONS).join(", ")}`);
   const detail = typeof body.detail === "string" ? body.detail.trim().slice(0, DETAIL_MAX) : "";
