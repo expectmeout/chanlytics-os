@@ -346,6 +346,7 @@ var BookingRulesSchema = z3.object({
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E164.test(s);
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z3.object({
   address: z3.string().max(300).optional(),
@@ -3397,7 +3398,6 @@ async function fetchMediaBytes(cfg, providerMediaId) {
 // src/voice/voice-retell.ts
 import crypto2 from "crypto";
 var API = "https://api.retellai.com";
-var E1642 = /^\+[1-9]\d{6,14}$/;
 function plainObject(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
 }
@@ -3445,9 +3445,9 @@ function normalizeCall(c) {
     agentId: c.agent_id ?? null,
     direction: c.direction === "outbound" ? "outbound" : "inbound",
     callType: c.call_type ?? null,
-    fromE164: from && E1642.test(from) ? from : null,
+    fromE164: isE164(from) ? from : null,
     fromRaw: from,
-    toE164: c.to_number && E1642.test(c.to_number) ? c.to_number : null,
+    toE164: isE164(c.to_number) ? c.to_number : null,
     status: toStatus(c.call_status),
     startedAtIso: c.start_timestamp ? new Date(c.start_timestamp).toISOString() : null,
     endedAtIso: c.end_timestamp ? new Date(c.end_timestamp).toISOString() : null,
@@ -4130,7 +4130,6 @@ function sipPassword(random) {
 function isValidSipPassword(p) {
   return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
 }
-var isE164 = (s) => typeof s === "string" && E164.test(s);
 var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
 
 // src/lines/lines-twilio.ts
@@ -7218,7 +7217,6 @@ export {
   importPhoneNumber,
   isAreaCode,
   isBrandNotReady,
-  isE164,
   isEmailRequest,
   isValidSipPassword,
   keywordsFor,

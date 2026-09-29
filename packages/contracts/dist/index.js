@@ -621,6 +621,7 @@ var BookingRulesSchema = z3.object({
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E164.test(s);
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z3.object({
   address: z3.string().max(300).optional(),
@@ -30094,6 +30095,7 @@ export {
   isDealSheetMode,
   isDealStage,
   isDraftWhy,
+  isE164,
   isForwardingMode,
   isFreeMail,
   isHeldDraft,

@@ -49,6 +49,7 @@ export {
   NoteSchema,
   BookingRulesSchema,
   E164,
+  isE164,
   INSTRUCTIONS_MAX,
   BusinessProfileSchema,
 } from "./workspace-config/business-profile";

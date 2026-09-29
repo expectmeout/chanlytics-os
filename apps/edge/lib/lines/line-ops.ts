@@ -19,9 +19,10 @@
  * reaches the vault.
  */
 import type { Database } from "../packages/db.js";
-import { isAreaCode, isE164, LINE_COSTS, type LineProviderName } from "../packages/channels.js";
+import { isAreaCode, LINE_COSTS, type LineProviderName } from "../packages/channels.js";
 import {
   formatPhoneDisplay,
+  isE164,
   whyCannotSpend,
   type SpendWords,
   lineRetryRefusal,
