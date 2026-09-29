@@ -16,14 +16,13 @@ import { signEdgeToken } from "@chanlytics/channels";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
-// Each test file is its own process: this is the whole environment. The secret verifies the tokens below; nothing
-// else a door could reach a provider with is set.
+// Each test file is its own process: this is the whole environment. The secret verifies the tokens below. Each key a
+// door asks for before it reads its body is set to a value that opens no account (a door that answers 503 for a missing
+// key would never reach the body, and the test would pass on a door that still throws); a fetch that refuses, below,
+// keeps anything a key could reach in this process.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+for (const k of ["VERCEL_ENV", "DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 for (const k of [
-  "VERCEL_ENV",
-  "DIAG_KEY",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
   "ANTHROPIC_API_KEY",
   "RETELL_API_KEY",
   "RETELL_FN_SECRET",
@@ -35,7 +34,9 @@ for (const k of [
   "META_APP_SECRET",
   "META_APP_ID",
 ])
-  delete process.env[k];
+  process.env[k] = "not-a-real-credential";
+process.env.LEAD_TO = "owner@example.com";
+process.env.LEAD_FROM = "hello@example.com";
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
   throw new Error(`no network in this test: ${String(url)}`);
@@ -100,7 +101,10 @@ for (const name of DOORS) {
     );
     const token = { "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1" }) };
     const notJson = await knock(door, aud, "not json", token);
-    assert.notEqual(notJson[0], 500, `${name}: a body that is not JSON is the door's own answer: ${notJson[1]}`);
+    assert.ok(
+      notJson[0] < 500,
+      `${name}: a body that is not JSON is the door's own answer, not a fault: ${notJson[1]}`,
+    );
     for (const raw of NOT_OBJECTS) {
       assert.deepEqual(await knock(door, aud, raw, token), notJson, `${name}, ${raw}: the same answer`);
     }

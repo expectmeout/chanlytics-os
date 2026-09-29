@@ -40,6 +40,7 @@ export async function POST(request: Request): Promise<Response> {
     components?: unknown;
     body?: unknown;
     examples?: unknown;
+    labels?: unknown;
   }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -53,8 +54,8 @@ export async function POST(request: Request): Promise<Response> {
   const text = typeof body.body === "string" ? body.body : null;
   const examples = Array.isArray(body.examples) ? (body.examples as unknown[]).map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
-  const labels = Array.isArray((body as { labels?: unknown })?.labels)
-    ? (body as { labels: unknown[] }).labels.map((l) =>
+  const labels = Array.isArray(body.labels)
+    ? body.labels.map((l: unknown) =>
         String(l ?? "")
           .trim()
           .slice(0, 40),
