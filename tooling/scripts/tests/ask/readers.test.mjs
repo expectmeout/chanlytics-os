@@ -388,7 +388,7 @@ test("metrics: the numbers behind Today as GET metrics answers them, for the day
   });
 });
 
-test("conversations: the Inbox as GET conversations answers it -- the named workspace's newest hundred with their messages, paged past PostgREST's thousand rows, or the ids handed in -- each a thread, named as the Inbox row names it", async () => {
+test("conversations: the Inbox as GET conversations answers it -- the named workspace's newest hundred with each one's newest messages, past PostgREST's thousand rows in one read, or the ids handed in -- each a thread, named as the Inbox row names it", async () => {
   // reads-routes.test.mjs, "the Inbox read answers the workspace the tab named".
   const two = {
     conversations: [
@@ -429,14 +429,13 @@ test("conversations: the Inbox as GET conversations answers it -- the named work
     "the newest hundred, in one read",
   );
   assert.deepEqual(
-    selects(ctx, "messages").map((q) => q.range),
-    [
-      [0, 999],
-      [1000, 1999],
-      [2000, 2999],
-    ],
-    "the messages a page at a time, until a page comes back short",
+    ctx.supabase.seen
+      .filter((q) => q.rpc === "newest_messages")
+      .map((q) => ({ ...q.args, p_threads: q.args.p_threads.length })),
+    [{ p_tenant_id: A, p_threads: 30, p_each: 100, p_most: 4000 }],
+    "the messages in one read (00258): each thread's newest hundred, four thousand in all",
   );
+  assert.equal(selects(ctx, "messages").length, 0, "never the table a page at a time");
   assert.deepEqual(
     newest.rows.map((r) => r.id),
     newest.data.conversations.map((c) => c.id),
@@ -730,7 +729,11 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     ],
     "conversations twice: the newest hundred, then the missing ids",
   );
-  assert.equal(selects(ctx, "messages").length, 2, "the messages a page per read");
+  assert.equal(
+    ctx.supabase.seen.filter((q) => q.rpc === "newest_messages").length,
+    2,
+    "the messages in one read for each",
+  );
   assert.equal(selects(ctx, "escalations").length, 1);
   assert.deepEqual(
     r.rows.map((x) => x.id),
