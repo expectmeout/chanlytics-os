@@ -18,7 +18,7 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `person` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `person` | string (uuid) | no |  |
 | `kind` | string | no | at most 60 characters; matches `^[a-z_.]+$` |
 | `day` | string | no | matches `^\d{4}-\d{2}-\d{2}$` |
 | `cursor` | string | no | at most 120 characters; matches `^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z\|[+-][\d:]+)?\\|[de]-[\w-]+$` |
@@ -29,13 +29,13 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 
 Writes; for a member of the workspace the request names, viewer or above; counts against the `ask` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/route.ts`).
 
 ### `POST /api/v1/ask/messages/[id]/proposals/[pid]`
 
 Writes; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts`).
 
 ### `GET /api/v1/ask/openings`
 
@@ -50,19 +50,19 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/threads/route.ts`).
 
 ### `GET /api/v1/ask/threads/[id]`
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/threads/[id]/route.ts`).
 
 ### `DELETE /api/v1/ask/threads/[id]`
 
 Writes; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/threads/[id]/route.ts`).
 
 ### `POST /api/v1/ask/warm`
 
@@ -84,7 +84,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/billing/route.ts`).
 
 ### `POST /api/v1/billing/checkout`
 
@@ -98,31 +98,31 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 Reads; for a member of the workspace the request names, owner or above; counts against the `billing_read` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/billing/invoices/route.ts`).
 
 ### `POST /api/v1/billing/portal`
 
 Writes; for a member of the workspace the request names, owner or above; counts against the `billing` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/billing/portal/route.ts`).
 
 ### `POST /api/v1/billing/resume`
 
 Writes; for a member of the workspace the request names, owner or above; counts against the `billing` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/billing/resume/route.ts`).
 
 ### `POST /api/v1/billing/start-now`
 
 Writes; for a member of the workspace the request names, owner or above; counts against the `billing` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/billing/start-now/route.ts`).
 
 ### `POST /api/v1/billing/sync`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `billing` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/billing/sync/route.ts`).
 
 ## broadcasts
 
@@ -130,37 +130,37 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/broadcasts/route.ts`).
 
 ### `POST /api/v1/broadcasts`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `broadcast` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/broadcasts/route.ts`).
 
 ### `GET /api/v1/broadcasts/[id]`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/broadcasts/[id]/route.ts`).
 
 ### `POST /api/v1/broadcasts/[id]/approve`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `broadcast` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts`).
 
 ### `POST /api/v1/broadcasts/[id]/cancel`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `broadcast` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts`).
 
 ### `POST /api/v1/broadcasts/[id]/recheck`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/broadcasts/[id]/recheck/route.ts`).
 
 ## business-record
 
@@ -168,13 +168,13 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/business-record/route.ts`).
 
 ### `PUT /api/v1/business-record`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `business_record` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/business-record/route.ts`).
 
 ## calendar
 
@@ -192,7 +192,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/preview/route.ts`).
 
 ## calls
 
@@ -209,25 +209,25 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `call_control` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calls/[id]/end/route.ts`).
 
 ### `GET /api/v1/calls/[id]/export`
 
 Reads; for a member of the workspace the request names; counts against the `export` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/calls/[id]/export/route.ts`).
 
 ### `POST /api/v1/calls/[id]/hand-over`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `call_control` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calls/[id]/hand-over/route.ts`).
 
 ### `GET /api/v1/calls/[id]/recording`
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/calls/[id]/recording/route.ts`).
 
 ### `POST /api/v1/calls/[id]/whisper`
 
@@ -253,7 +253,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/capabilities/[kind]/route.ts`).
 
 ## channels
 
@@ -261,19 +261,19 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/route.ts`).
 
 ### `POST /api/v1/channels/whatsapp/connect`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts`).
 
 ### `GET /api/v1/channels/whatsapp/signup`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts`).
 
 ## consent
 
@@ -281,7 +281,7 @@ Takes no query but the workspace.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/consent/qr/route.ts`).
 
 ## contacts
 
@@ -298,19 +298,19 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `person_create` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/contacts/route.ts`).
 
 ### `GET /api/v1/contacts/[id]`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/contacts/[id]/route.ts`).
 
 ### `DELETE /api/v1/contacts/[id]`
 
 Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/contacts/[id]/route.ts`).
 
 ### `PUT /api/v1/contacts/[id]/consent`
 
@@ -321,7 +321,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `consent` | one of `"unknown"`, `"opted_in"`, `"opted_out"` | yes |  |
 | `source` | string | no |  |
 | `note` | string | no |  |
-| `message_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `message_id` | string (uuid) | no |  |
 
 ### `POST /api/v1/contacts/[id]/deal`
 
@@ -330,14 +330,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `stage` | one of `"proposed"`, `"won"`, `"lost"`, `"ended"` | yes |  |
-| `deal_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `deal_id` | string (uuid) | no |  |
 | `version` | integer | no | ≥ 1; ≤ 9007199254740991 |
 | `service` | string | no | at least 1 characters; at most 80 characters |
 | `when` | string | no |  |
 | `amount_cents` | integer | no | ≥ 0; ≤ 1000000000 |
 | `per` | one of `"once"`, `"month"`, `"year"` | no |  |
 | `note` | string | no | at most 200 characters |
-| `message_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `message_id` | string (uuid) | no |  |
 | `form_note` | string | no | at least 1 characters; at most 200 characters |
 | `proposal_url` | string | no | at most 600 characters |
 | `valid_until` | string or null | no |  |
@@ -364,7 +364,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `consent` | one of `"unknown"`, `"opted_in"`, `"opted_out"` | yes |  |
 | `source` | string | no |  |
 | `note` | string | no |  |
-| `message_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `message_id` | string (uuid) | no |  |
 
 ### `POST /api/v1/contacts/[id]/notes`
 
@@ -375,7 +375,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `body` | string | yes | at least 1 characters; at most 600 characters |
 | `for_user_id` | string (uuid) or null | no |  |
 | `team_only` | boolean | no |  |
-| `note_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `note_id` | string (uuid) | no |  |
 | `version` | integer | no | ≥ 1; ≤ 9007199254740991 |
 | `due_on` | string or null | no |  |
 | `deal_id` | string (uuid) or null | no |  |
@@ -387,7 +387,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `note_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `note_id` | string (uuid) | yes |  |
 | `keep` | boolean | yes |  |
 | `body` | string | no | at least 1 characters; at most 600 characters |
 | `team_only` | boolean | no |  |
@@ -398,7 +398,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `note_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `note_id` | string (uuid) | yes |  |
 | `done` | boolean | no |  |
 | `version` | integer | no | ≥ 1; ≤ 9007199254740991 |
 
@@ -408,7 +408,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `note_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `note_id` | string (uuid) | yes |  |
 
 ### `PUT /api/v1/contacts/[id]/receptionist`
 
@@ -443,7 +443,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `import_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `import_id` | string (uuid) | yes |  |
 | `rows` | array of object | yes | at least 1; at most 50 |
 
 ### `PUT /api/v1/contacts/marketing-consent`
@@ -497,19 +497,19 @@ Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/archive/route.ts`).
 
 ### `GET /api/v1/conversations/[id]/export`
 
 Reads; for a member of the workspace the request names; counts against the `export` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/export/route.ts`).
 
 ### `POST /api/v1/conversations/[id]/hand-back`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/hand-back/route.ts`).
 
 ### `POST /api/v1/conversations/[id]/reply`
 
@@ -533,13 +533,13 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/take-over/route.ts`).
 
 ### `POST /api/v1/conversations/[id]/wake`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/wake/route.ts`).
 
 ## escalations
 
@@ -555,7 +555,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/escalations/[id]/resolve/route.ts`).
 
 ## export
 
@@ -563,7 +563,7 @@ Takes no body.
 
 Reads; for a member of the workspace the request names, owner or above; counts against the `export` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/export/route.ts`).
 
 ## google
 
@@ -571,73 +571,73 @@ Takes no query but the workspace.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/google/route.ts`).
 
 ### `GET /api/v1/google/callback`
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/google/callback/route.ts`).
 
 ### `GET /api/v1/google/connect`
 
 Reads; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/google/connect/route.ts`).
 
 ### `DELETE /api/v1/google/connection`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/connection/route.ts`).
 
 ### `POST /api/v1/google/link`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/link/route.ts`).
 
 ### `DELETE /api/v1/google/link`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/link/route.ts`).
 
 ### `GET /api/v1/google/locations`
 
 Reads; for a member of the workspace the request names, partner or above; counts against the `google_search` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/google/locations/route.ts`).
 
 ### `POST /api/v1/google/locations`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_link` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/locations/route.ts`).
 
 ### `POST /api/v1/google/refresh`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `google_refresh` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/refresh/route.ts`).
 
 ### `POST /api/v1/google/reviews/[id]/draft`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `google_draft` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts`).
 
 ### `POST /api/v1/google/reviews/[id]/reply`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `google_reply` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts`).
 
 ### `POST /api/v1/google/search`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `google_search` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/search/route.ts`).
 
 ## handovers
 
@@ -645,13 +645,13 @@ Takes no body.
 
 Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/handovers/[id]/accept/route.ts`).
 
 ### `POST /api/v1/handovers/[id]/decline`
 
 Writes; for any signed-in person, for themselves; counts against the `handover_answer` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/handovers/[id]/decline/route.ts`).
 
 ## lead-operations
 
@@ -669,7 +669,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-searches/route.ts`).
 
 ### `POST /api/v1/lead-searches`
 
@@ -693,7 +693,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/route.ts`).
 
 ### `PATCH /api/v1/lead-searches/[id]`
 
@@ -707,7 +707,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Writes; for a member of the row's own workspace, partner or above; counts against the `lead_member` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/route.ts`).
 
 ### `POST /api/v1/lead-searches/[id]/answer`
 
@@ -731,13 +731,13 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `lead_answer` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/stop/route.ts`).
 
 ### `POST /api/v1/lead-searches/[id]/undo`
 
 Writes; for a member of the row's own workspace, partner or above; counts against the `lead_member` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/undo/route.ts`).
 
 ### `POST /api/v1/lead-searches/chosen`
 
@@ -764,7 +764,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Reads; for a member of the workspace the request names; counts against the `lead_suggest` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-suggestions/route.ts`).
 
 ### `PUT /api/v1/lead-suggestions`
 
@@ -783,12 +783,12 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
-| `search` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
 | `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
 | `after_key` | string | no | at most 80 characters |
-| `after_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `after_id` | string (uuid) | no |  |
 | `limit` | integer | no | ≥ 1; ≤ 500 |
 
 ### `GET /api/v1/leads/[id]`
@@ -797,13 +797,13 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search` | string (uuid) | no |  |
 
 ### `DELETE /api/v1/leads/[id]`
 
 Writes; for a member of the row's own workspace, owner or above; counts against the `erase` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/route.ts`).
 
 ### `POST /api/v1/leads/[id]/draft`
 
@@ -820,7 +820,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/leads/[id]/keep`
 
@@ -828,7 +828,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/leads/[id]/put-back`
 
@@ -836,7 +836,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 
 ### `POST /api/v1/leads/[id]/stage`
 
@@ -869,7 +869,7 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
-| `search` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search` | string (uuid) | no |  |
 | `class` | one of `"qualified"`, `"review"`, `"excluded"` | no |  |
 | `sort` | one of `"fit"`, `"found"`, `"distance"`, `"business"`, `"rating"`, `"stage"` | no |  |
 | `dir` | one of `"asc"`, `"desc"` | no |  |
@@ -889,13 +889,13 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_forwarding` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/forwarding/route.ts`).
 
 ### `POST /api/v1/lines/forwarding/test`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_forwarding` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/forwarding/test/route.ts`).
 
 ### `POST /api/v1/lines/register`
 
@@ -909,13 +909,13 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_retry` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/retry/route.ts`).
 
 ### `POST /api/v1/lines/search`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lines_search` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/search/route.ts`).
 
 ## mailboxes
 
@@ -942,25 +942,25 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
 ### `DELETE /api/v1/me`
 
 Writes; for any signed-in person, for themselves; counts against the `profile_set` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
 ### `PUT /api/v1/me/devices`
 
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
 
 ### `DELETE /api/v1/me/devices`
 
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
 
 ## messages
 
@@ -968,13 +968,13 @@ Takes no body.
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/messages/[id]/cancel-send/route.ts`).
 
 ### `GET /api/v1/messages/[id]/media`
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/messages/[id]/media/route.ts`).
 
 ### `POST /api/v1/messages/[id]/steer`
 
@@ -1000,7 +1000,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/notifications/route.ts`).
 
 ### `PUT /api/v1/notifications`
 
@@ -1019,7 +1019,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/partner/route.ts`).
 
 ### `POST /api/v1/partner`
 
@@ -1042,25 +1042,25 @@ Writes; for any signed-in person, for themselves; counts against the `partner_le
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/partner/invitations/route.ts`).
 
 ### `POST /api/v1/partner/invitations/[id]/accept`
 
 Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/partner/invitations/[id]/accept/route.ts`).
 
 ### `POST /api/v1/partner/invitations/[id]/decline`
 
 Writes; for any signed-in person, for themselves; counts against the `partner_invite_answer` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/partner/invitations/[id]/decline/route.ts`).
 
 ### `GET /api/v1/partner/workspaces`
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/partner/workspaces/route.ts`).
 
 ### `POST /api/v1/partner/workspaces`
 
@@ -1086,37 +1086,37 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 
 Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/refile/route.ts`).
 
 ### `POST /api/v1/platform/lines/release`
 
 Writes; for platform staff; counts against the `platform_line_release` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/release/route.ts`).
 
 ### `POST /api/v1/platform/lines/replace`
 
 Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/replace/route.ts`).
 
 ### `POST /api/v1/platform/lines/retry`
 
 Writes; for platform staff; counts against the `platform_line_retry` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/retry/route.ts`).
 
 ### `GET /api/v1/platform/overview`
 
 Reads; for platform staff; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/overview/route.ts`).
 
 ### `POST /api/v1/platform/partners/payout`
 
 Writes; for platform staff; counts against the `platform_partner_payout` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/payout/route.ts`).
 
 ### `POST /api/v1/platform/partners/second-factor`
 
@@ -1124,32 +1124,32 @@ Writes; for platform staff; counts against the `platform_partner_second_factor` 
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `partner_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `partner_id` | string (uuid) | yes |  |
 | `why` | string | yes | at least 1 characters; at most 500 characters |
 
 ### `POST /api/v1/platform/partners/standing`
 
 Writes; for platform staff; counts against the `platform_partner_standing` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/standing/route.ts`).
 
 ### `POST /api/v1/platform/partners/status`
 
 Writes; for platform staff; counts against the `platform_partner_status` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/status/route.ts`).
 
 ### `GET /api/v1/platform/tenants/[id]`
 
 Reads; for platform staff; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts`).
 
 ### `POST /api/v1/platform/waitlist/invited`
 
 Writes; for platform staff; counts against the `platform_waitlist_invited` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/waitlist/invited/route.ts`).
 
 ## playbooks
 
@@ -1157,31 +1157,31 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/playbooks/route.ts`).
 
 ### `POST /api/v1/playbooks`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/playbooks/route.ts`).
 
 ### `PUT /api/v1/playbooks/[id]`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/playbooks/[id]/route.ts`).
 
 ### `DELETE /api/v1/playbooks/[id]`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/playbooks/[id]/route.ts`).
 
 ### `POST /api/v1/playbooks/[id]/run`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts`).
 
 ## policies
 
@@ -1189,7 +1189,7 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/policies/route.ts`).
 
 ### `PUT /api/v1/policies`
 
@@ -1213,14 +1213,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `since` | string (date-time) | no | matches `^(?:(?:\d\d[2468][048]\|\d\d[13579][26]\|\d\d0[48]\|[02468][048]00\|[13579][26]00)-02-29\|\d{4}-(?:(?:0[13578]\|1[02])-(?:0[1-9]\|[12]\d\|3[01])\|(?:0[469]\|11)-(?:0[1-9]\|[12]\d\|30)\|(?:02)-(?:0[1-9]\|1\d\|2[0-8])))T(?:(?:[01]\d\|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z\|([+-](?:[01]\d\|2[0-3]):[0-5]\d)))$` |
-| `conversation_id` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `since` | string (date-time) | no |  |
+| `conversation_id` | string (uuid) | no |  |
 
 ### `POST /api/v1/reach-out-replies/[id]/undo`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-out-replies/[id]/undo/route.ts`).
 
 ## reach-out-sends
 
@@ -1238,7 +1238,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/reach-outs/route.ts`).
 
 ### `POST /api/v1/reach-outs`
 
@@ -1247,7 +1247,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes | at least 1 characters; at most 80 characters |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `domain_ids` | array of string (uuid) | yes | at most 5 |
@@ -1258,7 +1258,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/reach-outs/[id]/route.ts`).
 
 ### `PUT /api/v1/reach-outs/[id]`
 
@@ -1267,7 +1267,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes | at least 1 characters; at most 80 characters |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 | `include_unconfirmed` | boolean | yes |  |
 | `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `domain_ids` | array of string (uuid) | yes | at most 5 |
@@ -1278,7 +1278,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-outs/[id]/route.ts`).
 
 ### `GET /api/v1/reach-outs/leads`
 
@@ -1286,14 +1286,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
-| `lead` | string (uuid) | no | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search` | string (uuid) | no |  |
+| `lead` | string (uuid) | no |  |
 
 ### `POST /api/v1/reach-outs/leads/[id]/stop`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/reach-outs/leads/[id]/stop/route.ts`).
 
 ### `POST /api/v1/reach-outs/preview`
 
@@ -1301,7 +1301,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search_id` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search_id` | string (uuid) | yes |  |
 | `index` | integer | yes | ≥ 0; ≤ 199 |
 | `include_unconfirmed` | boolean | yes |  |
 | `words` | object | yes |  |
@@ -1314,7 +1314,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `search` | string (uuid) | yes | matches `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\|00000000-0000-0000-0000-000000000000\|ffffffff-ffff-ffff-ffff-ffffffffffff)$` |
+| `search` | string (uuid) | yes |  |
 
 ## reports
 
@@ -1348,25 +1348,25 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/segments/route.ts`).
 
 ### `POST /api/v1/segments`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `lists` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/segments/route.ts`).
 
 ### `PUT /api/v1/segments/[id]`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lists` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/segments/[id]/route.ts`).
 
 ### `DELETE /api/v1/segments/[id]`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lists` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/segments/[id]/route.ts`).
 
 ### `POST /api/v1/segments/draft`
 
@@ -1392,19 +1392,19 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/route.ts`).
 
 ### `POST /api/v1/sending-domains/[id]/check`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/check/route.ts`).
 
 ### `POST /api/v1/sending-domains/[id]/resume`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sending-domains/[id]/resume/route.ts`).
 
 ## settings
 
@@ -1412,19 +1412,19 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/route.ts`).
 
 ### `PUT /api/v1/settings`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/settings/route.ts`).
 
 ### `POST /api/v1/settings/receptionist`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/settings/receptionist/route.ts`).
 
 ## setup
 
@@ -1432,7 +1432,7 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/setup/route.ts`).
 
 ### `POST /api/v1/setup/request`
 
@@ -1448,7 +1448,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/team/route.ts`).
 
 ### `PATCH /api/v1/team/[id]`
 
@@ -1462,7 +1462,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 Writes; for a member of the workspace the request names, owner or above; counts against the `team` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/team/[id]/route.ts`).
 
 ### `POST /api/v1/team/invite`
 
@@ -1477,7 +1477,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 Reads; for a member of the workspace the request names, owner or above; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/team/partner/route.ts`).
 
 ### `POST /api/v1/team/partner`
 
@@ -1491,7 +1491,7 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 Writes; for a member of the workspace the request names, owner or above; counts against the `partner_invite` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/team/partner/route.ts`).
 
 ## templates
 
@@ -1507,7 +1507,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/route.ts`).
 
 ### `PUT /api/v1/templates/[id]`
 
@@ -1522,7 +1522,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/[id]/route.ts`).
 
 ### `POST /api/v1/templates/draft`
 
@@ -1539,13 +1539,13 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/starter/route.ts`).
 
 ### `POST /api/v1/templates/sync`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/sync/route.ts`).
 
 ## today
 
@@ -1553,7 +1553,7 @@ Takes no body.
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/today/route.ts`).
 
 ## views
 
@@ -1561,7 +1561,7 @@ Takes no query but the workspace.
 
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/views/route.ts`).
 
 ### `PUT /api/v1/views/[page]`
 
@@ -1588,16 +1588,16 @@ Writes; for any signed-in person, for themselves; counts against the `vitals` ra
 
 Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
-Takes no query but the workspace.
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/workspaces/route.ts`).
 
 ### `PATCH /api/v1/workspaces`
 
 Writes; for a member of the workspace the request names, partner or above; no rate bucket; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/route.ts`).
 
 ### `POST /api/v1/workspaces/create`
 
 Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing.
 
-Takes no body.
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/create/route.ts`).

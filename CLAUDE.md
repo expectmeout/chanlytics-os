@@ -46,6 +46,7 @@ corepack pnpm check:style-equality -- record <file> --against <file>   # a chang
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
+corepack pnpm gen:api-reference               # docs/api.md (what each route takes), after a route's input or policy changes; the suite fails a stale one
 corepack pnpm gen:schema-sets                 # the closed sets, after a migration changes one (needs the stack)
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
 ```

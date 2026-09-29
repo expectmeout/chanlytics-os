@@ -57,7 +57,8 @@ function limitsOf(s) {
   if (s.maximum !== undefined) out.push(`≤ ${s.maximum}`);
   if (s.minItems !== undefined) out.push(`at least ${s.minItems}`);
   if (s.maxItems !== undefined) out.push(`at most ${s.maxItems}`);
-  if (s.pattern !== undefined) out.push(`matches \`${s.pattern}\``);
+  // A format (uuid, email, date-time) is the type's own words; the regular expression zod writes for it is not.
+  if (s.pattern !== undefined && !s.format) out.push(`matches \`${s.pattern}\``);
   if (s.description) out.push(s.description);
   return out.join("; ");
 }
@@ -66,7 +67,7 @@ function limitsOf(s) {
 const cell = (text) => String(text).replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
 
 /** The fields a route's input takes, as table rows; a schema that is no object is said in one row. */
-function fieldRows(schema) {
+export function fieldRows(schema) {
   if (!schema) return [];
   let json;
   try {
@@ -131,7 +132,11 @@ export async function generate(root) {
           ...rows,
           "",
         );
-      else lines.push(p.kind === "read" ? "Takes no query but the workspace." : "Takes no body.", "");
+      else
+        lines.push(
+          `Declares no ${p.kind === "read" ? "query" : "body"} schema: it takes none${p.kind === "read" ? " beyond the workspace" : ""}, or reads its own (\`${API}/${rel}/route.ts\`).`,
+          "",
+        );
       if (!byDomain.has(domain)) byDomain.set(domain, []);
       byDomain.get(domain).push(lines.join("\n"));
       count++;
