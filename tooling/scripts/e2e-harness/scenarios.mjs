@@ -18,7 +18,7 @@
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
  *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
- *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit.spec.ts and for a person reviewing
+ *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit/kit.spec.ts and for a person reviewing
  *              the kit. Never served in production (decision 7).
  *
  * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.

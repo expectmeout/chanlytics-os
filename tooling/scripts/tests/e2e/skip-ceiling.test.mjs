@@ -6,6 +6,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { SkipCeiling, DELIBERATE } from "../../../../e2e/skip-ceiling.ts";
+import { KIT_SKIP_REASON } from "../../../../e2e/kit/kit-checks.ts";
 
 const skipped = (why) => [
   { annotations: why === undefined ? [] : [{ type: "skip", description: why }] },
@@ -42,8 +43,8 @@ test("the reasons the suite's own gates give are the deliberate ones; a want of 
     "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it",
     "set E2E_SIGNUP_PROBE=1 with the service role to run the probe",
     "set E2E_SIGNUP_EMAIL to a real inbox, with {stamp} for a fresh address each run, to run the probe",
-    // e2e/kit.spec.ts: production has no gallery, so the nightly skips it by design.
-    "the kit's gallery is the local harness's alone: set E2E_SCENARIO=kit, as `corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit` does",
+    // e2e/kit/kit.spec.ts's own words: production has no gallery, so the nightly skips it by design.
+    KIT_SKIP_REASON,
   ])
     assert.equal(DELIBERATE.test(why), true, why);
   for (const why of [

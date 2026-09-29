@@ -447,6 +447,7 @@ e2e/
   auth/
   campaigns/
   conversations/
+  kit/
   people/
   settings/
   shell/

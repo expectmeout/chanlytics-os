@@ -248,20 +248,25 @@ own stylesheets in the app's order (`docs/plans/2026-09-28-the-interface-kit-and
 serves it as the `kit` record's page, at `/` and at the workspace's address, and production never does.
 
 ```bash
-corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit   # the gallery's checks
+corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
 node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
 ```
 
 Its families and entries are data in `tooling/scripts/e2e-harness/kit-gallery.mjs`: each entry is the markup a kit
 component renders, written out, with every state its rules name, and a form that is fixed or placed over the page (a
-sheet, a menu, the toasts) stands in a stage of its own. `?theme=light&look=glass` opens it in either. `e2e/kit.spec.ts`
-checks that every class in `classes.json` and every rule of `kit.css` is drawn, but a press's; that every `var()` a kit
-rule reads changes what its entry draws when that token is planted on the element, in both themes, both looks and at
-both widths; and that a new primitive computes what the source it replaces computes. It fails on faults planted in the
-page, which is its own proof, and it prints what it saw: the entries, the rules drawn and those left out as a press's,
-the token reads per run and the twins. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in
-`corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against production the
-spec skips, and the nightly's skip ceiling does not count it.
+sheet, a menu, the toasts) stands in a stage of its own. `?theme=light&look=glass` opens it in either.
+
+`e2e/kit/kit.spec.ts` runs at a desk and on a phone, in both themes and both looks, and at a desk with reduced motion,
+and in each run again with every entry pressed: hovered, active and focused, forced by the browser's devtools
+protocol. It checks that every class in `classes.json` is drawn; that every selector of every rule of `kit.css` is
+drawn by an entry, each selector of a list alone and a press's with the presses forced; that every `var()` a kit rule
+reads moves every longhand it feeds when that token is planted on the element, and a longhand a page's rule keeps is
+named; and that a new primitive computes every longhand its source computes, on every element and pseudo-element,
+pressed or not, but those its entry excepts. It fails on faults planted in the page, which is its own proof, and it
+prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, and the twins. What it
+cannot see is in the header of `e2e/kit/kit-checks.ts`. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the
+classes in `corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against
+production the spec skips, and the nightly's skip ceiling does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 

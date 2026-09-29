@@ -167,9 +167,10 @@ export const THEMES = ["dark", "light"];
 
 /**
  * The longhands the browser resolves from layout, not from the rules (CSSOM's resolved values): an element's are its
- * edges, so they are not read again, and a pseudo-element has no edges, so its are.
+ * edges, so they are not read again, and a pseudo-element has no edges, so its are. The kit's gallery spec holds a
+ * pseudo-element's to the same tolerance.
  */
-const LAID_OUT = (
+export const LAID_OUT = (
   "width height inline-size block-size top right bottom left inset-block-start inset-block-end inset-inline-start " +
   "inset-inline-end margin-top margin-right margin-bottom margin-left margin-block-start margin-block-end " +
   "margin-inline-start margin-inline-end transform-origin perspective-origin grid-template-columns grid-template-rows"
