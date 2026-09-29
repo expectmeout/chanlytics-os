@@ -11,6 +11,8 @@ export {
   isWireUnavailable,
   isWireUnavailableError,
   WireUnavailableError,
+  isNotTakenError,
+  NotTakenError,
 } from "./wire-senders";
 export type { EmailRoute, CredentialsRead, WireUnavailable } from "./wire-senders";
 export type {

@@ -1,6 +1,9 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered } from "../edge";
+
+/** A run now plans its sends and may start them: the edge's work for one playbook, bounded at half a minute. */
+const RUN_TIMEOUT_MS = 30_000;
 
 /* ---- Playbooks: one run now, the same implementation the hourly sweep uses ---- */
 
@@ -31,13 +34,13 @@ export async function runPlaybookNow(
 ): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   // An edge that cannot be reached is said as such: the hourly sweep runs what it would have (R14).
-  const r = await fetch(`${edgeUrl()}/api/admin/playbooks-run`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/playbooks-run", { workspace: tenantId, user: userId }),
-    body: JSON.stringify({ tenant_id: tenantId, playbook_id: playbookId, user_id: userId }),
-  }).catch(() => null);
-  if (!r) return { ok: false, reason: "edge_unreachable" };
-  const j = (await r.json().catch(() => ({}))) as {
+  const r = await callEdge(
+    "/api/admin/playbooks-run",
+    { tenant_id: tenantId, playbook_id: playbookId, user_id: userId },
+    { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
+  );
+  if (r.status === 503 && r.body?.error === "edge_unreachable") return { ok: false, reason: "edge_unreachable" };
+  const j = (r.body ?? {}) as {
     ok?: boolean;
     outcome?: string;
     eligible?: number;
@@ -51,7 +54,11 @@ export async function runPlaybookNow(
     error?: string;
     detail?: string;
   };
-  if (r.ok && j.ok && (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")) {
+  if (
+    edgeAnswered(r) &&
+    j.ok &&
+    (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")
+  ) {
     // When a sent run really goes, and what was asked for when the hours moved it; an edge older than this gives neither.
     const at = (v: unknown) => (typeof v === "string" ? v : null);
     return {

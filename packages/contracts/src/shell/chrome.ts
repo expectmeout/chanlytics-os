@@ -180,6 +180,12 @@ export function inAppBootScript(): string {
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 /** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
 export const PREFETCH_SLOT = "__prefetched";
+/**
+ * How long a read the head started may wait, as long as the client's own read would (client/api.ts READ_TIMEOUT_MS):
+ * a hung one used to hold the page for ever, since the client waits on it in place of its own; timed out, the client
+ * asks again itself.
+ */
+const PREFETCH_TIMEOUT_MS = 15_000;
 
 /**
  * The route's own reads, started from the document head.
@@ -190,7 +196,8 @@ export const PREFETCH_SLOT = "__prefetched";
  * the two reads every workspace page opens on -- who is looking (GET workspaces) and, on a person's page, the person
  * -- spelled exactly as the client spells them (client/api.ts urlFor: the path, then ?workspace=<slug>), and parks
  * the promises on the window for the client to take once, in place of its own fetch. Off a workspace page nothing
- * is read. A refusal here is the client's to hear, as it would have been.
+ * is read. A refusal here is the client's to hear, as it would have been, and a read that does not answer in
+ * PREFETCH_TIMEOUT_MS gives way to the client's own.
  */
 export function routePrefetchScript(): string {
   return [
@@ -202,7 +209,8 @@ export function routePrefetchScript(): string {
     'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin"});',
+    `var t=window.AbortSignal&&AbortSignal.timeout?AbortSignal.timeout(${PREFETCH_TIMEOUT_MS}):undefined;`,
+    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin",signal:t});',
     "}}catch(e){}",
   ].join("");
 }

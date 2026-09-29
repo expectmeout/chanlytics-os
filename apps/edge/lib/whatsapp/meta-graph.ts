@@ -11,6 +11,7 @@
  * call reports the API's own error message; nothing is retried blindly.
  */
 import { env } from "../env.js";
+import { providerFetch } from "../packages/channels.js";
 
 export const GRAPH_VERSION = "v25.0";
 /** How long one Graph API request may take. */
@@ -34,20 +35,19 @@ interface GraphError {
   error?: { message?: string; code?: number; error_subcode?: number; type?: string };
 }
 
-async function graphCall<T>(path: string, init: RequestInit & { token?: string }): Promise<GraphResult<T>> {
+async function graphCall<T>(
+  path: string,
+  init: { method: string; headers?: Record<string, string>; body?: string; token?: string },
+): Promise<GraphResult<T>> {
   const { token, ...rest } = init;
-  let res: Response;
-  try {
-    res = await fetch(`${GRAPH}${path}`, {
-      ...rest,
-      headers: { ...(rest.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), code: null, status: 0 };
-  }
-  const body = (await res.json().catch(() => ({}))) as T & GraphError;
-  if (!res.ok || body.error) {
+  const res = await providerFetch("meta", `${GRAPH}${path}`, {
+    ...rest,
+    headers: { ...(rest.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    timeoutMs: GRAPH_TIMEOUT_MS,
+  });
+  if (res.status === 0) return { ok: false, error: String(res.error), code: null, status: 0 };
+  const body = (res.json !== null && typeof res.json === "object" ? res.json : {}) as T & GraphError;
+  if (res.outcome !== "ok" || body.error) {
     return {
       ok: false,
       error: body.error?.message ?? `graph ${res.status}`,

@@ -18,6 +18,7 @@ import {
   templateParts,
   templateUntranslatable,
   validateTemplateDraft,
+  MIN_MS,
   type TemplateCategoryChoice,
   type TemplateDraft,
 } from "@chanlytics/contracts";
@@ -37,6 +38,9 @@ import { GatewayRefused } from "@/server/ask/gateway";
  * before the person ever sees it.
  */
 export const DRAFT_MODEL = "claude-sonnet-5";
+
+/** How long a template draft or translation may take: the edge's model door stops at a minute (vercel.json). */
+const DRAFT_TIMEOUT_MS = MIN_MS;
 const DRAFT_BRIEF_MAX = 600;
 
 const DraftSchema = z.object({
@@ -168,6 +172,8 @@ async function askOnce(
           system,
           messages: [{ role: "user", content: user }],
         },
+        // Bounded as every call to the edge is: its own door stops at a minute (vercel.json).
+        signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS),
       },
       () => {},
     );

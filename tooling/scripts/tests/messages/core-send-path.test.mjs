@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const core = await importSrc("packages/core/src/messages/index.ts");
-const { WireUnavailableError } = await importSrc("packages/core/src/wire-senders.ts");
+const { NotTakenError, WireUnavailableError } = await importSrc("packages/core/src/wire-senders.ts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 /** A port the runtime does not hold, as opposed to one that answers null. */
 const ABSENT = Symbol("absent");
@@ -65,6 +65,7 @@ test("a queued row goes through the door with the row's own sender, the template
     body: "See you at 3",
     template: undefined,
     messageId: "m1",
+    holdIfNotTaken: true,
   });
   const ai = fakes({ queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" } });
   await core.sendQueued(ai.ports, send({ body: undefined }));
@@ -219,6 +220,7 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     email: request,
     ownEmail: undefined,
     messageId: "m1",
+    holdIfNotTaken: true,
   });
   // A person's reply to a reach-out carries its twin on the chain's own domain (G15) beside the mailbox's request.
   const twin = { ...request, from: "Sam <sam@getharbor.example.com>" };
@@ -533,6 +535,27 @@ test("a wire that could not be bound is tried again as a fresh job, the row stil
   const quiet = fakes({ deliver: new WireUnavailableError("sms", "connection reset"), page: ABSENT });
   await core.sendQueued(quiet.ports, send());
   assert.deepEqual(quiet.ops(), ["deliver", "retry"]);
+});
+
+test("a send the provider did not take (retry by outcome) is handed to a fresh job as an unbound wire is: nobody flagged, the platform paged only when the provider's breaker is open, and the last try is not held", async () => {
+  // The door threw by name before it wrote anything: the provider provably did not take the words (its "not now",
+  // a connection that never opened). The row is still queued, so the same send goes again a while on.
+  const throttled = fakes({ deliver: new NotTakenError("whatsapp", { status: 429, errorBody: "too many" }) });
+  await core.sendQueued(throttled.ports, send());
+  assert.deepEqual(throttled.ops(), ["deliver", "retry"], "a throttle is one second's problem: nobody is paged");
+  assert.equal(throttled.log[1][2].resumes, 1);
+  assert.deepEqual(throttled.log[1][1], new Date(NOW + core.SEND_RETRY_WAITS_MS[0]));
+
+  // The provider's breaker open is the provider down for everyone: the platform hears of it.
+  const down = fakes({ deliver: new NotTakenError("whatsapp", { status: 0, errorBody: "breaker_open" }) });
+  await core.sendQueued(down.ports, send({ resumes: 1 }));
+  assert.deepEqual(down.ops(), ["deliver", "retry", "page"]);
+  assert.equal(down.log[2][1], "provider_down:whatsapp");
+
+  // The last try asks the door not to hold it: a provider still saying no then is told as any failure is.
+  const last = fakes();
+  await core.sendQueued(last.ports, send({ resumes: core.SEND_RETRY_WAITS_MS.length }));
+  assert.equal(last.log[0][1].holdIfNotTaken, false);
 });
 
 test("every wait spent, a wire still unbound fails the job loudly by name, and nothing it says is 'reconnect the number'", async () => {

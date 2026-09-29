@@ -4,6 +4,7 @@
  * wires this to the repositories. Config is passed in; env is never read here.
  */
 import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -237,6 +238,12 @@ export interface SendResult {
    */
   leftAs?: "own" | "mailbox";
   leftAsWhy?: EmailLeftAsWhy;
+  /**
+   * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
+   * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
+   * request it will not send), which asked no provider.
+   */
+  outcome?: SendOutcome;
 }
 
 /**
@@ -257,30 +264,32 @@ export type EmailLeftAsWhy =
  * 2. It was unbounded. One hung connection to Graph could consume the whole
  *    60s invocation and take the rest of the batch with it.
  *
- * status 0 means "never reached Meta", which is distinct from any HTTP status.
+ * status 0 means "never reached Meta", which is distinct from any HTTP status. Both are providerFetch's now, which
+ * also says what the send came to: Graph's "not now" (graphThrottled) left nothing, so it is `retryable` whatever
+ * its HTTP status.
  */
 const SEND_TIMEOUT_MS = 15_000;
 
 async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
-  try {
-    const r = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-    });
-    const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
-    return {
-      ok: r.ok,
-      wamid: out.messages?.[0]?.id ?? null,
-      status: r.status,
-      errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
-      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
-      code: !r.ok && typeof out.error?.code === "number" ? out.error.code : null,
-    };
-  } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeoutMs: SEND_TIMEOUT_MS,
+  });
+  if (a.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
+  const out = (answerObject(a) ?? {}) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
+  const ok = a.outcome === "ok";
+  const sent: SendResult = {
+    ok,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: a.status,
+    errorBody: ok ? undefined : JSON.stringify(out).slice(0, 200),
+    // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+    code: !ok && typeof out.error?.code === "number" ? out.error.code : null,
+  };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : a.outcome };
 }
 
 /**
@@ -355,12 +364,16 @@ export async function fetchMediaBytes(
   providerMediaId: string,
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   try {
-    const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
+    // The media's address is Graph's JSON, asked through providerFetch; its bytes are a download, fetched below.
+    const metaRes = await providerFetch("meta", `${GRAPH}/${providerMediaId}`, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
-      signal: AbortSignal.timeout(MEDIA_META_TIMEOUT_MS),
+      timeoutMs: MEDIA_META_TIMEOUT_MS,
+      idempotent: true,
     });
-    if (!metaRes.ok) return null;
-    const meta = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string };
+    // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
+    if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);
+    if (metaRes.outcome !== "ok") return null;
+    const meta = (answerObject(metaRes) ?? {}) as { url?: string; mime_type?: string };
     if (!meta.url) return null;
 
     const binRes = await fetch(meta.url, {

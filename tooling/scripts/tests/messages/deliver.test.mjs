@@ -25,6 +25,7 @@ const {
   wireUnavailable,
   isWireUnavailable,
   isWireUnavailableError,
+  isNotTakenError,
 } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
 
 const T = "t1";
@@ -447,6 +448,51 @@ test("a wire that could not be BOUND is not a wire with no credentials: the door
   const refused = await deliver({ db: fakeDb(no), wire, now: () => NOW }, words({ messageId: "m1" }));
   assert.deepEqual([refused.outcome, refused.reason], ["refused", "opted_out"]);
   assert.equal(no.messages[0].status, "canceled");
+});
+
+test("what a send came to rides the row on every wire: a WhatsApp timeout is an unknown outcome too, and a send the provider did not take is held for a caller that asked, never written", async () => {
+  const queued = () =>
+    tables({
+      messages: [
+        {
+          id: "m1",
+          tenant_id: T,
+          conversation_id: "c1",
+          status: "queued",
+          body: "See you at 3",
+          sender: "human",
+          direction: "outbound",
+          created_at: "2026-09-10T09:59:00.000Z",
+        },
+      ],
+    });
+  // A timeout may have been taken all the same, on WhatsApp as on email (it used to be said of email's alone).
+  const timedOut = queued();
+  const unknown = { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
+  const out = await deliver(ports(timedOut, wireOf(unknown)), words({ messageId: "m1" }));
+  assert.equal(out.outcome, "failed");
+  assert.deepEqual(timedOut.messages[0].error, { http_status: 0, body: "timeout", outcome: "unknown" });
+
+  // Not taken, and the caller will try again (sendQueued): thrown by name before anything is written.
+  const notTaken = { ok: false, wamid: null, status: 429, errorBody: "too many", outcome: "retryable" };
+  const held = queued();
+  await assert.rejects(
+    deliver(ports(held, wireOf(notTaken)), words({ messageId: "m1", holdIfNotTaken: true })),
+    (e) => {
+      assert.ok(isNotTakenError(e));
+      assert.equal(e.channel, "whatsapp");
+      assert.equal(e.status, 429);
+      return true;
+    },
+  );
+  assert.equal(held.messages[0].status, "queued", "the row stays queued for the fresh job");
+  assert.deepEqual(held.events, [], "and nothing says it failed");
+
+  // Without the ask it fails as any refusal does, and is no unknown: nothing left.
+  const failed = queued();
+  const plain = await deliver(ports(failed, wireOf(notTaken)), words({ messageId: "m1" }));
+  assert.equal(plain.outcome, "failed");
+  assert.deepEqual(failed.messages[0].error, { http_status: 429, body: "too many" });
 });
 
 test("the WhatsApp wire from a credentials read: present is a sender, absent is null, unavailable is the marker", async () => {
@@ -1006,7 +1052,12 @@ test("email's wire is one workspace's: it sends the frozen request and nothing i
     );
     assert.equal(posted.length, 0, "none of them reached the provider");
 
-    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen() }), { ok: true, wamid: "re_9", status: 200 });
+    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen() }), {
+      ok: true,
+      wamid: "re_9",
+      status: 200,
+      outcome: "ok",
+    });
     const rotated = { fromName: "Best Movers", fromAddress: AS.address, replyTo: AS.replyRoutes[1] };
     assert.equal(
       (await send(ADDRESS, { body: "hi", email: frozen({ identity: rotated }) })).ok,
@@ -1561,12 +1612,15 @@ test("a cold send leaves its thread where it was, so a run never pushes customer
 });
 
 test("a send that timed out is failed with its outcome unknown, so its receipt may still settle it (D5)", async () => {
+  // The wire says what the send came to (channels provider-fetch): a timeout may have been taken all the same.
   const t = coldWorld();
-  const out = await deliver(ports(t, emailWire({ ok: false, wamid: null, status: 0, errorBody: "timeout" })), cold());
+  const timedOut = { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
+  const out = await deliver(ports(t, emailWire(timedOut)), cold());
   assert.equal(out.outcome, "failed");
   assert.deepEqual(t.messages[0].error, { http_status: 0, body: "timeout", outcome: "unknown" });
   const u = coldWorld();
-  await deliver(ports(u, emailWire({ ok: false, wamid: null, status: 0, errorBody: "fetch failed" })), cold());
+  const neverLeft = { ok: false, wamid: null, status: 0, errorBody: "fetch failed", outcome: "retryable" };
+  await deliver(ports(u, emailWire(neverLeft)), cold());
   assert.equal(t.messages[0].error.outcome, "unknown");
   assert.equal("outcome" in u.messages[0].error, false, "a request that never left is plainly failed");
 });

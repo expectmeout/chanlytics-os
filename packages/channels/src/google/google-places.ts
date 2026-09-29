@@ -23,6 +23,7 @@
  * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
  * refuses the whole read, so the test pins them name by name.
  */
+import { providerFetch } from "../provider-fetch";
 import {
   E164,
   type GoogleListingFacts,
@@ -299,16 +300,26 @@ export async function getPlace(
   return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
 }
 
-/** The real port: fetch with a timeout, the body as text whatever the status. */
+/**
+ * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
+ * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
+ */
 export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_TIMEOUT_MS): PlacesHttp {
   return async (req) => {
-    const r = await fetchImpl(req.url, {
-      method: req.method,
-      headers: req.headers,
-      body: req.body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return { status: r.status, body: await r.text() };
+    const a = await providerFetch(
+      "google",
+      req.url,
+      {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        timeoutMs,
+        ...(req.method === "GET" ? { idempotent: true, tries: 2 } : {}),
+      },
+      { fetch: fetchImpl },
+    );
+    if (a.status === 0) throw new Error(`google: ${a.error ?? "no answer"}`);
+    return { status: a.status, body: a.text };
   };
 }
 

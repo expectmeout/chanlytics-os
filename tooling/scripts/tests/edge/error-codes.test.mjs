@@ -70,16 +70,13 @@ const FORWARDED = {
   "apps/edge/lib/lines/line-resume.ts": ["error.message"],
   "apps/edge/lib/lines/lines.ts": ["error"],
   // Meta's own answers, in Meta's words: a door answers its code with them in `detail`.
-  "apps/edge/lib/whatsapp/meta-graph.ts": [
-    "e instanceof Error ? e.message : String(e)",
-    "body.error?.message ?? `graph ${res.status}`",
-  ],
+  "apps/edge/lib/whatsapp/meta-graph.ts": ["String(res.error)", "body.error?.message ?? `graph ${res.status}`"],
   "apps/edge/lib/whatsapp/meta-templates.ts": [
-    "e instanceof Error ? e.message : String(e)",
+    "String(res.error)",
     "body?.error?.message ?? `HTTP ${res.status}`",
-    "e instanceof Error ? e.message : String(e)",
+    "String(res.error)",
     "body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`",
-    "e instanceof Error ? e.message : String(e)",
+    "String(res.error)",
     "body?.error?.message ?? `HTTP ${res.status}`",
   ],
 };

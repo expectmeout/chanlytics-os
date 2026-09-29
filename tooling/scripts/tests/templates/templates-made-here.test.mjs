@@ -197,10 +197,10 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");
   assert.ok(
     readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
-      "`${edgeUrl()}/api/admin/whatsapp/templates-create`",
+      '"/api/admin/whatsapp/templates-create"',
     ) &&
       readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
-        "`${edgeUrl()}/api/admin/whatsapp/templates-delete`",
+        '"/api/admin/whatsapp/templates-delete"',
       ),
   );
 });

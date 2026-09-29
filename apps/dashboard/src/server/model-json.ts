@@ -14,7 +14,7 @@
  */
 import "server-only";
 import type { ZodType } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, MIN_MS } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
 
 /**
@@ -25,6 +25,9 @@ import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
  * drafter's (templates.ts).
  */
 export const JSON_MODEL = "claude-sonnet-5";
+
+/** How long one answer may take unless the caller bounds it: the edge's own door stops at a minute (vercel.json). */
+const MODEL_JSON_TIMEOUT_MS = MIN_MS;
 
 let stream: typeof streamModel = streamModel;
 /** Tests hand in a stream of their own. */
@@ -44,6 +47,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
   try {
     for await (const ev of stream({
       ...call,
+      signal: call.signal ?? AbortSignal.timeout(MODEL_JSON_TIMEOUT_MS),
       request: {
         ...request,
         model: JSON_MODEL,

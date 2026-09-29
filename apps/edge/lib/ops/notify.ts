@@ -30,6 +30,7 @@ import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
+import { providerFetch } from "../packages/channels.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -97,25 +98,23 @@ export async function post(from: string, to: string[], subject: string, text: st
     L.error("notify_skipped_no_api_key", { subject: redactNumbers(subject) });
     return false;
   }
-  try {
-    const r = await fetch(RESEND, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, text }),
-      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
-    });
-    if (!r.ok) {
-      // Loud, with the status: this is the alarm channel failing, and the only
-      // place it can be noticed is the log.
-      const detail = await r.text().catch(() => "");
-      L.error("notify_rejected", { status: r.status, subject: redactNumbers(subject), detail: detail.slice(0, 200) });
-      return false;
-    }
-    return true;
-  } catch (e) {
-    L.error("notify_failed", { subject: redactNumbers(subject), error: errField(e) });
+  const r = await providerFetch("resend", RESEND, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, subject, text }),
+    timeoutMs: NOTIFY_TIMEOUT_MS,
+  });
+  if (r.status === 0) {
+    L.error("notify_failed", { subject: redactNumbers(subject), error: r.error ?? "no answer" });
     return false;
   }
+  if (r.outcome !== "ok") {
+    // Loud, with the status: this is the alarm channel failing, and the only
+    // place it can be noticed is the log.
+    L.error("notify_rejected", { status: r.status, subject: redactNumbers(subject), detail: r.text.slice(0, 200) });
+    return false;
+  }
+  return true;
 }
 
 /**

@@ -1,3 +1,130 @@
+// src/provider-fetch.ts
+var BREAKER_FAILURES = 5;
+var BREAKER_OPEN_MS = 3e4;
+var RETRY_BASE_MS = 250;
+var RETRY_WAIT_CAP_MS = 2e3;
+var breakers = /* @__PURE__ */ new Map();
+function breakerOf(provider, now = Date.now()) {
+  const b = breakers.get(provider);
+  return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
+}
+function resetBreakers() {
+  breakers.clear();
+}
+var NEVER_LEFT = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function outcomeOfStatus(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 408 || status === 429 || status === 503) return "retryable";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+function outcomeOfThrow(e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
+  const cause = err.cause;
+  const code = typeof cause?.code === "string" ? cause.code : err.code;
+  const words2 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
+  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words2 };
+}
+function retryAfterOf(header, now = Date.now()) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
+function note(provider, a, now) {
+  if (a.error === "breaker_open") return;
+  if (!isFault(a)) {
+    breakers.delete(provider);
+    return;
+  }
+  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
+  b.failures += 1;
+  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
+  breakers.set(provider, b);
+}
+async function once(provider, url, call2, deps, tries) {
+  const now = deps.now();
+  const b = breakers.get(provider);
+  if (b && b.openUntil > now) {
+    const held = {
+      outcome: "retryable",
+      status: 0,
+      text: "",
+      json: null,
+      headers: null,
+      retryAfterMs: b.openUntil - now,
+      error: "breaker_open",
+      tries: tries - 1
+    };
+    return held;
+  }
+  const init = {
+    method: call2.method,
+    headers: call2.headers,
+    body: call2.body,
+    cache: call2.cache,
+    redirect: call2.redirect
+  };
+  let a;
+  try {
+    const r2 = await deps.fetch(url, { ...init, signal: AbortSignal.timeout(call2.timeoutMs) });
+    const text = await r2.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    a = {
+      outcome: outcomeOfStatus(r2.status),
+      status: r2.status,
+      text,
+      json,
+      headers: r2.headers,
+      retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
+      error: null,
+      tries
+    };
+  } catch (e) {
+    const { outcome, error } = outcomeOfThrow(e);
+    a = { outcome, status: 0, text: "", json: null, headers: null, retryAfterMs: null, error, tries };
+  }
+  note(provider, a, deps.now());
+  return a;
+}
+async function providerFetch(provider, url, call2, deps = {}) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+  };
+  const started = d.now();
+  const max = Math.max(1, Math.floor(call2.tries ?? 1));
+  for (let n = 1; ; n++) {
+    const a = await once(provider, url, call2, d, n);
+    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
+    if (!again || n >= max || a.error === "breaker_open") return a;
+    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
+    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
+    if (wait + call2.timeoutMs > left) return a;
+    await d.sleep(wait);
+  }
+}
+function answerObject(a) {
+  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
+}
+
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z7 } from "zod";
@@ -3157,25 +3284,25 @@ function normalizeInbound(m, value) {
 }
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
-  try {
-    const r2 = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
-    });
-    const out = await r2.json().catch(() => ({}));
-    return {
-      ok: r2.ok,
-      wamid: out.messages?.[0]?.id ?? null,
-      status: r2.status,
-      errorBody: r2.ok ? void 0 : JSON.stringify(out).slice(0, 200),
-      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
-      code: !r2.ok && typeof out.error?.code === "number" ? out.error.code : null
-    };
-  } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeoutMs: SEND_TIMEOUT_MS
+  });
+  if (a.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
+  const out = answerObject(a) ?? {};
+  const ok2 = a.outcome === "ok";
+  const sent = {
+    ok: ok2,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: a.status,
+    errorBody: ok2 ? void 0 : JSON.stringify(out).slice(0, 200),
+    // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+    code: !ok2 && typeof out.error?.code === "number" ? out.error.code : null
+  };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : a.outcome };
 }
 var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
 function graphThrottled(r2) {
@@ -3202,12 +3329,14 @@ var MEDIA_BYTES_TIMEOUT_MS = 15e3;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 async function fetchMediaBytes(cfg, providerMediaId) {
   try {
-    const metaRes = await fetch(`${GRAPH}/${providerMediaId}`, {
+    const metaRes = await providerFetch("meta", `${GRAPH}/${providerMediaId}`, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
-      signal: AbortSignal.timeout(MEDIA_META_TIMEOUT_MS)
+      timeoutMs: MEDIA_META_TIMEOUT_MS,
+      idempotent: true
     });
-    if (!metaRes.ok) return null;
-    const meta = await metaRes.json().catch(() => ({}));
+    if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);
+    if (metaRes.outcome !== "ok") return null;
+    const meta = answerObject(metaRes) ?? {};
     if (!meta.url) return null;
     const binRes = await fetch(meta.url, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
@@ -3312,6 +3441,24 @@ function callSummaryLine(n) {
   const body = wanted || n.summary?.trim() || (n.inVoicemail ? "Reached voicemail." : "No summary available.");
   return `${head}${dur} \u2014 ${body}${outcome ? ` (${outcome.toLowerCase()})` : ""}`;
 }
+var RETELL_CALL_TIMEOUT_MS = 8e3;
+function retell(cfg, method, path, o = {}) {
+  const read = method === "GET" || path === "/v3/list-calls";
+  return providerFetch("retell", `${API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${cfg.apiKey}`,
+      ...o.body !== void 0 ? { "Content-Type": "application/json" } : {}
+    },
+    ...o.body !== void 0 ? { body: JSON.stringify(o.body) } : {},
+    timeoutMs: o.timeoutMs ?? RETELL_CALL_TIMEOUT_MS,
+    ...read ? { idempotent: true, tries: 2 } : {}
+  });
+}
+function answered(a, what) {
+  if (a.status === 0) throw new Error(a.error ?? `retell ${what}: no answer`);
+  return a;
+}
 async function listCalls(cfg, opts) {
   const limit = Math.min(opts.limit ?? 100, 1e3);
   const body = {
@@ -3322,13 +3469,12 @@ async function listCalls(cfg, opts) {
     ...opts.paginationKey ? { pagination_key: opts.paginationKey } : {},
     ...opts.includeTotal ? { include_total: true } : {}
   };
-  const r2 = await fetch(`${API}/v3/list-calls`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!r2.ok) throw new Error(`list-calls ${r2.status}: ${(await r2.text()).slice(0, 200)}`);
-  const out = await r2.json();
+  const r2 = answered(
+    await retell(cfg, "POST", "/v3/list-calls", { body, timeoutMs: RETELL_READ_TIMEOUT_MS }),
+    "list-calls"
+  );
+  if (r2.outcome !== "ok") throw new Error(`list-calls ${r2.status}: ${r2.text.slice(0, 200)}`);
+  const out = answerObject(r2) ?? {};
   const calls = out.items ?? [];
   return {
     calls,
@@ -3348,37 +3494,22 @@ function isCallBody(v) {
   return o !== null && typeof o.call_id === "string";
 }
 async function getCall(cfg, callId, opts = {}) {
-  let r2;
-  try {
-    r2 = await fetch(`${API}/v2/get-call/${callId}`, {
-      headers: { Authorization: `Bearer ${cfg.apiKey}` },
-      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS)
-    });
-  } catch {
-    return { kind: "unavailable", status: null, retryAfterMs: null };
-  }
-  if (r2.ok) {
-    let body = null;
-    try {
-      body = await r2.json();
-    } catch (e) {
-      if (e instanceof Error && e.name === "TimeoutError")
-        return { kind: "unavailable", status: null, retryAfterMs: null };
-    }
-    return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
-  }
-  await r2.body?.cancel().catch(() => void 0);
+  const r2 = await providerFetch("retell", `${API}/v2/get-call/${callId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    timeoutMs: opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS
+  });
+  if (r2.status === 0) return { kind: "unavailable", status: null, retryAfterMs: null };
+  if (r2.outcome === "ok")
+    return isCallBody(r2.json) ? { kind: "found", call: r2.json } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
   if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
   if (r2.status === 408 || r2.status === 425 || r2.status === 429 || r2.status >= 500)
-    return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers.get("retry-after")) };
+    return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers?.get("retry-after") ?? null) };
   return { kind: "not_found", status: r2.status };
 }
 async function getAgent(cfg, agentId) {
-  const r2 = await fetch(`${API}/get-agent/${agentId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` }
-  });
-  if (!r2.ok) return null;
-  const a = await r2.json();
+  const r2 = answered(await retell(cfg, "GET", `/get-agent/${agentId}`), "get-agent");
+  const a = answerObject(r2);
+  if (r2.outcome !== "ok" || !a) return null;
   const str2 = (k) => typeof a[k] === "string" ? a[k] : null;
   const num = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
@@ -3404,30 +3535,13 @@ async function getAgent(cfg, agentId) {
   };
 }
 async function getAgentRaw(cfg, agentId) {
-  const r2 = await fetch(`${API}/get-agent/${agentId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8e3)
-  });
-  if (!r2.ok) return null;
-  const a = await r2.json();
-  return a !== null && typeof a === "object" && !Array.isArray(a) ? a : null;
+  const r2 = answered(await retell(cfg, "GET", `/get-agent/${agentId}`), "get-agent");
+  return r2.outcome === "ok" ? answerObject(r2) : null;
 }
 async function writeRetell(cfg, method, path, payload) {
-  const r2 = await fetch(`${API}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(8e3)
-  });
-  const text = await r2.text();
-  let body;
-  try {
-    const parsed2 = JSON.parse(text);
-    body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
-  } catch {
-    body = text ? { text: text.slice(0, 300) } : null;
-  }
-  return { ok: r2.ok, status: r2.status, body };
+  const r2 = answered(await retell(cfg, method, path, { body: payload }), path);
+  const body = answerObject(r2) ?? (r2.json === null && r2.text ? { text: r2.text.slice(0, 300) } : null);
+  return { ok: r2.outcome === "ok", status: r2.status, body };
 }
 function createAgentVersion(cfg, agentId, baseVersion) {
   return writeRetell(cfg, "POST", `/create-agent-version/${agentId}`, { base_version: baseVersion });
@@ -3451,56 +3565,43 @@ function importPhoneNumber(cfg, body) {
   return writeRetell(cfg, "POST", "/import-phone-number", body);
 }
 async function deletePhoneNumber(cfg, number) {
-  const r2 = await fetch(`${API}/delete-phone-number/${encodeURIComponent(number)}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8e3)
-  });
-  await r2.body?.cancel().catch(() => void 0);
-  return { ok: r2.ok || r2.status === 404, status: r2.status };
+  const r2 = answered(
+    await retell(cfg, "DELETE", `/delete-phone-number/${encodeURIComponent(number)}`),
+    "delete-phone-number"
+  );
+  return { ok: r2.outcome === "ok" || r2.status === 404, status: r2.status };
 }
 function updatePhoneNumber(cfg, number, patch) {
   return writeRetell(cfg, "PATCH", `/update-phone-number/${encodeURIComponent(number)}`, patch);
 }
 async function getPhoneNumber(cfg, number) {
-  const r2 = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8e3)
-  });
-  if (!r2.ok) return null;
-  const n = await r2.json();
-  return n !== null && typeof n === "object" && !Array.isArray(n) ? n : null;
+  const r2 = answered(await retell(cfg, "GET", `/get-phone-number/${encodeURIComponent(number)}`), "get-phone-number");
+  return r2.outcome === "ok" ? answerObject(r2) : null;
 }
 async function updateLiveCall(cfg, callId, control) {
-  const r2 = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {},
-      call_control: {
-        additional_context: control.additionalContext,
-        ...control.triggerResponse !== void 0 ? { trigger_response: control.triggerResponse } : {}
+  const r2 = answered(
+    await retell(cfg, "PATCH", `/v2/update-live-call/${encodeURIComponent(callId)}`, {
+      body: {
+        ...control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {},
+        call_control: {
+          additional_context: control.additionalContext,
+          ...control.triggerResponse !== void 0 ? { trigger_response: control.triggerResponse } : {}
+        }
       }
     }),
-    signal: AbortSignal.timeout(8e3)
-  });
-  return { ok: r2.ok, status: r2.status };
+    "update-live-call"
+  );
+  return { ok: r2.outcome === "ok", status: r2.status };
 }
 async function stopCall(cfg, callId) {
-  const r2 = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8e3)
-  });
-  return { ok: r2.ok, status: r2.status };
+  const r2 = answered(await retell(cfg, "POST", `/v2/stop-call/${encodeURIComponent(callId)}`), "stop-call");
+  return { ok: r2.outcome === "ok", status: r2.status };
 }
 async function getRetellLlm(cfg, llmId, version) {
   const q = version === void 0 || version === null ? "" : `?version=${version}`;
-  const r2 = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` }
-  });
-  if (!r2.ok) return null;
-  const l = await r2.json();
+  const r2 = answered(await retell(cfg, "GET", `/get-retell-llm/${llmId}${q}`), "get-retell-llm");
+  const l = answerObject(r2);
+  if (r2.outcome !== "ok" || !l) return null;
   const str2 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
     llm_id: str2("llm_id") ?? llmId,
@@ -3517,9 +3618,9 @@ async function getRetellLlm(cfg, llmId, version) {
 function needsHydration(c) {
   return !c.transcript && !c.transcript_object;
 }
+var RECORDING_TIMEOUT_MS = 2e4;
 async function fetchRecording(url, opts = {}) {
-  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : void 0;
-  const r2 = await fetch(url, signal ? { signal } : void 0);
+  const r2 = await fetch(url, { signal: AbortSignal.timeout(opts.timeoutMs ?? RECORDING_TIMEOUT_MS) });
   if (!r2.ok) return { ok: false, status: r2.status };
   return { ok: true, bytes: await r2.arrayBuffer(), mime: r2.headers.get("content-type") };
 }
@@ -4032,25 +4133,22 @@ var TwilioError = class extends Error {
     this.code = code;
   }
 };
-var fetchTwilio = async (acct, method, url, form2) => {
-  const r2 = await fetch(url, {
+function twilioRequest(acct, method, url, o = {}) {
+  return providerFetch("twilio", url, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
-      ...form2 ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
+      ...o.form !== void 0 ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
     },
-    body: form2 ? new URLSearchParams(form2).toString() : void 0,
-    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS)
+    body: o.form,
+    timeoutMs: o.timeoutMs ?? TWILIO_TIMEOUT_MS,
+    ...method === "GET" ? { idempotent: true, tries: 2 } : {}
   });
-  const text = await r2.text();
-  let body;
-  try {
-    const parsed2 = JSON.parse(text);
-    body = parsed2 !== null && typeof parsed2 === "object" ? parsed2 : null;
-  } catch {
-    body = text ? { text: text.slice(0, 300) } : null;
-  }
-  return { status: r2.status, body };
+}
+var fetchTwilio = async (acct, method, url, form2) => {
+  const a = await twilioRequest(acct, method, url, form2 ? { form: new URLSearchParams(form2).toString() } : {});
+  const body = a.status === 0 ? { error: a.error ?? "no answer" } : answerObject(a) ?? (a.json === null && a.text ? { text: a.text.slice(0, 300) } : null);
+  return { status: a.status, body, outcome: a.outcome };
 };
 var str = (o, k) => typeof o?.[k] === "string" ? o[k] : null;
 function need(a, what) {
@@ -4276,7 +4374,8 @@ async function sendSms(http, acct, o) {
     ok: ok2,
     sid: str(a.body, "sid"),
     status: a.status,
-    code: typeof a.body?.code === "number" ? a.body.code : null
+    code: typeof a.body?.code === "number" ? a.body.code : null,
+    ...a.outcome ? { outcome: ok2 ? "ok" : a.outcome === "ok" ? "unknown" : a.outcome } : {}
   };
 }
 function twilioProvider(http = fetchTwilio) {
@@ -5229,36 +5328,31 @@ function waitAskedMs(h) {
   return null;
 }
 async function resendRequest(cfg, method, path, opts = {}) {
-  try {
-    const r2 = await fetch(`${RESEND_API}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
-        ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
-      },
-      ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-      signal: AbortSignal.timeout(opts.timeoutMs ?? SEND_TIMEOUT_MS2)
-    });
-    const raw = await r2.text().catch(() => "");
-    let json = null;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      json = null;
-    }
-    return { status: r2.status, json, raw, headers: r2.headers, timedOut: false };
-  } catch (e) {
-    const name = e?.name;
-    const timedOut = name === "TimeoutError" || name === "AbortError";
-    return {
-      status: 0,
-      json: null,
-      raw: e instanceof Error ? e.message : String(e),
-      headers: null,
-      timedOut
-    };
-  }
+  const a = await providerFetch("resend", `${RESEND_API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${cfg.apiKey}`,
+      ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
+      ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
+    },
+    ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2
+  });
+  return {
+    status: a.status,
+    json: a.json,
+    raw: a.status === 0 ? a.error ?? "" : a.text,
+    headers: a.headers,
+    timedOut: a.error === "timeout",
+    outcome: a.outcome
+  };
+}
+function emailOutcome(result, answered2) {
+  const limit = resendLimitOf(result);
+  if (limit === "rate") return "retryable";
+  if (limit === "in_flight") return "unknown";
+  if (limit === "daily" || limit === "monthly") return "refused";
+  return answered2;
 }
 function paceAskedMs(h) {
   if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
@@ -5271,7 +5365,7 @@ async function postEmail(cfg, request, timeoutMs) {
   if (a.status >= 200 && a.status < 300) {
     const id = a.json?.id;
     return {
-      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status, outcome: "ok" },
       waitMs: null,
       paceMs: paceAskedMs(a.headers),
       timedOut: false
@@ -5279,13 +5373,14 @@ async function postEmail(cfg, request, timeoutMs) {
   }
   if (a.status === 0)
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
+      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw, outcome: a.outcome },
       waitMs: null,
       paceMs: null,
       timedOut: a.timedOut
     };
+  const refused = { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) };
   return {
-    result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
+    result: { ...refused, outcome: emailOutcome(refused, a.outcome) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
     paceMs: null,
     timedOut: false
@@ -5306,7 +5401,7 @@ async function sendEmail(cfg, request, opts = {}) {
     const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
-      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
     return paced(second);
   }
   const limit = resendLimitOf(first.result);
@@ -5319,13 +5414,17 @@ async function sendEmail(cfg, request, opts = {}) {
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;
 async function fetchReceivedEmail(cfg, receivedId) {
-  const r2 = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
+  const r2 = await providerFetch("resend", `${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    timeoutMs: FETCH_TIMEOUT_MS,
+    idempotent: true,
+    tries: 2
   });
   if (r2.status === 404) return null;
-  const raw = await r2.text();
-  if (!r2.ok) throw new Error(`resend: received email ${receivedId} answered ${r2.status}: ${raw.slice(0, 200)}`);
+  if (r2.status === 0) throw new Error(`resend: received email ${receivedId} could not be read: ${r2.error}`);
+  const raw = r2.text;
+  if (r2.outcome !== "ok")
+    throw new Error(`resend: received email ${receivedId} answered ${r2.status}: ${raw.slice(0, 200)}`);
   let body;
   try {
     body = JSON.parse(raw);
@@ -5338,12 +5437,15 @@ async function fetchReceivedEmail(cfg, receivedId) {
 }
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
 async function fetchMailDomains(cfg) {
-  const r2 = await fetch(RESEND_DOMAINS, {
+  const r2 = await providerFetch("resend", RESEND_DOMAINS, {
     headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    timeoutMs: FETCH_TIMEOUT_MS,
+    idempotent: true,
+    tries: 2
   });
-  const raw = await r2.text();
-  if (!r2.ok) throw new Error(`resend: domains answered ${r2.status}: ${raw.slice(0, 200)}`);
+  if (r2.status === 0) throw new Error(`resend: domains could not be read: ${r2.error}`);
+  const raw = r2.text;
+  if (r2.outcome !== "ok") throw new Error(`resend: domains answered ${r2.status}: ${raw.slice(0, 200)}`);
   let body;
   try {
     body = JSON.parse(raw);
@@ -6211,13 +6313,20 @@ async function getPlace(http, key, placeId, opts = {}) {
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
-    const r2 = await fetchImpl(req.url, {
-      method: req.method,
-      headers: req.headers,
-      body: req.body,
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-    return { status: r2.status, body: await r2.text() };
+    const a = await providerFetch(
+      "google",
+      req.url,
+      {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        timeoutMs,
+        ...req.method === "GET" ? { idempotent: true, tries: 2 } : {}
+      },
+      { fetch: fetchImpl }
+    );
+    if (a.status === 0) throw new Error(`google: ${a.error ?? "no answer"}`);
+    return { status: a.status, body: a.text };
   };
 }
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
@@ -6747,13 +6856,14 @@ function apifyClient(fetchImpl, token) {
     ...json ? { "content-type": "application/json" } : {}
   });
   async function call2(url, init, allow = () => false) {
-    let res;
-    try {
-      res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(APIFY_TIMEOUT_MS) });
-    } catch (e) {
-      throw new ApifyRetryable(null, `the provider did not answer: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    const text = await res.text();
+    const res = await providerFetch(
+      "apify",
+      url,
+      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+      { fetch: fetchImpl }
+    );
+    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+    const text = res.text;
     if (res.status >= 200 && res.status < 300) {
       try {
         return { body: text ? JSON.parse(text) : null, headers: res.headers };
@@ -6991,6 +7101,7 @@ export {
   addressOf,
   addressRequest,
   agentSettingsDrift,
+  answerObject,
   apifyClient,
   assignRequest,
   authorizeUrl,
@@ -6998,6 +7109,7 @@ export {
   b64url,
   brandRequest,
   brandTypeFor,
+  breakerOf,
   buildEmailRequest,
   businessAttributes,
   businessEndUserRequest,
@@ -7089,6 +7201,7 @@ export {
   planVoiceProvision,
   platformRecipient,
   providerDomainFrom,
+  providerFetch,
   publishAgentVersion,
   receivedEmailFrom,
   referencesFor,
@@ -7105,6 +7218,7 @@ export {
   resendLimitOf,
   resendRequest,
   resendWebhookSignature,
+  resetBreakers,
   retellImportBody,
   reviewBells,
   reviewIdOf,
@@ -7152,6 +7266,7 @@ export {
   trunkDomain,
   trustProductAssignRequest,
   twilioProvider,
+  twilioRequest,
   twilioSignature,
   twilioSignedString,
   twilioUrls,

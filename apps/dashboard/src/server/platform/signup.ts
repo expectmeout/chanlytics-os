@@ -27,7 +27,7 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
  * its owner does.
  */
 
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
 
 /** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
@@ -171,17 +171,11 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  */
 export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
   if (!edgeConfigured() || !deployment.providersLive) return;
-  try {
-    await fetch(`${edgeUrl()}/api/admin/signup-notify`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/signup-notify", { workspace: tenantId }),
-      body: JSON.stringify({ tenant_id: tenantId, email }),
-      signal: AbortSignal.timeout(SIGNUP_NOTIFY_TIMEOUT_MS),
-    });
-  } catch (e) {
-    console.warn(
-      "signup_notify_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
-  }
+  const r = await callEdge(
+    "/api/admin/signup-notify",
+    { tenant_id: tenantId, email },
+    { workspace: tenantId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
+  );
+  if (r.status >= 503)
+    console.warn("signup_notify_failed", JSON.stringify({ tenant: tenantId, error: r.body?.detail }));
 }

@@ -75,7 +75,7 @@ async function file({ env = FILING_ENV, line = unfiled(), answer = () => null } 
   globalThis.fetch = async (url, init) => {
     seen.push({ url, auth: init.headers.Authorization, row: structuredClone(rows[0]) });
     const a = answer(url, seen.length) ?? { status: 201, body: { sid: `SID${seen.length}`, status: "compliant" } };
-    return { status: a.status, text: async () => JSON.stringify(a.body) };
+    return new Response(JSON.stringify(a.body), { status: a.status });
   };
   try {
     const out = await registerLine(db, {

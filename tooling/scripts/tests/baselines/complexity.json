@@ -660,7 +660,7 @@
     "depth": 0
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 164,
+    "lines": 159,
     "branches": 32,
     "depth": 2
   },
@@ -871,7 +871,7 @@
   },
   "packages/core/src/deliver.ts::deliver#1": {
     "lines": 160,
-    "branches": 31,
+    "branches": 29,
     "depth": 2
   },
   "packages/core/src/leads/runner/collect.ts::collectHeld#1": {

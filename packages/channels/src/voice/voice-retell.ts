@@ -9,6 +9,7 @@
 import type { SchemaSet } from "@chanlytics/contracts";
 import crypto from "node:crypto";
 import { callOutcomeWords } from "@chanlytics/contracts";
+import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
 
 const API = "https://api.retellai.com";
 
@@ -199,6 +200,39 @@ export function callSummaryLine(n: NormalizedCall): string {
 
 /* -------------------------------- provider I/O ------------------------------- */
 
+/**
+ * Every call below leaves through providerFetch: bounded, and held by Retell's breaker when the provider is down.
+ * Each keeps the contract it had: a read that could get no answer at all throws where it threw, and says so where it
+ * said so (getCall).
+ */
+const RETELL_CALL_TIMEOUT_MS = 8_000;
+
+/** One call to Retell with its key, as providerFetch answers it. Reads are asked twice when the first got no answer. */
+function retell(
+  cfg: RetellConfig,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  o: { body?: unknown; timeoutMs?: number } = {},
+) {
+  const read = method === "GET" || path === "/v3/list-calls";
+  return providerFetch("retell", `${API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${cfg.apiKey}`,
+      ...(o.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(o.body !== undefined ? { body: JSON.stringify(o.body) } : {}),
+    timeoutMs: o.timeoutMs ?? RETELL_CALL_TIMEOUT_MS,
+    ...(read ? { idempotent: true, tries: 2 } : {}),
+  });
+}
+
+/** An answer that is no answer at all, thrown by name, as the bare fetch it replaces threw. */
+function answered(a: ProviderReply, what: string): ProviderReply {
+  if (a.status === 0) throw new Error(a.error ?? `retell ${what}: no answer`);
+  return a;
+}
+
 export interface ListCallsPage {
   calls: RetellCall[];
   /** Pass back as paginationKey to continue; null when exhausted. */
@@ -234,13 +268,12 @@ export async function listCalls(
     ...(opts.paginationKey ? { pagination_key: opts.paginationKey } : {}),
     ...(opts.includeTotal ? { include_total: true } : {}),
   };
-  const r = await fetch(`${API}/v3/list-calls`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`list-calls ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const out = (await r.json()) as {
+  const r = answered(
+    await retell(cfg, "POST", "/v3/list-calls", { body, timeoutMs: RETELL_READ_TIMEOUT_MS }),
+    "list-calls",
+  );
+  if (r.outcome !== "ok") throw new Error(`list-calls ${r.status}: ${r.text.slice(0, 200)}`);
+  const out = (answerObject(r) ?? {}) as {
     items?: RetellCall[];
     has_more?: boolean;
     pagination_key?: string;
@@ -310,34 +343,21 @@ export async function getCall(
   callId: string,
   opts: { timeoutMs?: number } = {},
 ): Promise<RetellCallRead> {
-  let r: Response;
-  try {
-    r = await fetch(`${API}/v2/get-call/${callId}`, {
-      headers: { Authorization: `Bearer ${cfg.apiKey}` },
-      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS),
-    });
-  } catch {
-    // A timeout, a refused connection, a reset: no answer at all.
-    return { kind: "unavailable", status: null, retryAfterMs: null };
-  }
-  if (r.ok) {
-    let body: unknown = null;
-    try {
-      body = await r.json();
-    } catch (e) {
-      // A body that stalled past the bound is no answer at all, as a request that did.
-      if (e instanceof Error && e.name === "TimeoutError")
-        return { kind: "unavailable", status: null, retryAfterMs: null };
-    }
+  // One try: the calls sweep reads twenty-five rows a tick, and asks again next tick.
+  const r = await providerFetch("retell", `${API}/v2/get-call/${callId}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    timeoutMs: opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS,
+  });
+  // A timeout, a refused connection, a reset, a body that stalled past the bound, the breaker: no answer at all.
+  if (r.status === 0) return { kind: "unavailable", status: null, retryAfterMs: null };
+  if (r.outcome === "ok")
     // A 200 that is not a call is a proxy's page in front of the provider, not its word.
-    return isCallBody(body)
-      ? { kind: "found", call: body }
+    return isCallBody(r.json)
+      ? { kind: "found", call: r.json }
       : { kind: "unavailable", status: r.status, retryAfterMs: null };
-  }
-  await r.body?.cancel().catch(() => undefined);
   if (r.status === 401 || r.status === 403) return { kind: "auth", status: r.status };
   if (r.status === 408 || r.status === 425 || r.status === 429 || r.status >= 500)
-    return { kind: "unavailable", status: r.status, retryAfterMs: retryAfterMs(r.headers.get("retry-after")) };
+    return { kind: "unavailable", status: r.status, retryAfterMs: retryAfterMs(r.headers?.get("retry-after") ?? null) };
   return { kind: "not_found", status: r.status };
 }
 
@@ -369,11 +389,9 @@ export interface RetellAgentConfig {
 
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
 export async function getAgent(cfg: RetellConfig, agentId: string): Promise<RetellAgentConfig | null> {
-  const r = await fetch(`${API}/get-agent/${agentId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-  });
-  if (!r.ok) return null;
-  const a = (await r.json()) as Record<string, unknown>;
+  const r = answered(await retell(cfg, "GET", `/get-agent/${agentId}`), "get-agent");
+  const a = answerObject(r);
+  if (r.outcome !== "ok" || !a) return null;
   const str = (k: string) => (typeof a[k] === "string" ? (a[k] as string) : null);
   const num = (k: string) => (typeof a[k] === "number" ? (a[k] as number) : null);
   const bool = (k: string) => (typeof a[k] === "boolean" ? (a[k] as boolean) : null);
@@ -405,13 +423,8 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
  * the webhook URL may carry a secret in its query string.
  */
 export async function getAgentRaw(cfg: RetellConfig, agentId: string): Promise<Record<string, unknown> | null> {
-  const r = await fetch(`${API}/get-agent/${agentId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!r.ok) return null;
-  const a = (await r.json()) as unknown;
-  return a !== null && typeof a === "object" && !Array.isArray(a) ? (a as Record<string, unknown>) : null;
+  const r = answered(await retell(cfg, "GET", `/get-agent/${agentId}`), "get-agent");
+  return r.outcome === "ok" ? answerObject(r) : null;
 }
 
 /** What a provider write answered: the status and the body, never an exception in a route. */
@@ -427,21 +440,9 @@ async function writeRetell(
   path: string,
   payload: unknown,
 ): Promise<RetellWrite> {
-  const r = await fetch(`${API}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(8000),
-  });
-  const text = await r.text();
-  let body: Record<string, unknown> | null;
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    body = text ? { text: text.slice(0, 300) } : null;
-  }
-  return { ok: r.ok, status: r.status, body };
+  const r = answered(await retell(cfg, method, path, { body: payload }), path);
+  const body = answerObject(r) ?? (r.json === null && r.text ? { text: r.text.slice(0, 300) } : null);
+  return { ok: r.outcome === "ok", status: r.status, body };
 }
 
 /** POST /create-agent-version — a new draft from a version; a published version cannot change. */
@@ -491,13 +492,11 @@ export function importPhoneNumber(cfg: RetellConfig, body: Record<string, unknow
  * Retell must stop answering for a number that may be somebody else's next month). Gone already (404) is gone.
  */
 export async function deletePhoneNumber(cfg: RetellConfig, number: string): Promise<{ ok: boolean; status: number }> {
-  const r = await fetch(`${API}/delete-phone-number/${encodeURIComponent(number)}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  await r.body?.cancel().catch(() => undefined);
-  return { ok: r.ok || r.status === 404, status: r.status };
+  const r = answered(
+    await retell(cfg, "DELETE", `/delete-phone-number/${encodeURIComponent(number)}`),
+    "delete-phone-number",
+  );
+  return { ok: r.outcome === "ok" || r.status === 404, status: r.status };
 }
 
 /** PATCH /update-phone-number — the agents on a number, its inbound webhook, its nickname. */
@@ -511,13 +510,8 @@ export function updatePhoneNumber(
 
 /** GET /get-phone-number — the number as stored; null when the provider says no. Never printed whole: the inbound webhook URL carries a key. */
 export async function getPhoneNumber(cfg: RetellConfig, number: string): Promise<Record<string, unknown> | null> {
-  const r = await fetch(`${API}/get-phone-number/${encodeURIComponent(number)}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!r.ok) return null;
-  const n = (await r.json()) as unknown;
-  return n !== null && typeof n === "object" && !Array.isArray(n) ? (n as Record<string, unknown>) : null;
+  const r = answered(await retell(cfg, "GET", `/get-phone-number/${encodeURIComponent(number)}`), "get-phone-number");
+  return r.outcome === "ok" ? answerObject(r) : null;
 }
 
 /** What an operator says to the agent mid-call, heard by the agent alone. */
@@ -543,19 +537,19 @@ export async function updateLiveCall(
   callId: string,
   control: LiveCallControl,
 ): Promise<{ ok: boolean; status: number }> {
-  const r = await fetch(`${API}/v2/update-live-call/${encodeURIComponent(callId)}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...(control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {}),
-      call_control: {
-        additional_context: control.additionalContext,
-        ...(control.triggerResponse !== undefined ? { trigger_response: control.triggerResponse } : {}),
+  const r = answered(
+    await retell(cfg, "PATCH", `/v2/update-live-call/${encodeURIComponent(callId)}`, {
+      body: {
+        ...(control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {}),
+        call_control: {
+          additional_context: control.additionalContext,
+          ...(control.triggerResponse !== undefined ? { trigger_response: control.triggerResponse } : {}),
+        },
       },
     }),
-    signal: AbortSignal.timeout(8000),
-  });
-  return { ok: r.ok, status: r.status };
+    "update-live-call",
+  );
+  return { ok: r.outcome === "ok", status: r.status };
 }
 
 /**
@@ -564,12 +558,8 @@ export async function updateLiveCall(
  * moment ago is a sentence in a route, not an exception.
  */
 export async function stopCall(cfg: RetellConfig, callId: string): Promise<{ ok: boolean; status: number }> {
-  const r = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  return { ok: r.ok, status: r.status };
+  const r = answered(await retell(cfg, "POST", `/v2/stop-call/${encodeURIComponent(callId)}`), "stop-call");
+  return { ok: r.outcome === "ok", status: r.status };
 }
 
 /** The fields of a Retell LLM the shell is defined over. */
@@ -594,11 +584,9 @@ export async function getRetellLlm(
   version?: number | null,
 ): Promise<RetellLlmConfig | null> {
   const q = version === undefined || version === null ? "" : `?version=${version}`;
-  const r = await fetch(`${API}/get-retell-llm/${llmId}${q}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-  });
-  if (!r.ok) return null;
-  const l = (await r.json()) as Record<string, unknown>;
+  const r = answered(await retell(cfg, "GET", `/get-retell-llm/${llmId}${q}`), "get-retell-llm");
+  const l = answerObject(r);
+  if (r.outcome !== "ok" || !l) return null;
   const str = (k: string) => (typeof l[k] === "string" ? (l[k] as string) : null);
   return {
     llm_id: str("llm_id") ?? llmId,
@@ -630,14 +618,17 @@ export function needsHydration(c: RetellCall): boolean {
  */
 export type RecordingFetch = { ok: true; bytes: ArrayBuffer; mime: string | null } | { ok: false; status: number };
 
+/** A recording's download when its caller names no bound: the calls sweep's own. */
+const RECORDING_TIMEOUT_MS = 20_000;
+
 export async function fetchRecording(url: string, opts: { timeoutMs?: number } = {}): Promise<RecordingFetch> {
   // A bounded wait: the webhook that calls this has the agent's delivery
   // timeout over its head, and an unbounded fetch inside it earns a retry of
   // the whole event. A timeout REJECTS; a non-2xx returns its status, so the
   // caller can tell a recording the CDN has not published yet (try again)
   // from one the provider refuses (give up).
-  const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
-  const r = await fetch(url, signal ? { signal } : undefined);
+  // Bytes, not a provider's JSON, so not providerFetch; bounded all the same, a caller's bound or RECORDING_TIMEOUT_MS.
+  const r = await fetch(url, { signal: AbortSignal.timeout(opts.timeoutMs ?? RECORDING_TIMEOUT_MS) });
   if (!r.ok) return { ok: false, status: r.status };
   return { ok: true, bytes: await r.arrayBuffer(), mime: r.headers.get("content-type") };
 }

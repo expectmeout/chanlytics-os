@@ -1,6 +1,6 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 
 /** How long the edge is given to write to the partner before the owner is told it did not go. */
 const PARTNER_MAIL_TIMEOUT_MS = 8000;
@@ -16,20 +16,15 @@ export async function sendPartnerInvite(
   ports: { fetch?: typeof fetch; live?: boolean } = {},
 ): Promise<boolean> {
   if (!(ports.live ?? deployment.providersLive) || !edgeConfigured()) return false;
-  try {
-    const r = await (ports.fetch ?? fetch)(`${edgeUrl()}/api/admin/partner-invite`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/partner-invite", { workspace: tenantId }),
-      body: JSON.stringify({ tenant_id: tenantId }),
-      signal: AbortSignal.timeout(PARTNER_MAIL_TIMEOUT_MS),
-    });
-    if (!r.ok) console.error("partner_invite_failed", JSON.stringify({ tenant: tenantId, status: r.status }));
-    return r.ok;
-  } catch (e) {
+  const r = await callEdge(
+    "/api/admin/partner-invite",
+    { tenant_id: tenantId },
+    { workspace: tenantId, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
+  );
+  if (!edgeAnswered(r))
     console.error(
       "partner_invite_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ tenant: tenantId, status: r.status, error: r.body?.error }),
     );
-    return false;
-  }
+  return edgeAnswered(r);
 }

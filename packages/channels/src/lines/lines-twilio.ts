@@ -8,11 +8,15 @@
  * given, form-encoded bodies, JSON answers — so a test can pin every URL
  * and parameter without a network, and the edge supplies fetch.
  */
+import { answerObject, providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
 import type { AvailableNumber, LineProvider, ProviderAccount } from "./lines";
 
 export interface TwilioAnswer {
+  /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
   status: number;
   body: Record<string, unknown> | null;
+  /** What the call came to (provider-fetch SendOutcome); absent from a test double that does not say. */
+  outcome?: SendOutcome;
 }
 
 export type TwilioHttp = (
@@ -61,26 +65,40 @@ export class TwilioError extends Error {
   }
 }
 
-/** The fetch-backed port: basic auth as `acct`, 15 s per call. */
-export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
-  const r = await fetch(url, {
+/**
+ * The fetch-backed port: basic auth as `acct`, 15 s per call, through providerFetch. It never throws: a call that got
+ * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
+ * which a saga step's `need` refuses as any other failure. A read is asked twice when the first got no answer.
+ */
+/**
+ * One call to Twilio as `acct`, through providerFetch: basic auth, a form body already encoded (the port's, or A2P's
+ * own encoder), 15 s unless said. A read is asked twice when the first got no answer.
+ */
+export function twilioRequest(
+  acct: ProviderAccount,
+  method: "GET" | "POST" | "DELETE",
+  url: string,
+  o: { form?: string; timeoutMs?: number } = {},
+): Promise<ProviderReply> {
+  return providerFetch("twilio", url, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
-      ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(o.form !== undefined ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
-    body: form ? new URLSearchParams(form).toString() : undefined,
-    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
+    body: o.form,
+    timeoutMs: o.timeoutMs ?? TWILIO_TIMEOUT_MS,
+    ...(method === "GET" ? { idempotent: true, tries: 2 } : {}),
   });
-  const text = await r.text();
-  let body: Record<string, unknown> | null;
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    body = text ? { text: text.slice(0, 300) } : null;
-  }
-  return { status: r.status, body };
+}
+
+export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
+  const a = await twilioRequest(acct, method, url, form ? { form: new URLSearchParams(form).toString() } : {});
+  const body =
+    a.status === 0
+      ? { error: a.error ?? "no answer" }
+      : (answerObject(a) ?? (a.json === null && a.text ? { text: a.text.slice(0, 300) } : null));
+  return { status: a.status, body, outcome: a.outcome };
 };
 
 const str = (o: Record<string, unknown> | null, k: string): string | null =>
@@ -371,6 +389,7 @@ async function sendSms(
     sid: str(a.body, "sid"),
     status: a.status,
     code: typeof a.body?.code === "number" ? (a.body.code as number) : null,
+    ...(a.outcome ? { outcome: ok ? ("ok" as const) : a.outcome === "ok" ? ("unknown" as const) : a.outcome } : {}),
   };
 }
 

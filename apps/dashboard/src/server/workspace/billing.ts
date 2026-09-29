@@ -7,9 +7,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
-import type { EdgeAnswer } from "../connections/lines";
 import { deployment } from "../deployment";
-import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 
 export const BILLING_COLUMNS =
   "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
@@ -44,23 +43,10 @@ export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_
   // The deployment gate every other provider door keeps (connections/whatsapp.ts): a
   // preview with the edge secret set must not open a real Checkout.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/billing`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/billing", {
-        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
-      }),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const parsed = (await r.json().catch(() => null)) as unknown;
-    return {
-      status: r.status,
-      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
-    };
-  } catch (e) {
-    return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
-  }
+  return callEdge("/api/admin/billing", body, {
+    workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    timeoutMs,
+  });
 }
 
 interface BillingReadiness {

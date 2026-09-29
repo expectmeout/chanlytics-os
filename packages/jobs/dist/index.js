@@ -21352,6 +21352,21 @@ var WireUnavailableError = class extends Error {
 function isWireUnavailableError(e2) {
   return e2 instanceof Error && e2.name === "WireUnavailableError";
 }
+var NotTakenError = class extends Error {
+  channel;
+  status;
+  errorBody;
+  constructor(channel, sent) {
+    super(`deliver: the ${channel} provider did not take it (${sent.status || "no answer"}: ${sent.errorBody ?? ""})`);
+    this.name = "NotTakenError";
+    this.channel = channel;
+    this.status = sent.status;
+    this.errorBody = sent.errorBody ?? null;
+  }
+};
+function isNotTakenError(e2) {
+  return e2 instanceof Error && e2.name === "NotTakenError";
+}
 async function putOnWire(wire, d, asReply) {
   const send = wire[d.channel];
   if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
@@ -21360,12 +21375,14 @@ async function putOnWire(wire, d, asReply) {
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
+  const sent = await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {},
     ...reply
   });
+  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
+  return sent;
 }
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
@@ -21621,7 +21638,7 @@ async function deliver(ports, d) {
   const failure = {
     http_status: sent.status,
     body: sent.errorBody ?? null,
-    ...d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}
+    ...sent.outcome === "unknown" ? { outcome: "unknown" } : {}
   };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
@@ -21690,6 +21707,7 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
+  const resumes = resumesOf(p);
   let out;
   try {
     out = await ports.deliver({
@@ -21709,29 +21727,36 @@ async function sendQueued(ports, cmd) {
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
       ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
       ...msg.leadId ? { leadId: msg.leadId } : {},
-      messageId: p.message_id
+      messageId: p.message_id,
+      holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e2) {
-    if (!isWireUnavailableError(e2)) throw e2;
-    await resendWhenBound(ports, cmd, channel, e2);
+    if (isWireUnavailableError(e2)) await resendLater(ports, cmd, channel, e2, true);
+    else if (isNotTakenError(e2)) await resendLater(ports, cmd, channel, e2, e2.errorBody === "breaker_open");
+    else throw e2;
     return;
   }
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
 }
-async function resendWhenBound(ports, cmd, channel, e2) {
+function resumesOf(p) {
+  return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+}
+async function resendLater(ports, cmd, channel, e2, page) {
   const p = cmd.payload;
-  const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+  const resumes = resumesOf(p);
   const wait = SEND_RETRY_WAITS_MS[resumes];
+  const unbound = isWireUnavailableError(e2);
   if (wait === void 0)
     throw new Error(
-      `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e2.message})`,
+      `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e2.message})`,
       { cause: e2 }
     );
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  if (!page) return;
   await ports.page?.(
-    `wire_unavailable:${channel}`,
-    `${channel}: a workspace's credentials could not be read`,
+    unbound ? `wire_unavailable:${channel}` : `provider_down:${channel}`,
+    unbound ? `${channel}: a workspace's credentials could not be read` : `${channel}: the provider is not answering`,
     `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e2.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS22)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
   )?.catch(() => void 0);
 }
@@ -25973,7 +25998,7 @@ async function noteMailboxTrouble(db, tenantId, mailboxId) {
   }
   return { mailbox: data && data.length > 0 ? "marked" : "gone" };
 }
-function resumesOf(payload) {
+function resumesOf2(payload) {
   if (typeof payload !== "object" || payload === null) return 0;
   const v = payload.resumes;
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
@@ -26040,7 +26065,7 @@ async function settleJob(db, job, certain) {
     const live = await db.from("jobs").select("id", { count: "exact", head: true }).eq("tenant_id", job.tenant_id).eq("kind", "broadcast_send").eq("payload->>broadcast_id", broadcastId).in("state", ["scheduled", "fired"]).neq("id", job.id);
     if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
     if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
-    const resumes = resumesOf(job.payload);
+    const resumes = resumesOf2(job.payload);
     if (resumes >= MAX_RESUMES)
       return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
         reached,

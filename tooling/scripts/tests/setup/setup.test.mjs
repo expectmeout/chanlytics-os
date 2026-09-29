@@ -828,7 +828,7 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   assert.ok(route.includes("return { request: data, told };"));
   const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
   assert.ok(service.includes("if (!deployment.providersLive || !edgeConfigured()) return false;"), "production only");
-  assert.ok(service.includes("${edgeUrl()}/api/admin/setup-request"));
+  assert.ok(service.includes('callEdge("/api/admin/setup-request"'));
   assert.ok(service.includes('console.error("setup_request_tell_failed"'), "logged, not thrown");
   // The edge door -- the knock, the mail to the platform's own mailbox with
   // how to set the line up, the workspace's row the only thing read -- runs
@@ -982,7 +982,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
   }
   const server = readCode("apps/dashboard/src/server/connections/lines.ts");
-  assert.ok(server.includes('edgeHeaders("/api/admin/lines"') && server.includes("${edgeUrl()}/api/admin/lines"));
+  assert.ok(server.includes('callEdge("/api/admin/lines"'));
   assert.ok(
     !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))),
     "no provider id is selected for the page",

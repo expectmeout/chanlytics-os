@@ -111,7 +111,7 @@ window publishers                   448   sites in 166 files
 copies                               52   of 14 names
 as unknown as                       221
 table names outside packages/db     526
-unnamed durations                    76   in 37 files
+unnamed durations                    69   in 36 files
 literal style values               1093   in 21 stylesheets
 primitives outside the kit         2569   selectors naming 964 classes
 inline style props                  285   in 48 files

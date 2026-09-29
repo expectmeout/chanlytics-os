@@ -153,6 +153,11 @@ export interface Delivery {
   kind?: SendKind;
   /** Recorded on a row this call writes. */
   meta?: Record<string, Json>;
+  /**
+   * A caller that will try again (sendQueued): a send the provider provably did not take (outcome `retryable`) throws
+   * NotTakenError before anything is written, and the row stays queued. Without it, it fails as any refusal does.
+   */
+  holdIfNotTaken?: boolean;
 }
 
 /** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
@@ -680,12 +685,12 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     return { outcome: "sent", messageId, externalId: sent.wamid };
   }
 
-  // A send that timed out may have been taken by the provider all the same: its outcome is unknown, and its receipt
-  // may still settle it (00177's guard lets exactly this row move on).
+  // A send that timed out or dropped after it left may have been taken all the same, on any wire (provider-fetch): its
+  // outcome is unknown, and its receipt may still settle it (00177's guard lets exactly this row move on).
   const failure = {
     http_status: sent.status,
     body: sent.errorBody ?? null,
-    ...(d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}),
+    ...(sent.outcome === "unknown" ? { outcome: "unknown" } : {}),
   };
   let messageId: string | null = d.messageId ?? null;
   if (d.messageId) {

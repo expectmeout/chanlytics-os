@@ -13054,6 +13054,7 @@ function inAppBootScript() {
 }
 var PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 var PREFETCH_SLOT = "__prefetched";
+var PREFETCH_TIMEOUT_MS = 15e3;
 function routePrefetchScript() {
   return [
     "try{",
@@ -13064,7 +13065,8 @@ function routePrefetchScript() {
     'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin"});',
+    `var t=window.AbortSignal&&AbortSignal.timeout?AbortSignal.timeout(${PREFETCH_TIMEOUT_MS}):undefined;`,
+    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin",signal:t});',
     "}}catch(e){}"
   ].join("");
 }

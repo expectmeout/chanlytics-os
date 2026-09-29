@@ -13,6 +13,7 @@ import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.
 import {
   getAgent,
   getRetellLlm,
+  providerFetch,
   voiceShellDrift,
   agentSettingsDrift,
   type RetellAgentConfig,
@@ -25,6 +26,8 @@ import { coldReplyDomains } from "../lib/email/email.js";
 import { emailDomainOf } from "../lib/packages/contracts.js";
 
 const META_APP_ID = metaAppId();
+/** How long the report waits on a provider it reads (Meta's token check): a stuck one used to hold the whole report. */
+const DIAG_READ_TIMEOUT_MS = 10_000;
 
 /** A part of the report: the keys it answers, in the order the report shows them. */
 type Section = Record<string, unknown>;
@@ -191,8 +194,13 @@ async function waTokenPermanence(): Promise<Section> {
       input_token: env.WHATSAPP_ACCESS_TOKEN,
       access_token: `${META_APP_ID}|${env.META_APP_SECRET}`,
     });
-    const r = await fetch(`https://graph.facebook.com/v25.0/debug_token?${q}`);
-    const d = ((await r.json()) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
+    const r = await providerFetch("meta", `https://graph.facebook.com/v25.0/debug_token?${q}`, {
+      timeoutMs: DIAG_READ_TIMEOUT_MS,
+      idempotent: true,
+    });
+    // No answer at all is said as a failed check, as the bare fetch's throw was.
+    if (r.status === 0) throw new Error(r.error ?? "no answer");
+    const d = ((r.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
     return {
       waTokenCheck: {
         valid: !!d.is_valid,

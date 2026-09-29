@@ -19,9 +19,8 @@ import {
   type GoogleReviewDto,
   DAY_MS,
 } from "@chanlytics/contracts";
-import type { EdgeAnswer } from "./lines";
 
-import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 
 const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
@@ -117,23 +116,10 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate the other provider doors keep: a preview never reaches Google under the business's name.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/google`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/google", {
-        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
-      }),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const parsed = (await r.json().catch(() => null)) as unknown;
-    return {
-      status: r.status,
-      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
-    };
-  } catch (e) {
-    return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
-  }
+  return callEdge("/api/admin/google", body, {
+    workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    timeoutMs,
+  });
 }
 
 interface GoogleReadiness {

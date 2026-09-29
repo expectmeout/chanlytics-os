@@ -1,4 +1,5 @@
 import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
+import { providerFetch } from "../provider-fetch";
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
  *
@@ -113,13 +114,14 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
     init: RequestInit,
     allow: (status: number) => boolean = () => false,
   ): Promise<{ body: unknown; headers: Headers }> {
-    let res: Response;
-    try {
-      res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(APIFY_TIMEOUT_MS) });
-    } catch (e) {
-      throw new ApifyRetryable(null, `the provider did not answer: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    const text = await res.text();
+    const res = await providerFetch(
+      "apify",
+      url,
+      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+      { fetch: fetchImpl },
+    );
+    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+    const text = res.text;
     if (res.status >= 200 && res.status < 300) {
       try {
         return { body: text ? JSON.parse(text) : null, headers: res.headers };

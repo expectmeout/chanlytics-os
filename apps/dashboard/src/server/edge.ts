@@ -58,3 +58,63 @@ export function edgeHeaders(
   else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
   return h;
 }
+
+/** What an edge door answered: its status and its JSON body, or the status this side gave a call that got none. */
+export interface EdgeAnswer {
+  status: number;
+  body: Record<string, unknown> | null;
+}
+
+/** How long a call to the edge waits unless its caller says: a door that calls a provider bounds its own calls under it. */
+const EDGE_CALL_TIMEOUT_MS = 20_000;
+
+/** Whether the door said yes on the wire: a 2xx. What it said inside is the caller's to read. */
+export const edgeAnswered = (a: EdgeAnswer): boolean => a.status >= 200 && a.status < 300;
+
+/**
+ * One call to an edge door: the token for that door (`aud`, its path), a JSON body, and a bound on the wait. Every call
+ * the dashboard makes to the edge goes through here, so none waits for ever: nine did, and one hung connection held a
+ * member's request until the platform killed it. Never throws: a door that did not answer in time is a 504
+ * (`edge_timeout`), one that could not be reached a 503 (`edge_unreachable`), with the network's words in `detail`,
+ * read by the caller like any other refusal.
+ */
+export async function callEdge(
+  aud: string,
+  body: unknown,
+  opts: {
+    workspace?: string | null;
+    user?: string | null;
+    timeoutMs?: number;
+    method?: "GET" | "POST";
+    fetch?: typeof fetch;
+  } = {},
+): Promise<EdgeAnswer> {
+  const method = opts.method ?? "POST";
+  try {
+    const r = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
+      method,
+      headers: edgeHeaders(aud, { workspace: opts.workspace ?? null, user: opts.user ?? null }),
+      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
+      cache: "no-store",
+      signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
+    });
+    const parsed: unknown = await r.json().catch(() => null);
+    return {
+      status: r.status,
+      body:
+        parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : null,
+    };
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    return {
+      status: timedOut ? 504 : 503,
+      body: {
+        ok: false,
+        error: timedOut ? "edge_timeout" : "edge_unreachable",
+        detail: e instanceof Error ? e.message : String(e),
+      },
+    };
+  }
+}
