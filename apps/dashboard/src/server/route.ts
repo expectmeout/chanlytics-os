@@ -319,9 +319,11 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     return kind === "write" ? onceForCard(ctx, member, req, handle) : handle();
   };
 
+  // `input` is what the route declared it takes (a write's body, a read's query): the /api/v1 reference is written
+  // from it (tooling/scripts/gen/api-reference.mjs, docs/api.md), as route-policy.json is from `policy`.
   const handler = Object.assign(
     withRoute((req, ctx) => run(req, ctx)),
-    { policy, run },
+    { policy, run, input: kind === "write" ? spec.input : spec.query },
   );
   return handler as typeof handler & Shape<I, O>;
 }

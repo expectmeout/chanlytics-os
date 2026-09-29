@@ -6156,6 +6156,13 @@ type Database = {
                 };
                 Returns: Json;
             };
+            migration_head: {
+                Args: never;
+                Returns: {
+                    applied: number;
+                    head: string;
+                }[];
+            };
             mint_reply_token: {
                 Args: never;
                 Returns: string;

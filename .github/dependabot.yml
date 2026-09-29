@@ -2,6 +2,10 @@
 # Monday, grouped so a week's minors and patches arrive as one pull request
 # and cost one CI run; a major arrives on its own, because a major is a
 # decision. Security updates are the repository setting beside this file.
+#
+# The updater runs pnpm 11, which reads pnpm's settings only from
+# pnpm-workspace.yaml; repo/settings/pnpm-settings.test.mjs keeps them there, and the
+# catalog manual, so the lockfile it writes is one CI's pnpm installs frozen.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -26,9 +30,31 @@ updates:
       # pnpm-workspace.yaml's catalog; tests/types/ holds it.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # The phone app's SDK set. Expo pins each of these to its SDK, and
+      # expo-doctor refuses any other version, so a bump of one alone is red
+      # (#1126, #1315: react-native 0.87's types broke the app). They move
+      # together, with the SDK, by hand: `npx expo install --fix` in apps/mobile.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      # React is the phone's exact pin too (19.2.3, the SDK's) beside the
+      # dashboard's; a patch passes the doctor, a minor moves with the SDK and
+      # Next.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
+        # maplibre-gl's worker is vendored byte for byte into
+        # apps/dashboard/public/maplibre (maplibre-worker-vendored.test.mjs), so
+        # its bump comes alone, to carry the refreshed copy beside it.
+        exclude-patterns: ["maplibre-gl"]
     commit-message:
       prefix: "deps"
   - package-ecosystem: "github-actions"

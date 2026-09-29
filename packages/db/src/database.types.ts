@@ -5838,6 +5838,13 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      migration_head: {
+        Args: never
+        Returns: {
+          applied: number
+          head: string
+        }[]
+      }
       mint_reply_token: { Args: never; Returns: string }
       newest_messages: {
         Args: {

@@ -110,26 +110,27 @@ test("the nightly evals run on a clock and on demand, only with the eval key, an
   assert.ok(runner.includes("process.env.ANTHROPIC_EVAL_KEY") && !runner.includes("ANTHROPIC_API_KEY"));
 });
 
-test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, and a crossed line never turns the suite red", () => {
+test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, titled by whether Ask crossed a line or the check could not run (I2:2), and never turns the suite red", () => {
   const y = readRaw(".github/workflows/nightly-e2e.yml");
   const step = y.slice(
     y.indexOf("- name: Ask's cache and first words hold their lines"),
     y.indexOf("- run: pnpm e2e:install"),
   );
+  assert.ok(step.includes("node tooling/scripts/ops/ask-day.mjs --check > ask-day.txt"), "the check, its lines kept");
   assert.ok(
-    step.includes("run: node tooling/scripts/ops/ask-day.mjs --check | tee ask-day.txt"),
-    "the check, its line kept",
+    step.includes("id: ask_day") && step.includes("set +e") && step.includes('echo "code=$code" >> "$GITHUB_OUTPUT"'),
+    "its own outcome, never the job's: the exit is read, not thrown",
   );
-  assert.ok(
-    step.includes("id: ask_day") && step.includes("continue-on-error: true"),
-    "its own outcome, never the job's",
-  );
-  assert.ok(step.includes("shell: bash"), "bash with pipefail: the check's exit, not tee's, is the step's");
+  assert.ok(step.includes("shell: bash"));
   for (const s of ["E2E_SUPABASE_URL", "E2E_SERVICE_ROLE_KEY"]) assert.ok(step.includes(`secrets.${s}`), s);
-  assert.ok(step.includes("if: ${{ steps.ask_day.outcome == 'failure' }}"), "an issue only when a line was crossed");
+  assert.ok(step.includes("CODE: ${{ steps.ask_day.outputs.code }}"), "the issue reads the exit");
   assert.ok(
-    step.includes("gh issue create") && step.includes("tail -n 1 ask-day.txt"),
-    "the verdict's line in the issue",
+    step.includes(`--title "Ask's day crossed a line"`) && step.includes(`--title "Ask's day could not be checked"`),
+    "a crossed line and a check that could not run are two issues",
+  );
+  assert.ok(
+    step.includes("rolling-issue.mjs") && step.includes("tail -n 1 ask-day.txt"),
+    "the verdict's line in one rolling issue",
   );
   assert.ok(y.includes("issues: write"));
 });

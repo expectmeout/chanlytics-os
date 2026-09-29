@@ -295,7 +295,7 @@ the platform's money, and the schema its input must pass. One pipeline
 enforces them in a fixed order, so a viewer is refused before a token is spent.
 `route-policy.json` pins every route's declaration; a change there is a change
 to who may do what. `apps/dashboard/src/client/routes.generated.ts` is the
-typed client, regenerated from the same declarations.
+typed client, and `docs/api.md` the reference of what each route takes, both regenerated from the same declarations.
 
 ## Tenancy
 
