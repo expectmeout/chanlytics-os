@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
   // and one that lands in access logs. The platform's door: nothing mints a
   // token for it (the runbook and the golden probe knock with the key), so
   // the key stays its credential on an edge that holds the secret too.
-  const auth = authorizeAdmin(request, "/api/diag", { platformKey: true });
+  const auth = await authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
 
   const out: Report = {};

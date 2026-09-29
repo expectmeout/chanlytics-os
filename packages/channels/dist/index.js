@@ -6743,8 +6743,11 @@ function cleanReply(text) {
 }
 
 // src/tokens/edge-token.ts
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 var EDGE_TOKEN_TTL_MS = MIN_MS;
+function edgeBodyHash(body) {
+  return createHash("sha256").update(body, "utf8").digest("base64url");
+}
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
   const claims = {
     aud,
@@ -6752,7 +6755,8 @@ function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
     user: ctx.user ?? null,
     iat: nowMs,
     exp: nowMs + EDGE_TOKEN_TTL_MS,
-    nonce: randomBytes(8).toString("hex")
+    nonce: randomBytes(16).toString("hex"),
+    ...ctx.body === void 0 ? {} : { bh: edgeBodyHash(ctx.body) }
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   return `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`;
@@ -6774,8 +6778,16 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
     return { ok: false, reason: "malformed" };
   if (claims.aud !== aud) return { ok: false, reason: "audience" };
   if (typeof claims.iat !== "number" || typeof claims.exp !== "number") return { ok: false, reason: "malformed" };
+  if (typeof claims.nonce !== "string" || !claims.nonce) return { ok: false, reason: "malformed" };
+  if (claims.bh !== void 0 && typeof claims.bh !== "string") return { ok: false, reason: "malformed" };
   if (nowMs > claims.exp || claims.iat > nowMs + EDGE_TOKEN_TTL_MS) return { ok: false, reason: "expired" };
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
+}
+function edgeBodyMatches(claims, body) {
+  if (claims.bh === void 0) return false;
+  const a = Buffer.from(edgeBodyHash(body));
+  const b = Buffer.from(claims.bh);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // src/tokens/request-id.ts
@@ -7008,7 +7020,7 @@ function apifyClient(fetchImpl, token) {
 }
 
 // src/leads/lead-judge.ts
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 var LEAD_JUDGE_MAX_TOKENS = 6e3;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 var LEAD_JUDGE_DEFAULT_MODEL = "claude-opus-5";
@@ -7021,7 +7033,7 @@ function leadJudge(client, model, fallbacks) {
     async judge(plan, places) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
-      const requestHash = createHash("sha256").update(`${system}
+      const requestHash = createHash2("sha256").update(`${system}
 ${user}`).digest("hex");
       const base = {
         model,
@@ -7155,6 +7167,7 @@ export {
   desiredVoiceShell,
   dmarcOf,
   dryProvider,
+  edgeBodyMatches,
   emailHtml,
   emailPlainText,
   emailReceiptEffect,

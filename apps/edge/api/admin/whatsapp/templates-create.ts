@@ -28,7 +28,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
     tenant_id?: unknown;

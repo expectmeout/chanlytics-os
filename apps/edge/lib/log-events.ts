@@ -116,6 +116,7 @@ export const LOG_EVENTS = [
   "domains_swept",
   "domains_unreadable",
   "echo_handling_error",
+  "edge_token_unbound",
   "email_intake_not_scheduled",
   "email_own_domains_unread",
   "email_receipt",

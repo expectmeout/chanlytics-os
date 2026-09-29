@@ -90,15 +90,16 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
   let res: Response;
   const sentAt = Date.now();
   try {
+    const body = JSON.stringify({
+      tenant_id: call.tenantId,
+      user_id: call.userId,
+      purpose: call.purpose ?? "ask",
+      request: call.request,
+    });
     res = await fetch(`${edgeUrl()}/api/admin/llm`, {
       method: "POST",
-      headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId }),
-      body: JSON.stringify({
-        tenant_id: call.tenantId,
-        user_id: call.userId,
-        purpose: call.purpose ?? "ask",
-        request: call.request,
-      }),
+      headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId, body }),
+      body,
       signal: call.signal,
     });
   } catch (e) {

@@ -27,7 +27,7 @@ const L = logger();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
+  const auth = await authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
     tenant_id?: unknown;

@@ -19,10 +19,12 @@ interface SignupConfig {
 }
 
 /** What the browser needs to start Embedded Signup; honest about what is missing. */
-export async function whatsappSignupConfig(): Promise<SignupConfig> {
+export async function whatsappSignupConfig(asker: { workspace: string; user: string }): Promise<SignupConfig> {
   if (!deployment.providersLive)
     return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
+  // The platform's app config, about no workspace; the token still says who asked for which (defect 25).
   const r = await callEdge("/api/admin/whatsapp/signup-config", null, {
+    ...asker,
     method: "GET",
     timeoutMs: SIGNUP_CONFIG_TIMEOUT_MS,
   });

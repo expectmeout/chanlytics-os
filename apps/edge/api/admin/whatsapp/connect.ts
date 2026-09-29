@@ -39,7 +39,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/connect");
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/connect");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const appSecret = env.META_APP_SECRET;

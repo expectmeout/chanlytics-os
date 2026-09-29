@@ -45,7 +45,7 @@ const UPSTREAM_TIMEOUT_MS = 55_000;
 
 export async function POST(request: Request): Promise<Response> {
   const tIn = Date.now();
-  const auth = authorizeAdmin(request, "/api/admin/llm");
+  const auth = await authorizeAdmin(request, "/api/admin/llm");
   if (!auth.ok) return auth.response;
   const key = env.ANTHROPIC_API_KEY;
   if (!key) return refuse(503, "no_model_key");

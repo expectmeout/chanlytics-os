@@ -23,7 +23,7 @@ interface Body {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/signup-notify");
+  const auth = await authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();

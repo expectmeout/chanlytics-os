@@ -2,6 +2,8 @@
 export { emitEvent, recordEvent } from "./events";
 export type { EmittedKind, EventData } from "./events";
 export { createServiceClient } from "./service-client";
+export { tenantDb, platformWide } from "./tenant-db";
+export type { TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
@@ -169,6 +171,7 @@ export {
   claimCallNotification,
   claimCallActivity,
   callerNameOf,
+  isWorkspaceCall,
 } from "./repositories/calls";
 export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
 export {

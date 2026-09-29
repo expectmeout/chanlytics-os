@@ -111,7 +111,7 @@ const WRITES: Record<WritingOp, (c: LineCall) => Promise<Response>> = {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/lines");
+  const auth = await authorizeAdmin(request, "/api/admin/lines");
   if (!auth.ok) return auth.response;
   const body = await readBody<LinesBody>(request);
   const op = typeof body.op === "string" ? body.op : "";

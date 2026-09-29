@@ -21,7 +21,7 @@ import { parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../../
 const L = logger();
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/you-are-live");
+  const auth = await authorizeAdmin(request, "/api/admin/you-are-live");
   if (!auth.ok) return auth.response;
   const db = pg();
   if (!db) return refuse(503, "no_database");

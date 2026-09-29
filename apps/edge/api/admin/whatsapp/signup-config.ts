@@ -15,7 +15,7 @@ import { GRAPH_VERSION, metaAppId } from "../../../lib/whatsapp/meta-graph.js";
 import { env } from "../../../lib/env.js";
 
 export async function GET(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const configId = env.META_ES_CONFIG_ID || null;

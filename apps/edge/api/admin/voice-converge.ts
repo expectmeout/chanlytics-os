@@ -45,7 +45,7 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/voice-converge");
+  const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return refuse(503, "no_provider_key");

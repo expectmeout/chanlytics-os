@@ -37,8 +37,13 @@ export const errorMessage = (e: unknown): string => (e instanceof Error ? e.mess
  * 400.
  */
 export async function readBody<T extends object>(request: Request): Promise<Partial<T>> {
+  return bodyOf<T>(await request.text());
+}
+
+/** The same, over a body already read as text (a door that hands the text to authorizeAdmin first). */
+export function bodyOf<T extends object>(raw: string): Partial<T> {
   try {
-    const body = JSON.parse(await request.text());
+    const body = JSON.parse(raw);
     return typeof body === "object" && body !== null && !Array.isArray(body) ? body : {};
   } catch {
     return {};

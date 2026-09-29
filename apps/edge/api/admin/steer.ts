@@ -13,12 +13,14 @@
  * back, so two drafts never race to the customer. A rewrite that quotes a
  * price is refused and the old draft is left alone.
  *
- * Internal endpoint — x-diag-key, called by the dashboard's steer route after
- * RLS has proved the draft belongs to the operator's workspace and the role
- * door has been checked there. Body: { message_id, text }.
+ * Internal endpoint -- the per-call token, called by the dashboard's steer
+ * route after RLS has proved the draft belongs to the operator's workspace and
+ * the role door has been checked there. The token names that workspace, and a
+ * draft of another is refused. Body: { message_id, text }.
  */
 import { json, refuse } from "../../lib/http.js";
-import { authorizeAdmin } from "../../lib/admin-auth.js";
+import { authorizeAdmin, tokenWorkspace } from "../../lib/admin-auth.js";
+import { readBody } from "../../lib/admin-door.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead } from "../../lib/packages/db.js";
@@ -57,16 +59,12 @@ export interface BrainPort {
 
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
-  const auth = authorizeAdmin(request, "/api/admin/steer");
+  const auth = await authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
+  const workspace = tokenWorkspace(auth, "/api/admin/steer");
 
-  let body: { message_id?: string; text?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{ message_id: unknown; text: unknown }>(request);
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {
@@ -84,7 +82,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   // A token minted for one workspace opens only that workspace's drafts.
-  if (auth.workspace && m.tenant_id !== auth.workspace) return refuse(403, "workspace_mismatch");
+  if (workspace && m.tenant_id !== workspace) return refuse(403, "workspace_mismatch");
   if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
 
   const { data: conv } = await db

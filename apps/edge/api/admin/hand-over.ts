@@ -19,10 +19,13 @@
  *
  * Internal endpoint -- the per-call token, called by the dashboard's hand-over
  * route AFTER RLS has proved the call belongs to the operator's workspace and
- * the role door has been checked there. Body: { call_id, line }.
+ * the role door has been checked there. The token names that workspace, and the
+ * call must be its (lib/voice/live-call-door.ts). Body: { call_id, line }.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
+import { readBody } from "../../lib/admin-door.js";
+import { refusedCall } from "../../lib/voice/live-call-door.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameHandOver } from "../../lib/packages/contracts.js";
 import { env } from "../../lib/env.js";
@@ -32,22 +35,21 @@ const L = logger();
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 
+const AUD = "/api/admin/hand-over";
+
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/hand-over");
+  const auth = await authorizeAdmin(request, AUD);
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
-  let body: { call_id?: string; line?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{ call_id: unknown; line: unknown }>(request);
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !E164.test(line)) {
     return refuse(400, "bad_request", "call_id + line (E.164) required");
   }
+  const notYours = await refusedCall(auth, AUD, callId);
+  if (notYours) return notYours;
 
   const r = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, callId, {
     additionalContext: frameHandOver(),

@@ -32,7 +32,7 @@ export const POST = write({
     if (m.sender !== "ai" || m.status !== "queued") {
       throw new AppError("conflict", "This reply is not waiting — there is nothing to rewrite.", 409);
     }
-    const r = await steerDraft(id, text);
+    const r = await steerDraft(id, text, { workspace: m.tenant_id, user: ctx.userId });
     if (!r.ok) {
       throw new AppError(
         "upstream_anthropic",

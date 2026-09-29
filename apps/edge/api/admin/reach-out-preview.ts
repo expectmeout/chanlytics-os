@@ -100,7 +100,7 @@ async function recordPreviewSpend(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/reach-out-preview");
+  const auth = await authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
   let body: Body = {};
   try {

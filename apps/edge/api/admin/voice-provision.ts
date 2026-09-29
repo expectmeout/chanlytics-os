@@ -133,7 +133,7 @@ interface ProvisionKnock {
  * body's workspace. A refused request reads nothing past the refusal.
  */
 async function checkProvisionKnock(request: Request): Promise<ProvisionKnock | Response> {
-  const auth = authorizeAdmin(request, "/api/admin/voice-provision");
+  const auth = await authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;

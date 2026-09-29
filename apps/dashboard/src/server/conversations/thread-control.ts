@@ -46,9 +46,15 @@ export async function letThreadControlGo(tenantId: string, conversationId: strin
 export async function steerDraft(
   messageId: string,
   text: string,
+  asker: { workspace: string; user: string },
 ): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge("/api/admin/steer", { message_id: messageId, text }, { timeoutMs: STEER_TIMEOUT_MS });
+  // The token names the workspace and the person: the edge rewrites only a draft of that workspace.
+  const r = await callEdge(
+    "/api/admin/steer",
+    { message_id: messageId, text },
+    { ...asker, timeoutMs: STEER_TIMEOUT_MS },
+  );
   const j = (r.body ?? {}) as { ok?: boolean; message_id?: string; text?: string; error?: string };
   if (edgeAnswered(r) && j.ok && j.message_id) return { ok: true, messageId: j.message_id, text: j.text ?? "" };
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}` };

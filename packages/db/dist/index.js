@@ -77,6 +77,31 @@ function createServiceClient(cfg) {
   });
 }
 
+// src/tenant-db.ts
+function tenantDb(db, tenantId) {
+  if (!tenantId) throw new Error("tenantDb: a workspace is required");
+  return {
+    tenantId,
+    from(table) {
+      const q = db.from(table);
+      return {
+        select(columns, options) {
+          return q.select(columns, options).filter("tenant_id", "eq", tenantId);
+        },
+        update(values) {
+          return q.update(values).filter("tenant_id", "eq", tenantId);
+        },
+        delete() {
+          return q.delete().filter("tenant_id", "eq", tenantId);
+        }
+      };
+    }
+  };
+}
+function platformWide(db) {
+  return db;
+}
+
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z7 } from "zod";
@@ -4474,6 +4499,11 @@ async function callerNameOf(db, tenantId, contactId) {
   if (error) throw new Error(`caller_name: ${error.message}`);
   return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }
+async function isWorkspaceCall(db, tenantId, retellCallId) {
+  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  if (error) return null;
+  return data !== null;
+}
 
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
@@ -5546,6 +5576,7 @@ export {
   ingestInboundEmail,
   insertQueuedEmail,
   invitePartner,
+  isWorkspaceCall,
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
@@ -5576,6 +5607,7 @@ export {
   peoplePage,
   personReplyMode,
   platformHoldStands,
+  platformWide,
   playbooksOnList,
   putTenantConfig,
   queuedOutcomes,

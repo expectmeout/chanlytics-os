@@ -21,7 +21,7 @@ import { handoverInviteEmail } from "../../lib/packages/contracts.js";
 const L = logger();
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/handover-invite");
+  const auth = await authorizeAdmin(request, "/api/admin/handover-invite");
   if (!auth.ok) return auth.response;
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });

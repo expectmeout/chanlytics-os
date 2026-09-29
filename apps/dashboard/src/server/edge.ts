@@ -58,10 +58,13 @@ export function edgeRefusalWords(body: Record<string, unknown> | null | undefine
   return typeof body?.error === "string" ? body.error : null;
 }
 
-/** The headers a call to the door at `aud` carries, and the name of the request it is made for (log.ts). */
+/**
+ * The headers a call to the door at `aud` carries, and the name of the request it is made for (log.ts). A call with a
+ * body names it (`body`, the exact text sent): the token then opens the door for that body only, and once.
+ */
 export function edgeHeaders(
   aud: string,
-  ctx: { workspace?: string | null; user?: string | null } = {},
+  ctx: { workspace?: string | null; user?: string | null; body?: string } = {},
 ): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
   const id = requestId();
@@ -104,11 +107,12 @@ export async function callEdge(
   } = {},
 ): Promise<EdgeAnswer> {
   const method = opts.method ?? "POST";
+  const sent = method === "POST" ? JSON.stringify(body ?? {}) : undefined;
   try {
     const r = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
       method,
-      headers: edgeHeaders(aud, { workspace: opts.workspace ?? null, user: opts.user ?? null }),
-      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
+      headers: edgeHeaders(aud, { workspace: opts.workspace ?? null, user: opts.user ?? null, body: sent }),
+      ...(sent === undefined ? {} : { body: sent }),
       cache: "no-store",
       signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
     });

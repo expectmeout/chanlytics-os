@@ -79,7 +79,7 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/billing");
+  const auth = await authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
   const body = await readBody<BillingBody>(request);
   const op = typeof body.op === "string" ? body.op : "";

@@ -113,7 +113,7 @@ const reviewIdOf = (v: unknown): string | null => {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/google");
+  const auth = await authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
   const body = await readBody<GoogleBody>(request);
   const op = typeof body.op === "string" ? body.op : "";
