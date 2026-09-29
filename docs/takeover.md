@@ -44,7 +44,7 @@ table names outside packages/db     533
 unnamed durations                    76   in 37 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2155   selectors naming 864 classes
-inline style props                  285   in 48 files
+inline style props                  286   in 49 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     156
 source-text reads in tests          824

@@ -8,7 +8,9 @@
  * The harness serves it as the `kit` record's page (scenarios.mjs), and production never does (decision 7). It is
  * static markup, built on every request as the mockup's document is read (server.mjs), so an edit to an entry or to a
  * stylesheet shows on the next load. No React, no Babel, no fixture: each entry is the markup a kit component renders,
- * written out.
+ * written out. Where the component is written in TSX (the Button, the link button, the panel, the face, the list row
+ * and the meter, apps/dashboard/src/surfaces/kit/), styles/kit-components.test.mjs holds each entry of its family to
+ * what it draws, so an entry or a component changed alone is red.
  *
  * An entry is `{ id, html }` and, where it needs them:
  *   twin    the id of a source entry that draws what this one must compute equal to (the spec's check 4);
