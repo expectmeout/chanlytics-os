@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { ROOT } from "../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const require = createRequire(import.meta.url);
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8").replace(/\r\n/g, "\n");

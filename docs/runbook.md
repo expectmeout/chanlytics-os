@@ -33,7 +33,7 @@ fails until it is done and names what is left.
 **pnpm's settings** (the hoisted linker the edge's functions need, the
 overrides, the patched packages) are in `pnpm-workspace.yaml` and nowhere
 else: Dependabot's pnpm 11 reads no other place
-(`tooling/scripts/tests/repo/pnpm-settings.test.mjs`).
+(`tooling/scripts/tests/repo/settings/pnpm-settings.test.mjs`).
 
 **The dashboard.** Copy `apps/dashboard/.env.example` to
 `apps/dashboard/.env.local` and fill in the Supabase URL and keys (a local
@@ -801,7 +801,7 @@ differently on the next fresh database than it ran in production.
    `supabase/migrations-ledger.json` holds every migration main carries with the checksum of its text, and
    `database/migrations.test.mjs` fails a file not recorded, a file at or below the ledger's head, a gap below the
    head the ledger does not argue, and any edit, rename or deletion of a recorded file. A number renumbered before it
-   lands is recorded again by the same command.
+   lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
 
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and

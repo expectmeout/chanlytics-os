@@ -13,8 +13,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT } from "../_source.mjs";
-import { setting, settingBlock } from "../_pnpm-workspace.mjs";
+import { ROOT } from "../../_source.mjs";
+import { setting, settingBlock } from "../../_pnpm-workspace.mjs";
 
 const rootManifest = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 

@@ -16,7 +16,7 @@ catalog:
 catalogMode: manual
 
 # Every setting pnpm reads is here, not in package.json's "pnpm" field or .npmrc: Dependabot's updater runs pnpm 11,
-# which reads neither, and the lockfile it wrote then disagreed with CI's (tests/repo/pnpm-settings.test.mjs).
+# which reads neither, and the lockfile it wrote then disagreed with CI's (tests/repo/settings/pnpm-settings.test.mjs).
 #
 # Vercel's vanilla-function bundler (nft) doesn't follow pnpm symlinks into the lambda: hoist third-party deps to real
 # dirs, and inject workspace packages as hard copies (their committed dist/ ships at install time).

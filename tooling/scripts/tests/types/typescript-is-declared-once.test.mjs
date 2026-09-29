@@ -10,7 +10,7 @@
  *
  * So the version is written once, in the catalog, at an exact version, and every package.json names it `catalog:`. A
  * `pnpm add` that writes a version instead fails here. (`catalogMode: strict` held that at the command too until 29 Sep
- * 2026, and broke every Dependabot update: repo/pnpm-settings.test.mjs says why.) This module holds what is written;
+ * 2026, and broke every Dependabot update: repo/settings/pnpm-settings.test.mjs says why.) This module holds what is written;
  * typescript-is-installed-once.test.mjs holds what an install made of it. Why TypeScript 7 waits is written once,
  * beside the Dependabot rule that holds it back (.github/dependabot.yml).
  */

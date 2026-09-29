@@ -9,18 +9,24 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ROOT } from "../_source.mjs";
-import { parseSubject, renderNote, tagFor } from "../../ops/release-note.mjs";
-import { staleBranches } from "../../ops/stale-branches.mjs";
+import { ROOT } from "../../_source.mjs";
+import { parseSubject, renderNote, tagFor } from "../../../ops/release-note.mjs";
+import { staleBranches } from "../../../ops/stale-branches.mjs";
 
 test("a deploy's tag is the UTC day it was committed and the commit's first nine characters", () => {
-  assert.equal(tagFor("2026-09-29T04:23:58-04:00", "1388f2cc6581dc21596184252dc090b65d2f1d4c"), "v2026.09.29-1388f2cc6");
+  assert.equal(
+    tagFor("2026-09-29T04:23:58-04:00", "1388f2cc6581dc21596184252dc090b65d2f1d4c"),
+    "v2026.09.29-1388f2cc6",
+  );
   assert.equal(tagFor("2026-09-29T21:30:00-04:00", "abcdef0123456789"), "v2026.09.30-abcdef012", "the UTC day");
 });
 
 test("a landed subject splits into its title and pull request, and one without a number keeps it whole", () => {
   assert.deepEqual(parseSubject("The wire says snake_case (#1311)"), { title: "The wire says snake_case", pr: 1311 });
-  assert.deepEqual(parseSubject("Merge pull request #1243 from x/y"), { title: "Merge pull request #1243 from x/y", pr: null });
+  assert.deepEqual(parseSubject("Merge pull request #1243 from x/y"), {
+    title: "Merge pull request #1243 from x/y",
+    pr: null,
+  });
 });
 
 test("the note lists what landed since the last tag, oldest first, by the pull request's own title when GitHub gave it", () => {
@@ -72,7 +78,10 @@ test("run as the release workflow runs it: the first note holds the one commit, 
     git("commit", "--allow-empty", "-q", "-m", "The second thing is true (#2)");
     git("commit", "--allow-empty", "-q", "-m", "The third thing is true (#3)");
     const next = run("--to", "HEAD");
-    assert.match(next.stdout, new RegExp(`since ${tag.stdout.trim()}:\\n\\n- The second thing is true \\(#2\\)\\n- The third`));
+    assert.match(
+      next.stdout,
+      new RegExp(`since ${tag.stdout.trim()}:\\n\\n- The second thing is true \\(#2\\)\\n- The third`),
+    );
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

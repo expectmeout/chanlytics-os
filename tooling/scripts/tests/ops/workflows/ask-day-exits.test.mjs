@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { ROOT } from "../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 
 /** ask-day.mjs --check, with only these variables beside what a process needs to start. */
 function askDay(vars) {

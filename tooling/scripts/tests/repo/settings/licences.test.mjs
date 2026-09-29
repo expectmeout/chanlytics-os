@@ -5,8 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { ROOT } from "../_source.mjs";
-import { licenceKept, licenceProblems } from "../../checks/licences.mjs";
+import { ROOT } from "../../_source.mjs";
+import { licenceKept, licenceProblems } from "../../../checks/licences.mjs";
 
 test("a permissive or weak-copyleft licence is kept, alone or as the tree writes them together", () => {
   for (const kept of [

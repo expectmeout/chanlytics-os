@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyPlan, openIssues, planRollingIssue, redRunsOf } from "../../ops/rolling-issue.mjs";
+import { applyPlan, openIssues, planRollingIssue, redRunsOf } from "../../../ops/rolling-issue.mjs";
 
 const TITLE = "Nightly e2e is red";
 const today = "2026-09-30";

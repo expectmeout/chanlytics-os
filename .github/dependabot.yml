@@ -4,7 +4,7 @@
 # decision. Security updates are the repository setting beside this file.
 #
 # The updater runs pnpm 11, which reads pnpm's settings only from
-# pnpm-workspace.yaml; repo/pnpm-settings.test.mjs keeps them there, and the
+# pnpm-workspace.yaml; repo/settings/pnpm-settings.test.mjs keeps them there, and the
 # catalog manual, so the lockfile it writes is one CI's pnpm installs frozen.
 version: 2
 updates:
