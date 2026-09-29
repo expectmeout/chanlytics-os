@@ -184,6 +184,7 @@ export const LOG_EVENTS = [
   "line_released_by_sweep",
   "line_saga",
   "line_saga_later",
+  "line_token_refresh_failed",
   "line_token_refresh_refused",
   "line_token_refreshed",
   "lines_sweep_claim_failed",
