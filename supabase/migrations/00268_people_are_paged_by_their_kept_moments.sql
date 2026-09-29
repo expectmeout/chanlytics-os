@@ -17,17 +17,28 @@
 --                 it did. Every argument keeps its name and default, so the older form is dropped rather than kept
 --                 beside this one (00137), and a call that names fewer arguments resolves here.
 --   the messages  read through message_moment (00259), the rule's one statement, which the kept moments read too.
+--   the page      chosen by people_page, in plpgsql: one person by their key, everyone else by walking
+--                 person_moments_order to the end of the page. A SQL function's statement is planned without its
+--                 arguments (00219), and plpgsql's may be from its sixth call, so a page left to the planner followed
+--                 the average workspace: a filter nobody asked for (no person, no search) looked as if it kept almost
+--                 no one, and the limit was a guess. On a fresh stack among small workspaces Postgres read the whole
+--                 workspace and sorted it, the cost this file exists to remove, and a plan made without the arguments
+--                 held every contact of the workspace to compare with each person walked. So nothing is left to that
+--                 guess: sorting is off for people_page's two statements (enable_sort), which leaves the walk the one
+--                 plan, and each person's contact row is looked up by its key as the walk reaches them. One person
+--                 needs no order, so nothing there sorts.
 --
 -- Modelled on the local replay (Postgres 17) with 0021's model: a workspace of 10,050 people beside ten of 1,000,
--- eight messages each, the two read in turn five times. The first page took 853 ms as 00250 reads it (the median) and
--- 151 ms here; every page, eleven calls, 9.7 s and 1.65 s. Every row and column is the same, and each row's kept moment
+-- eight messages each, the two read in turn five times. The first page took 785 ms as 00250 reads it (the median) and
+-- 150 ms here; every page, eleven calls, 8.6 s and 1.5 s. people_page chooses a page in 2 ms, the first or the tenth,
+-- with its plan made for the call or without the arguments. Every row and column is the same, and each row's kept moment
 -- is the one its columns show. Written out again in place of message_moment the messages cost 60 ms a page less, and
 -- would be the rule's second statement.
 --
 -- The kept moments must be whole first: a live person with no row would not be on any page. The fill
 -- (tooling/scripts/ops/person-moments-fill.mjs) makes every person's row, and person_moments_check says who is whole;
--- this file refuses to apply while any live person has none. Only the function changes: nothing is dropped but its
--- older form, and the grants and the comment are restated for the new one.
+-- this file refuses to apply while any live person has none. Only functions change: people_page is new, people_list is
+-- replaced and its older form dropped, and each has its grants and comment.
 
 do $$
 declare
@@ -45,6 +56,106 @@ begin
 end $$;
 
 drop function if exists public.people_list(uuid, uuid, text, integer, integer);
+
+create or replace function public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer,
+                                              p_offset integer, p_after_at timestamptz, p_after_added timestamptz,
+                                              p_after_id uuid)
+returns table (
+  id                           uuid,
+  display_name                 text,
+  wa_profile_name              text,
+  phone_e164                   text,
+  email                        text,
+  consent                      text,
+  consent_source               text,
+  consent_updated_at           timestamptz,
+  dnc                          boolean,
+  marketing_consent            text,
+  marketing_consent_source     text,
+  marketing_consent_updated_at timestamptz,
+  in_touch_at                  timestamptz,
+  added_at                     timestamptz
+)
+language plpgsql
+stable
+set search_path = public
+set enable_sort = off
+as $$
+#variable_conflict use_column
+declare
+  -- The search, read once rather than for each person the walk tests: its words, and its digits.
+  v_words  text := nullif(trim(p_query), '');
+  v_digits text := regexp_replace(coalesce(p_query, ''), '\D', '', 'g');
+begin
+  -- One person, by their key: no order to keep, so nothing here sorts. The query and the cursor page a list; a named
+  -- person is their row alone.
+  if p_contact_id is not null then
+    return query
+      select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+             c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+             c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+             pm.in_touch_at, pm.added_at
+        from person_moments pm
+        join contacts c on c.id = pm.contact_id
+       where pm.contact_id = p_contact_id
+         and pm.tenant_id = p_tenant_id
+         and c.tenant_id = p_tenant_id
+         and c.erased_at is null
+         and c.merged_into_contact_id is null;
+    return;
+  end if;
+
+  -- Everyone else: the walk down person_moments_order to the end of the page. With sorting off it is the only plan,
+  -- whatever the planner thinks the workspace holds.
+  return query
+    select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+           c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+           c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+           pm.in_touch_at, pm.added_at
+      from person_moments pm
+      -- Each person's contact row, looked up by its key as the walk reaches them. The limit keeps it a look-up: joined
+      -- any other way, a plan made without the arguments can read the workspace's contacts once and hold them, and
+      -- compare every one with each person the walk reaches.
+      cross join lateral (
+        select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+               c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+               c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at
+          from contacts c
+         where c.id = pm.contact_id
+           and c.tenant_id = p_tenant_id
+           and c.erased_at is null
+           and c.merged_into_contact_id is null
+           -- The search: a name, their name on WhatsApp, their email address, or
+           -- three digits of the number, the way the page's own box matches.
+           -- Nothing else is indexed here; the page still narrows by state and
+           -- list over what it holds.
+           and (
+             v_words is null
+             or c.display_name ilike '%' || v_words || '%'
+             or c.wa_profile_name ilike '%' || v_words || '%'
+             or c.email ilike '%' || v_words || '%'
+             or (length(v_digits) >= 3
+                 and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || v_digits || '%')
+           )
+         limit 1
+      ) c
+     where pm.tenant_id = p_tenant_id
+       -- After the cursor: just past the last row the caller holds. Without one, a place past every row, so the
+       -- comparison is always the index's own condition, whatever the plan.
+       and (pm.in_touch_at, pm.added_at, pm.contact_id)
+           < (coalesce(p_after_at, 'infinity'), coalesce(p_after_added, 'infinity'),
+              coalesce(p_after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'))
+     order by pm.in_touch_at desc, pm.added_at desc, pm.contact_id desc
+     limit least(greatest(coalesce(p_limit, 1000), 1), 1000)
+     offset greatest(coalesce(p_offset, 0), 0);
+end
+$$;
+
+revoke execute on function public.people_page(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) from public, anon;
+grant execute on function public.people_page(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) to authenticated, service_role;
+
+comment on function public.people_page(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) is
+  'The people on one page of People (0021), for people_list, which reads everything else for them alone: the person p_contact_id names, by their key; else the live people matching p_query in person_moments'' order (in_touch_at, then added_at, then the id, falling), after p_offset or just past the cursor p_after_at, p_after_added, p_after_id, at most p_limit (1000) of them. It walks person_moments_order to the end of the page: sorting is off, so no plan reads the workspace whole and sorts it. As the caller, so RLS decides.';
 
 create or replace function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0,
                                               p_after_at timestamptz default null, p_after_added timestamptz default null, p_after_id uuid default null)
@@ -121,38 +232,11 @@ as $$
   -- The page first (0021): its people, in the kept order, after the cursor or the offset, and nobody else. Every read
   -- below is for them alone.
   with page as (
-    select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
-           c.consent, c.consent_source, c.consent_updated_at, c.dnc,
-           c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
-           pm.in_touch_at, pm.added_at
-      from person_moments pm
-      join contacts c on c.id = pm.contact_id
-     where pm.tenant_id = p_tenant_id
-       and c.tenant_id = p_tenant_id
-       and c.erased_at is null
-       and c.merged_into_contact_id is null
-       and (p_contact_id is null or pm.contact_id = p_contact_id)
-       -- The search: a name, their name on WhatsApp, their email address, or
-       -- three digits of the number, the way the page's own box matches.
-       -- Nothing else is indexed here; the page still narrows by state and
-       -- list over what it holds.
-       and (
-         nullif(trim(p_query), '') is null
-         or c.display_name ilike '%' || trim(p_query) || '%'
-         or c.wa_profile_name ilike '%' || trim(p_query) || '%'
-         or c.email ilike '%' || trim(p_query) || '%'
-         or (length(regexp_replace(p_query, '\D', '', 'g')) >= 3
-             and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || regexp_replace(p_query, '\D', '', 'g') || '%')
-       )
-       -- After the cursor: just past the last row the caller holds. Without one, a place past every row, so the
-       -- comparison is always the index's own condition: written `p_after_id is null or ...`, a function planned
-       -- without its arguments' values would filter the whole workspace's order to reach a later page.
-       and (pm.in_touch_at, pm.added_at, pm.contact_id)
-           < (coalesce(p_after_at, 'infinity'), coalesce(p_after_added, 'infinity'),
-              coalesce(p_after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'))
-     order by pm.in_touch_at desc, pm.added_at desc, pm.contact_id desc
-     limit least(greatest(coalesce(p_limit, 1000), 1), 1000)
-     offset greatest(coalesce(p_offset, 0), 0)
+    select p.id, p.display_name, p.wa_profile_name, p.phone_e164, p.email,
+           p.consent, p.consent_source, p.consent_updated_at, p.dnc,
+           p.marketing_consent, p.marketing_consent_source, p.marketing_consent_updated_at,
+           p.in_touch_at, p.added_at
+      from people_page(p_tenant_id, p_contact_id, p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id) p
   ),
   ev as not materialized (
     select m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
@@ -327,4 +411,4 @@ revoke execute on function public.people_list(uuid, uuid, text, integer, integer
 grant execute on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) to authenticated, service_role;
 
 comment on function public.people_list(uuid, uuid, text, integer, integer, timestamptz, timestamptz, uuid) is
-  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number. The page is chosen before it is read (0021): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written.';
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written.';

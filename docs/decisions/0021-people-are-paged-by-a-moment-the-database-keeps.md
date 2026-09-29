@@ -278,25 +278,41 @@ which reads through `everyoneIn`. Where it differs from Steps and Shape:
 - **The migration refuses to apply while a live person has no kept moments.** A person with no row would be on no
   page, so the precondition Shape states in prose ("does not read the table until `person_moments_check` finds every
   workspace whole") is a check in the file: it counts the live people without a row and raises, naming the fill.
-- **The cursor is always the index's own condition.** Written `p_after_id is null or (…) < (…)`, as Shape has it, a
-  SQL function planned without its arguments' values (00250's lesson) keeps the comparison as a filter, so a later page
-  walks the order from the top. Without a cursor the comparison is made against a place past every row instead
-  (`infinity` and the largest id), and the generic plan walks `person_moments_order` from the cursor.
+- **The page is chosen by `people_page`, which always walks the order.** A SQL function's statement is planned
+  without its arguments (00219, 00250's lesson), so a page chosen inside `people_list` followed the average workspace:
+  a filter nobody asked for (no person, no search) looked as if it kept almost no one, and the limit was a guess. On
+  the Database workflow's fresh stack, among small workspaces, Postgres read the whole workspace and sorted it: every
+  contact of a workspace of 300, and every kept moment of one of 900. The walk down `person_moments_order` is the one
+  plan that needs no sort, so `people_page`, in plpgsql, turns sorting off for its own two statements
+  (`enable_sort`), and looks each person's contact row up by its key as the walk reaches them (a lateral read with a
+  limit: a plan made without the arguments, as plpgsql's may be from its sixth call, otherwise held every contact of
+  the workspace to compare with each person walked, 733 ms a page). A named person is found by their key; everyone
+  else by the walk, to the end of the page and no further, whatever the statistics say. `people_list` stays SQL and
+  reads everything else for the page's people as before. Planning the whole of it for each call's arguments was tried
+  first: with the workspace known, the per-person reads were planned anew as well, and for a workspace the statistics
+  had not seen, the door each person came through was looked for among every door (00250's test).
+- **The cursor is always the index's own condition.** Written `p_after_id is null or (…) < (…)`, as Shape has it, the
+  comparison would be the index's condition only in a plan that knows the cursor. Without a cursor it is made against a
+  place past every row instead (`infinity` and the largest id), so every plan walks `person_moments_order` from it.
 - **The route takes `?after=` beside the offset.** The offset counts what the page holds, for `has_more`, and
   `page.next` is the cursor, opaque (the last row's place, base64url); a cursor the route did not give is refused.
   `has_more` is now false on a short page too: someone who wrote while the pages were read counts in the total, and is
   read first on the next pass rather than after the cursor.
 - **Measured** on the local replay (Postgres 17) with this note's model, a workspace of 10,050 people beside ten of
-  1,000, alternating five times: the first page took 853 ms as 00250 reads it (median) and 151 ms page first; every
-  page, eleven calls, 9.7 s and 1.65 s. Every row and column was the same, each row's kept moment was the one its
-  columns show, and a deep page chose its people in 4 ms. Reading the messages through `message_moment`, the rule's
+  1,000, alternating five times: the first page took 785 ms as 00250 reads it (median) and 150 ms page first; every
+  page, eleven calls, 8.6 s and 1.5 s. Every row and column was the same, and each row's kept moment was the one its
+  columns show. `people_page` chose a page in 2 ms, the first or the tenth, one person in under 1 ms, and a search that
+  finds nobody, walking all 10,050, in 20 ms, whether its plan was made for the call or without the arguments. Reading
+  the messages through `message_moment`, the rule's
   one statement, costs about 60 ms of a page; written out again in the function it would not, and would be the rule's
   second statement.
 - **The tests** are `tooling/scripts/tests/database/people-are-paged-by-their-kept-moments.db.test.mjs` (a first page
   reads the same blocks of each table in a workspace of 300 and of 900; the cursor and the offset read every live
   person once in the same order, the erased, the merged and the never-in-touch where they belong; two people who write
   after the first page are each read at most once, and open the next pass; the older call by position; a member reads
-  their workspace's page and a stranger none), against which 00250's function fails the first two;
-  `people/people-routes.test.mjs` (the page's `next`, the next page just past the last row, a database before 00268
-  asked by offset, a cursor refused; `everyone` reading nobody twice when someone writes between pages); and
-  `shell/surfaces/people-pages.test.mjs` (the tab's pages follow `next`, and the offset alone without it).
+  their workspace's page and a stranger none), against which 00250's function fails the first two, and a page chosen
+  inside `people_list` fails the first on a fresh stack; `people/people-routes.test.mjs` (the page's `next`, the next
+  page just past the last row, a database before 00268 asked by offset, a cursor refused; `everyone` reading nobody
+  twice when someone writes between pages); and `shell/surfaces/people-pages.test.mjs` (the tab's pages follow
+  `next`, and the offset alone without it). `people/people-came-from.db.test.mjs` now finds people alike in everything
+  in falling id order.
