@@ -16,7 +16,7 @@ name: Nightly e2e
 # settings, and until then the job is honest about what it covered.
 #
 # A dispatch by hand may ask for the credential-free half alone, and point it
-# at another address (a preview's): no secret is read, nothing is written, and
+# at another address (one that needs no bypass): no secret is read, nothing is written, and
 # no issue is filed or closed for a run that covered only part of the suite.
 on:
   schedule:
@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       base_url:
-        description: "Where the credential-free specs run (a preview's address); production when empty. The signed-in specs always run against production."
+        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. The signed-in specs always run against production."
         type: string
         default: ""
 
@@ -197,7 +197,7 @@ jobs:
         if: ${{ always() && env.CREDENTIAL_FREE != 'true' }}
         shell: bash
         run: |
-          nightly=(--title "Nightly e2e is red" --match "Nightly e2e")
+          nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
           if [ "$STATUS" = "success" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else

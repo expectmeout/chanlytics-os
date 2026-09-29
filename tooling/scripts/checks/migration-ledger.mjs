@@ -19,7 +19,13 @@
  *   node tooling/scripts/checks/migration-ledger.mjs --check      # what migrations.test.mjs says, alone
  *
  * `--record` also re-records an entry this branch added and main's ledger does not hold yet (a file renumbered before
- * it lands); an entry main holds is never rewritten.
+ * it lands), and says each one it re-hashed; an entry main holds is never rewritten. The test above holds the ledger
+ * to the folder, and a ledger and a folder edited together agree, so a pull request's ledger is also held to main's:
+ *
+ *   node tooling/scripts/checks/migration-ledger.mjs --base origin/main    # every entry main recorded, unchanged
+ *
+ * database.yml runs it on each pull request. It exits 1 on an entry main recorded that is gone or has another
+ * checksum, 2 when the ref cannot be read, and 0 when main has no ledger yet.
  *
  * And whether production has what main has: production's ledger in, as `supabase migration list` prints it (with
  * `--linked`, or `--db-url` for the database SUPABASE_PROD_READ_URL names), as one version a line, or as a JSON array:
@@ -164,6 +170,7 @@ export function record(ledger, folder, landed = new Set()) {
   const byFile = new Map(folder.map((m) => [m.file, m]));
   const migrations = {};
   const refused = [];
+  const rehashed = [];
   for (const [file, sha] of Object.entries(ledger.migrations ?? {})) {
     if (landed.has(file)) {
       migrations[file] = sha;
@@ -171,6 +178,7 @@ export function record(ledger, folder, landed = new Set()) {
     }
     const now = byFile.get(file);
     if (now) migrations[file] = now.sha256;
+    if (now && now.sha256 !== sha) rehashed.push(file);
   }
   let head = headOf({ migrations });
   const fresh = folder.filter((m) => !(m.file in migrations)).sort((a, b) => Number(a.version) - Number(b.version));
@@ -191,7 +199,26 @@ export function record(ledger, folder, landed = new Set()) {
     if (numbered.has(Number(v)) || Number(v) >= head) droppedGaps.push(v);
     else gaps[v] = why;
   }
-  return { ledger: { ...ledger, gaps, migrations }, recorded, refused, droppedGaps };
+  return { ledger: { ...ledger, gaps, migrations }, recorded, refused, droppedGaps, rehashed };
+}
+
+/**
+ * What a pull request changed of what main already recorded, each as a sentence: an entry main's ledger holds that is
+ * gone from this one, or holds another checksum. The folder and the ledger are edited together, so the test that holds
+ * one to the other cannot see it; only main's copy can.
+ */
+export function ledgerAgainstBase(ledger, base) {
+  const problems = [];
+  for (const [file, sha] of Object.entries(base.migrations ?? {})) {
+    const now = ledger.migrations?.[file];
+    if (now === undefined)
+      problems.push(`${file} is in main's ledger and gone from this one: an applied migration is never dropped.`);
+    else if (now !== sha)
+      problems.push(
+        `${file} is recorded on main with another checksum: an applied migration is never edited, so its entry is never re-recorded. Write a new migration that makes the change.`,
+      );
+  }
+  return problems;
 }
 
 /**
@@ -205,7 +232,7 @@ export function parseProductionLedger(text) {
   else
     versions = trimmed
       .split(/\r?\n/)
-      .map((line) => (line.includes("|") ? (line.split("|")[1] ?? "") : line).trim())
+      .map((line) => (/[|\u2502]/.test(line) ? (line.split(/[|\u2502]/)[1] ?? "") : line).trim())
       .filter((v) => /^\d+$/.test(v));
   if (!versions.length) throw new Error("no version in production's ledger: nothing to compare");
   return new Set(versions);
@@ -219,6 +246,10 @@ export function compare(folder, production) {
     productionAhead: [...production].filter((v) => !main.has(v)).sort(),
   };
 }
+
+/** A git command's output in `root`, its stderr kept out of the log; throws when it fails. */
+const gitIn = (root, ...args) =>
+  execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
 
 /** When a migration file first landed on this branch's history (a merge to main, on main), or null. */
 function landedAt(root, file) {
@@ -280,14 +311,41 @@ function main() {
   const ledger = readLedger(root);
 
   if (args.includes("--record")) {
-    const { ledger: next, recorded, refused, droppedGaps } = record(ledger, folder, landedEntries(root));
+    const { ledger: next, recorded, refused, droppedGaps, rehashed } = record(ledger, folder, landedEntries(root));
     fs.writeFileSync(path.join(root, LEDGER), ledgerText(next));
+    for (const f of rehashed)
+      console.log(`re-hashed ${f}: its text changed since it was recorded, and main has not recorded it`);
     for (const f of recorded) console.log(`recorded ${f}`);
     for (const v of droppedGaps) console.log(`dropped the gap ${v}: it has a file now, or lies above the head`);
     for (const r of refused) console.error(`refused ${r}`);
     const left = ledgerProblems(next, folder);
     for (const p of left) console.error(`- ${p}`);
     process.exit(refused.length || left.length ? 1 : 0);
+  }
+
+  if (args.includes("--base")) {
+    const ref = args[args.indexOf("--base") + 1];
+    let baseText;
+    try {
+      gitIn(root, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`);
+    } catch {
+      console.error(`Could not read ${ref}: no such commit here (a checkout with the whole history has it).`);
+      process.exit(2);
+    }
+    try {
+      baseText = gitIn(root, "show", `${ref}:${LEDGER}`);
+    } catch {
+      console.log(`${ref} has no ledger yet: nothing to hold this one to.`);
+      process.exit(0);
+    }
+    const problems = ledgerAgainstBase(ledger, JSON.parse(baseText));
+    for (const p of problems) console.error(`- ${p}`);
+    console.log(
+      problems.length
+        ? `migration ledger against ${ref}: ${problems.length} problem(s)`
+        : `migration ledger against ${ref}: keeps what it recorded`,
+    );
+    process.exit(problems.length ? 1 : 0);
   }
 
   if (args.includes("--compare")) {

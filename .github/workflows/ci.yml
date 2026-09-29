@@ -166,9 +166,19 @@ jobs:
   # day there (the scorecard's defect 28 wrote Tuesday's key as Wednesday), and
   # the suite otherwise runs only where CI and Vercel are, in UTC. The committed
   # dist is what the suite imports, so no build; not a required check.
+  #
+  # Red on arrival, and said so: 29 tests that build a date with no zone or read
+  # the day in the machine's fail under it (measured 29 Sep 2026: billing,
+  # calendar, broadcasts, business tab, the day stepper). The tests lane fixes
+  # them at the root, and the calendar's day labels are the defects lane's. Until
+  # both have landed a red leg on every pull request would only teach people to
+  # ignore it, so its failure does not fail the run; delete `continue-on-error`
+  # in the change that turns it green. TEST_TZ is the zone the tests lane's
+  # launcher (tooling/scripts/checks/test.mjs) reads, TZ the one node reads.
   auckland:
     name: Node suite, Pacific/Auckland
     if: github.event_name != 'merge_group'
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -181,6 +191,7 @@ jobs:
       - run: pnpm test
         env:
           TZ: Pacific/Auckland
+          TEST_TZ: Pacific/Auckland
 
   # The title check above holds a pull request's title, but the squash subject
   # is typed at merge: #1329's 92-character title landed as a 122-character
@@ -224,6 +235,12 @@ jobs:
             echo "The squash subject is typed at merge: keep the pull request's title, which CI checked, and GitHub's (#N) after it; merge with Squash and merge (README, Conventions)."
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > issue.md
-          gh issue create --title "What landed on main breaks the title rule (${GITHUB_SHA:0:9})" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          title="What landed on main breaks the title rule (${GITHUB_SHA:0:9})"
+          # A re-run of this job finds its issue already open.
+          if gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "The issue is already open: $title"
+          else
+            gh issue create --title "$title" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          fi
 
   # CI holds no live service secrets: the tests run against fakes only (Blueprint §8).

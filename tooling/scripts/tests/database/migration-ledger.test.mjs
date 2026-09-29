@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +19,7 @@ import {
   compare,
   compareReport,
   headOf,
+  ledgerAgainstBase,
   ledgerProblems,
   parseProductionLedger,
   readFolder,
@@ -220,4 +221,80 @@ test("the script exits 0 when production has main's migrations, 1 when it lacks 
   const unreadable = runCompare("Cannot connect to the database\n");
   assert.equal(unreadable.status, 2);
   assert.match(unreadable.stderr, /Could not read production's ledger/);
+});
+
+test("a pull request's ledger is held to main's: an entry main recorded edited, re-recorded or dropped is refused", () => {
+  // The folder and the ledger are edited together in one pull request, so the test that holds one to the other passes
+  // an applied migration that was edited and re-hashed. Only main's copy of the ledger can see it.
+  const main = ledgerOf(base);
+  assert.deepEqual(ledgerAgainstBase(main, main), []);
+  const D = ["00004_a_fourth.sql", "create table d ();\n"];
+  assert.deepEqual(ledgerAgainstBase(ledgerOf(folderOf(A, B, C, D)), main), [], "an entry added is the point");
+  const rehashed = { ...main, migrations: { ...main.migrations, [B[0]]: checksum("create table b (id int);\n") } };
+  const said = ledgerAgainstBase(rehashed, main);
+  assert.equal(said.length, 1);
+  assert.match(said[0], /^00002_a_second\.sql is recorded on main with another checksum/);
+  const { [C[0]]: _dropped, ...rest } = main.migrations;
+  assert.match(
+    ledgerAgainstBase({ ...main, migrations: rest }, main)[0],
+    /^00003_a_third\.sql is in main's ledger and gone/,
+  );
+});
+
+test("recording says which entries it re-hashed, so an edit is never quiet", () => {
+  const edited = folderOf(A, ["00002_a_second.sql", "create table b (id int);\n"], C);
+  const out = record(ledgerOf(base), edited);
+  assert.deepEqual(out.rehashed, ["00002_a_second.sql"]);
+  assert.deepEqual(
+    record(ledgerOf(base), edited, new Set([B[0]])).rehashed,
+    [],
+    "an entry main holds is kept, not re-hashed",
+  );
+});
+
+test("run against a ref, the script exits 0 when the entries hold, 1 when one changed, 2 when the ref is unknown", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ledger-base-"));
+  const git = (...args) =>
+    execFileSync("git", ["-c", "user.name=ci", "-c", "user.email=ci@example.com", ...args], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+  // The script reads the repository it sits in, so it is copied into the one made here.
+  const script = path.join(dir, "tooling/scripts/checks/migration-ledger.mjs");
+  const run = (...args) => spawnSync(process.execPath, [script, "--base", ...args], { cwd: dir, encoding: "utf8" });
+  try {
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    fs.copyFileSync(path.join(ROOT, "tooling/scripts/checks/migration-ledger.mjs"), script);
+    fs.mkdirSync(path.join(dir, "supabase/migrations"), { recursive: true });
+    git("init", "-q", "-b", "main");
+    fs.writeFileSync(path.join(dir, "README.md"), "no ledger yet\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "before the ledger");
+    const none = run("HEAD");
+    assert.equal(none.status, 0, none.stdout + none.stderr);
+    assert.match(none.stdout, /has no ledger yet/);
+    const ledger = ledgerOf(base);
+    fs.writeFileSync(path.join(dir, "supabase/migrations-ledger.json"), JSON.stringify(ledger));
+    git("add", "-A");
+    git("commit", "-q", "-m", "the ledger");
+    git("branch", "main-ledger");
+    const kept = run("main-ledger");
+    assert.equal(kept.status, 0, kept.stdout + kept.stderr);
+    ledger.migrations[B[0]] = checksum("create table b (id int);\n");
+    fs.writeFileSync(path.join(dir, "supabase/migrations-ledger.json"), JSON.stringify(ledger));
+    const changed = run("main-ledger");
+    assert.equal(changed.status, 1, changed.stdout);
+    assert.match(changed.stderr, /00002_a_second\.sql is recorded on main with another checksum/);
+    assert.equal(run("no-such-ref").status, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the same table drawn with box characters is read as well as one drawn with pipes", () => {
+  const boxed = [
+    "   00001 " + String.fromCharCode(0x2502) + " 00001 " + String.fromCharCode(0x2502) + " 00001",
+    "   00002 " + String.fromCharCode(0x2502) + "       " + String.fromCharCode(0x2502) + " 00002",
+  ].join("\n");
+  assert.deepEqual([...parseProductionLedger(boxed)], ["00001"], "the Remote column");
 });

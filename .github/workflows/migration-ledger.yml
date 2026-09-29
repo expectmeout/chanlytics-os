@@ -72,7 +72,7 @@ jobs:
           PAGER_URL: ${{ secrets.PAGER_URL }}
           PAGER_KEY: ${{ secrets.PAGER_KEY }}
         run: |
-          ledger=(--title "Production's migrations disagree with main's" --match "Production's migrations")
+          ledger=(--title "Production's migrations disagree with main's" --match "Production's migrations disagree with main's")
           if [ "$CODE" = "0" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${ledger[@]}"
           else

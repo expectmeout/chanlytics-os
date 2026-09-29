@@ -5,7 +5,7 @@
  * `delete_branch_on_merge` deletes only a merged pull request's own head, so a lane folded into another pull request,
  * or superseded by one, leaves its branch behind, and the next session can take it for open work: 21 of 31 non-main
  * branches on 29 Sep 2026 (the scorecard's I2:3). This lists them with the age of their last commit. Deleting one is
- * Ruben's call; the line each prints is the command he would run.
+ * Ruben's call; the last line says the command he would run.
  *
  *   git fetch --prune origin && node tooling/scripts/ops/stale-branches.mjs [--days 7]
  *

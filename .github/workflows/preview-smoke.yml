@@ -18,8 +18,12 @@ on:
 permissions:
   contents: read
 
+# One run per branch, project and state, so a newer ready preview of a branch replaces the older one's run and nothing
+# else does: every deployment_status event takes the group before the job's `if:` is read, so a group of the branch
+# alone let the other project's event, or the `inactive` status GitHub adds to the previous deployment, cancel the run
+# that mattered.
 concurrency:
-  group: preview-smoke-${{ github.event.deployment.ref }}
+  group: preview-smoke-${{ github.event.deployment.ref }}-${{ github.event.deployment.environment }}-${{ github.event.deployment_status.state }}
   cancel-in-progress: true
 
 jobs:

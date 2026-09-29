@@ -64,21 +64,23 @@ jobs:
           AFTER: ${{ github.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            files="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          elif [ "$EVENT" = "merge_group" ]; then
-            files="$(git diff --name-only "$MERGE_BASE" "$AFTER")"
-          else
-            green="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow database.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""')" || green=""
-            if [ -z "$green" ] || ! git merge-base --is-ancestor "$green" "$AFTER"; then
-              echo "No replay on main that passed and that main still holds, so the migrations replay from zero." >&2
-              echo "db=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "Asking of everything since $green, main's last replay that passed." >&2
-            files="$(git diff --name-only "$green" "$AFTER")"
+          if [ "$EVENT" = "push" ]; then
+            # The one part that needs the network; a history that cannot be read is no last green, and replays.
+            LAST_GREEN="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow database.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""')" || LAST_GREEN=""
+            export LAST_GREEN
           fi
-          printf '%s\n' "$files" | node tooling/scripts/checks/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
+          # Which range is asked of, and the answer: tooling/scripts/checks/replay-range.mjs (held by
+          # tests/database/replay-range.test.mjs).
+          node tooling/scripts/checks/replay-range.mjs >> "$GITHUB_OUTPUT"
+      # The node suite holds the migrations folder to supabase/migrations-ledger.json, and a folder and a ledger edited
+      # together agree. So a pull request's ledger is held to main's too: every entry main recorded, unchanged, whatever
+      # the diff touches (tooling/scripts/checks/migration-ledger.mjs --base). Main has no ledger before the pull request
+      # that adds it, and this passes there.
+      - if: github.event_name == 'pull_request'
+        name: The ledger keeps what main recorded
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node tooling/scripts/checks/migration-ledger.mjs --base "origin/$BASE_REF"
       - if: steps.changed.outputs.db == 'true'
         uses: pnpm/action-setup@v6
       - if: steps.changed.outputs.db == 'true'
