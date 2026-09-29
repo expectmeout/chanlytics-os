@@ -247,6 +247,13 @@
       "rate": null,
       "spend": false
     },
+    "POST client-errors": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "client_errors",
+      "spend": false
+    },
     "GET consent/qr": {
       "kind": "read",
       "scope": "workspace",

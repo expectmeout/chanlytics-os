@@ -3,10 +3,25 @@
  * claim_due_jobs) runs whatever is due, so there is no second system to tell,
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client.
+ *
+ * A job scheduled while a request is being served carries that request's name
+ * in its payload (`request_id`), and the tick runs the job under it: a click's
+ * reply, the send it queued and the send's lines are one search in the log. A
+ * payload that names one already keeps it, so a job a job schedules (a
+ * broadcast's next batch) carries the request that started the chain.
  */
 import type { Json } from "@chanlytics/db";
 import type { JobKind } from "@chanlytics/contracts";
+import { logger, requestId } from "@chanlytics/channels";
 import type { Db } from "./ledger";
+
+/** The payload with the request it was scheduled in, when there is one and it does not name one already. */
+function named(payload: Json): Json {
+  const id = requestId();
+  if (!id || payload === null || typeof payload !== "object" || Array.isArray(payload) || "request_id" in payload)
+    return payload;
+  return { ...payload, request_id: id };
+}
 
 export interface ScheduleParams {
   tenantId: string;
@@ -18,7 +33,7 @@ export interface ScheduleParams {
 export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: string }> {
   const { data, error } = await db
     .from("jobs")
-    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: p.payload })
+    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: named(p.payload) })
     .select("id")
     .single();
   if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
@@ -34,7 +49,7 @@ export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: s
 export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled"> {
   const { error } = await db
     .from("jobs")
-    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: p.payload });
+    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: named(p.payload) });
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
   throw new Error(`schedule_job: ${error.message}`);
@@ -67,9 +82,7 @@ export async function cancelJobsFor(
     .eq(`payload->>${payloadKey}`, payloadValue)
     .select("id");
   if (error) {
-    console.error(
-      JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }),
-    );
+    logger().error("cancel_jobs_failed", { tenant_id: tenantId, kind, error: error.message });
     return 0;
   }
   return data?.length ?? 0;

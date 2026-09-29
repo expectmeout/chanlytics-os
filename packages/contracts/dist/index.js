@@ -8622,8 +8622,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z25] = m;
-  if (z25) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z26] = m;
+  if (z26) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -10312,7 +10312,12 @@ var DECISION_VERBS = [
   "restore_list",
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
+  "import",
+  /**
+   * A member opened a call's recording (00279): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -16290,7 +16295,7 @@ function reachLines(reach, p) {
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
   const once = t?.kind === "deal";
-  const one = (n, singular, plural2) => n === 1 ? singular : plural2;
+  const one = (n, singular, plural3) => n === 1 ? singular : plural3;
   const reasons = [
     {
       n: reach.noYes,
@@ -20669,13 +20674,13 @@ function reportRowOf(s, step2) {
   ];
 }
 function chainReportWordsOf(c, report, reach, p) {
-  const sum = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum("written");
-  const wroteBack = sum("wrote_back");
-  const saidNo = sum("said_no");
-  const bounced = sum("bounced");
-  const held = sum("held");
-  const handed = sum("handed");
+  const sum2 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum2("written");
+  const wroteBack = sum2("wrote_back");
+  const saidNo = sum2("said_no");
+  const bounced = sum2("bounced");
+  const held = sum2("held");
+  const handed = sum2("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
@@ -22697,8 +22702,8 @@ function domainsOf(dto, nowMs) {
 }
 var shareOf = (n, of) => of ? `${pct(n, of)}% (${n})` : String(n);
 function chainRowOf(c, nowMs, tz) {
-  const sum = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum("written");
+  const sum2 = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum2("written");
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
   return {
     id: c.root_id,
@@ -22713,12 +22718,12 @@ function chainRowOf(c, nowMs, tz) {
     ].filter(Boolean).join(" \xB7 "),
     to: `outbound/${c.root_id}`,
     written: String(written),
-    delivered: pctText(sum("delivered"), written),
-    wroteBack: shareOf(sum("wrote_back"), written),
-    interested: String(sum("interested")),
-    booked: String(sum("booked")),
-    saidNo: String(sum("said_no")),
-    bounced: String(sum("bounced")),
+    delivered: pctText(sum2("delivered"), written),
+    wroteBack: shareOf(sum2("wrote_back"), written),
+    interested: String(sum2("interested")),
+    booked: String(sum2("booked")),
+    saidNo: String(sum2("said_no")),
+    bounced: String(sum2("bounced")),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
 }
@@ -24525,7 +24530,8 @@ var SCHEMA_SETS = {
     "archive_list",
     "restore_list",
     "delete_list",
-    "import"
+    "import",
+    "open_recording"
   ],
   "escalations.reason": [
     "human_token",
@@ -24831,6 +24837,7 @@ var ROUTE_KEYS = [
   "POST calls/[id]/whisper",
   "POST capabilities/[kind]",
   "POST channels/whatsapp/connect",
+  "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
   "POST contacts/[id]/notes",
@@ -25205,6 +25212,33 @@ function pageVitalsWords(rows) {
     };
   }
   return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
+}
+
+// src/shell/client-error.ts
+import { z as z20 } from "zod";
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var ClientErrorInput = z20.object({
+  boundary: z20.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z20.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z20.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z20.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z20.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z20.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+});
+function clientErrorOf(boundary, error, page, digest) {
+  const e = error instanceof Error ? error : new Error(String(error));
+  const first = (page ?? "").split(/[/?#]/)[0] ?? "";
+  return {
+    boundary,
+    page: PAGE.test(first) ? first : null,
+    name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
+    message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
+    stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
+    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null
+  };
 }
 
 // src/templates/template-slots.ts
@@ -27452,13 +27486,13 @@ var NOTIFICATION_KIND_GROUPS = [
 ];
 
 // src/workspace/signup.ts
-import { z as z20 } from "zod";
+import { z as z21 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z20.string().trim().max(80);
-var SignupSchema = z20.object({
-  name: z20.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z20.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z21.string().trim().max(80);
+var SignupSchema = z21.object({
+  name: z21.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z21.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -27472,9 +27506,9 @@ var SignupSchema = z20.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z20.string().max(200).optional(),
+  password: z21.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z20.string().trim().min(1).max(64).optional(),
+  timezone: z21.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -27484,11 +27518,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z20.object({
-  name: z20.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z21.object({
+  name: z21.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z20.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z21.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -27964,6 +27998,7 @@ var WORDS2 = {
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
+  open_recording: "Listened to a call's recording",
   end_call: "Ended a call",
   record_deal: "Recorded a deal",
   make_list: "Made a list",
@@ -28316,7 +28351,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -28339,11 +28374,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z21.object({
-  code: z21.string().trim().min(1).max(64),
-  terms: z21.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z22.object({
+  code: z22.string().trim().min(1).max(64),
+  terms: z22.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z21.object({ letters: z21.boolean() }).strict();
+var PartnerLettersSchema = z22.object({ letters: z22.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -28625,32 +28660,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z21.coerce.number();
-var letterSum = z21.object({ currency: z21.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z21.object({
+var letterCents = z22.coerce.number();
+var letterSum = z22.object({ currency: z22.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z22.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z21.array(z21.object({ kind: z21.string(), currency: z21.string(), count: z21.coerce.number(), cents: letterCents })).default([]),
+  written: z22.array(z22.object({ kind: z22.string(), currency: z22.string(), count: z22.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z21.array(letterSum).default([]),
+  matured: z22.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z21.array(letterSum).default([]),
-  paid: z21.array(z21.object({ currency: z21.string(), cents: letterCents, reference: z21.string(), sent_at: z21.string() })).default([]),
+  voided: z22.array(letterSum).default([]),
+  paid: z22.array(z22.object({ currency: z22.string(), cents: letterCents, reference: z22.string(), sent_at: z22.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z21.array(z21.object({ workspace: z21.string().nullable(), standing: z21.string(), why: z21.string().nullable() })).default([]),
+  standing: z22.array(z22.object({ workspace: z22.string().nullable(), standing: z22.string(), why: z22.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z21.array(z21.string().nullable()).default([]),
+  brought: z22.array(z22.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z21.array(z21.string().nullable()).default([]),
-  declined: z21.array(z21.string().nullable()).default([]),
+  accepted: z22.array(z22.string().nullable()).default([]),
+  declined: z22.array(z22.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z21.object({ status: z21.string(), why: z21.string().nullable() }).nullable().default(null),
-  balance: z21.array(
-    z21.object({
-      currency: z21.string(),
+  status: z22.object({ status: z22.string(), why: z22.string().nullable() }).nullable().default(null),
+  balance: z22.array(
+    z22.object({
+      currency: z22.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z21.string().nullable()
+      next_payable_at: z22.string().nullable()
     })
   ).default([])
 });
@@ -28751,16 +28786,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z22.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z22.object({
-  name: z22.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z22.string().trim().max(64).nullish(),
+var ownerEmail = z23.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z23.object({
+  name: z23.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z23.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z22.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z23.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -28836,7 +28871,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z23 } from "zod";
+import { z as z24 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -28904,16 +28939,16 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z23.object({
-  partner_id: z23.string().uuid("That partner does not exist."),
-  why: z23.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z24.object({
+  partner_id: z24.string().uuid("That partner does not exist."),
+  why: z24.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
 
 // src/workspace/partner-invite.ts
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
 var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
 var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
@@ -28922,8 +28957,8 @@ function partnerCodeFrom(raw) {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-var PartnerInviteSchema = z24.object({
-  code: z24.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z25.object({
+  code: z25.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -29003,6 +29038,52 @@ function partnerInviteEmail(i) {
       `Open until ${dayWords2(i.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`
     ].join("\n")
   };
+}
+
+// src/workspace/platform-days.ts
+var PLATFORM_DAYS_READ = { days: 7 };
+var sum = (m) => Object.values(m).reduce((a, n) => a + n, 0);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var FAILURE_WORDS = {
+  refused: "refused",
+  retryable: "not taken",
+  unknown: "may have gone"
+};
+function failuresOf(m) {
+  const n = sum(m);
+  if (n === 0) return "";
+  const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
+  return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
+}
+function receptionistOf3(r2) {
+  const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
+  if (replies === 0) return "the receptionist did not reply";
+  const parts2 = [
+    `${r2.replies_answered} answered at once`,
+    ...r2.replies_held ? [`${r2.replies_held} held`] : [],
+    ...r2.replies_handed_off ? [`${r2.replies_handed_off} handed over`] : []
+  ];
+  const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
+  return `${parts2.join(", ")}${pace}`;
+}
+function platformDaysWords(rows) {
+  if (!rows) return { day: null, sentence: "Could not be read just now.", lines: [] };
+  const day = rows.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
+  if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
+  const lines = rows.filter((r2) => r2.day === day).map((r2) => ({
+    tenantId: r2.tenant_id,
+    name: r2.name,
+    day: r2.day,
+    answers: `${r2.asks} asked, ${r2.answered} answered`,
+    receptionist: receptionistOf3(r2),
+    failures: failuresOf(r2.provider_failures),
+    silent: r2.asks > 0 && r2.answered === 0,
+    tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
+    asks: r2.asks
+  })).sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name)).map(({ asks: _asks, ...line }) => line);
+  const silent = lines.filter((l) => l.silent).length;
+  const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
+  return { day, sentence: sentence2, lines };
 }
 export {
   ABANDONED_MS,
@@ -29099,6 +29180,8 @@ export {
   CHECKOUT_RETURNS,
   CHECKOUT_RETURN_ROUTE,
   CHIPS_SHOWN,
+  CLIENT_ERROR_BOUNDARIES,
+  CLIENT_ERROR_LIMITS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -29115,6 +29198,7 @@ export {
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
   CalendarConfigSchema,
+  ClientErrorInput,
   ClosureSchema,
   DAYS,
   DAY_MS,
@@ -29474,6 +29558,7 @@ export {
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
+  PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
@@ -29835,6 +29920,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  clientErrorOf,
   clip,
   clipAtWord,
   clockDate,
@@ -30396,6 +30482,7 @@ export {
   planWho,
   planWords,
   platformActionWarning,
+  platformDaysWords,
   platformHealthOf,
   platformHealthWords,
   platformLineActions,

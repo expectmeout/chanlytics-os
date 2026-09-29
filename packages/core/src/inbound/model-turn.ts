@@ -8,7 +8,8 @@ import { resolveSystemPrompt, describeNow } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
 import { layerTwo, noModelPlan, NO_MODEL_PAGE } from "./steps";
-import { errField, type Answering } from "./context";
+import { errField } from "@chanlytics/channels";
+import type { Answering } from "./context";
 
 /** What the turn leaves for the dispatch: the words, whether they hand off and why, and what they cost. */
 export interface Turn {

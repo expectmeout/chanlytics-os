@@ -1,3 +1,41 @@
+// src/observe.ts
+var DB_REQUEST_HEADER = "x-chanlytics-request-id";
+var OBSERVER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.db.observer");
+var observerHolder = globalThis;
+function fallbackLine(level, event, fields = {}) {
+  const text2 = JSON.stringify({ level, event, ...fields });
+  if (level === "error") console.error(text2);
+  else if (level === "warn") console.warn(text2);
+  else console.log(text2);
+}
+var FALLBACK = {
+  log: {
+    info: (event, fields) => fallbackLine("info", event, fields),
+    warn: (event, fields) => fallbackLine("warn", event, fields),
+    error: (event, fields) => fallbackLine("error", event, fields)
+  },
+  requestId: () => null
+};
+function observeDb(observer) {
+  observerHolder[OBSERVER_SLOT] = observer;
+}
+function dbLog() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
+}
+function dbRequestId() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
+}
+function namedFetch(base) {
+  return (input, init) => {
+    const send = base ?? globalThis.fetch;
+    const id = dbRequestId();
+    if (!id) return send(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set(DB_REQUEST_HEADER, id);
+    return send(input, { ...init, headers });
+  };
+}
+
 // src/events.ts
 var WRITES = {
   "billing.paused": { category: "billing", version: 1 },
@@ -50,6 +88,7 @@ var WRITES = {
 var WABA_WRITE = { category: "system", version: 1 };
 function rowOf(tenantId, kind, subjectType, subjectId, data) {
   const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  const requestId = dbRequestId();
   return {
     tenant_id: tenantId,
     kind,
@@ -57,7 +96,8 @@ function rowOf(tenantId, kind, subjectType, subjectId, data) {
     version: write.version,
     subject_type: subjectType,
     subject_id: subjectId,
-    data
+    data,
+    ...requestId ? { request_id: requestId } : {}
   };
 }
 async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
@@ -66,14 +106,15 @@ async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
 }
 async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
-  if (error) console.error("emit_event_failed", kind, error);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
 }
 
 // src/service-client.ts
 import { createClient } from "@supabase/supabase-js";
 function createServiceClient(cfg) {
   return createClient(cfg.url, cfg.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: namedFetch() }
   });
 }
 
@@ -102,6 +143,7 @@ import { z as z21 } from "zod";
 import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 z.config({ jitless: true });
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -2180,7 +2222,12 @@ var DECISION_VERBS = [
   "restore_list",
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
+  "import",
+  /**
+   * A member opened a call's recording (00279): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording"
 ];
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
@@ -2870,6 +2917,18 @@ var PageVitalsInput = z19.object({
   page: z19.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
   vitals: z19.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var ClientErrorInput = z20.object({
+  boundary: z20.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z20.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z20.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z20.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z20.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z20.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+});
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -2877,10 +2936,10 @@ var SEARCH_WARN_MS = 12 * HOUR_MS;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z20.string().trim().max(80);
-var SignupSchema = z20.object({
-  name: z20.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z20.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z21.string().trim().max(80);
+var SignupSchema = z21.object({
+  name: z21.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z21.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2894,17 +2953,17 @@ var SignupSchema = z20.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z20.string().max(200).optional(),
+  password: z21.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z20.string().trim().min(1).max(64).optional(),
+  timezone: z21.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z20.object({
-  name: z20.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z21.object({
+  name: z21.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z20.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z21.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
@@ -2943,11 +3002,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z21.object({
-  code: z21.string().trim().min(1).max(64),
-  terms: z21.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z22.object({
+  code: z22.string().trim().min(1).max(64),
+  terms: z22.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z21.object({ letters: z21.boolean() }).strict();
+var PartnerLettersSchema = z22.object({ letters: z22.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2986,43 +3045,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z21.coerce.number();
-var letterSum = z21.object({ currency: z21.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z21.object({
+var letterCents = z22.coerce.number();
+var letterSum = z22.object({ currency: z22.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z22.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z21.array(z21.object({ kind: z21.string(), currency: z21.string(), count: z21.coerce.number(), cents: letterCents })).default([]),
+  written: z22.array(z22.object({ kind: z22.string(), currency: z22.string(), count: z22.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z21.array(letterSum).default([]),
+  matured: z22.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z21.array(letterSum).default([]),
-  paid: z21.array(z21.object({ currency: z21.string(), cents: letterCents, reference: z21.string(), sent_at: z21.string() })).default([]),
+  voided: z22.array(letterSum).default([]),
+  paid: z22.array(z22.object({ currency: z22.string(), cents: letterCents, reference: z22.string(), sent_at: z22.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z21.array(z21.object({ workspace: z21.string().nullable(), standing: z21.string(), why: z21.string().nullable() })).default([]),
+  standing: z22.array(z22.object({ workspace: z22.string().nullable(), standing: z22.string(), why: z22.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z21.array(z21.string().nullable()).default([]),
+  brought: z22.array(z22.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z21.array(z21.string().nullable()).default([]),
-  declined: z21.array(z21.string().nullable()).default([]),
+  accepted: z22.array(z22.string().nullable()).default([]),
+  declined: z22.array(z22.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z21.object({ status: z21.string(), why: z21.string().nullable() }).nullable().default(null),
-  balance: z21.array(
-    z21.object({
-      currency: z21.string(),
+  status: z22.object({ status: z22.string(), why: z22.string().nullable() }).nullable().default(null),
+  balance: z22.array(
+    z22.object({
+      currency: z22.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z21.string().nullable()
+      next_payable_at: z22.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z22.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z22.object({
-  name: z22.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z22.string().trim().max(64).nullish(),
+var ownerEmail = z23.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z23.object({
+  name: z23.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z23.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z22.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z23.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -3051,13 +3110,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z23.object({
-  partner_id: z23.string().uuid("That partner does not exist."),
-  why: z23.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z24.object({
+  partner_id: z24.string().uuid("That partner does not exist."),
+  why: z24.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 var PARTNER_INVITE_DAYS = 14;
-var PartnerInviteSchema = z24.object({
-  code: z24.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z25.object({
+  code: z25.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -3118,15 +3177,11 @@ async function ingestInbound(db, p) {
     if (mErr && /p_evidence/.test(mErr.message))
       ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "marketing_consent_write_failed",
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          error: mErr.message
-        })
-      );
+      dbLog().error("marketing_consent_write_failed", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message
+      });
     }
   }
   return out;
@@ -3225,7 +3280,7 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   if (errorDetail) patch.error = errorDetail;
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   if (error && !/monotone|terminal/.test(error.message)) {
-    console.error("record_status_failed", externalId, error.message);
+    dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
 }
 async function recordEchoAndPause(db, p) {
@@ -3234,12 +3289,15 @@ async function recordEchoAndPause(db, p) {
   try {
     contact = await getOrCreateContact(db, p.tenantId, phone);
   } catch (e) {
-    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e)
+    });
     return;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
-    console.error("record_echo_conv_failed", verr?.message);
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
     return;
   }
   const { error } = await db.from("messages").insert({
@@ -3255,25 +3313,36 @@ async function recordEchoAndPause(db, p) {
     status: "sent",
     meta: { echo: true }
   });
-  if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   if (error?.code === "23505" && p.externalId) return;
   const { error: perr } = await db.from("conversations").update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr) console.error("record_echo_pause_failed", perr.message);
+  if (perr)
+    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
   if (error) {
-    console.error("pause_conversation_failed", conversationId, error.message);
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message
+    });
     return false;
   }
   if (!data || data.length === 0) {
-    console.error("pause_conversation_noop", conversationId);
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
   let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
-  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
+  if (wErr)
+    dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: wErr.message
+    });
   return true;
 }
 
@@ -3315,8 +3384,7 @@ async function ingestInboundEmail(db, p) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error)
-      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
   }
   return out;
 }
@@ -3327,7 +3395,7 @@ async function sentEmailWithMessageId(db, tenantId, rfcMessageId) {
 }
 async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
-  if (error) console.error("mailbox_stamp_failed", error.message);
+  if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
 }
 async function mailboxOfTenant(db, tenantId) {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
@@ -4358,7 +4426,7 @@ async function resolveChannelDetailed(db, kind, externalId) {
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
-    console.error("resolve_channel_failed", error.message);
+    dbLog().error("resolve_channel_failed", { kind, error: error.message });
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
@@ -4416,9 +4484,8 @@ async function ingestCall(db, tenantId, n, raw) {
 }
 async function linkCallMessage(db, tenantId, callId, messageId) {
   const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("link_call_message_failed", error.message);
-  else if (!data || data.length === 0)
-    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
+  else if (!data || data.length === 0) dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
 }
 async function callersOf(db, tenantId, ids) {
   const out = [];
@@ -4431,9 +4498,8 @@ async function callersOf(db, tenantId, ids) {
 }
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("set_call_recording_failed", error.message);
-  else if (!data || data.length === 0)
-    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
+  else if (!data || data.length === 0) dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 async function recordCallNote(db, p) {
   const { data, error } = await db.from("messages").insert({
@@ -4454,7 +4520,7 @@ async function recordCallNote(db, p) {
       const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
       return prior?.id ?? null;
     }
-    console.error("record_call_note_failed", error.message);
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
     return null;
   }
   return data.id;
@@ -4788,7 +4854,7 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
 // src/paged.ts
 var MAX_ROWS = 1e3;
 var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
   const out = [];
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
@@ -4801,7 +4867,7 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
   onCapped(what, cap);
   return out;
 }
-async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
   const out = [];
   let after = null;
   while (out.length < cap) {
@@ -5470,6 +5536,7 @@ async function dueCalendars(db, p) {
 }
 export {
   CALL_CONTROL_S,
+  DB_REQUEST_HEADER,
   DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
   IDS_PER_READ,
@@ -5567,8 +5634,10 @@ export {
   messageSenders,
   monthSent,
   moveSend,
+  namedFetch,
   namesOfPeople,
   notesForReceptionist,
+  observeDb,
   outreachFactsOf,
   outreachModeOf,
   parentEmailOf,

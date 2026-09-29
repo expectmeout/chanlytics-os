@@ -74,7 +74,7 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
         dealsAreOn(s) && offset === 0 && !q
           ? followUpFacts(ctx, tenantId, rc.now).catch((e: unknown) => {
               log.error("follow_up_facts_failed", {
-                tenant: tenantId,
+                tenant_id: tenantId,
                 error: e instanceof Error ? e.message : String(e),
               });
               return null;

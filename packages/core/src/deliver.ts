@@ -31,6 +31,8 @@ import {
   resendLimitOf,
   smsRefusalOf,
   addressOf,
+  logger,
+  errField,
   type SendResult,
   type EmailRequest,
   type ResendLimit,
@@ -57,6 +59,9 @@ import {
 import { putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
+
+/** The send door's own lines: what it could not write after a send, by name, in the request (or job) it ran for. */
+const deliverLog = logger();
 
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
@@ -512,10 +517,11 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId);
   if (error)
-    console.error(
-      "deliver_stamp_failed",
-      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }),
-    );
+    deliverLog.error("deliver_stamp_failed", {
+      tenant_id: d.tenantId,
+      conversation_id: d.conversationId,
+      error: error.message,
+    });
 }
 
 /**
@@ -533,10 +539,11 @@ async function leftAs(db: Db, d: Delivery, sent: SendResult): Promise<void> {
   const why = sent.leftAsWhy ?? null;
   await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId!, leftAs: sent.leftAs, why }).catch(
     (e: unknown) => {
-      console.error(
-        "deliver_left_as_failed",
-        JSON.stringify({ tenant: d.tenantId, message: d.messageId, error: e instanceof Error ? e.message : String(e) }),
-      );
+      deliverLog.error("deliver_left_as_failed", {
+        tenant_id: d.tenantId,
+        message_id: d.messageId,
+        error: errField(e),
+      });
     },
   );
 }
@@ -637,15 +644,12 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         status: "sent",
         ...(sent.wamid ? { external_id: sent.wamid } : {}),
       }).catch((e: unknown) => {
-        console.error(
-          "deliver_finalize_failed",
-          JSON.stringify({
-            tenant: d.tenantId,
-            message: d.messageId,
-            wamid: sent.wamid,
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+        deliverLog.error("deliver_finalize_failed", {
+          tenant_id: d.tenantId,
+          message_id: d.messageId,
+          wamid: sent.wamid,
+          error: errField(e),
+        });
         return null;
       });
       await Promise.all([
@@ -676,15 +680,12 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
       status: "sent",
       meta: d.meta ?? {},
     }).catch((e: unknown) => {
-      console.error(
-        "deliver_record_failed",
-        JSON.stringify({
-          tenant: d.tenantId,
-          conversation: d.conversationId,
-          wamid: sent.wamid,
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
+      deliverLog.error("deliver_record_failed", {
+        tenant_id: d.tenantId,
+        conversation_id: d.conversationId,
+        wamid: sent.wamid,
+        error: errField(e),
+      });
       return null;
     });
     return { outcome: "sent", messageId, externalId: sent.wamid };
@@ -781,10 +782,7 @@ export async function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<D
     return await deliver(ports, d);
   } catch (e) {
     const errorBody = e instanceof Error ? e.message : String(e);
-    console.error(
-      "deliver_threw",
-      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: errorBody }),
-    );
+    deliverLog.error("deliver_threw", { tenant_id: d.tenantId, conversation_id: d.conversationId, error: errorBody });
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
 }

@@ -33,7 +33,7 @@ export async function syncProfile(
   now = new Date(),
   net: PlacesHttp = http,
 ): Promise<CheckResult> {
-  const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
+  const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
     // The stamp is NOT moved, for the reasons checkListing gives above: a

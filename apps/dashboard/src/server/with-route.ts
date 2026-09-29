@@ -27,7 +27,7 @@ import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
 import { serverTimingHeader } from "./server-timing";
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
-import { log, withRequestId } from "./log";
+import { log, noteTenant, withRequestId } from "./log";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
@@ -113,6 +113,8 @@ function answerOf<T>(
   ): Promise<Response> => {
     const started = Date.now();
     const route = new URL(req.url).pathname;
+    // Who asked, once the session says: the 500 line names them (with the stack), as the 200 line always did.
+    let userId: string | undefined;
     try {
       // Cross-site submission, refused before anything else happens.
       //
@@ -164,6 +166,7 @@ function answerOf<T>(
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const authMs = Date.now() - authFrom;
+      userId = String(user.sub);
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf =
@@ -204,7 +207,8 @@ function answerOf<T>(
           headers: { ...PRIVATE, ...refusalHeaders(e) },
         });
       }
-      log.error("route_failed", { route, error: e instanceof Error ? e.message : String(e) });
+      // The error itself, so the line carries its stack; the workspace rides from the request (memberContext).
+      log.error("route_failed", { route, user: userId, error: e instanceof Error ? e : String(e) });
       return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
     }
   };
@@ -258,6 +262,8 @@ export async function memberContext(
   // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
   // request passes. The database refuses the same session on its own (00218).
   if (seatNeedsSecondFactor(m.role)) requireSecondFactor(ctx);
+  // The workspace this request acts on: every line logged after this carries it as tenant_id.
+  noteTenant(m.tenant_id);
 
   return {
     tenantId: m.tenant_id,

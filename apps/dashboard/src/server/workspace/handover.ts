@@ -70,10 +70,10 @@ export async function sendHandoverInvite(
       { workspace: tenantId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
     if (!edgeAnswered(r))
-      log.error("handover_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
+      log.error("handover_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
     return edgeAnswered(r);
   } catch (e) {
-    log.error("handover_invite_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("handover_invite_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return false;
   }
 }

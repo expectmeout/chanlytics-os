@@ -26,7 +26,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/ops/sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/whatsapp/receipts-watch.js";
 import {
@@ -35,9 +35,16 @@ import {
   describeMailDomainTrouble,
 } from "../../lib/email/mail-domain.js";
 import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
+import {
+  ANSWER_SILENCE_PAGE_KEY,
+  answerSilenceDue,
+  describeAnswerSilence,
+  rolledDay,
+  type SilentWorkspace,
+} from "../../lib/ops/answer-silence.js";
 import { env } from "../../lib/env.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "health" });
   const db = pg();
   if (!db) {
@@ -144,6 +151,22 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // Workspaces whose customers wrote all day and got no answer from anyone (00279), read from the day the nightly
+  // rollup counted, while that day is fresh: one page per silent day. A database without the rollup reads nothing.
+  let answerSilent = 0;
+  if (answerSilenceDue(Date.now())) {
+    const day = rolledDay(Date.now());
+    const silence = await db.rpc("platform_answer_silence", { p_day: day });
+    if (silence.error) {
+      if (silence.error.code !== "PGRST202") L.error("answer_silence_unreadable", { error: silence.error.message });
+    } else if ((silence.data ?? []).length > 0) {
+      const silent = silence.data as SilentWorkspace[];
+      answerSilent = silent.length;
+      const page = describeAnswerSilence(silent, day);
+      await pageOperator({ db }, ANSWER_SILENCE_PAGE_KEY, page.subject, page.body);
+    }
+  }
+
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
     alerted: delivered ? plan.alert.length : 0,
@@ -151,6 +174,7 @@ export async function POST(request: Request): Promise<Response> {
     unreceipted,
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
     cold_reply_trouble: coldTrouble,
+    answer_silent: answerSilent,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is
@@ -158,4 +182,4 @@ export async function POST(request: Request): Promise<Response> {
   // to report someone else's failure would make the health check report itself
   // as broken and never recover.
   return json(200, { ok: true, healthy: plan.broken.length === 0, broken: plan.broken });
-}
+});

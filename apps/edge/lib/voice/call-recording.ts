@@ -187,7 +187,7 @@ export async function copyRecording(
     deferralsSpend?: boolean;
   },
 ): Promise<CopyOutcome> {
-  const L = logger({ tenant: p.tenantId });
+  const L = logger({ tenant_id: p.tenantId });
   const attempt = (p.attempts ?? 0) + 1;
   const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
   const settle = async (state: "stored" | "pending" | "failed", extra: Record<string, unknown>) =>

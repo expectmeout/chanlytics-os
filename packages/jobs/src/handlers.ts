@@ -16,6 +16,7 @@ import {
   classifyReceived,
   emailPlainText,
   isEmailRequest,
+  logger,
   messageIdsIn,
   type ReceivedEmail,
 } from "@chanlytics/channels";
@@ -87,20 +88,16 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
-      // the ledger claims the new one when it is due. Said on the console, since the tick sees only a job done.
+      // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
       retry: async (dueAt, payload) => {
         await ctx.schedule("outbound_send", dueAt, payload as Json);
-        console.warn(
-          JSON.stringify({
-            level: "warn",
-            event: "outbound_send_rescheduled",
-            tenant: job.tenant_id,
-            job: job.id,
-            message_id: payload.message_id,
-            resumes: payload.resumes ?? null,
-            due_at: dueAt.toISOString(),
-          }),
-        );
+        logger().warn("outbound_send_rescheduled", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          message_id: payload.message_id,
+          resumes: payload.resumes ?? null,
+          due_at: dueAt.toISOString(),
+        });
       },
       now: Date.now,
     },
@@ -181,7 +178,7 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     { payload: job.payload },
   );
-  console.log(JSON.stringify({ level: "info", event: "email_ingested", tenant: job.tenant_id, job: job.id, outcome }));
+  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
 }
 
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;

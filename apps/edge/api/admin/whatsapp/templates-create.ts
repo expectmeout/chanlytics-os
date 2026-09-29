@@ -20,14 +20,14 @@ import {
   type MetaTemplateComponent,
 } from "../../../lib/whatsapp/meta-templates.js";
 import type { Json } from "../../../lib/packages/db.js";
-import { logger } from "../../../lib/log.js";
+import { logger, adminDoor } from "../../../lib/log.js";
 
 const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
@@ -121,4 +121,4 @@ export async function POST(request: Request): Promise<Response> {
   if (error || !saved) return refuse(500, "write_failed", error?.message);
   L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
-}
+});

@@ -35,7 +35,7 @@ import { cancelJobsFor } from "../../lib/packages/jobs.js";
 import { generateReply } from "../../lib/receptionist/brain.js";
 import { queueDraft } from "../../lib/receptionist/draft-queue.js";
 import { env } from "../../lib/env.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, adminDoor } from "../../lib/log.js";
 
 const MAX_CHARS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,7 +55,7 @@ export interface BrainPort {
   generateReply?: typeof generateReply;
 }
 
-export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
@@ -229,4 +229,4 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     escalate: r.escalate,
     delay_ms: delayMs,
   });
-}
+});

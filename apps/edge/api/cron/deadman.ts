@@ -28,7 +28,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify, reachesTenant } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, door } from "../../lib/log.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { markProcessed } from "../../lib/packages/db.js";
 import { upsertEscalation } from "../../lib/packages/jobs.js";
@@ -48,7 +48,7 @@ interface Candidate {
   phone_e164: string | null;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "deadman" });
   const db = pg();
   if (!db) {
@@ -167,4 +167,4 @@ export async function POST(request: Request): Promise<Response> {
 
   L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...unfinished });
   return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...unfinished });
-}
+});

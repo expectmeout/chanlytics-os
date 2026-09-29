@@ -33,7 +33,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField, type Logger } from "../../lib/log.js";
+import { logger, errField, type Logger, door } from "../../lib/log.js";
 import {
   getCall,
   normalizeCall,
@@ -263,7 +263,7 @@ async function retryRecordings(leg: ProviderLeg) {
   return recordings;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calls" });
   const db = pg();
   if (!db) {
@@ -408,4 +408,4 @@ export async function POST(request: Request): Promise<Response> {
       purge,
     });
   return json(200, { ok: true, ...counts, purge });
-}
+});

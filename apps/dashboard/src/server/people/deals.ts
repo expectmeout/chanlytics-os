@@ -52,7 +52,7 @@ export async function dealPaceRead(
     const rows = await yesesSince(ctx.supabase, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS));
     return dealPaceFrom(rows, now.getTime());
   } catch (e) {
-    log.error("deal_pace_read_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("deal_pace_read_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

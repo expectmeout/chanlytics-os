@@ -267,7 +267,11 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     p_evidence: { channel: "email", via: oneClick ? "one_click" : "page" },
   });
   if (error) {
-    log.error("unsubscribe_not_recorded", { tenant: claims.tenantId, message: claims.messageId, error: error.message });
+    log.error("unsubscribe_not_recorded", {
+      tenant_id: claims.tenantId,
+      message: claims.messageId,
+      error: error.message,
+    });
     return oneClick
       ? plainText(503, "Not recorded. Try again in a minute.")
       : page(503, { kind: "unavailable", retry: true });

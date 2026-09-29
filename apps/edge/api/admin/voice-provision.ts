@@ -49,7 +49,7 @@ import {
   type VoiceProvisionRequest,
 } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -242,7 +242,7 @@ interface BoundNumber {
   answer: Record<string, unknown>;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const knock = await checkProvisionKnock(request);
   if (knock instanceof Response) return knock;
   const line = await readWorkspaceLine(knock.db, knock.tenantId);
@@ -251,7 +251,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!plan.ok) return json(400, { ...out, error: "bad_request", detail: plan.errors.join("; ") });
   if (!knock.apply || plan.nothing) return json(200, out);
   return applyProvision(knock, req, plan, out);
-}
+});
 
 /**
  * Apply, in the plan's order. Every step reads its own effect before it acts; anything created so far rides in
@@ -300,7 +300,7 @@ async function applyProvision(
   const after = await readBackLeg(provider.cfg, agent);
   result.after = after;
   L.info("voice_provision", {
-    tenant: knock.tenantId,
+    tenant_id: knock.tenantId,
     agent_id: agent.agentId,
     llm_id: agent.llmId,
     number: bound.number,

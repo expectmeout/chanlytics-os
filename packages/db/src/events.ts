@@ -9,10 +9,14 @@
  * `version` (00264, events.version) is the version of the kind's data. It is raised when a kind's shape changes, so a
  * reader can tell an old row from a new one. Every kind starts at 1, and the migrations' own inserts are version 1 by
  * the column's default.
+ *
+ * `request_id` (00279) names the request a row was written in, so the ledger joins the log: a failed write is logged
+ * as `emit_event_failed` through the one logger, with the same name.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WabaEventKind } from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
+import { dbLog, dbRequestId } from "./observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -158,6 +162,10 @@ function rowOf<K extends EmittedKind>(
   data: EventData[K],
 ) {
   const write = kind in WRITES ? WRITES[kind as keyof TableData] : WABA_WRITE;
+  // The request this row was written in (00279): the one a person's click, a webhook's delivery or a job's
+  // originating request was named. Absent outside one; the column's own default then reads the header the database
+  // client sent, which is how a SQL function's rows say it too.
+  const requestId = dbRequestId();
   return {
     tenant_id: tenantId,
     kind,
@@ -166,6 +174,7 @@ function rowOf<K extends EmittedKind>(
     subject_type: subjectType,
     subject_id: subjectId,
     data: data as Json,
+    ...(requestId ? { request_id: requestId } : {}),
   };
 }
 
@@ -195,5 +204,5 @@ export async function emitEvent<K extends EmittedKind>(
   data: EventData[K],
 ): Promise<void> {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
-  if (error) console.error("emit_event_failed", kind, error);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
 }

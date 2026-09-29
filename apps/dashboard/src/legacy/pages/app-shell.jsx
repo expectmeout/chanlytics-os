@@ -111,6 +111,12 @@ const NAV_ROUTE = {
 class ShellErrorBoundary extends React.Component {
   constructor(p) { super(p); this.state = { err: null }; }
   static getDerivedStateFromError(e) { return { err: e }; }
+  // Said, not only drawn: the bridge's host hears this and sends it to the server (src/client/client-error.ts).
+  componentDidCatch(e) {
+    try {
+      window.dispatchEvent(new CustomEvent("chanlytics:shell-error", { detail: { error: e, page: (window.location.hash || "").replace(/^#\/?/, "") } }));
+    } catch { /* a report lost, never a second error */ }
+  }
   render() {
     if (!this.state.err) return this.props.children;
     return (

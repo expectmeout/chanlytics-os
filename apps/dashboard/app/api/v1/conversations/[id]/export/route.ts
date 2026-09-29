@@ -75,7 +75,7 @@ export const GET = read({
     const text = transcriptText({ contact }, messages, { business: name, tz: timezone, exportedAt: now });
     log.info("export.transcript", {
       user: userId,
-      tenant: member.tenantId,
+      tenant_id: member.tenantId,
       conversation: id,
       messages: messages.length,
     });

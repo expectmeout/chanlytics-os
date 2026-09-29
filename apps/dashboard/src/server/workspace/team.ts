@@ -2,8 +2,6 @@ import "server-only";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
-import { recordDecision } from "../verbs";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
 
@@ -46,39 +44,42 @@ interface OpenInvite {
  * privileged paths is the point; the speed is a side effect.
  */
 /**
- * Write a team change to the SAME ledger the conversation verbs use.
+ * A team change and its row on the ledger, in one transaction (00279: team_change_role, team_remove, team_join,
+ * team_invite).
  *
- * decisions recorded every conversation verb and nothing about the team —
- * the one table where reconstructing who did what afterwards is hardest, and
- * where it matters most: promoting someone to owner hands them billing, the
- * power to remove everyone else, and the receptionist's voice.
- *
- * On the CALLER's client. decisions_acting_member_insert already admits an
- * acting member, so this needs no privilege the request does not have — and
- * actor_user_id is then the session's own user rather than something passed
- * in and trusted.
- *
- * Deliberately non-fatal. The audit row must never be the reason a role
- * change fails: the change has already happened, and throwing here would
- * report failure for something that succeeded.
+ * decisions recorded every conversation verb and nothing about the team, the one table where reconstructing who did
+ * what afterwards is hardest, and where it matters most: promoting someone to owner hands them billing, the power to
+ * remove everyone else, and the receptionist's voice. The row was then written after the change, on the caller's
+ * client, and a failed write was a log line: the change stood, unrecorded. Now the database makes the change and its
+ * row together or neither. The functions are the platform's (the service role), handed the session's verified user as
+ * the actor; each checks that the actor owns the workspace before it changes anything, and the last owner stays one
+ * with the owners locked while they are counted.
  */
-async function noteTeamChange(
-  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
-  tenantId: string,
-  subjectType: "membership" | "invitation",
-  subjectId: string,
-  verb: "invite" | "revoke_invite" | "change_role" | "remove_member",
-  payload: Record<string, unknown>,
-): Promise<void> {
-  // Through the one ledger writer, so a card's mark (via) and an undo's link
-  // ride on a team change as they ride on every other decision. This used to
-  // be its own insert, and an invitation made from the Ask palette was the
-  // one card whose row said nothing about the card.
-  try {
-    await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);
-  } catch (e) {
-    log.error("team_audit_failed", { verb, error: e });
-  }
+type TeamCtx = { userId: string; via?: "ask"; undoOf?: string };
+
+/** The database's refusal, as the owner reads it. */
+function teamRefusal(error: { code?: string; message: string }): Error {
+  if (error.message === "forbidden") return new AppError("forbidden", "Only an owner can do this.", 403);
+  if (error.message === "not_found") return new AppError("not_found", "That person is not on this team.", 404);
+  if (error.message === "last_owner")
+    return new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
+  if (error.message === "self_remove")
+    return new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
+  return new Error(error.message);
+}
+
+/** A team function's answer; a refusal thrown in the owner's words. An undo whose decision is unknown is said once. */
+async function teamCall(
+  call: PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>,
+  verb: string,
+  undoOf?: string,
+): Promise<Record<string, unknown>> {
+  const { data, error } = await call;
+  if (error) throw teamRefusal(error);
+  const answer = (data ?? {}) as Record<string, unknown>;
+  // A card kept from a stale tab, or a header nobody should have sent: the change is kept without the link.
+  if (answer.undo_dropped === true) log.error("decision_undo_of_unknown", { undo_of: undoOf, verb });
+  return answer;
 }
 
 export async function teamRoster(db: SupabaseClient<Database>, tenantId: string) {
@@ -108,8 +109,6 @@ export async function teamRoster(db: SupabaseClient<Database>, tenantId: string)
 }
 
 export async function inviteMember(
-  /** The caller's own client — the ledger records the change under this session. */
-  caller: SupabaseClient<Database>,
   tenantId: string,
   invitedBy: string,
   email: string,
@@ -140,145 +139,88 @@ export async function inviteMember(
   });
   if (lookupErr) throw new Error(lookupErr.message);
   if (existingId) {
-    const { data: mem } = await db
-      .from("memberships")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("user_id", existingId)
-      .maybeSingle();
-    if (mem) return { alreadyMember: true as const };
-    // Known account, new workspace: membership now, no email ceremony needed.
-    const { data: created, error } = await db
-      .from("memberships")
-      .insert({ tenant_id: tenantId, user_id: existingId, role })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "membership", created.id, "invite", {
-      email,
-      role,
-      joined_existing_account: true,
-    });
-    return { added: true as const };
+    // Known account, new workspace: membership now, no email ceremony needed, and the ledger saying so, together.
+    const joined = await teamCall(
+      db.rpc("team_join", {
+        p_tenant_id: tenantId,
+        p_actor: invitedBy,
+        p_user_id: existingId,
+        p_role: role,
+        p_email: email,
+        ...(via ? { p_via: via } : {}),
+      }),
+      "invite",
+    );
+    return joined.already_member === true ? { alreadyMember: true as const } : { added: true as const };
   }
 
-  const { data: inv, error: invErr } = await db
-    .from("invitations")
-    .insert({ tenant_id: tenantId, email, role, invited_by: invitedBy })
-    .select("id")
-    .single();
-  if (invErr || !inv) {
-    if (invErr?.code === "23505") return { alreadyInvited: true as const };
-    throw new Error(invErr?.message ?? "invitation not created");
-  }
+  // The invitation and its row, before the mail: the mail cannot be part of a transaction, so a mail that could not
+  // go takes both back, and the ledger never says an invitation went that did not.
+  const inv = await teamCall(
+    db.rpc("team_invite", {
+      p_tenant_id: tenantId,
+      p_actor: invitedBy,
+      p_email: email,
+      p_role: role,
+      ...(via ? { p_via: via } : {}),
+    }),
+    "invite",
+  );
+  if (inv.already_invited === true) return { alreadyInvited: true as const };
   const { error: mailErr } = await db.auth.admin.inviteUserByEmail(email);
   if (mailErr) {
-    // The intent row without the email is a lie in the invites list — undo it.
-    await db.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email).is("accepted_at", null);
+    // The intent row without the email is a lie in the invites list, and on the ledger: take both back.
+    await db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: String(inv.invitation_id) });
     throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
-  // On the ledger once the email is on its way: an invitation is a decision
-  // to hand out the power to message customers, and this path recorded none.
-  await noteTeamChange({ supabase: caller, userId: invitedBy, via }, tenantId, "invitation", inv.id, "invite", {
-    email,
-    role,
-  });
   return { invited: true as const };
 }
 
 export async function setMemberRole(
-  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
+  ctx: TeamCtx,
   tenantId: string,
   membershipId: string,
   role: string,
   svc: SupabaseClient<Database> = serviceDb(),
 ) {
-  const db = svc;
-  // Read first, always: the previous role is the part of the audit that
-  // matters later ("was promoted to owner" is a different fact from "was
-  // already one"), and the row is the only place it is written.
-  const { data: target, error: readErr } = await db
-    .from("memberships")
-    .select("id, role")
-    .eq("tenant_id", tenantId)
-    .eq("id", membershipId)
-    .maybeSingle();
-  if (readErr) throw new Error(readErr.message);
-  if (!target) throw new AppError("not_found", "That person is not on this team.", 404);
-  if (role !== "owner" && target.role === "owner") {
-    // Demoting the LAST owner strands the workspace — nobody could ever
-    // manage the team or billing again.
-    const { count } = await db
-      .from("memberships")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("role", "owner");
-    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
-  }
-  const { data, error } = await db
-    .from("memberships")
-    .update({ role })
-    .eq("tenant_id", tenantId)
-    .eq("id", membershipId)
-    .select("id, role")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "That person is not on this team.", 404);
-  await noteTeamChange(ctx, tenantId, "membership", data.id, "change_role", {
-    from: target.role,
-    to: data.role,
-  });
-  return { membershipId: data.id, role: data.role };
+  // Read and written in one transaction: the previous role is the part of the audit that matters later ("was
+  // promoted to owner" is a different fact from "was already one"), and the row is the only place it is written.
+  const changed = await teamCall(
+    svc.rpc("team_change_role", {
+      p_tenant_id: tenantId,
+      p_actor: ctx.userId,
+      p_membership_id: membershipId,
+      p_role: role,
+      ...(ctx.via ? { p_via: ctx.via } : {}),
+      ...(ctx.undoOf ? { p_undo_of: ctx.undoOf } : {}),
+    }),
+    "change_role",
+    ctx.undoOf,
+  );
+  return { membershipId: String(changed.membership_id), role: String(changed.role) };
 }
 
 export async function removeMember(
-  ctx: { supabase: SupabaseClient<Database>; userId: string; via?: "ask"; undoOf?: string },
+  ctx: TeamCtx,
   tenantId: string,
+  /** A membership or an open invitation; nobody removes themself (the actor is ctx's user). */
   id: string,
-  callerUserId: string,
   svc: SupabaseClient<Database> = serviceDb(),
 ) {
-  const db = svc;
-  // id may be a membership or an open invite — try the invite first (cheaper).
-  const { data: inv } = await db
-    .from("invitations")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("id", id)
-    .is("accepted_at", null)
-    .maybeSingle();
-  if (inv) {
-    const { error } = await db.from("invitations").update({ revoked_at: new Date().toISOString() }).eq("id", inv.id);
-    if (error) throw new Error(error.message);
-    await noteTeamChange(ctx, tenantId, "invitation", inv.id, "revoke_invite", {});
-    return { revokedInvite: true as const };
-  }
-  const { data: target } = await db
-    .from("memberships")
-    .select("id, user_id, role")
-    .eq("tenant_id", tenantId)
-    .eq("id", id)
-    .maybeSingle();
-  if (!target) throw new AppError("not_found", "That person is not on this team.", 404);
-  if (target.user_id === callerUserId)
-    throw new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
-  if (target.role === "owner") {
-    const { count } = await db
-      .from("memberships")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("role", "owner");
-    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
-  }
-  const { error } = await db.from("memberships").delete().eq("id", target.id);
-  if (error) throw new Error(error.message);
-  // Recorded AFTER the delete, and carrying the role they held — the
-  // membership row is gone, so this is the only surviving record of it.
-  await noteTeamChange(ctx, tenantId, "membership", target.id, "remove_member", {
-    removed_user_id: target.user_id,
-    had_role: target.role,
-  });
-  return { removed: true as const };
+  // id may be a membership or an open invite; the database tries the invite first. Recorded in the same transaction
+  // as the delete, carrying the role they held: the membership row is gone, so the ledger's is the surviving record.
+  const removed = await teamCall(
+    svc.rpc("team_remove", {
+      p_tenant_id: tenantId,
+      p_actor: ctx.userId,
+      p_id: id,
+      ...(ctx.via ? { p_via: ctx.via } : {}),
+      ...(ctx.undoOf ? { p_undo_of: ctx.undoOf } : {}),
+    }),
+    "remove_member",
+    ctx.undoOf,
+  );
+  return removed.revoked_invite === true ? { revokedInvite: true as const } : { removed: true as const };
 }
 
 /** A sign-in completes any open invites for this email: membership rows

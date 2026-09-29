@@ -28,7 +28,7 @@ import {
   type LiveAgentSettings,
 } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -44,7 +44,7 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
   return { ...a, webhook_url: url };
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
@@ -139,4 +139,4 @@ export async function POST(request: Request): Promise<Response> {
     agents.push(out);
   }
   return json(200, { ok: true, apply, publish, agents });
-}
+});

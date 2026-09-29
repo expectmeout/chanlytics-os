@@ -12,7 +12,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { sendPartnerLetters } from "../../lib/partners/letters.js";
 
 interface Swept {
@@ -22,7 +22,7 @@ interface Swept {
   void: number;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "partners" });
   const db = pg();
   if (!db) {
@@ -43,4 +43,4 @@ export async function POST(request: Request): Promise<Response> {
   const letters = await sendPartnerLetters(db, new Date());
   L.info("partners_swept", { ...out, letters: letters.sent, letters_failed: letters.failed });
   return json(200, { ok: true, ...out, letters });
-}
+});

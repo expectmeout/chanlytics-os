@@ -9,7 +9,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger, type Logger } from "../../lib/log.js";
+import { logger, type Logger, door } from "../../lib/log.js";
 import {
   playbooksDue,
   reachOutsDue,
@@ -133,7 +133,7 @@ async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<D
   }
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const started = Date.now();
   const L = logger({ sweep: "playbooks" });
   const db = pg();
@@ -197,4 +197,4 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "playbooks_backlog", backlog_ticks: backlog.ticks, ...out });
   }
   return json(200, { ok: true, ...out });
-}
+});

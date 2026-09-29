@@ -30,10 +30,18 @@
  * learns an outage for itself. A call that puts words in front of a person (`breaker: "count"`: a WhatsApp or SMS
  * send, an email, an alert) is always made, and only counts toward the breaker: a reply is never failed on the
  * strength of another call's timeouts.
+ *
+ * A breaker that opens says so (`breaker_open`, with the provider and the faults that opened it) and so does one
+ * that closes again (`breaker_closed`), and `/api/diag` reads each provider's state (`breakerStates`). It opened in
+ * silence before: during an outage the only trace was each caller's own failure words. The state is one per process,
+ * however many copies of this module the builds inlined (core's, jobs', the edge's own), so what the diagnostic reads
+ * is what a send was held by.
  */
+import { logger } from "./log/logger";
 
-/** Who is called: the breaker keeps one state per name. */
-export type Provider = "meta" | "twilio" | "retell" | "resend" | "google" | "apify" | "expo";
+/** Every provider a call leaves for: the breaker keeps one state per name. */
+export const PROVIDERS = ["meta", "twilio", "retell", "resend", "google", "apify", "expo"] as const;
+export type Provider = (typeof PROVIDERS)[number];
 
 /** What a call to a provider came to (the header says each). */
 export type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
@@ -88,17 +96,37 @@ interface Breaker {
   failures: number;
   openUntil: number;
 }
-const breakers = new Map<Provider, Breaker>();
+/** One map for the process: a registered symbol, so every inlined copy of this module reads and writes the same. */
+const BREAKER_SLOT: unique symbol = Symbol.for("chanlytics.breakers");
+const breakerHolder = globalThis as { [BREAKER_SLOT]?: Map<Provider, Breaker> };
+const breakerMap: Map<Provider, Breaker> = (breakerHolder[BREAKER_SLOT] ??= new Map<Provider, Breaker>());
+const breakerLog = logger();
 
 /** A provider's breaker as it stands: what a report of the platform's health, or a test, reads. */
 export function breakerOf(provider: Provider, now = Date.now()): { open: boolean; failures: number } {
-  const b = breakers.get(provider);
+  const b = breakerMap.get(provider);
   return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
+}
+
+/** Every provider's breaker as it stands in this instance, and until when an open one holds: what /api/diag says. */
+export function breakerStates(
+  now = Date.now(),
+): { provider: Provider; open: boolean; failures: number; open_until: string | null }[] {
+  return PROVIDERS.map((provider) => {
+    const b = breakerMap.get(provider);
+    const open = !!b && b.openUntil > now;
+    return {
+      provider,
+      open,
+      failures: b?.failures ?? 0,
+      open_until: open ? new Date(b.openUntil).toISOString() : null,
+    };
+  });
 }
 
 /** Every breaker closed: for a test, which must not inherit the last test's outage. */
 export function resetBreakers(): void {
-  breakers.clear();
+  breakerMap.clear();
 }
 
 /** The network's codes for a connection that never opened: the request never left, so nothing was done. */
@@ -145,19 +173,34 @@ const isFault = (a: { status: number; error: string | null }): boolean =>
 
 function note(provider: Provider, a: ProviderReply, now: number): void {
   if (a.error === "breaker_open") return;
+  const b = breakerMap.get(provider);
   if (!isFault(a)) {
-    breakers.delete(provider);
+    // An answer closes the breaker. One that had opened says so: the outage it held calls through is over.
+    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
+    breakerMap.delete(provider);
     return;
   }
-  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
-  b.failures += 1;
-  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
-  breakers.set(provider, b);
+  const next = b ?? { failures: 0, openUntil: 0 };
+  const wasOpen = next.openUntil > now;
+  next.failures += 1;
+  if (next.failures >= BREAKER_FAILURES) {
+    next.openUntil = now + BREAKER_OPEN_MS;
+    // Opened, or opened again after the pause's first call faulted too: either way calls are held from now.
+    if (!wasOpen)
+      breakerLog.warn("breaker_open", {
+        provider,
+        failures: next.failures,
+        status: a.status,
+        error: a.error,
+        open_ms: BREAKER_OPEN_MS,
+      });
+  }
+  breakerMap.set(provider, next);
 }
 
 async function once(provider: Provider, url: string, call: ProviderCall, deps: Required<ProviderDeps>, tries: number) {
   const now = deps.now();
-  const b = breakers.get(provider);
+  const b = breakerMap.get(provider);
   if (b && b.openUntil > now && call.breaker !== "count") {
     const held: ProviderReply = {
       outcome: "retryable",

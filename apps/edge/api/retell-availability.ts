@@ -30,7 +30,7 @@ import {
   type ServiceOffer,
 } from "../lib/packages/contracts.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
@@ -84,7 +84,7 @@ export function availabilityAnswer(
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
@@ -112,12 +112,12 @@ export async function POST(request: Request): Promise<Response> {
   }
   const rt = await loadTenantRuntime(db, routed);
   if (policyAskClass(rt.policy, "booking") === "booking") {
-    L.info("retell_availability_booking_held", { tenant: routed.tenantId });
+    L.info("retell_availability_booking_held", { tenant_id: routed.tenantId });
     return json(200, { result: BOOKING_HELD });
   }
   const hasBookingLink = offersBookingLink(rt.brain);
   if (!rt.calendar?.ical_url) {
-    L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
+    L.info("retell_availability_no_calendar", { tenant_id: routed.tenantId });
     return json(200, { result: hasBookingLink ? NO_CALENDAR : NO_CALENDAR_NO_LINK });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
@@ -129,12 +129,12 @@ export async function POST(request: Request): Promise<Response> {
     openingsData(rt),
   ]);
   if (!data) {
-    L.info("retell_availability_unavailable", { tenant: routed.tenantId });
+    L.info("retell_availability_unavailable", { tenant_id: routed.tenantId });
     return json(200, { result: hasBookingLink ? CANNOT_SEE : CANNOT_SEE_NO_LINK });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won", hasBookingLink });
   L.info("retell_availability", {
-    tenant: routed.tenantId,
+    tenant_id: routed.tenantId,
     day: answer.day,
     service: answer.offer?.service.name ?? null,
     consultation: answer.offer?.consultation ?? false,
@@ -142,4 +142,4 @@ export async function POST(request: Request): Promise<Response> {
     days: answer.days,
   });
   return json(200, { result: answer.result });
-}
+});

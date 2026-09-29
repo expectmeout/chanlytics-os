@@ -838,8 +838,9 @@ test("every number a caller is told is the one the resolver publishes: with none
           [[w.tables.messages[0].id, { http_status: 400, body: refusedBody, reason: "provider" }]],
         );
         assert.deepEqual(
-          log.said("booking_link_send_failed").map((l) => [l.fields.status, l.fields.body]),
-          [[400, refusedBody]],
+          log.said("booking_link_send_failed").map((l) => [l.fields.status, l.fields.reason, l.fields.body]),
+          [[400, "provider", undefined]],
+          "the line says what the answer came to, never the provider's body, which can carry the number",
         );
       });
     }

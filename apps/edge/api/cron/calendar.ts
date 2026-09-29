@@ -15,7 +15,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../../lib/ops/sweep-rotation.js";
 import { feedItemsFor } from "../../lib/calendar/availability.js";
 import { addPeopleFromCalendar } from "../../lib/calendar/calendar-people.js";
@@ -23,7 +23,7 @@ import { bookedFromCalendar } from "../../lib/calendar/reach-out-booked.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { ownAddressesOf, parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calendar" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -112,4 +112,4 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "calendar_backlog", backlog_ticks: backlog.ticks, ...out });
   }
   return json(200, { ok: true, ...out });
-}
+});

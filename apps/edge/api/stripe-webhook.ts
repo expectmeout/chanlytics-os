@@ -22,7 +22,7 @@
 import type Stripe from "stripe";
 import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 import {
   applySubscription,
   completeEvent,
@@ -50,7 +50,7 @@ import { env } from "../lib/env.js";
 const idOf = (x: string | { id: string } | null | undefined): string | null =>
   typeof x === "string" ? x : (x?.id ?? null);
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ hook: "stripe" });
   const s = stripe();
   const secret = env.STRIPE_WEBHOOK_SECRET;
@@ -81,7 +81,7 @@ export async function POST(request: Request): Promise<Response> {
     await delivery.giveBack();
     return refuse(500, "write_failed");
   }
-}
+});
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 type Log = ReturnType<typeof logger>;

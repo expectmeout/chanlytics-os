@@ -16,6 +16,7 @@
  * a job whose outcome is unknown.
  */
 import { isCampaignEmail } from "@chanlytics/contracts";
+import { logger } from "@chanlytics/channels";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
@@ -112,7 +113,7 @@ async function noteMailboxTrouble(
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) {
-    console.error("mailbox_trouble_not_marked", error.message);
+    logger().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
     return { mailbox: "failed" };
   }
   return { mailbox: data && data.length > 0 ? "marked" : "gone" };

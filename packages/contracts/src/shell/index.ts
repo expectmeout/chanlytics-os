@@ -95,3 +95,5 @@ export type {
   PageVitalsPageVM,
   PageVitalsVM,
 } from "./vitals";
+export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, ClientErrorInput, clientErrorOf } from "./client-error";
+export type { ClientErrorBoundary, ClientErrorInputDto } from "./client-error";

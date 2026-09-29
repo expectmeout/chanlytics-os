@@ -200,7 +200,7 @@ export async function recordNotification(
   if (!tenantId) return null;
   if (!db) return null;
   const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
       .from("notifications")
@@ -242,7 +242,7 @@ async function schedulePush(tenantId: string, kept: { id: string; kind: string }
       payload: { notification_id: kept.id },
     });
   } catch (e) {
-    logger({ tenant: tenantId }).error("push_schedule_failed", { kind: kept.kind, error: errField(e) });
+    logger({ tenant_id: tenantId }).error("push_schedule_failed", { kind: kept.kind, error: errField(e) });
   }
 }
 
@@ -275,7 +275,10 @@ export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports
   const told = !reachesTenant(target) || (await mail(target, msg, ports));
   if (!told) {
     await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
-      logger({ tenant: target.tenantId }).error("notification_record_failed", { kind: kept.kind, error: errField(e) }),
+      logger({ tenant_id: target.tenantId }).error("notification_record_failed", {
+        kind: kept.kind,
+        error: errField(e),
+      }),
     );
     return false;
   }
@@ -293,7 +296,7 @@ export async function mail(
   msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody">,
   ports: Pick<NotifyPorts, "send"> = {},
 ): Promise<boolean> {
-  const L = logger({ tenant: target.tenantId });
+  const L = logger({ tenant_id: target.tenantId });
   const send = ports.send ?? post;
   const addressing = chooseAddressing(target, { to: platformTo(), from: platformFrom() });
 

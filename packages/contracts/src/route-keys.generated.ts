@@ -104,6 +104,7 @@ export const ROUTE_KEYS = [
   "POST calls/[id]/whisper",
   "POST capabilities/[kind]",
   "POST channels/whatsapp/connect",
+  "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
   "POST contacts/[id]/notes",

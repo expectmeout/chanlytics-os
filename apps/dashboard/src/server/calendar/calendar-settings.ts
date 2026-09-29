@@ -38,7 +38,7 @@ export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfi
   if (r.ok) return { cfg: r.config, lostCalendar: false };
   const named = (raw as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
   const lostCalendar = typeof named === "string" && named.trim() !== "";
-  log.error("tenant_config_unreadable", { tenant: tenantId, lostCalendar, issues: r.issues.slice(0, 8) });
+  log.error("tenant_config_unreadable", { tenant_id: tenantId, lostCalendar, issues: r.issues.slice(0, 8) });
   return { cfg: null, lostCalendar };
 }
 

@@ -167,7 +167,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       try {
         await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso });
       } catch (e) {
-        log.error("idempotency_release_failed", { tenant: tenantId, error: e });
+        log.error("idempotency_release_failed", { tenant_id: tenantId, error: e });
       }
     },
     template: async (tenantId, name, language) => {

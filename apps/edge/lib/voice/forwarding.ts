@@ -40,7 +40,7 @@ export async function markForwardingVerified(
   tenantId: string,
   call: ForwardingCall,
 ): Promise<boolean> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
       .from("lines")

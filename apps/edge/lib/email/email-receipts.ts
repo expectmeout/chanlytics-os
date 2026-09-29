@@ -105,7 +105,7 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     const no = await recordEmailNo(db, { ...row, source: "complaint" });
     const host = addressOf(no.from)?.address.split("@")[1] ?? null;
     if (host) {
-      const log = logger({ tenant: r.tenantId });
+      const log = logger({ tenant_id: r.tenantId });
       // With the platform's pager: a complaint that holds a domain a second time in thirty days is the platform's (D16).
       const page = (key: string, subject: string, body: string) => pageOperator({ db }, key, subject, body);
       await holdForComplaint({ db, log, now: () => Date.parse(nowIso), page }, r.tenantId, host).catch((e) =>

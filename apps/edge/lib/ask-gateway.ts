@@ -31,7 +31,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * hours, summed in one statement (ask_tokens_day, 00240). Read failures count as zero, never as a refusal.
  */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
     if (error) throw new Error(`ask_tokens_day: ${error.message}`);
@@ -54,7 +54,7 @@ export async function recordAskUsage(
     purpose: AskUsagePurpose;
   },
 ): Promise<void> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     await emitEvent(db, tenantId, ASK_USAGE_KIND, "user", userId, { ...data });
   } catch (e) {

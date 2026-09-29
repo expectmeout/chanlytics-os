@@ -31,13 +31,13 @@ import { pg } from "../lib/pg.js";
 import { planCallStart } from "../lib/voice/call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the ?key= while this door still reads one (voice-door-auth.ts says which doors do, and why).
   if (!voiceDoorAuth("inbound", request, raw).ok) {
@@ -139,4 +139,4 @@ export async function POST(request: Request): Promise<Response> {
     hold: held,
   });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });
-}
+});

@@ -205,7 +205,7 @@ export async function applySubscription(
   source: string,
   now = new Date(),
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
-  const L = logger({ tenant: row.tenant_id, subscription: sub.id });
+  const L = logger({ tenant_id: row.tenant_id, subscription: sub.id });
   const tenant = await tenantState(db, row.tenant_id);
   // A workspace its last member left (00262) is ended: billing never resumes it, and a plan still live is ended now.
   const ended = !!tenant?.left_empty_at;

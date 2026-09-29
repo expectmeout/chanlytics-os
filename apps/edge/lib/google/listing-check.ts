@@ -41,7 +41,7 @@ export async function checkListing(
   site: SiteRead,
   now = new Date(),
 ): Promise<CheckResult> {
-  const L = logger({ tenant: row.tenant_id, place: row.place_id });
+  const L = logger({ tenant_id: row.tenant_id, place: row.place_id });
   const key = placesKey();
   if (!key) return { ok: false, error: "no_places_key" };
 

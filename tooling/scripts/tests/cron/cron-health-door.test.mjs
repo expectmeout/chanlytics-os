@@ -52,13 +52,17 @@ const clock = (sweep, healthy, over = {}) => ({
 /* -------------------------------------------------------------- the world */
 
 /** The clocks as sweep_health() reports them, the jobs backlog, the messages the receipts watch reads, and the pager's memory. */
-function world(rows, { backlog = 0, faults = {}, sweep_health = () => rows, messages = [] } = {}) {
+function world(
+  rows,
+  { backlog = 0, faults = {}, sweep_health = () => rows, messages = [], platform_answer_silence = () => [] } = {},
+) {
   const tables = { operator_pages: [], notifications: [], tenant_config: [], messages };
   const marks = [];
   const db = fakeDb(tables, faults, {
     ...vault,
     sweep_health,
     jobs_backlog: () => backlog,
+    platform_answer_silence,
     sweep_mark_alerted: (a) => {
       marks.push(a);
       return a.p_alerted.length + a.p_healthy.length;
@@ -448,4 +452,41 @@ test("each cold reply domain (D17) must receive as the mail domain does: one tha
   } finally {
     line.restore();
   }
+});
+
+test("a workspace nobody answered all day: the sweep pages the platform once, while the day is fresh, naming workspaces and counts, never a customer", async (t) => {
+  const asked = [];
+  const silent = [
+    { tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Harbor Moving", asks: 7 },
+    { tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Bayside Dental", asks: 1 },
+  ];
+  const w = world([clock("jobs", true)], {
+    platform_answer_silence: (a) => {
+      asked.push(a.p_day);
+      return silent;
+    },
+  });
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-29T00:43:00Z") });
+  const line = wire();
+  try {
+    assert.equal((await w.tick()).status, 200);
+    t.mock.timers.setTime(Date.parse("2026-09-29T12:13:00Z"));
+    assert.equal((await w.tick()).status, 200, "the afternoon's sweep does not ask again");
+  } finally {
+    line.restore();
+  }
+  assert.deepEqual(asked, ["2026-09-28"], "yesterday, as the rollup named it, and only in the morning's sweeps");
+  const mail = line.mail();
+  assert.equal(mail.length, 1);
+  assert.equal(mail[0].subject, "[Chanlytics] 2 workspaces answered nobody on 2026-09-28");
+  assert.match(
+    mail[0].text,
+    /Harbor Moving \(aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\): 7 messages from customers, none answered/,
+  );
+  assert.match(mail[0].text, /Bayside Dental \(bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\): 1 message from customers/);
+  assert.deepEqual(
+    w.tables.operator_pages.map((p) => p.key),
+    ["answer_rate_zero"],
+    "one condition in the pager's memory",
+  );
 });

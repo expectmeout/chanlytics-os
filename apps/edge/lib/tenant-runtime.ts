@@ -90,7 +90,7 @@ const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | n
 async function runtimeStamp(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
   const { data, error } = await db.rpc("runtime_stamp", { p_tenant_id: tenantId });
   if (error) {
-    logger({ tenant: tenantId }).error("runtime_stamp_failed", { error: error.message });
+    logger({ tenant_id: tenantId }).error("runtime_stamp_failed", { error: error.message });
     return null;
   }
   return typeof data === "string" ? data : "";
@@ -152,7 +152,7 @@ async function resolveWaCredentials(
   if (!channelId || !ref) return { creds: null, envNumber };
   const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
   if (error) {
-    logger().error("wa_credentials_lookup_failed", { tenant: routed.tenantId, error: error.message });
+    logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
     return { creds: null, envNumber };
   }
   const c = data as { access_token?: string; phone_id?: string } | null;
@@ -213,14 +213,14 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     const parseResult = parseTenantConfigResult(cfgQ.data?.config);
     if (!parseResult.ok) {
       logger().error("tenant_config_parse_failed", {
-        tenant: routed.tenantId,
+        tenant_id: routed.tenantId,
         issues: parseResult.issues.slice(0, 5),
       });
     } else if (parseResult.ignored.length > 0) {
       // Settings this edge has never heard of, written by a newer dashboard: left out, and the receptionist answers
       // with the rest. Said, so a split deploy that does not end is seen before the setting is missed.
       logger().warn("tenant_config_keys_ignored", {
-        tenant: routed.tenantId,
+        tenant_id: routed.tenantId,
         keys: parseResult.ignored.slice(0, 8),
       });
     }
@@ -255,7 +255,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });
     return rt;
   } catch (e) {
-    logger().error("tenant_runtime_load_failed", { tenant: routed.tenantId, error: errField(e) });
+    logger().error("tenant_runtime_load_failed", { tenant_id: routed.tenantId, error: errField(e) });
     // Never cache a failure — the next message retries. loadFailed makes the
     // runtime unusable, so the handler holds the thread for a person: a read
     // that failed is never a persona, for any tenant.
@@ -309,14 +309,14 @@ export async function waCredentialsForTenant(
       .limit(1)
       .maybeSingle();
     if (chErr) {
-      L.error("wa_credentials_channel_unreadable", { tenant: tenantId, error: chErr.message });
+      L.error("wa_credentials_channel_unreadable", { tenant_id: tenantId, error: chErr.message });
       return { outcome: "unavailable", error: chErr.message };
     }
     if (!ch) return { outcome: "absent" };
     if (ch.credentials_ref) {
       const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: ch.id });
       if (error) {
-        L.error("wa_credentials_for_tenant_failed", { tenant: tenantId, error: error.message });
+        L.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
         return { outcome: "unavailable", error: error.message };
       }
       const c = data as { access_token?: string; phone_id?: string } | null;
@@ -327,7 +327,7 @@ export async function waCredentialsForTenant(
     const pair = isEnvNumber(ch.external_id) ? envPair() : null;
     return pair ? { outcome: "present", credentials: pair } : { outcome: "absent" };
   } catch (e) {
-    L.error("wa_credentials_for_tenant_threw", { tenant: tenantId, error: errField(e) });
+    L.error("wa_credentials_for_tenant_threw", { tenant_id: tenantId, error: errField(e) });
     return { outcome: "unavailable", error: errField(e) };
   }
 }
@@ -393,13 +393,14 @@ export async function loadTenantNotifications(
     // the customer's words from a workspace whose mailbox we just read
     // perfectly well, which is the outcome this whole function exists to
     // avoid; `isEnvDefault` simply falls back to its safe answer.
-    if (chQ.error) L.error("tenant_notifications_channel_unreadable", { tenant: tenantId, error: chQ.error.message });
+    if (chQ.error)
+      L.error("tenant_notifications_channel_unreadable", { tenant_id: tenantId, error: chQ.error.message });
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {
-    L.error("tenant_notifications_load_failed", { tenant: tenantId, error: errField(e) });
+    L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
     // guess a mailbox.
     return { notifications: null, isEnvDefault: false };

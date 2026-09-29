@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fromAnotherSite, nativeSignInPlan, NATIVE_FAILED } from "@/server/auth/native-sign-in";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey } from "@/server/request-ip";
+import { log } from "@/server/log";
 
 /**
  * POST /auth/native -- where the native app hands in the identity token it got from Apple or Google.
@@ -18,13 +19,13 @@ import { ipOf, hashKey } from "@/server/request-ip";
  */
 export async function POST(request: Request): Promise<Response> {
   if (fromAnotherSite(request.headers)) {
-    console.warn("native_sign_in_refused", JSON.stringify({ why: "another site" }));
+    log.warn("native_sign_in_refused", { why: "another site" });
     return land(NATIVE_FAILED);
   }
   try {
     await takeRate(`ip:${hashKey(ipOf(request))}`, "native_sign_in");
   } catch {
-    console.warn("native_sign_in_rate_limited");
+    log.warn("native_sign_in_rate_limited");
     return land(NATIVE_FAILED);
   }
   const body = await readBody(request);
@@ -38,14 +39,11 @@ export async function POST(request: Request): Promise<Response> {
       ...(plan.signIn.nonce ? { nonce: plan.signIn.nonce } : {}),
     });
     if (error) {
-      console.warn(
-        "native_sign_in_failed",
-        JSON.stringify({ provider: plan.signIn.provider, message: error.message.slice(0, 120) }),
-      );
+      log.warn("native_sign_in_failed", { provider: plan.signIn.provider, message: error.message.slice(0, 120) });
       to = NATIVE_FAILED;
     }
   } else {
-    console.warn("native_sign_in_refused", JSON.stringify({ why: plan.refused }));
+    log.warn("native_sign_in_refused", { why: plan.refused });
   }
   return land(to);
 }

@@ -102,7 +102,7 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
         else if (d.state === "held") held.push(as.address);
       }
     } catch (e) {
-      logger({ tenant: tenantId }).error("email_own_domains_unread", { error: errField(e) });
+      logger({ tenant_id: tenantId }).error("email_own_domains_unread", { error: errField(e) });
     }
   }
   return emailSender(routes, held);
@@ -150,7 +150,7 @@ export function emailIntake(db: Db): JobContext["email"] | undefined {
         const addressing = await loadTenantNotifications(db, tenantId);
         await notify({ tenantId, ...addressing }, emailWaitingMessage(note));
       } catch (e) {
-        logger({ tenant: tenantId }).error("email_tell_failed", { error: errField(e) });
+        logger({ tenant_id: tenantId }).error("email_tell_failed", { error: errField(e) });
       }
     },
   };

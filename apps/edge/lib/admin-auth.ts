@@ -31,9 +31,9 @@
  */
 import crypto from "node:crypto";
 import { json, refuse } from "./http.js";
-import { requestIdOf, verifyEdgeToken } from "./packages/channels.js";
+import { verifyEdgeToken } from "./packages/channels.js";
 import { env } from "./env.js";
-import { bindRequestId, logger } from "./log.js";
+import { logger } from "./log.js";
 
 type AdminAuth =
   { ok: true; via: "token" | "key"; workspace: string | null; user: string | null } | { ok: false; response: Response };
@@ -57,9 +57,7 @@ export function authorizeAdmin(
     platformKey?: boolean;
   } = {},
 ): AdminAuth {
-  // The dashboard's name for this request (edge.ts sends it): every line this door logs carries it. A forged one on a
-  // knock refused below only labels the refusal's own line.
-  bindRequestId(requestIdOf(request.headers, { trustCaller: true }));
+  // The request is named by the door around this (log.ts adminDoor): the dashboard's name when it sent one.
   const token = request.headers.get("x-edge-token");
   const secret = env.EDGE_CALL_SECRET;
   if (token && secret) {

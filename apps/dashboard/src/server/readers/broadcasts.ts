@@ -26,7 +26,7 @@ export const broadcasts: Reader<undefined, { broadcasts: BroadcastDto[]; more: b
       listBroadcasts(rc.ctx, rc.tenantId),
       recentTouches(rc.ctx, rc.tenantId, rc.now).catch((e: unknown) => {
         log.error("broadcast_touches_failed", {
-          tenant: rc.tenantId,
+          tenant_id: rc.tenantId,
           error: e instanceof Error ? e.message : String(e),
         });
         return null;

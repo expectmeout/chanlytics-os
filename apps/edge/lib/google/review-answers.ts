@@ -84,7 +84,7 @@ async function answerNewReviews(
   now: Date,
   net: PlacesHttp = http,
 ): Promise<Array<{ id: string; author: string | null; text: string }>> {
-  const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
+  const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
   const unreplied = await db
     .from("google_reviews")

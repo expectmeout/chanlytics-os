@@ -287,7 +287,10 @@ export async function triggerPools(
   try {
     rows = await (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people));
   } catch (e) {
-    log.error("playbook_pools_people_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("playbook_pools_people_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return {
       pools: Object.fromEntries(MOMENT_TRIGGERS.map((t) => [t.id, null])),
       calendar: "none",
@@ -296,7 +299,10 @@ export async function triggerPools(
     };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now, from.known).catch((e: unknown) => {
-    log.error("playbook_pools_visits_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("playbook_pools_visits_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
@@ -312,7 +318,7 @@ export async function triggerPools(
   const followUps = deals.on
     ? await proposalFollowUps(ctx, tenantId, now).catch((e: unknown) => {
         log.error("playbook_pools_follow_ups_failed", {
-          tenant: tenantId,
+          tenant_id: tenantId,
           error: e instanceof Error ? e.message : String(e),
         });
         return null;
@@ -393,7 +399,10 @@ export async function triggerPools(
       pools[`list:${l.id}`] = m && m.state === "ok" ? count("saved_list", m.ids) : null;
     }
   } catch (e) {
-    log.error("playbook_pools_lists_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("playbook_pools_lists_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
   return { pools, calendar, lists, people };
 }

@@ -2,16 +2,19 @@
 
 import { useEffect } from "react";
 import { MIN_MS } from "@chanlytics/contracts";
+import { reportClientError } from "@/client/client-error";
+import { hashRoute } from "@/legacy-bridge/app-bridge";
 
 const CHUNK_ERROR = /ChunkLoadError|Loading chunk|dynamically imported module|Failed to fetch/i;
 /** Two chunk failures closer together than this are a loop, not a new deploy. */
 const LOOP_MS = MIN_MS;
 
 /** Pane-level error boundary: stale-deploy chunk failures self-heal with one
- *  reload; everything else gets a branded card instead of Next's white screen. */
-export default function OsError({ error, reset }: { error: Error; reset: () => void }) {
+ *  reload; everything else gets a branded card instead of Next's white screen.
+ *  Either way the error is told to the server (client-error.ts), once. */
+export default function OsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error("os_error", error.message);
+    reportClientError("os", error, hashRoute(window.location.hash), error.digest ?? null);
     if (CHUNK_ERROR.test(error.message)) {
       try {
         // A TIMESTAMP, not a flag. The flag was only ever cleared on this line

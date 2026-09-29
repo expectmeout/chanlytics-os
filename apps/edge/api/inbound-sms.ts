@@ -29,13 +29,13 @@ import { planSmsIngress, carrierFor, smsAfterThrow } from "../lib/sms/sms-ingres
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { IngestFailed } from "../lib/whatsapp/persist.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 import { phoneTail } from "../lib/packages/contracts.js";
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twiml = (status: number) => text(status, EMPTY_TWIML, { "content-type": "text/xml" });
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const form: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(raw)) form[k] = v;
@@ -81,4 +81,4 @@ export async function POST(request: Request): Promise<Response> {
     return twiml(after.status);
   }
   return twiml(200);
-}
+});

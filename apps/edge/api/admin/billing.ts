@@ -38,7 +38,7 @@ import {
   syncFor,
   trialDays,
 } from "../../lib/billing/billing.js";
-import { logger, type Logger } from "../../lib/log.js";
+import { logger, type Logger, adminDoor } from "../../lib/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/packages/db.js";
 import {
@@ -78,7 +78,7 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
 /** The slug a tenant read answered with, or null when the read did not. */
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
   const body = await readBody<BillingBody>(request);
@@ -94,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!Object.hasOwn(OPS, op)) return respond(UNKNOWN_BILLING_OP);
   const r = await OPS[op as BillingOp](call.value);
   return r instanceof Response ? r : answered(call.value, op as BillingOp, r);
-}
+});
 
 /** What this deployment can do, and the plan as Stripe states it -- no amount is shown for a button that cannot charge. */
 async function status(): Promise<Response> {
@@ -113,7 +113,7 @@ async function status(): Promise<Response> {
 function workspaceCall(body: BillingBody): { ok: true; value: BillingCall } | Refused {
   const ws = workspaceOf(body.tenant_id);
   if (!ws.ok) return ws;
-  return { ok: true, value: { body, db: ws.db, tenantId: ws.tenantId, L: logger({ tenant: ws.tenantId }) } };
+  return { ok: true, value: { body, db: ws.db, tenantId: ws.tenantId, L: logger({ tenant_id: ws.tenantId }) } };
 }
 
 /** The outcome on the wire: logged as the op says, answered with the status its refusal earns, the body as billing.ts stated it. */

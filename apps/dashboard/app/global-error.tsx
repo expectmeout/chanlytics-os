@@ -1,7 +1,16 @@
 "use client";
 
-/** Root error boundary — replaces its own <html>, styles inline: the dark paper, its ink, the three's coral. */
-export default function GlobalError({ error }: { error: Error }) {
+import { useEffect } from "react";
+import { reportClientError } from "@/client/client-error";
+
+/**
+ * Root error boundary — replaces its own <html>, styles inline: the dark paper, its ink, the three's coral. The
+ * sign-in pages have no boundary of their own, so theirs land here too; each is told to the server (client-error.ts).
+ */
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+  useEffect(() => {
+    reportClientError("root", error, window.location.pathname.replace(/^\//, ""), error.digest ?? null);
+  }, [error]);
   return (
     <html lang="en">
       <body

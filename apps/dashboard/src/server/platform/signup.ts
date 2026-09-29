@@ -177,5 +177,5 @@ export async function notifyPlatformSignup(tenantId: string, email: string): Pro
     { tenant_id: tenantId, email },
     { workspace: tenantId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
   );
-  if (r.status >= 503) log.warn("signup_notify_failed", { tenant: tenantId, error: r.body?.detail });
+  if (r.status >= 503) log.warn("signup_notify_failed", { tenant_id: tenantId, error: r.body?.detail });
 }

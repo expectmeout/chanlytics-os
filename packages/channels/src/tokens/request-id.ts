@@ -16,9 +16,15 @@ const SHAPE = /^[A-Za-z0-9._:-]{8,128}$/;
  * one. A browser's header is not taken: it could name its requests after someone else's.
  */
 export function requestIdOf(headers: Headers, opts: { trustCaller: boolean }): string {
-  const given = opts.trustCaller ? headers.get(REQUEST_ID_HEADER)?.trim() : undefined;
-  if (given && SHAPE.test(given)) return given;
+  const given = opts.trustCaller ? requestIdShaped(headers.get(REQUEST_ID_HEADER)) : null;
+  if (given) return given;
   const platform = headers.get("x-vercel-id")?.trim();
   if (platform && SHAPE.test(platform)) return platform;
   return globalThis.crypto.randomUUID();
+}
+
+/** A value that may name a request (a job's payload, a header), trimmed, or null when it is not one. */
+export function requestIdShaped(value: unknown): string | null {
+  const v = typeof value === "string" ? value.trim() : "";
+  return SHAPE.test(v) ? v : null;
 }

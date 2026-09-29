@@ -9,7 +9,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { env } from "../../lib/env.js";
 import { dueSendingDomains } from "../../lib/packages/db.js";
 import { dkimPublished, readDmarc } from "../../lib/email/dmarc.js";
@@ -40,7 +40,7 @@ export const YIELD_AT_MS = 30_000;
 const BATCH_AT_LEAST_MS = 1_000;
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   // The budget's clock, from the first line: the door's own reads and a cold start are inside the limit too.
   const started = Date.now();
   const L = logger({ sweep: "domains" });
@@ -120,4 +120,4 @@ export async function POST(request: Request): Promise<Response> {
   if (counts.checked > 0 && counts.refused === counts.checked)
     return json(503, { ok: false, error: "no_domain_readable", ...counts });
   return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS, unsubscribe });
-}
+});

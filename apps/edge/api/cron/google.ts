@@ -13,7 +13,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { placesKey, profileClient } from "../../lib/google/google-config.js";
 import { checkListing, connectionsDue, listingsDue } from "../../lib/google/listing-check.js";
 import { syncProfile } from "../../lib/google/profile-sync.js";
@@ -21,7 +21,7 @@ import { syncProfile } from "../../lib/google/profile-sync.js";
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 40;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "google" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -101,4 +101,4 @@ export async function POST(request: Request): Promise<Response> {
   }
   L.info("google_sweep", out);
   return json(200, { ok: true, ...out });
-}
+});

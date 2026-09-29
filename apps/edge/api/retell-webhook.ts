@@ -63,7 +63,7 @@ import { frameGuardrail, offersBookingLink, MIN_MS, HOUR_MS } from "../lib/packa
 import type { ChannelLookup, RoutedChannel } from "../lib/packages/db.js";
 import { env } from "../lib/env.js";
 import { retellSigned } from "../lib/voice/voice-door-auth.js";
-import { logger, errField } from "../lib/log.js";
+import { logger, errField, door } from "../lib/log.js";
 import { planCallEvent, callNotice } from "../lib/voice/call-event.js";
 import type { CallAbout, CallEventPlan, CallStep } from "../lib/voice/call-event.js";
 
@@ -265,7 +265,7 @@ async function erasureRefusal(
   } catch (e) {
     L.error("retell_call_erasure_unreadable", {
       call: n.retellCallId,
-      tenant: routed.tenantId,
+      tenant_id: routed.tenantId,
       error: errField(e),
     });
     return refuse(503, "erasure_unreadable");
@@ -273,7 +273,7 @@ async function erasureRefusal(
   if (erased) {
     L.info("retell_call_skipped_erased", {
       call: n.retellCallId,
-      tenant: routed.tenantId,
+      tenant_id: routed.tenantId,
       retell_event: event,
     });
     return json(200, { ok: true, skipped: "erased" });
@@ -406,7 +406,7 @@ async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, 
     new Date(Date.now() + pauseHours * HOUR_MS).toISOString(),
   );
   const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
-  L.info("call_callback_needed", { tenant: routed.tenantId, call: s.callId, escalation: opened });
+  L.info("call_callback_needed", { tenant_id: routed.tenantId, call: s.callId, escalation: opened });
 }
 
 /** The owner told a standing rule was broken out loud. */
@@ -414,7 +414,7 @@ async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind
   const said = await upsertEscalation(db, tenantId, s.conversationId, s.reason, s.details);
   // The words the agent said are the owner's to read in the Inbox, never the
   // platform's log: the turn number and the outcome are what a search needs.
-  L.warn("voice_policy_block_price", { tenant: tenantId, call: s.callId, turn: s.turn, escalation: said });
+  L.warn("voice_policy_block_price", { tenant_id: tenantId, call: s.callId, turn: s.turn, escalation: said });
 }
 
 /** The live call corrected through the provider, once per instance. */
@@ -517,7 +517,7 @@ async function tellOwner(db: Db, routed: RoutedChannel | null, notice: NotifyMes
   await notify({ tenantId: routed?.tenantId ?? null, ...addressing }, notice);
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   if (!(await admitted(raw, request.headers.get("x-retell-signature")))) {
     return refuse(401, "unauthorized");
@@ -591,4 +591,4 @@ export async function POST(request: Request): Promise<Response> {
     await tellOwner(db, routed, callNotice(n, call, callAbout));
   }
   return json(200, { ok: true });
-}
+});

@@ -15,7 +15,7 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { labelsOf, listTemplates, templateRow } from "../../../lib/whatsapp/meta-templates.js";
-import { logger } from "../../../lib/log.js";
+import { logger, adminDoor } from "../../../lib/log.js";
 
 /** Meta's own samples: on file, never offered. */
 const SAMPLE_TEMPLATES = new Set(["hello_world"]);
@@ -25,7 +25,7 @@ const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-sync");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { tenant_id?: unknown } | null;
@@ -103,4 +103,4 @@ export async function POST(request: Request): Promise<Response> {
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;
   L.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
   return json(200, { ok: true, seen: rows.length, approved, marketing, synced_at: now.toISOString() });
-}
+});
