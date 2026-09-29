@@ -662,9 +662,6 @@
     "@typescript-eslint/no-base-to-string": 1,
     "@typescript-eslint/only-throw-error": 1
   },
-  "packages/db/src/realtime.ts": {
-    "@typescript-eslint/no-unsafe-enum-comparison": 1
-  },
   "packages/db/src/repositories/email.ts": {
     "@typescript-eslint/no-redundant-type-constituents": 2
   },
