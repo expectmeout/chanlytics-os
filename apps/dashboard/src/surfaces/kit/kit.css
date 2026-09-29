@@ -14,10 +14,12 @@
      as (width > 900px). A query that names no width (reduced motion, reduced transparency) is not a breakpoint.
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
-   Loaded right after tokens.css, before every other stylesheet: by the shell's entry file (legacy-bridge/legacy.css),
-   and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree that
-   tooling/scripts/serve-legacy.mjs serves). The other entry, app/globals.css, imports it in the change that first
-   draws a kit class on a page outside the shell (the plan's §3.3): none does yet.
+   Loaded right after tokens.css, before every other stylesheet those entries import: by the shell's entry file
+   (legacy-bridge/legacy.css) and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree
+   that tooling/scripts/serve-legacy.mjs serves). In the built app the root layout's app/globals.css comes first, the
+   tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
+   them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
+   (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.
 
    The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
@@ -2262,10 +2264,13 @@ textarea.rec-input {
    Step 2.2. The phone row's face (inbox.css:276 .ix-thread-avatar, at the row's --row-face, clients.css:2466, 2480):
    the sunken ground, a hairline, the initials small and muted. A glyph stands for someone known by a number or an
    address (clients.css:2051); a picture covers the initials, which show again when it fails to load (clients.css:2481,
-   the component hides a picture that fails). A face is decoration: the row's name says who. */
+   the component hides a picture that fails). A face is decoration: the row's name says who. It never shrinks, as its
+   source does not (clients.css:2466): a box that clips what it holds has no least width of its own, so in a flex row
+   beside a long name it gave way to its border. */
 .face {
   position: relative;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: var(--row-face);
@@ -2305,11 +2310,16 @@ textarea.rec-input {
   align-items: center;
   padding: var(--row-pad-y) var(--row-pad-x);
 }
+/* A row with a page of its own is a link (the shell's routeDoor): it keeps the row's colours and takes no underline,
+   as a.btn does, so a line that sets no colour of its own is not drawn in the link's. */
+a.list-row {
+  color: inherit;
+  text-decoration: none;
+}
 .list-row-face {
   grid-column: 1;
   grid-row: 1 / span 3;
   align-self: start;
-  flex: none;
 }
 .list-row:not(:has(> .list-row-said)) > .list-row-face {
   grid-row: 1 / span 2;
@@ -2415,8 +2425,10 @@ textarea.rec-input {
    bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 82% of the screen, a handle
    over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
    while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
-   keyframes (above), and holds still under reduced motion. */
-.sheet-scrim {
+   keyframes (above), and holds still under reduced motion. The wash is a backdrop by name, as every wash of the house
+   is: the overlay code finds the one behind a sheet by that word (data-bits.jsx, washBehind), to fade it as the sheet
+   is pulled down and to play its leaving. */
+.sheet-backdrop {
   --sheet-wash-out: 160ms;
   position: fixed;
   inset: 0;
@@ -2425,7 +2437,7 @@ textarea.rec-input {
   background: var(--surface-scrim);
   animation: wash-in var(--duration-base) var(--ease-out);
 }
-.sheet-scrim[data-leaving="true"] {
+.sheet-backdrop[data-leaving="true"] {
   animation: wash-out var(--sheet-wash-out) var(--ease-in) forwards;
 }
 .sheet {
@@ -2469,7 +2481,7 @@ textarea.rec-input {
   }
 }
 @media (max-width: 900px) {
-  .sheet-scrim {
+  .sheet-backdrop {
     background: var(--surface-scrim-modal);
   }
   .sheet {
@@ -2501,11 +2513,11 @@ textarea.rec-input {
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet,
-  .sheet-scrim {
+  .sheet-backdrop {
     animation: none;
   }
   .sheet[data-leaving],
-  .sheet-scrim[data-leaving] {
+  .sheet-backdrop[data-leaving] {
     display: none;
   }
 }

@@ -345,8 +345,8 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
   assert.equal(known.props.children[0].type, "svg");
 });
 
-/** A person's row, as the gallery draws it, with what was said or not and a note or not. */
-const row = ({ said = true, note = false } = {}) =>
+/** A person's row, as the gallery draws it, with what was said or not, a note or not, and an address or none. */
+const row = ({ said = true, note = false, href = undefined } = {}) =>
   h(ListRow, {
     face: { initials: "AR" },
     name: "Aisha Rahman",
@@ -354,18 +354,23 @@ const row = ({ said = true, note = false } = {}) =>
     said: said ? "asked about Saturday" : undefined,
     facts: ["Sat · 10:00", "2 h ago"],
     note: note ? "Next step: call back on Monday" : undefined,
+    href,
   });
 
-/** The gallery's List row family, entry by entry: the three shapes, then two of them again at a phone's width. */
+/**
+ * The gallery's List row family, entry by entry: the three shapes and a row with a page of its own, then two of the
+ * shapes again at a phone's width.
+ */
 const LIST_ROWS = {
   "list-row": () => row(),
   "list-row-two": () => row({ said: false }),
   "list-row-note": () => row({ note: true }),
+  "list-row-door": () => row({ note: true, href: "#kit" }),
   "list-row-twin": () => row({ note: true }),
   "list-row-two-twin": () => row({ said: false }),
 };
 
-test("ListRow draws the gallery's List row family, hands what trails its place, and draws no line of nothing", () => {
+test("ListRow draws the gallery's List row family, hands what trails its place, draws no line of nothing, and is a link where it has an address", () => {
   assert.deepEqual(parting(FAMILIES, "List row", LIST_ROWS), HELD);
   const hold = ref();
   const places = [];
@@ -387,6 +392,15 @@ test("ListRow draws the gallery's List row family, hands what trails its place, 
   assert.deepEqual(places, ["list-row-end"], "what trails is drawn once, with the class that stands it at the end");
   assert.equal(quiet.props.className, "list-row pl-row", "the page's layout class comes last");
   assert.equal(quiet.props.ref, hold);
+  assert.equal(quiet.type, "div");
+  assert.equal(Object.hasOwn(quiet.props, "href"), false, "a row with no page of its own has no address");
+  const door = drawn(
+    h(ListRow, { face: { initials: "AR" }, name: "Aisha Rahman", facts: [], href: "#/clients", ref: hold }),
+  );
+  assert.equal(door.type, "a", "a door is a link");
+  assert.equal(door.props.href, "#/clients");
+  assert.equal(door.props.className, "list-row");
+  assert.equal(door.props.ref, hold);
   assert.equal(
     spell(settle(drawnSkeleton(quiet))),
     "div.list-row.pl-row(span.face.list-row-face.pl-face div.list-row-name time.list-row-end div.list-row-facts(span))",

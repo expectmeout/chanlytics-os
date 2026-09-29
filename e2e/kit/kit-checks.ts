@@ -34,6 +34,9 @@
  * Motion (animation, transition and the caret) is read with the spec's still stylesheet off, since it stops them with
  * !important; everything else with it on, so a transition never shows a value on its way.
  *
+ * `toastsOverFeet` is a function of its own, for the same reason: it asks, of each kit entry that draws an open sheet
+ * and a toast, whether the toast stands on the sheet's foot, where its Save is.
+ *
  * What they cannot see, so a pull request does not claim it: a declaration another kit rule outranks on every element
  * it would draw is never planted; the presses are forced all at once, so a selector that needs one element pressed and
  * its neighbour not is judged only unpressed; a token a kit rule declares on a pseudo-element cannot be planted from
@@ -752,4 +755,27 @@ export function kitChecks(ask: KitAsk): KitAnswer {
     return answer;
   }
   return answer;
+}
+
+/**
+ * Where a toast raised over an open sheet stands on the sheet's foot, the Save a person reaches for straight after the
+ * act the toast confirms: in each kit entry that draws an open sheet with a foot and a toast, how many toasts were
+ * compared with a foot, and a sentence for each whose box meets the foot's, naming the entry and both boxes (left, top,
+ * right, bottom). A sheet on its way out (data-leaving) is none a toast has to clear.
+ */
+export function toastsOverFeet(): { pairs: number; over: string[] } {
+  const found = { pairs: 0, over: [] as string[] };
+  const edges = (r: DOMRect) => [r.left, r.top, r.right, r.bottom].map((v) => Math.round(v)).join(" ");
+  const meet = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  for (const figure of Array.from(document.querySelectorAll<HTMLElement>("[data-entry]:not([data-source])"))) {
+    const foot = figure.querySelector(".sheet:not([data-leaving]) .rec-sheet-foot");
+    if (!foot) continue;
+    for (const toast of Array.from(figure.querySelectorAll(".pp-toast"))) {
+      found.pairs += 1;
+      const [t, f] = [toast.getBoundingClientRect(), foot.getBoundingClientRect()];
+      if (meet(t, f))
+        found.over.push(`${figure.dataset.entry}: a toast (${edges(t)}) on the sheet's foot (${edges(f)})`);
+    }
+  }
+  return found;
 }

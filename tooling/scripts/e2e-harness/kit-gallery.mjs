@@ -15,7 +15,9 @@
  * An entry is `{ id, html }` and, where it needs them:
  *   twin    the id of a source entry that draws what this one must compute equal to (the spec's check 4);
  *   source  marks an entry drawn only to be compared, with the `file:line` of its rule;
- *   width   "desk" or "phone", for a form only one width draws;
+ *   width   "desk" or "phone", for a form only one width draws: the page holds it only at that width, where the spec
+ *           judges it, so a rule keyed to the whole page never meets it at the other (the page's script takes it out
+ *           there as the page loads: reload after changing the width);
  *   stage   "sheet" (480px tall, and on a phone 90% of the screen, since the record sheet's phone form is 88%) or
  *           "pop" (320px), for what is fixed or placed over the page: a stage is the containing block of what is fixed
  *           inside it, so a sheet, a wash, a menu or the toasts stand in it, not over the page;
@@ -27,9 +29,10 @@
  * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
  * every selector of kit.css in a browser. The words are made up, as every fixture's are.
  *
- * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the overlays this page draws place the
- * toast stack for every entry, beside a sheet on a desk and, on a phone, as while the bell's panel is open (the Panel
- * family draws the bell's list).
+ * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the sheets this page draws place the
+ * toast stack for every entry, beside a sheet on a desk and above its foot on a phone. The bell's list, a desk's
+ * twin, is not in a phone's page, where it would put the stack at the foot as the bell's panel does (mobile.css,
+ * :root:has(.tbn-pop)), over a sheet's Save.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -229,11 +232,11 @@ const PANE_ROWS = ["Consultation", "Follow-up visit", "Full treatment"]
   .join("");
 
 /**
- * What a bare face's twin does not compare: where the row places its face (a grid row and column, its alignment and
- * that it never shrinks), which is .list-row-face's and is compared in the row's twin; and its tag, a div in
- * plRowCard, whose text direction a block isolates, where the kit draws a span beside words.
+ * What a bare face's twin does not compare: where the row places its face (a grid row and column, and its alignment),
+ * which is .list-row-face's and is compared in the row's twin; and its tag, a div in plRowCard, whose text direction a
+ * block isolates, where the kit draws a span beside words. That it never shrinks is the face's own, as its source's.
  */
-const FACE_APART = ["grid-column-start", "grid-row-start", "grid-row-end", "align-self", "flex-shrink", "unicode-bidi"];
+const FACE_APART = ["grid-column-start", "grid-row-start", "grid-row-end", "align-self", "unicode-bidi"];
 
 /** A face's picture: a made-up one, drawn inline, so the page asks for nothing. */
 const PHOTO =
@@ -241,14 +244,18 @@ const PHOTO =
   "fill='%23a3a3a3'/%3E%3Ccircle cx='16' cy='13' r='6' fill='%23e5e5e5'/%3E%3Cpath d='M5 32a11 11 0 0 1 22 0' " +
   "fill='%23e5e5e5'/%3E%3C/svg%3E";
 
-/** A person's row on a phone, as the kit draws it, with a line of words said or not and a note under it or not. */
-const listRow = ({ said = true, note = false } = {}) =>
-  `<div class="list-row"><span class="face list-row-face" aria-hidden="true">AR</span>` +
+/**
+ * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, and as a
+ * link to their page or not.
+ */
+const listRow = ({ said = true, note = false, door = false } = {}) =>
+  (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
+  `<span class="face list-row-face" aria-hidden="true">AR</span>` +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
   (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
-  `</div>`;
+  (door ? `</a>` : `</div>`);
 /** The same row as People's plRowCard draws it (pages/people.jsx), the classes it draws with and the same words. */
 const plCard = ({ said = true, note = false } = {}) =>
   `<div class="pl-card"><div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>` +
@@ -295,7 +302,7 @@ const going = (leaving) => (leaving ? ' data-leaving="true"' : "");
  * record sheet, a desk's twin, has none), `leaving` the still copies that play its leaving.
  */
 const sheet = ({ handle = true, leaving = false } = {}) =>
-  `<div class="sheet-scrim" aria-hidden="true"${going(leaving)}></div>` +
+  `<div class="sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
   `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   (handle ? `<div class="sheet-handle" aria-hidden="true"></div>` : "") +
   `${SHEET_PARTS}</section>`;
@@ -634,9 +641,9 @@ export const FAMILIES = [
     family: "Toast",
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
-      "each with its ×. The stack stands where this page's overlays put it: beside a sheet on a desk (record.css, " +
-      ":root:has(.rec-sheet)), at a phone's foot as while the bell's panel is open (mobile.css, :root:has(.tbn-pop)). " +
-      "Its place with none open is drawn by the style-equality recorder's toast scene, not here.",
+      "each with its ×. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
+      "a phone (record.css and kit.css, :root:has(.rec-sheet) and :root:has(.sheet)). Its place with none open is " +
+      "drawn by the style-equality recorder's toast scene, not here.",
     entries: [
       {
         id: "pp-toast",
@@ -1122,12 +1129,14 @@ export const FAMILIES = [
     family: "List row",
     about:
       "kit.css's list row (step 2.2): a face, the lines beside it and what trails, on the row tokens every list on a " +
-      "phone shares: three lines, two (nothing said, so the face spans two), and a line of its own under the facts. " +
-      "At a phone's width a row of each shape beside People's phone row, which the spec holds it equal to.",
+      "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
+      "a row with a page of its own, a link that keeps the row's colours with no underline. At a phone's width a row " +
+      "of each shape beside People's phone row, which the spec holds it equal to.",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
+      { id: "list-row-door", html: listRow({ note: true, door: true }) },
       {
         id: "list-row-twin",
         width: "phone",
@@ -1186,10 +1195,11 @@ export const FAMILIES = [
     about:
       "kit.css's sheet (step 2.2): on a desk a side pane at the window's right edge, the page faded behind it; on a " +
       "phone from the bottom edge, as tall as what it holds, a handle over its head and the ink's wash behind it; a " +
-      "column at both widths, so the composer's foot stays at its foot, where a toast raised while it is open stands " +
-      "clear. At each width beside the frame it reproduces, open and leaving, which the spec holds it equal to: the " +
-      "record sheet on a desk, and on a phone People's phone sheet, but for a column where PhoneSheet is a block " +
-      "(the spec compares every box instead) and the ring of a focus PhoneSheet never takes.",
+      "column at both widths, so the composer's foot stays at its foot. A toast raised while it is open stands clear " +
+      "of that foot, beside the sheet on a desk and above it on a phone, which the spec checks at both widths. At " +
+      "each width beside the frame it reproduces, open and leaving, which the spec holds it equal to: the record " +
+      "sheet on a desk, and on a phone People's phone sheet, but for a column where PhoneSheet is a block (the spec " +
+      "compares every box instead) and the ring of a focus PhoneSheet never takes.",
     entries: [
       { id: "sheet", stage: "sheet", html: sheet() + SHEET_TOAST },
       { id: "sheet-leaving", stage: "sheet", html: sheet({ leaving: true }) },
@@ -1295,7 +1305,8 @@ const GALLERY_CSS = `
 
 /**
  * The theme and the look: from `?theme=light|dark&look=classic|glass` (dark and Classic otherwise); `t` turns the
- * theme, as the mockup's document does (style-equality.mjs presses it), and `l` turns the look.
+ * theme, as the mockup's document does (style-equality.mjs presses it), and `l` turns the look. And an entry bound to
+ * a width leaves the page at the other, as it loads, at the kit's one breakpoint.
  */
 const GALLERY_SCRIPT = `
     (function () {
@@ -1303,6 +1314,10 @@ const GALLERY_SCRIPT = `
       var asked = new URLSearchParams(location.search);
       root.setAttribute("data-theme", asked.get("theme") === "light" ? "light" : "dark");
       root.setAttribute("data-look", asked.get("look") === "glass" ? "glass" : "classic");
+      var phone = window.matchMedia("(max-width: 900px)").matches;
+      document.querySelectorAll(".gx-entry[data-width]").forEach(function (entry) {
+        if ((entry.getAttribute("data-width") === "phone") !== phone) entry.remove();
+      });
       window.addEventListener("keydown", function (e) {
         var tag = ((e.target && e.target.tagName) || "").toLowerCase();
         if (e.metaKey || e.ctrlKey || e.altKey || tag === "input" || tag === "textarea") return;

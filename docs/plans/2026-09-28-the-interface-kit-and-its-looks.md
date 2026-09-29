@@ -294,11 +294,14 @@ a surface's own stylesheet   layout only
 
 - **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale
   (`--blur-0` is `blur(0)`, never `none`: the build drops `backdrop-filter: none` written beside its prefixed twin,
-  #929) and a saturation step for glass.
+  #929) and a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought
+  with the face, its first reader.
 - **Tier 2, roles.** New: what a thing is for, set by a look.
   - Surfaces: `--surface-page` (the backdrop), `--surface-pane` (a content panel: a list, a peek, a composer),
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
-    a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim`.
+    a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim` (the page
+    faded behind a desk's side sheet), and `--surface-scrim-modal` (the ink's wash behind what takes a phone's screen,
+    a sheet from its bottom edge), which step 2.2 brought with the sheet, its first reader.
   - Each surface's `-fill`, `-blur`, `-edge` (hairline or rim), `-depth` (shadow) and `-radius`.
   - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--control-radius-sm` (a small control's, step 1.4),
     `--chip-h`, `--chip-radius`, `--selected-fill` (the picked segment).
@@ -391,6 +394,7 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 | Kit component                                              | Replaces                                                                                                        |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Button: primary, secondary, quiet, danger · sm, md · icon | the `.btn` family; 82 button classes; eleven close and back buttons                                             |
+| Link button: words that act · danger                       | `.cl-bucket-link` (86 sites in 26 files), which Confirm's No and EmptyState's and FailedRead's acts draw        |
 | Switch                                                     | `.rec-switch`, `.set-switch`, `.tbn-alert-switch`                                                               |
 | Segmented: tabs, a view switch, a stage                    | nine segmented controls; `.stabs` and `SurfaceTabs`, re-typed twice                                              |
 | Pill, chip, count, mark (the one-badge system)             | about 100 page selectors named chip, pill, tag, badge or count; six state pills outside `StatePill`             |
@@ -532,19 +536,29 @@ kit leaves `app/globals.css`, which 1.7 had import it too: no page outside the s
 _Proof:_ style equality. _Done when:_ `components.css` holds no kit rule but at a width the kit does not take yet (the
 tab strip's 720px, the record kit's 760px, which Phase 4 takes to 900px), and names a kit class otherwise only beside a
 page's, in a rule the two share (the press, the role gate, how things come and go, reduced motion). What it keeps is
-the frame and the page sections that still share it (Campaigns, Agent Studio, the thread's attachments, the message
-preview, the day agenda, the KPI and stat strips, `.cl-bucket-link`), which leave with their surfaces in Phase 4.
+the frame and the page sections that still share it, among them Campaigns, Agent Studio, the thread's attachments, the
+message preview, the day agenda, the KPI and stat strips, `.cl-bucket-link`, `.card`, `.glyph`, `.tbl`,
+`.section-head`, `.agent-rail`, `.soon`, `.dec`, `.rp-share-link`, "why it said that" and `.ix-steer`, which leave
+with their surfaces in Phase 4.
 
 **2.2 The missing primitives, in CSS.** Each reproduces the most-used existing variant exactly, so a page that adopts
 it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented control (from `.rec-seg`), the panel's
 three surfaces (from the most common card rule), the row (from the phone row's tokens), the sheet (the record sheet
 on a desk, the phone sheet under 900px), the meter (from `SegmentBar`), the face (the phone row's 32px face), the
-composer chassis (head, rows, foot, from the record sheet). No page uses them yet. It comes after 2.3, whose gallery
-is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. Planned as four pull requests
-of a day each, where every other step is one: the panel; the face with the list row; the meter; the sheet. They went
-out in Phase 2's one pull request, as its commits (above). The switch, the segmented control and the composer chassis
-are the record kit's rules, which 2.1 moves, so 2.2 writes none of them. _Proof:_ the gallery; style equality on the
-pages. _Done when:_ every component of §3.4 exists once in CSS.
+composer chassis (head, rows, foot, from the record sheet); and beside the panel the quiet link button (`.link-btn` and
+its danger form, from `.cl-bucket-link`), which this list did not name and 2.2 took (§8, decision 14). No page uses
+them yet. It comes after 2.3, whose gallery is its proof, and waits on the gallery rather than on 2.1: it adds rules
+and moves none. Planned as four pull requests of a day each, where every other step is one: the panel; the face with
+the list row; the meter; the sheet. They went out in Phase 2's one pull request, as its commits (above). The switch,
+the segmented control and the composer chassis are the record kit's rules, which 2.1 moves, so 2.2 writes none of
+them. _Proof:_ the gallery; style equality on the pages. _Done when:_ every component of §3.4 has its rule in
+`kit.css`, the kit's, to which a page moves in Phase 4. Until then four stand beside the house's rule each
+reproduces, and one of each pair leaves at the Phase 4 step that moves its pages: `.rec-sheet` for `.sheet` (with
+PhoneSheet's `.sb-sheet`, outside the kit) and `.rec-card-tip`'s surface for the panel's pop, at the People step
+(0015 step 5), where the record kit moves; `.confirm-block`'s surface for the panel's inset, at the Inbox step (0015
+step 3), where Confirm moves (the tip card and Confirm's block keep only their own column, width and entrance); and
+`.avatar` for `.face`, with a solid tone, at the Settings step (0015 step 11) and the frame's (step 13), where its
+three sites are.
 
 **2.3 The gallery.** The harness's `kit` scenario and `e2e/kit/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
 and needs only 1.7; 2.1 can run beside it, and has a page that draws every class it moves once it lands. _Proof:_ the
@@ -763,6 +777,9 @@ the road not taken beside it.
     request shows each difference. Not temporary kit variants.
 12. **Ask on the phone in Glass:** the ✦ disc settled on 25 September, drawn in the glass circle the canvases show.
 13. **The canvases:** kept with Ruben, outside the repository. Not committed under `docs/design/`.
+14. **The quiet link button:** a primitive of the kit, `.link-btn` and its danger form, the kit's name for the house's
+    quiet link button (People's `.cl-bucket-link`), taken on 28 September with the panel (step 2.2). Not
+    `.btn-link`, which would read as a modifier of the button, whose height, padding, border and ground it has none of.
 
 ---
 

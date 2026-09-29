@@ -5,6 +5,7 @@ import {
   KIT_SKIP_REASON,
   PRESSES,
   kitChecks,
+  toastsOverFeet,
   type KitAnswer,
   type KitAsk,
   type SeenSelector,
@@ -26,6 +27,7 @@ import {
  * 4. Each new primitive computes every longhand its source computes, and so do their pseudo-elements, pressed or not,
  *    dark and light, under Classic: a source reads the theme's colours where the kit reads a look's roles, so under
  *    Glass the two part by design.
+ * 5. A toast raised over an open sheet stands clear of the sheet's foot, where its Save is, at both widths.
  * And each fails when what it checks is broken, shown on faults planted in the page, never on disk. The functions that
  * run in the page are e2e/kit/kit-checks.ts, which says what they cannot see. Motion is stopped as the recorder stops
  * it (STILL), and read with it off. The presses are forced by the browser's own devtools protocol
@@ -295,6 +297,23 @@ test("each new primitive computes every longhand its source computes, pressed or
   expect(failures, "a primitive that does not compute what its source computes").toEqual([]);
 });
 
+test("a toast raised over an open sheet stands clear of its foot, where its Save is, at both widths", async ({
+  browser,
+  baseURL,
+}) => {
+  for (const width of ["desk", "phone"] as const) {
+    const { context, page } = await open(browser, baseURL, width);
+    try {
+      await show(page);
+      const found = await page.evaluate(toastsOverFeet);
+      expect(found.pairs, `${width}: toasts compared with an open sheet's foot`).toBeGreaterThan(0);
+      expect(found.over, `${width}: a toast over a sheet's foot`).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 /* ---- the checks' own proof: each fails when what it checks is broken ---- */
 
 /** Rules added to kit.css's sheet in the page, never on disk. */
@@ -550,6 +569,38 @@ test("check 4 names a longhand its twin's source computes differently, on any el
     expect(theirs(pressed, "probe-h").some((f) => f.includes("color: ") && f.includes("rgb(200, 0, 0)"))).toBe(true);
   } finally {
     await context.close();
+  }
+});
+
+test("check 5 names a toast over a sheet's foot: on a phone as the bell's list lifted it, on a desk moved over the sheet", async ({
+  browser,
+  baseURL,
+}) => {
+  const faults = {
+    // The bell's list, which a phone's page drew until it kept a desk's twin to a desk (mobile.css, :root:has(.tbn-pop)).
+    phone: (page: Page) =>
+      page.evaluate(() =>
+        document.querySelector(".gx-entries")?.insertAdjacentHTML("beforeend", '<section class="tbn-pop"></section>'),
+      ),
+    // The stack at the page's right edge, over the sheet, where the kit stands it beside.
+    desk: (page: Page) =>
+      page.addStyleTag({
+        content: ".pp-toast-stack { left: auto !important; right: 0 !important; transform: none !important; }",
+      }),
+  };
+  for (const width of ["desk", "phone"] as const) {
+    const { context, page } = await open(browser, baseURL, width);
+    try {
+      await show(page);
+      expect((await page.evaluate(toastsOverFeet)).over).toEqual([]);
+      await faults[width](page);
+      expect(
+        (await page.evaluate(toastsOverFeet)).over.map((o) => o.split(":")[0]),
+        width,
+      ).toEqual(["sheet"]);
+    } finally {
+      await context.close();
+    }
   }
 });
 

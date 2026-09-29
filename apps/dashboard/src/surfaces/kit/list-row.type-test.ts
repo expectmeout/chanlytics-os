@@ -1,8 +1,8 @@
 /**
  * What the kit's ListRow takes, proved where the compiler reads it (list-row.tsx): a face, the name, the facts, and
  * what trails, what was said and a note where a page has them; what trails is drawn by the page with the class the row
- * hands it. A row with no face, a face of nobody, facts that are not a list, what trails as words, an address, and
- * children stop compiling.
+ * hands it; an address makes the row a link, whose ref holds a link. A row with no face, a face of nobody, facts that
+ * are not a list, what trails as words, children, and a ref of the other element stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -16,7 +16,11 @@ import { ListRow } from "./index";
 type Takes = ComponentProps<typeof ListRow>;
 
 /** Never called: the compiler reads it, and nothing runs it. */
-function _listRowTakes(pill: (place: string) => ReactElement, row: RefObject<HTMLDivElement | null>): void {
+function _listRowTakes(
+  pill: (place: string) => ReactElement,
+  row: RefObject<HTMLDivElement | null>,
+  link: RefObject<HTMLAnchorElement | null>,
+): void {
   type _Its = [
     Holds<Exactly<Takes["end"], ((place: string) => ReactNode) | undefined>>,
     Holds<Exactly<Takes["facts"], readonly ReactNode[]>>,
@@ -31,6 +35,8 @@ function _listRowTakes(pill: (place: string) => ReactElement, row: RefObject<HTM
     note: "Next step: call back on Monday",
     ref: row,
   });
+  // A row with a page of its own: a link, with a link's ref.
+  ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: [], href: "/w/studio/#/clients", ref: link });
 
   // @ts-expect-error a row's first column is its face
   ListRow({ name: "Aisha Rahman", facts: [] });
@@ -40,8 +46,10 @@ function _listRowTakes(pill: (place: string) => ReactElement, row: RefObject<HTM
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: "2 h ago" });
   // @ts-expect-error what trails is the page's element, drawn with the class the row hands it
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", end: "Needs you", facts: [] });
-  // @ts-expect-error a row that opens a page waits for a link row in kit.css
-  ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: [], href: "/w/studio/#/clients" });
   // @ts-expect-error its lines are its props: it takes no children
   ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: [], children: "Aisha" });
+  // @ts-expect-error a row's ref holds a div: a link's comes with its address
+  ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: [], ref: link });
+  // @ts-expect-error a link row's ref holds a link
+  ListRow({ face: { initials: "AR" }, name: "Aisha Rahman", facts: [], href: "/w/studio/#/clients", ref: row });
 }

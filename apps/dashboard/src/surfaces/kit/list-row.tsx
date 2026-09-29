@@ -5,8 +5,9 @@
  * the grid's next rows, so the row draws them in that order. What each line says is the page's. `className` is for the
  * page's layout, and comes last; the ref reaches the element.
  *
- * It is a <div>. A row that opens a page waits for a link row in kit.css: an <a> would lay the browser's underline and
- * link colour over the lines that set no colour of their own. A row that selects is wrapped by the page's control.
+ * A row with a page of its own is a link to it, given `href` (the shell's "a door is a link", data-bits `routeDoor`),
+ * which kit.css draws in the row's colours with no underline; any other row is a <div>. A row that selects is wrapped
+ * by the page's control.
  *
  * It draws what the gallery's List row family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
@@ -19,7 +20,8 @@ import { cx } from "./variants";
 /** Whether a line has something to draw: nothing, false and no words draw none. */
 const drawsSomething = (node: ReactNode) => node !== undefined && node !== null && node !== false && node !== "";
 
-type ListRowProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
+/** The row's lines, which are its props: it takes no children. */
+type ListRowLines = {
   /** Who the row is: the kit's face, in the row's first column. */
   face: FaceProps;
   /** The first line. */
@@ -38,10 +40,18 @@ type ListRowProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
   note?: ReactNode;
 };
 
-/** A row of a list: its face, its lines, and what trails its name. */
-export function ListRow({ face, name, end, said, facts, note, className, ...div }: ListRowProps) {
-  return (
-    <div {...div} className={cx("list-row", className)}>
+/** What the row is drawn on, and so what its ref holds: a div, or a link where it has a page of its own. */
+type ListRowElement =
+  | (Omit<ComponentPropsWithRef<"div">, "children"> & { href?: undefined })
+  | (Omit<ComponentPropsWithRef<"a">, "children"> & { href: string });
+
+type ListRowProps = ListRowLines & ListRowElement;
+
+/** A row of a list: its face, its lines, and what trails its name; a link where it has an address. */
+export function ListRow({ face, name, end, said, facts, note, className, ...element }: ListRowProps) {
+  const classes = cx("list-row", className);
+  const lines = (
+    <>
       <Face {...face} className={cx("list-row-face", face.className)} />
       <div className="list-row-name">{name}</div>
       {end?.("list-row-end")}
@@ -52,6 +62,19 @@ export function ListRow({ face, name, end, said, facts, note, className, ...div 
         ))}
       </div>
       {drawsSomething(note) ? <div className="list-row-note">{note}</div> : null}
+    </>
+  );
+  if (element.href !== undefined) {
+    return (
+      <a {...element} className={classes}>
+        {lines}
+      </a>
+    );
+  }
+  const { href: _none, ...div } = element;
+  return (
+    <div {...div} className={classes}>
+      {lines}
     </div>
   );
 }

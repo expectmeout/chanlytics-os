@@ -10,6 +10,10 @@
  *   .active is not a primitive. A modifier is one kit.css declares, and no primitive by its words.
  * - One phone breakpoint. Every width an @media in kit.css names is 900px, the phone as (max-width: 900px) and the
  *   desk as (width > 900px). A query that names no width (reduced motion, reduced transparency: §3.1) is no breakpoint.
+ * - The pages outside the shell load the kit when one of them draws it (§3.3). A module of theirs (app/ but its (os)
+ *   group, which the shell draws; src/auth; src/yes) that writes a kit class in a className, or imports the kit's
+ *   components, which write them, needs kit.css among app/globals.css's imports. None draws it yet, and
+ *   repo/legacy-harness.test.mjs holds globals.css to the tokens alone until one does.
  *
  * Each check also runs on fixtures, where it must find what it looks for.
  */
@@ -18,8 +22,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { transform } from "lightningcss";
+import ts from "typescript";
 import { cssOf, isPrimitiveClassFor, KIT_REGISTRY } from "../_css.mjs";
-import { repoFiles } from "../_ast.mjs";
+import { parse, repoFiles } from "../_ast.mjs";
 import { ROOT } from "../_source.mjs";
 
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
@@ -117,4 +122,105 @@ test("kit.css has one phone breakpoint: every width an @media there names is 900
     [],
     "the kit's one breakpoint is 900px: (max-width: 900px) for the phone, (width > 900px) for the desk",
   );
+});
+
+/* ---- §3.3: a page outside the shell loads the kit when it draws it ---- */
+
+/** The pages outside the shell, as modules: app/ but the (os) group, which the shell draws; sign-in's; the opt-in's. */
+const OUTSIDE = repoFiles(["apps/dashboard/app", "apps/dashboard/src/auth", "apps/dashboard/src/yes"], {
+  keep: /\.tsx?$/,
+}).filter((f) => !f.startsWith("apps/dashboard/app/(os)/"));
+const GLOBALS_CSS = "apps/dashboard/app/globals.css";
+
+/** The strings a node holds, itself and anything under it: a string, and the words of a template around its holes. */
+function stringsIn(node, out = []) {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) out.push(node.text);
+  if (ts.isTemplateExpression(node)) out.push(node.head.text, ...node.templateSpans.map((s) => s.literal.text));
+  ts.forEachChild(node, (child) => void stringsIn(child, out));
+  return out;
+}
+
+/**
+ * What of the kit a module draws: the kit's classes its className props write (any string in what a className holds,
+ * a condition's or a join's), and whether it imports the kit's components, which write them. A kit word anywhere else
+ * (a field's name, a label) is no class.
+ */
+function kitDrawnBy(sf, classes) {
+  const drawn = new Set();
+  let imports = false;
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && /(^|\/)surfaces\/kit(\/|$)/.test(node.moduleSpecifier.text)) imports = true;
+    if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && node.name.text === "className" && node.initializer) {
+      for (const name of stringsIn(node.initializer).flatMap((s) => s.split(/\s+/)))
+        if (classes.has(name)) drawn.add(name);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { drawn: [...drawn].sort(), imports };
+}
+
+/** Whether a stylesheet imports the kit's: an @import whose path ends surfaces/kit/kit.css. */
+function importsKit(css, filename) {
+  const urls = [];
+  transform({
+    filename,
+    code: Buffer.from(css),
+    visitor: { Rule: { import: (rule) => void urls.push(rule.value.url) } },
+  });
+  return urls.some((url) => /(^|\/)surfaces\/kit\/kit\.css$/.test(url));
+}
+
+/** The modules that draw the kit while globals.css imports none of it, each with what it draws. */
+const unloaded = (uses, kitImported) =>
+  kitImported
+    ? []
+    : uses
+        .filter(([, use]) => use.drawn.length > 0 || use.imports)
+        .map(
+          ([file, use]) => `${file}: ${[...use.drawn, ...(use.imports ? ["the kit's components"] : [])].join(", ")}`,
+        );
+
+test("a page outside the shell that draws the kit has app/globals.css import it (§3.3); none draws it yet", () => {
+  const classes = new Set(listed);
+  assert.ok(OUTSIDE.some((f) => f.endsWith("/login/page.tsx")) && OUTSIDE.every((f) => !f.includes("/(os)/")), "read");
+  const uses = OUTSIDE.map((file) => [file, kitDrawnBy(parse(file), classes)]);
+  const globals = fs.readFileSync(path.join(ROOT, GLOBALS_CSS), "utf8");
+  assert.deepEqual(
+    unloaded(uses, importsKit(globals, GLOBALS_CSS)),
+    [],
+    "import kit.css in globals.css, right after the tokens, and let repo/legacy-harness.test.mjs say so too",
+  );
+  // The checks, where each must find what it looks for.
+  const fixture = (code) =>
+    kitDrawnBy(ts.createSourceFile("fixture.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), classes);
+  const none = { drawn: [], imports: false };
+  assert.deepEqual(fixture('export const A = () => <button className="btn btn-primary auth-go">Go</button>;'), {
+    drawn: ["btn", "btn-primary"],
+    imports: false,
+  });
+  assert.deepEqual(
+    fixture("export const A = ({ on }) => <div className={`panel ${on ? 'panel-pop' : ''}`} />;").drawn,
+    ["panel", "panel-pop"],
+  );
+  assert.deepEqual(
+    fixture('export const A = ({ on }) => <i className={on ? "auth-card" : cx("auth-card", "face")} />;').drawn,
+    ["face"],
+  );
+  assert.deepEqual(fixture('import { Button } from "@/surfaces/kit";\nexport const A = () => <Button>Go</Button>;'), {
+    drawn: [],
+    imports: true,
+  });
+  assert.deepEqual(
+    fixture('export const A = () => <input name="panel" aria-label="btn" className="auth-field" />;'),
+    none,
+    "a kit word outside a className is no class",
+  );
+  const drawing = [["apps/dashboard/app/login/page.tsx", { drawn: ["btn"], imports: false }]];
+  assert.deepEqual(unloaded(drawing, false), ["apps/dashboard/app/login/page.tsx: btn"]);
+  assert.deepEqual(unloaded(drawing, true), []);
+  assert.deepEqual(unloaded([["apps/dashboard/src/yes/DeskSign.tsx", none]], false), []);
+  const tokens = '@import "../src/legacy/styles/tokens.css";';
+  assert.equal(importsKit(`${tokens}\n@import "../src/surfaces/kit/kit.css";`, GLOBALS_CSS), true);
+  assert.equal(importsKit(tokens, GLOBALS_CSS), false);
 });
