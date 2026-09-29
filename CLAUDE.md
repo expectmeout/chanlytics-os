@@ -101,7 +101,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
   `eslint.config.mjs`): the change that banks a tree's last entry adds the tree there.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
-- **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
+- **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`, `surfaces`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
   or the client; the edge never imports the dashboard, `next` or `react`. Types cross freely.
   `eslint.config.mjs` enforces it.

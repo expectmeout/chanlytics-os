@@ -70,7 +70,8 @@ const TIMED = SRC.filter(
  * The dashboard's stylesheets, which the interface kit's measures hold
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.7). The tokens are where a literal value belongs, so
  * they are measured by neither; the kit is where a primitive belongs, so it is measured for its values, never for its
- * primitives.
+ * primitives. A class the kit's registry lists (kit/classes.json, which _css.mjs reads) is a primitive in every other
+ * stylesheet, whatever its words.
  */
 export const TOKENS_CSS = "apps/dashboard/src/legacy/styles/tokens.css";
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
