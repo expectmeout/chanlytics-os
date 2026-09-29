@@ -3,6 +3,7 @@ import { AppError, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { people } from "@/server/readers/people";
+import { dbRefusal } from "@/server/with-route";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -72,7 +73,7 @@ export const POST = write({
       p_display_name: name,
       p_source: source,
     });
-    if (error) throw new AppError("validation", error.message);
+    if (error) throw dbRefusal(error);
     const out = data as { contact_id: string; existed: boolean };
     return { contact_id: out.contact_id, existed: out.existed };
   },

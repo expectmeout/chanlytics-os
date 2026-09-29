@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Json } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
+import { dbRefusal } from "@/server/with-route";
 
 const PAGE = /^[a-z][a-z0-9_-]{0,31}$/;
 const Body = z.object({ view: z.record(z.string(), z.unknown()) });
@@ -29,7 +30,7 @@ export const PUT = write({
       p_page: page,
       p_view: input.view as Json,
     });
-    if (error) throw new AppError("validation", error.message);
+    if (error) throw dbRefusal(error);
     return { views: (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as Record<string, unknown> };
   },
 });
