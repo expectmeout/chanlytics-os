@@ -1,6 +1,6 @@
 # 0021 · People are paged by a moment the database keeps
 
-**Status:** Accepted by Ruben, 28 Sep 2026; decided, not built. The open questions stay open for the steps they touch.
+**Status:** Accepted by Ruben, 28 Sep 2026. Decided; step 1 built (00259, #1306 folded into the lane's landing), steps 2 to 5 to come. The open questions stay open for the steps they touch.
 Written against commit `887e79cc` (main, 28 September 2026, after
 #1210 merged), and every file and line below was read at it. The numbers are from a model on Postgres 16 (Context says
 what it holds) with #1226's `people_list` (00250) and #1247's indexes (00253) applied, since both are open and both
@@ -8,7 +8,7 @@ change what People costs; production runs 17, which plans a SQL function and wal
 design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for under 36 · Scalability ("Rollups.
 Per-workspace daily rollups behind `metrics_summary` and `people_list`, with keyset paging", `:89`). It keeps the keyset
 paging and decides against daily rollups; Context says why. 0018 (#1205), 0019 (#1244) and 0020 (#1206) are taken, so
-this is 0021. Step 1 is built, as a draft that waits for this note (#1306).
+this is 0021. Step 1 is built by #1306, which lands with this note.
 
 ## Context
 
