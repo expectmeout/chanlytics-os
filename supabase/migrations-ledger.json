@@ -27,7 +27,6 @@
     "00248": "a workspace its last member leaves is ended landed as 00262 (#1330)",
     "00249": "an erased person's digest is keyed landed as 00263 (#1330)",
     "00252": "a page says how fast it was landed as 00255 (#1227)",
-    "00265": "held by #1333 (realtime at scale) on 29 Sep 2026; it lands at the number free then",
     "00266": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
     "00267": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
     "00268": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
@@ -282,6 +281,7 @@
     "00262_a_workspace_its_last_member_leaves_is_ended.sql": "b0009ccd3220aa8b1b292225938cd0a0a8e0a5a4f4c1dce1b55db8315e07aaad",
     "00263_an_erased_person_s_digest_is_keyed.sql": "faa01645d719e0c56aca50d4d972978162c1bef02cd155c2221e54ede3caf6cb",
     "00264_an_event_says_which_version_of_its_kind_it_is.sql": "0c6e226a44ab7e074ff89f3ab67b606c71db7e8c0e3b4755181a87be06960275",
+    "00265_the_database_tells_each_workspace_what_changed.sql": "ea6a806e26239bc4c23a0f737fef26202fd942794743d40070255568dfe87189",
     "00280_the_database_says_which_migration_it_has.sql": "e84ad80b107135eb04ead52b9095874c2f410461e7b1d8db8d2b6dfbd7ff659c"
   }
 }

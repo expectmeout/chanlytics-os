@@ -156,7 +156,9 @@ export function ledgerProblems(ledger, folder) {
  * The ledger with the folder's new files recorded, and what was refused. A file above the head is appended in version
  * order; one at or below it is refused. An entry that `landed` (main's ledger holds it) is never rewritten; one this
  * branch added is dropped when its file is gone and re-hashed when its text changed, so a file renumbered before it
- * lands is recorded again.
+ * lands is recorded again. A gap argued for a version that now has a file, or that the head no longer lies above (a
+ * lane's reserved numbers, once the file is numbered below them), is taken out: it is untrue, and `ledgerProblems`
+ * would fail it.
  */
 export function record(ledger, folder, landed = new Set()) {
   const byFile = new Map(folder.map((m) => [m.file, m]));
@@ -182,7 +184,14 @@ export function record(ledger, folder, landed = new Set()) {
     recorded.push(m.file);
     head = Number(m.version);
   }
-  return { ledger: { ...ledger, migrations }, recorded, refused };
+  const numbered = new Set(Object.keys(migrations).map((file) => Number(versionOf(file))));
+  const gaps = {};
+  const droppedGaps = [];
+  for (const [v, why] of Object.entries(ledger.gaps ?? {})) {
+    if (numbered.has(Number(v)) || Number(v) >= head) droppedGaps.push(v);
+    else gaps[v] = why;
+  }
+  return { ledger: { ...ledger, gaps, migrations }, recorded, refused, droppedGaps };
 }
 
 /**
@@ -227,7 +236,11 @@ function landedAt(root, file) {
 /** The entries main's ledger holds, read from origin/main; none when it has no ledger or cannot be read. */
 function landedEntries(root) {
   try {
-    const text = execFileSync("git", ["show", `origin/main:${LEDGER}`], { cwd: root, encoding: "utf8" });
+    const text = execFileSync("git", ["show", `origin/main:${LEDGER}`], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     return new Set(Object.keys(JSON.parse(text).migrations ?? {}));
   } catch {
     return new Set();
@@ -267,9 +280,10 @@ function main() {
   const ledger = readLedger(root);
 
   if (args.includes("--record")) {
-    const { ledger: next, recorded, refused } = record(ledger, folder, landedEntries(root));
+    const { ledger: next, recorded, refused, droppedGaps } = record(ledger, folder, landedEntries(root));
     fs.writeFileSync(path.join(root, LEDGER), ledgerText(next));
     for (const f of recorded) console.log(`recorded ${f}`);
+    for (const v of droppedGaps) console.log(`dropped the gap ${v}: it has a file now, or lies above the head`);
     for (const r of refused) console.error(`refused ${r}`);
     const left = ledgerProblems(next, folder);
     for (const p of left) console.error(`- ${p}`);

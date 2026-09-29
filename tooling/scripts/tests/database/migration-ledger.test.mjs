@@ -113,8 +113,18 @@ test("recording takes back a file this branch added and renumbered before it lan
   const out = record(ledger, moved, new Set([A[0], B[0], C[0]]));
   assert.deepEqual(out.recorded, ["00004_mine.sql"]);
   assert.equal("00009_mine.sql" in out.ledger.migrations, false, "the old number is gone from the ledger");
-  const problems = ledgerProblems({ ...out.ledger, gaps: {} }, moved);
-  assert.deepEqual(problems, [], "and nothing is left to argue");
+  assert.deepEqual(out.droppedGaps, ["00004", "00005", "00006", "00007", "00008"], "the reserved numbers are let go");
+  assert.deepEqual(out.ledger.gaps, {});
+  assert.deepEqual(ledgerProblems(out.ledger, moved), [], "and nothing is left to argue: recording is enough");
+});
+
+test("recording keeps a gap that is still below the head and still empty", () => {
+  const ledger = ledgerOf(folderOf(A, C), { "00002": "a number another branch took" });
+  const D = ["00005_a_fifth.sql", "create table e ();\n"];
+  const out = record(ledger, folderOf(A, C, D));
+  assert.deepEqual(out.recorded, ["00005_a_fifth.sql"]);
+  assert.deepEqual(out.droppedGaps, []);
+  assert.deepEqual(Object.keys(out.ledger.gaps), ["00002"]);
 });
 
 /** Gaps argued for every version from `from` to `to`. */
