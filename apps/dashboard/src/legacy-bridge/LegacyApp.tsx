@@ -148,8 +148,9 @@ markHydrated(hydrateSurfaceCache());
 // A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
 warmPersonOnScreen();
 
-// The mockup's own data-before-mount contract (boot gate).
-const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
+// The mockup's own data-before-mount contract (boot gate). The Agents roster and the seeded Today (FLEET_DATA,
+// CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
+const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "POLICY", "ChanlyticsApp"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
 const SURFACES = [
