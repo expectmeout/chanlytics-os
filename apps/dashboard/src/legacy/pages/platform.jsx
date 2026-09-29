@@ -499,7 +499,7 @@ const PlatformHealthCard = ({ P, health }) => {
   );
 };
 
-// How fast the pages are (00252): the 75th percentile of what people's own
+// How fast the pages are (00255): the 75th percentile of what people's own
 // browsers measured as each page loaded and answered, so the bundle's budget is
 // judged against what they see. Platform-wide, like the clocks above it; a read
 // that failed says so here and takes nothing else with it; an overview that

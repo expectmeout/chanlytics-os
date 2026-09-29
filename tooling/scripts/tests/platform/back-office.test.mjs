@@ -1873,7 +1873,7 @@ test("a deployment whose overview predates the queue draws no card at all", asyn
   assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
 });
 
-/* ------------------------------------------------------------------------ how fast the pages are (00252) */
+/* ------------------------------------------------------------------------ how fast the pages are (00255) */
 
 /** One row of page_vitals_p75(): a metric over every page (null) or over one. */
 const p75 = (metric, page, samples, value) => ({ metric, page, samples, p75: value });

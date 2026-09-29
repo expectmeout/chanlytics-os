@@ -94,7 +94,7 @@ const EVERY_CLOCK = {
   partners: "partners-sweep",
   // The ledger's finished rows (00215): nightly, done and canceled after a week, failed after ninety days.
   purge_jobs: "purge-jobs",
-  // How fast the pages were (00252): nightly, after thirty days.
+  // How fast the pages were (00255): nightly, after thirty days.
   purge_page_vitals: "purge-page-vitals",
 };
 const RUN_JUDGED = [

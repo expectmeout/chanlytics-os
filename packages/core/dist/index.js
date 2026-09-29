@@ -3154,7 +3154,7 @@ var RETENTION_DAYS = {
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
-  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00252). */
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
@@ -8168,7 +8168,7 @@ var RETENTION_DAYS2 = {
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
-  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00252). */
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
@@ -11645,7 +11645,7 @@ var RETENTION_DAYS3 = {
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
-  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00252). */
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;

@@ -34,7 +34,7 @@ import { platformVitals } from "@/server/platform/vitals";
  * workspace and what it has earned them is a fact about the workspaces on this
  * page. Null when it could not be read; the workspaces still come back.
  *
- * How fast the pages are (00252) rides here for the first reason too: it is the platform's own state, platform-wide
+ * How fast the pages are (00255) rides here for the first reason too: it is the platform's own state, platform-wide
  * like the clocks, and nobody else's to see. Null when it could not be read.
  */
 export const GET = read({

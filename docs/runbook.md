@@ -676,7 +676,7 @@ What trips it:
 ## See how fast the pages are
 
 Each page load in a workspace sends its web vitals when the page is hidden, and the back office's card, "How fast
-the pages are", says the 75th percentile of each over the last seven days (00252). That is the number to hold the
+the pages are", says the 75th percentile of each over the last seven days (00255). That is the number to hold the
 bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap answered.
 
 1. **Read it** on the back office, or in SQL as the service role: `select * from page_vitals_p75();` gives one row per
