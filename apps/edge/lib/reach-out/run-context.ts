@@ -196,9 +196,7 @@ export async function reachOutRunContext(
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };
-      await emitEvent(db, tenantId, "playbook.run", "message", "playbook", run.playbook_id, data as Json).catch(
-        () => {},
-      );
+      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(() => {});
       // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
       if (run.state === "scheduled") {
         const { error } = await db.from("decisions").insert({

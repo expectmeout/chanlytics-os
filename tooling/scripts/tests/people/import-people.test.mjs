@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { asEventAndJson } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -171,7 +172,7 @@ test("a decision the ledger will not take never refuses people who are on file: 
   );
   const said = [];
   const error = console.error;
-  console.error = (...a) => said.push(a);
+  console.error = (...a) => said.push(asEventAndJson(a));
   let out;
   try {
     out = await route.POST.run(

@@ -2,6 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { callScope, recordDecision } from "@/server/verbs";
 import { stopLiveCall } from "@/server/conversations/live-call";
+import { log } from "@/server/log";
 
 /**
  * POST /api/v1/calls/:id/end — end a call in progress. The call is the row
@@ -34,10 +35,7 @@ export const POST = write({
     try {
       decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "end_call", {});
     } catch (e) {
-      console.error(
-        "end_call_unrecorded",
-        JSON.stringify({ call: call.id, error: e instanceof Error ? e.message : String(e) }),
-      );
+      log.error("end_call_unrecorded", { call: call.id, error: e instanceof Error ? e.message : String(e) });
     }
     return { ok: true, decision_id };
   },

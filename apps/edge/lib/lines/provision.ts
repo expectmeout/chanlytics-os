@@ -61,7 +61,7 @@ export async function reportLineFailed(
       body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${line.e164 ?? "no number"} stopped at step "${at}" (started by ${by}).\n\n${error}\n\nRetry: POST /api/admin/lines { "op": "retry", "tenant_id": "${tenant.id}", "line_id": "${line.id}" } (x-diag-key).`,
     },
   );
-  await emitEvent(db, tenant.id, "line.failed", "setup", "line", line.id, {
+  await emitEvent(db, tenant.id, "line.failed", "line", line.id, {
     step,
     error: error.slice(0, 300),
     provider: providerName,
@@ -110,7 +110,7 @@ export async function provisionLine(
       route: "admin/setup",
       about: { type: "line", id: line.id },
     });
-    await emitEvent(db, tenant.id, "line.answering", "setup", "line", line.id, {
+    await emitEvent(db, tenant.id, "line.answering", "line", line.id, {
       e164: result.line.e164,
       provider: choice.name,
       agent_id: result.line.retell_agent_id,

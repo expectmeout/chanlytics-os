@@ -1143,6 +1143,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1153,6 +1154,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1163,6 +1165,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1176,6 +1179,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1186,6 +1190,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1196,6 +1201,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1209,6 +1215,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1219,6 +1226,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1229,6 +1237,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1242,6 +1251,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1252,6 +1262,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1262,6 +1273,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1275,6 +1287,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1285,6 +1298,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1295,6 +1309,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1308,6 +1323,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1318,6 +1334,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1328,6 +1345,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1341,6 +1359,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1351,6 +1370,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1361,6 +1381,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1374,6 +1395,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1384,6 +1406,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1394,6 +1417,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1407,6 +1431,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1417,6 +1442,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1427,6 +1453,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1440,6 +1467,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1450,6 +1478,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1460,6 +1489,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1473,6 +1503,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1483,6 +1514,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1493,6 +1525,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1506,6 +1539,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1516,6 +1550,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1526,6 +1561,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1539,6 +1575,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1549,6 +1586,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1559,6 +1597,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1572,6 +1611,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1582,6 +1622,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1592,6 +1633,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1605,6 +1647,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1615,6 +1658,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1625,6 +1669,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }
@@ -1638,6 +1683,7 @@ export type Database = {
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
+          version: number
         }
         Insert: {
           category?: string
@@ -1648,6 +1694,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
+          version?: number
         }
         Update: {
           category?: string
@@ -1658,6 +1705,7 @@ export type Database = {
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
+          version?: number
         }
         Relationships: []
       }

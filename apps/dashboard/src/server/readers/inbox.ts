@@ -3,6 +3,7 @@ import type { ConversationDto, EscalationDto } from "@chanlytics/contracts";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
+import { log } from "@/server/log";
 
 interface InboxRead {
   /** The escalated threads outside the newest hundred first, then the hundred: the Inbox's order. */
@@ -36,7 +37,7 @@ export const inbox: Reader<undefined, InboxRead> = {
         )
       : [];
     const unread = missing.length - extra.length;
-    if (unread) console.error("inbox_escalated_fetch_failed", unread);
+    if (unread) log.error("inbox_escalated_fetch_failed", { unread });
     const all = [...extra, ...newest.data.conversations];
     return {
       data: { conversations: all, escalations: open.data.escalations },

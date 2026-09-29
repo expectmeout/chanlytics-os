@@ -410,7 +410,7 @@ async function announceLeg(
     about: { type: "setup", id: channelId },
   });
   try {
-    await emitEvent(db, tenantId, "voice.provisioned", "setup", "tenant_channel", channelId, {
+    await emitEvent(db, tenantId, "voice.provisioned", "tenant_channel", channelId, {
       agent_id: agentId,
       llm_id: llmId,
       number,

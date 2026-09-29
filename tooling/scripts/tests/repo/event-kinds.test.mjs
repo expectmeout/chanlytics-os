@@ -5,9 +5,11 @@
  * Three declared kinds were never written and fourteen written kinds were
  * never declared before this existed; an owner reading the activity log
  * would have met rows nobody could name. The emitters are found the way they
- * are written: `insert into events` in a migration, `emitEvent(...)`, the
- * send door's own `event(...)`, a direct `.from("events").insert({ kind })`,
- * and a `*_KIND` constant. Meta's account webhooks are the one computed
+ * are written: `insert into events` in a migration, `emitEvent(...)` and
+ * `recordEvent(...)` (packages/db events.ts, the one writer, whose table the
+ * compiler holds to EVENT_KINDS: events.type-test.ts), the send door's own
+ * `event(...)`, a direct `.from("events").insert({ kind })`, and a `*_KIND`
+ * constant. Meta's account webhooks are the one computed
  * family, `channel.<field>`, held to WABA_FIELDS in contracts.
  */
 import { test } from "node:test";
@@ -64,7 +66,7 @@ function emitted() {
       );
       // Every literal inside the call, to its closing paren: a conditional that
       // picks one of three billing kinds names all three.
-      for (const m of src.matchAll(/emitEvent\(/g)) {
+      for (const m of src.matchAll(/\b(?:emitEvent|recordEvent)\(/g)) {
         let depth = 0;
         let i = m.index;
         for (; i < src.length; i++) {

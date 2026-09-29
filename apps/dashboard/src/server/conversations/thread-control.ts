@@ -1,7 +1,11 @@
 import "server-only";
+import { MIN_MS } from "@chanlytics/contracts";
 import { claimControl, releaseControl } from "@chanlytics/db";
 import { deployment } from "../deployment";
-import { edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered } from "../edge";
+
+/** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */
+const STEER_TIMEOUT_MS = MIN_MS;
 import { serviceDb } from "../service-db";
 
 /**
@@ -44,12 +48,8 @@ export async function steerDraft(
   text: string,
 ): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/steer`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/steer"),
-    body: JSON.stringify({ message_id: messageId, text }),
-  });
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message_id?: string; text?: string; error?: string };
-  if (r.ok && j.ok && j.message_id) return { ok: true, messageId: j.message_id, text: j.text ?? "" };
+  const r = await callEdge("/api/admin/steer", { message_id: messageId, text }, { timeoutMs: STEER_TIMEOUT_MS });
+  const j = (r.body ?? {}) as { ok?: boolean; message_id?: string; text?: string; error?: string };
+  if (edgeAnswered(r) && j.ok && j.message_id) return { ok: true, messageId: j.message_id, text: j.text ?? "" };
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}` };
 }

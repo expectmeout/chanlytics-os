@@ -3,14 +3,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
 import { deployment } from "../deployment";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
  * the owner. Every write is a function that checks the caller (00214); this file only maps their refusals and sends
  * the invitation.
  */
+
+/** How long the edge is given to write to the new owner before the partner is told it did not go. */
+const HANDOVER_MAIL_TIMEOUT_MS = 8000;
 
 /** The Postgres codes the handover functions raise deliberately, and what each is on the wire. */
 const REFUSALS: Record<string, (message: string) => AppError> = {
@@ -60,19 +64,16 @@ export async function sendHandoverInvite(
       if (!/already (been )?registered|already exists/i.test(mailErr.message)) throw new Error(mailErr.message);
     }
     if (!(ports.live ?? deployment.providersLive) || !edgeConfigured()) return false;
-    const r = await (ports.fetch ?? fetch)(`${edgeUrl()}/api/admin/handover-invite`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/handover-invite", { workspace: tenantId }),
-      body: JSON.stringify({ tenant_id: tenantId }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) console.error("handover_invite_failed", JSON.stringify({ tenant: tenantId, status: r.status }));
-    return r.ok;
-  } catch (e) {
-    console.error(
-      "handover_invite_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    const r = await callEdge(
+      "/api/admin/handover-invite",
+      { tenant_id: tenantId },
+      { workspace: tenantId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
+    if (!edgeAnswered(r))
+      log.error("handover_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
+    return edgeAnswered(r);
+  } catch (e) {
+    log.error("handover_invite_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return false;
   }
 }

@@ -3,6 +3,7 @@ import type { BroadcastDetailDto, BroadcastDto } from "@chanlytics/contracts";
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { recentTouches } from "../campaigns/playbooks";
 import { stamp, type Reader, type RowRef } from "./index";
+import { log } from "@/server/log";
 
 /** A broadcast as a citation names it: a Broadcasts row, opened where its address spells it, a run. */
 const runRef = (b: BroadcastDto): RowRef => ({
@@ -24,10 +25,10 @@ export const broadcasts: Reader<undefined, { broadcasts: BroadcastDto[]; more: b
     const [list, touched] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
       recentTouches(rc.ctx, rc.tenantId, rc.now).catch((e: unknown) => {
-        console.error(
-          "broadcast_touches_failed",
-          JSON.stringify({ tenant: rc.tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
+        log.error("broadcast_touches_failed", {
+          tenant: rc.tenantId,
+          error: e instanceof Error ? e.message : String(e),
+        });
         return null;
       }),
     ]);

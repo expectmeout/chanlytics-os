@@ -266,7 +266,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         return !!data;
       },
       record: async (playbookId, runFor, at, data) => {
-        await emitEvent(db, tenantId, "playbook.run", "message", "playbook", playbookId, data as Json).catch(() => {});
+        await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         await db.from("playbooks").update({ last_run_for: runFor, last_run_at: at.toISOString() }).eq("id", playbookId);
       },
       create: async (row) => {

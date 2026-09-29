@@ -3,6 +3,7 @@ import { memberContext } from "@/server/with-route";
 import { ROLE_PERMS } from "@chanlytics/contracts";
 import { verifyState } from "@chanlytics/channels";
 import { afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
+import { log } from "@/server/log";
 
 /**
  * GET /api/v1/google/callback — back from Google with a code and the state.
@@ -53,14 +54,11 @@ export const GET = read({
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
-      console.error(
-        "google_connect_failed",
-        JSON.stringify({
-          tenant: tenantId,
-          reason,
-          detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null,
-        }),
-      );
+      log.error("google_connect_failed", {
+        tenant: tenantId,
+        reason,
+        detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null,
+      });
       return back("error", reason);
     }
     return back(b.pending === true ? "choose" : "connected");

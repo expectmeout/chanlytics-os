@@ -1,6 +1,7 @@
 import type { PersonRowDto } from "@chanlytics/contracts";
 import { PEOPLE_PAGE, everyoneIn, peoplePage } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
+import { log } from "@/server/log";
 
 /**
  * Everyone who has written to or phoned a workspace, with the reply mode in
@@ -59,7 +60,7 @@ async function withReplyModes(
     .select("subject_type, subject_id, mode")
     .eq("tenant_id", tenantId)
     .eq("class", "reply");
-  if (polErr) console.error("people_policies_read_failed", polErr.message);
+  if (polErr) log.error("people_policies_read_failed", { error: polErr.message });
   const workspaceMode = pols?.find((p) => p.subject_type === null)?.mode ?? null;
   const personMode = new Map(
     (pols ?? []).filter((p) => p.subject_type === "contact").map((p) => [p.subject_id, p.mode]),

@@ -15,6 +15,7 @@ import {
 import type { RouteContext } from "@/server/with-route";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
+import { log } from "@/server/log";
 
 /* ---- One person's appointments, for their profile ---- */
 
@@ -41,10 +42,7 @@ export async function personVisits(
     try {
       return await parsedFeedFor(tenantId, url, timezone, now, { stale: true });
     } catch (e) {
-      console.error(
-        "calendar_parse_failed",
-        JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-      );
+      log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
       return { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
     }
   });

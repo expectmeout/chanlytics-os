@@ -76,7 +76,7 @@
   "apps/dashboard/src/server/route.ts": 1,
   "apps/edge/api/admin/voice-converge.ts": 2,
   "apps/edge/api/admin/voice-provision.ts": 1,
-  "apps/edge/api/admin/whatsapp/connect.ts": 3,
+  "apps/edge/api/admin/whatsapp/connect.ts": 2,
   "apps/edge/api/admin/whatsapp/templates-create.ts": 2,
   "apps/edge/api/admin/whatsapp/templates-sync.ts": 4,
   "apps/edge/api/cron/deadman.ts": 1,
@@ -88,7 +88,6 @@
   "apps/edge/api/health.ts": 1,
   "apps/edge/api/retell-webhook.ts": 2,
   "apps/edge/api/whatsapp.ts": 2,
-  "apps/edge/lib/ask-gateway.ts": 1,
   "apps/edge/lib/email/sending-domains.ts": 4,
   "apps/edge/lib/google/profile-credentials.ts": 1,
   "apps/edge/lib/leads/lead-db.ts": 7,
@@ -104,8 +103,8 @@
   "apps/edge/lib/receptionist/unfinished.ts": 3,
   "apps/edge/lib/sms/sms.ts": 1,
   "apps/edge/lib/voice/forwarding.ts": 1,
-  "apps/edge/lib/whatsapp/persist.ts": 2,
-  "apps/edge/lib/whatsapp/waba-events.ts": 2,
+  "apps/edge/lib/whatsapp/persist.ts": 1,
+  "apps/edge/lib/whatsapp/waba-events.ts": 1,
   "packages/channels/src/voice/voice-shell.ts": 1,
   "packages/contracts/src/config/business-tab/abilities.ts": 1,
   "packages/contracts/src/config/business-tab/booking-rules-words.ts": 1,
@@ -119,5 +118,5 @@
   "packages/db/src/repositories/lists.ts": 3,
   "packages/db/src/repositories/partner.ts": 4,
   "packages/db/src/repositories/people.ts": 1,
-  "packages/db/src/repositories/reach-out.ts": 2
+  "packages/db/src/repositories/reach-out.ts": 1
 }

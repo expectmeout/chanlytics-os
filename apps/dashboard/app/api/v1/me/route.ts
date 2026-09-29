@@ -1,6 +1,7 @@
 import { write, account } from "@/server/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
+import { log } from "@/server/log";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -49,7 +50,7 @@ export const DELETE = write({
     if (error) {
       const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
       if (named) throw new AppError("conflict", REFUSALS[named], 409);
-      console.error("account_delete_failed", JSON.stringify({ message: error.message.slice(0, 200) }));
+      log.error("account_delete_failed", { message: error.message.slice(0, 200) });
       throw new AppError(
         "internal",
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",

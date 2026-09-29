@@ -338,6 +338,17 @@ export default [
     files: ["apps/edge/lib/env.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
+  // The dashboard's server logs through one logger too (src/server/log.ts): one JSON object per line, named by
+  // its event, carrying the request it belongs to. Ask's modules keep their own lines until the Ask lane moves them.
+  {
+    files: ["apps/dashboard/src/server/**/*.ts", "apps/dashboard/app/api/**/*.ts"],
+    ignores: [
+      "apps/dashboard/src/server/log.ts",
+      "apps/dashboard/src/server/ask/**",
+      "apps/dashboard/app/api/v1/ask/**",
+    ],
+    rules: { "no-console": "error" },
+  },
 
   // The browser specs and their helpers: Playwright in Node, with callbacks
   // that run inside the page.

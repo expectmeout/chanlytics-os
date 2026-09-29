@@ -69,6 +69,28 @@ export function isWireUnavailableError(e: unknown): e is WireUnavailableError {
 }
 
 /**
+ * The provider provably did not take the words (the send's outcome `retryable`, channels provider-fetch: its "not
+ * now", a connection that never opened, its breaker open), for a delivery that asked to be held rather than failed
+ * (Delivery.holdIfNotTaken). Thrown before anything is written, as WireUnavailableError is, so a queued row stays
+ * queued for its caller's next try (sendQueued); told apart by name for the same reason.
+ */
+export class NotTakenError extends Error {
+  readonly channel: Channel;
+  readonly status: number;
+  readonly errorBody: string | null;
+  constructor(channel: Channel, sent: { status: number; errorBody?: string }) {
+    super(`deliver: the ${channel} provider did not take it (${sent.status || "no answer"}: ${sent.errorBody ?? ""})`);
+    this.name = "NotTakenError";
+    this.channel = channel;
+    this.status = sent.status;
+    this.errorBody = sent.errorBody ?? null;
+  }
+}
+export function isNotTakenError(e: unknown): e is NotTakenError {
+  return e instanceof Error && e.name === "NotTakenError";
+}
+
+/**
  * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
  * so the "+" is stripped here rather than by a caller who should not know.
  */
@@ -160,7 +182,7 @@ type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credenti
  * go). A wire that could not be BOUND (its credentials could not be read) throws before anything is written: asked only
  * of words that may go, so a refusal is still recorded during an outage, and the row stays queued for the caller's next
  * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by an own domain (G15); any other send
- * never carries the twin.
+ * never carries the twin. A send the provider did not take throws too, for a delivery that asked (NotTakenError).
  */
 export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Promise<WireResult> {
   const send = wire[d.channel];
@@ -170,10 +192,13 @@ export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Prom
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
+  const sent = await send(d.to, {
     body: d.body,
     template: d.template,
     ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
     ...reply,
   });
+  // Not taken, for a caller that will try again (Delivery.holdIfNotTaken): nothing is written, the row stays queued.
+  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
+  return sent;
 }

@@ -979,7 +979,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   // can be held to is worse than an action that did not happen.
   const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   const fn = server.slice(server.indexOf("export async function platformLineAct"));
-  const audit = fn.indexOf('kind: "platform.acted"');
+  const audit = fn.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
   const act = fn.indexOf("await edgeLines(");
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
   assert.match(
@@ -989,10 +989,10 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   );
   assert.match(
     fn,
-    /by: ctx\.userId, by_email: ctx\.email \?\? null/,
+    /by: ctx\.userId,\s*by_email: ctx\.email \?\? null/,
     "who, by id and by the address they signed in with",
   );
-  assert.ok(fn.includes('subject_type: "line"') && fn.includes("subject_id: lineId"), "the line it was done to");
+  assert.ok(/"platform\.acted",\s*"line",\s*lineId,/.test(fn), "the line it was done to");
   assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
 });
 
@@ -1613,7 +1613,7 @@ test("the back office does not tell the reader it changes nothing, in the file t
   // before the action runs.
   assert.match(page, /const \[arm, setArm\] = React\.useState\(null\);/);
   const server = readCode("apps/dashboard/src/server/platform/platform.ts");
-  const audit = server.indexOf('kind: "platform.acted"');
+  const audit = server.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
   const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
   assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");
 });

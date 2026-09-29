@@ -105,12 +105,12 @@ export async function releaseLine(
   if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
   const del = await db.from("lines").delete().eq("id", line.id);
   if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
-  await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, {
+  await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
     provider: choice.name,
     ...released,
     ...event,
-  } as Json).catch(() => {});
+  }).catch(() => {});
   return { ok: true, released };
 }
 

@@ -97,3 +97,44 @@ test("an error that is not a refusal is still a 500 that says nothing of its ins
     setBearerVerifier(prev);
   }
 });
+
+test("every answer names the request it served, and every line the request logged carries the name (log.ts)", async () => {
+  signedIn();
+  const { log } = await import(at("apps/dashboard/src/server/log.ts"));
+  const lines = [];
+  const real = { log: console.log, warn: console.warn };
+  console.log = console.warn = (text) => lines.push(JSON.parse(text));
+  let ok;
+  let refused;
+  try {
+    ok = await withRoute(async () => {
+      log.info("probe_line", { n: 1 });
+      return { fine: true };
+    })(
+      new Request("http://localhost/api/v1/x", {
+        headers: { authorization: `Bearer ${JWT}`, "x-vercel-id": "iad1::probe-0123" },
+      }),
+      {
+        params: Promise.resolve({}),
+      },
+    );
+    refused = await withRoute(async () => {
+      throw await coreRefusal();
+    })(req(), { params: Promise.resolve({}) });
+  } finally {
+    Object.assign(console, real);
+  }
+  assert.equal(
+    ok.headers.get("x-request-id"),
+    "iad1::probe-0123",
+    "the platform's id for the request, when it gave one",
+  );
+  const named = lines.filter((l) => l.request_id === "iad1::probe-0123").map((l) => l.event);
+  assert.deepEqual(named, ["probe_line", "route_answered"], "the handler's line and the wrapper's, under one name");
+  const id = refused.headers.get("x-request-id");
+  assert.match(id, /^[0-9a-f-]{36}$/, "else a fresh one, on a refusal too");
+  assert.deepEqual(
+    lines.filter((l) => l.request_id === id).map((l) => [l.event, l.code]),
+    [["route_refused", "validation"]],
+  );
+});

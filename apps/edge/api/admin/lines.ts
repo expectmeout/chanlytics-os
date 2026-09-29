@@ -291,7 +291,7 @@ async function record(c: LineCall): Promise<Response> {
   if (refused) return respond(refused);
   const up = await c.db.from("business_records").upsert(plan.row, { onConflict: "tenant_id" }).select("*").single();
   if (up.error) return refuse(503, "write_failed", up.error.message);
-  await emitEvent(c.db, c.tenantId, "business.recorded", "setup", "tenant", c.tenantId, {
+  await emitEvent(c.db, c.tenantId, "business.recorded", "tenant", c.tenantId, {
     legal_name: plan.row.legal_name,
     path: plan.path,
   }).catch(() => {});

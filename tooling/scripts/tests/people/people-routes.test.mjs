@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { DEAL_REFUSALS } from "@chanlytics/contracts";
+import { asText } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1700,7 +1701,7 @@ test("both People reads answer the workspace's pace where deals are on: its last
   // A read that fails costs the pace, never the list, and says so in the log.
   const logged = [];
   const keep = console.error;
-  console.error = (...a) => logged.push(a.join(" "));
+  console.error = (...a) => logged.push(asText(a));
   try {
     const r = await contacts.GET.run(get(inA), {
       ...ctxFor(world("proposal"), {}, rpcs),
@@ -1887,7 +1888,7 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
   // A read that fails costs the facts, never the list, and says so in the log.
   const logged = [];
   const keep = console.error;
-  console.error = (...a) => logged.push(a.join(" "));
+  console.error = (...a) => logged.push(asText(a));
   try {
     for (const fail of ["playbooks.select", "templates.select", "tenant_channels.select"]) {
       const r = await contacts.GET.run(get(inA), {

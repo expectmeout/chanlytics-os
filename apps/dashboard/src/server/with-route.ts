@@ -26,6 +26,8 @@ import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
 import { serverTimingHeader } from "./server-timing";
+import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
+import { log, withRequestId } from "./log";
 
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
@@ -76,8 +78,30 @@ const timed = (authMs: number, started: number) => ({
  * SESSION-scoPED client so RLS is the enforcement -> envelope + structured log.
  * Service-role never appears here. Next 15 route params (a Promise) are
  * awaited and passed through as ctx.params.
+ *
+ * Each request is named first (channels requestIdOf: the platform's id for it, or a fresh one; never the browser's),
+ * and runs as that name (log.ts withRequestId): every line logged beneath it carries it, a call to the edge carries it
+ * on, and the answer carries it back in x-request-id.
  */
 export function withRoute<T>(
+  handler: (req: Request, ctx: RouteContext & { params: Record<string, string | string[] | undefined> }) => Promise<T>,
+) {
+  const answer = answerOf(handler);
+  return (
+    req: Request,
+    routeCtx: { params: Promise<Record<string, string | string[] | undefined>> },
+  ): Promise<Response> => {
+    const id = requestIdOf(req.headers, { trustCaller: false });
+    return withRequestId(id, async () => {
+      const res = await answer(req, routeCtx);
+      res.headers.set(REQUEST_ID_HEADER, id);
+      return res;
+    });
+  };
+}
+
+/** withRoute's answer to one request, once it has been named. */
+function answerOf<T>(
   handler: (req: Request, ctx: RouteContext & { params: Record<string, string | string[] | undefined> }) => Promise<T>,
 ) {
   return async (
@@ -104,7 +128,7 @@ export function withRoute<T>(
       // and reads none, so there is no ambient credential a foreign page could ride on; the rule is the cookie's.
       const bearer = bearerOf(req);
       if (!bearer && req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
-        console.log(JSON.stringify({ level: "warn", route, event: "cross_site_write_refused" }));
+        log.warn("cross_site_write_refused", { route });
         return NextResponse.json(err("forbidden", "This request did not come from the app."), {
           status: 403,
           headers: PRIVATE,
@@ -131,7 +155,7 @@ export function withRoute<T>(
         // they were typing. A 503 says try again, and the client leaves the
         // session alone.
         if (isRetryableAuthError(authErr)) {
-          console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr?.message }));
+          log.error("auth_unavailable", { route, error: authErr?.message });
           return NextResponse.json(err("upstream_auth", "Could not verify your session just now — try again."), {
             status: 503,
             headers: PRIVATE,
@@ -157,7 +181,7 @@ export function withRoute<T>(
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
       });
-      console.log(JSON.stringify({ level: "info", route, user: user.sub, ms: Date.now() - started }));
+      log.info("route_answered", { route, user: user.sub, ms: Date.now() - started });
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
       // rule every other exit uses, UNLESS the handler asked for a private
@@ -174,13 +198,13 @@ export function withRoute<T>(
       return NextResponse.json(ok(data), { headers: timed(authMs, started) });
     } catch (e) {
       if (e instanceof AppError) {
-        console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
+        log.warn("route_refused", { route, code: e.code, ms: Date.now() - started });
         return NextResponse.json(err(e.code, e.message, e.details), {
           status: e.status,
           headers: { ...PRIVATE, ...refusalHeaders(e) },
         });
       }
-      console.error(JSON.stringify({ level: "error", route, error: e instanceof Error ? e.message : String(e) }));
+      log.error("route_failed", { route, error: e instanceof Error ? e.message : String(e) });
       return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
     }
   };

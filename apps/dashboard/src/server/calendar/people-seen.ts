@@ -6,6 +6,7 @@
 import "server-only";
 import { afterPersonRefused, peopleFromItems, type FeedItem, type PersonLike } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
+import { log } from "@/server/log";
 
 /**
  * The people the feed names by phone who are not in People yet, added
@@ -51,10 +52,7 @@ export async function addPeopleSeen(
         firstRefusal ??= error.message;
         continue;
       }
-      console.error(
-        "calendar_person_add_failed",
-        JSON.stringify({ tenant: tenantId, code: error.code, error: error.message }),
-      );
+      log.error("calendar_person_add_failed", { tenant: tenantId, code: error.code, error: error.message });
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
@@ -70,15 +68,18 @@ export async function addPeopleSeen(
       });
       if (!eErr) email = r.email;
       else if (eErr.code !== "23505" && eErr.code !== "22023")
-        console.error("calendar_person_email_failed", JSON.stringify({ tenant: tenantId, code: eErr.code }));
+        log.error("calendar_person_email_failed", { tenant: tenantId, code: eErr.code });
     }
     added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email });
   }
   if (refused) {
-    console.error(
-      "calendar_people_refused",
-      JSON.stringify({ tenant: tenantId, refused, of: rows.length, added: added.length, first: firstRefusal }),
-    );
+    log.error("calendar_people_refused", {
+      tenant: tenantId,
+      refused,
+      of: rows.length,
+      added: added.length,
+      first: firstRefusal,
+    });
   }
   return added;
 }

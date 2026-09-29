@@ -19,24 +19,23 @@ const msg = (i) => ({
   sound: "default",
   data: { route: null, notification_id: "n", tenant_id: "t" },
 });
+/** The service's answer as fetch hands it over: a real Response, which the transport reads through providerFetch. */
+const reply = (status, body) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
+
 const stub = (answer) => {
   const calls = [];
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
     calls.push({ url, auth: init.headers.Authorization ?? null, n: body.length });
     if (answer instanceof Error) throw answer;
-    if (typeof answer === "number") return { ok: false, status: answer, text: async () => "no" };
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: body.map((m) =>
-          m.to === "tok-1"
-            ? { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } }
-            : { status: "ok", id: "r" },
-        ),
-      }),
-    };
+    if (typeof answer === "number") return reply(answer, "no");
+    return reply(200, {
+      data: body.map((m) =>
+        m.to === "tok-1"
+          ? { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } }
+          : { status: "ok", id: "r" },
+      ),
+    });
   };
   return { calls, fetchImpl };
 };
@@ -72,30 +71,21 @@ test("the access token rides as a bearer when set; a refusal or a dead wire thro
 test("once a batch has left, a later batch's refusal or dead wire is said in its receipts, never thrown", async () => {
   // A retry after a throw would send the first hundred again (RETRY_WAITS_MS push_send): the ledger's rule.
   const answers = [
-    () => ({ ok: true, status: 200, json: async () => ({ data: [] }) }),
-    () => ({ ok: false, status: 503, text: async () => "busy" }),
+    (init) => reply(200, { data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) }),
+    () => reply(503, "busy"),
   ];
-  const fetchImpl = async (url, init) => {
-    const a = answers.shift()();
-    if (a.ok) a.json = async () => ({ data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) });
-    return a;
-  };
+  const fetchImpl = async (url, init) => answers.shift()(init);
   const receipts = await expoPush(fetchImpl).send(Array.from({ length: PUSH_BATCH + 2 }, (_, i) => msg(i)));
   assert.equal(receipts.length, PUSH_BATCH + 2);
   assert.deepEqual(receipts[0], { to: "tok-0", status: "ok", id: "r" });
   assert.deepEqual(receipts[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected 503 busy" });
   const dead = [
-    () => ({ ok: true }),
+    (init) => reply(200, { data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) }),
     () => {
       throw new Error("ECONNRESET");
     },
   ];
-  const dying = async (url, init) => {
-    const a = dead.shift()();
-    a.status = 200;
-    a.json = async () => ({ data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) });
-    return a;
-  };
+  const dying = async (url, init) => dead.shift()(init);
   const r2 = await expoPush(dying).send(Array.from({ length: PUSH_BATCH + 1 }, (_, i) => msg(i)));
   assert.deepEqual(r2[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected ECONNRESET" });
 });
@@ -107,23 +97,18 @@ test("tokens of two apps in one batch: the service refuses the whole batch, so e
     calls.push(body.map((m) => m.to));
     const tokens = body.map((m) => m.to);
     if (tokens.includes("tok-0") && tokens.includes("tok-2")) {
-      return {
-        ok: false,
-        status: 400,
-        text: async () =>
-          JSON.stringify({
-            errors: [
-              {
-                code: "PUSH_TOO_MANY_EXPERIENCE_IDS",
-                message: "All push notification messages in the same request must be for the same project",
-                details: { "@ours/chanlytics": ["tok-0", "tok-1"], "@someone/else": ["tok-2"] },
-              },
-            ],
-          }),
-      };
+      return reply(400, {
+        errors: [
+          {
+            code: "PUSH_TOO_MANY_EXPERIENCE_IDS",
+            message: "All push notification messages in the same request must be for the same project",
+            details: { "@ours/chanlytics": ["tok-0", "tok-1"], "@someone/else": ["tok-2"] },
+          },
+        ],
+      });
     }
-    if (tokens.includes("tok-2")) return { ok: false, status: 400, text: async () => "not yours" };
-    return { ok: true, status: 200, json: async () => ({ data: tokens.map(() => ({ status: "ok", id: "r" })) }) };
+    if (tokens.includes("tok-2")) return reply(400, "not yours");
+    return reply(200, { data: tokens.map(() => ({ status: "ok", id: "r" })) });
   };
   const receipts = await expoPush(fetchImpl).send([msg(0), msg(1), msg(2), msg(3)]);
   assert.deepEqual(calls, [["tok-0", "tok-1", "tok-2", "tok-3"], ["tok-0", "tok-1"], ["tok-2"]]);
@@ -144,7 +129,7 @@ test("the receipts, a thousand ids a request, by id; a phone gone in its receipt
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
     calls.push({ url, n: body.ids.length });
-    if (body.ids.includes("boom")) return { ok: false, status: 500, text: async () => "down" };
+    if (body.ids.includes("boom")) return reply(500, "down");
     const data = {};
     for (const id of body.ids) {
       if (id === "gone") data[id] = { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } };
@@ -152,7 +137,7 @@ test("the receipts, a thousand ids a request, by id; a phone gone in its receipt
         continue; // no receipt yet: absent, not an answer
       else data[id] = { status: "ok" };
     }
-    return { ok: true, status: 200, json: async () => ({ data }) };
+    return reply(200, { data });
   };
   const ids = Array.from({ length: RECEIPTS_BATCH + 2 }, (_, i) => (i === 3 ? "gone" : i === 4 ? "late" : `t${i}`));
   const got = await expoPush(fetchImpl).receipts(ids);

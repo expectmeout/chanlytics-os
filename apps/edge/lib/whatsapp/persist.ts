@@ -279,7 +279,7 @@ export function pgSink(
     allowlistSkip: () =>
       on
         ? pgSafe("allowlist_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id),
+            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "message", ing!.message_id, {}),
           )
         : Promise.resolve(),
     /**
@@ -289,7 +289,7 @@ export function pgSink(
     unreachableSender: () =>
       on
         ? pgSafe("unreachable_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id),
+            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "message", ing!.message_id, {}),
           )
         : Promise.resolve(),
     /**
@@ -328,7 +328,7 @@ export function pgSink(
     vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on
         ? pgSafe("veto_fallback_evt", () =>
-            emitEvent(db!, tenantId!, "policy.veto_window_skipped", "policy", "conversation", ing!.conversation_id, {
+            emitEvent(db!, tenantId!, "policy.veto_window_skipped", "conversation", ing!.conversation_id, {
               delay_ms: delayMs,
               // WHICH hold did not happen. The confidence dial rides this same
               // window, and labelling its hold a veto window sent owners who
@@ -336,7 +336,7 @@ export function pgSink(
               source,
               // Scheduling is one insert now, so there is one cause left to name.
               reason: "scheduling_failed",
-            } as Json),
+            }),
           )
         : Promise.resolve(),
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
@@ -347,9 +347,7 @@ export function pgSink(
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
-      on
-        ? pgSafe("usage", () => recordTokens(db!, tenantId!, ing!.conversation_id, u as unknown as Json))
-        : Promise.resolve(),
+      on ? pgSafe("usage", () => recordTokens(db!, tenantId!, ing!.conversation_id, u)) : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can
      *  alert once per hold rather than once per message. Undefined when

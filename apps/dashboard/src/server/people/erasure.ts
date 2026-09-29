@@ -3,6 +3,7 @@ import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
 import { erasureDigests, readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
 import { inWorkspace } from "../conversations/media";
+import { log } from "@/server/log";
 
 /** A North American number as formatPhoneDisplay writes it, `+1 (AAA) EEE-NNNN`, read back into its three groups. */
 const NORTH_AMERICAN = /^\+1 \((\d{3})\) (\d{3})-(\d{4})$/;
@@ -108,11 +109,12 @@ export async function removeMediaObjects(
   named: string[],
 ): Promise<{ requested: number; removed: string[]; error: string | null }> {
   const paths = named.filter((p) => inWorkspace(tenantId, p));
-  if (paths.length < named.length) console.error("media_remove_refused", tenantId, named.length - paths.length);
+  if (paths.length < named.length)
+    log.error("media_remove_refused", { tenant: tenantId, refused: named.length - paths.length });
   if (!paths.length) return { requested: 0, removed: [], error: null };
   const { data, error } = await serviceDb().storage.from("media").remove(paths);
   if (error) {
-    console.error("media_remove_failed", error.message);
+    log.error("media_remove_failed", { error: error.message });
     return { requested: paths.length, removed: [], error: error.message };
   }
   return { requested: paths.length, removed: (data ?? []).map((o) => o.name), error: null };

@@ -1,5 +1,6 @@
 import { AppError, NOTE_REFUSALS, type PersonNoteDto, type PersonNoteTeamDto } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
+import { log } from "@/server/log";
 
 type NoteRow = {
   id: string;
@@ -92,7 +93,7 @@ export async function personNotesRead(
     teamNames(ctx, tenantId),
   ]);
   if (rows.error) {
-    console.error("person_notes_read_failed", JSON.stringify({ contact: contactId, error: rows.error.message }));
+    log.error("person_notes_read_failed", { contact: contactId, error: rows.error.message });
     return team ? { team } : {};
   }
   const names = new Map((team ?? []).map((m) => [m.id, m.name]));
@@ -128,7 +129,7 @@ export function noteAnswer(
   const r = (data ?? {}) as { error?: string; note?: NoteRow; removed?: string };
   if (r.note || r.removed) return { note: r.note, removed: r.removed };
   if (!(r.error && NOTE_REFUSALS[r.error])) {
-    console.error("note_door_unknown_answer", JSON.stringify({ door, error: r.error ?? null }));
+    log.error("note_door_unknown_answer", { door, error: r.error ?? null });
   }
   const status = r.error === "not_found" ? 404 : r.error === "not_yours" ? 403 : r.error === "moved" ? 409 : 400;
   throw new AppError(

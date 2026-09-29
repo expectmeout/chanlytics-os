@@ -1,4 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
+export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
 export { normalizeInbound, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
 export type {
   WaConfig,
@@ -112,7 +114,7 @@ export {
   isAreaCode,
 } from "./lines/lines";
 export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";
-export { twilioProvider, twilioUrls, TwilioError, fetchTwilio } from "./lines/lines-twilio";
+export { twilioProvider, twilioUrls, TwilioError, fetchTwilio, twilioRequest } from "./lines/lines-twilio";
 export type { TwilioAnswer, TwilioHttp } from "./lines/lines-twilio";
 export { dryProvider } from "./lines/lines-dry";
 export type { DryCall, DryProvider } from "./lines/lines-dry";
@@ -312,6 +314,7 @@ export {
 } from "./google/google-profile";
 export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
 export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
+export { requestIdOf, REQUEST_ID_HEADER } from "./tokens/request-id";
 export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
 export {
   signUnsubscribeToken,

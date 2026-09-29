@@ -5,6 +5,7 @@ import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
 import { attachment, callText, dateTag, personLabel, safeName } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 /**
  * GET /api/v1/calls/:id/export — one call as a text file: the transcript
@@ -30,16 +31,12 @@ export const GET = read({
     const now = new Date();
     const text = callText(call, { business: name, tz: timezone, exportedAt: now });
     const who = personLabel(call.contact) !== "Unknown" ? personLabel(call.contact) : (call.from_e164 ?? "caller");
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "export.call",
-        user: userId,
-        tenant: member.tenantId,
-        call: id,
-        turns: call.transcript_object?.length ?? 0,
-      }),
-    );
+    log.info("export.call", {
+      user: userId,
+      tenant: member.tenantId,
+      call: id,
+      turns: call.transcript_object?.length ?? 0,
+    });
     await recordDecision(ctx, member.tenantId, "call", id, "export", {
       what: "call",
       turns: call.transcript_object?.length ?? 0,

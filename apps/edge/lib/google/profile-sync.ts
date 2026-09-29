@@ -152,7 +152,7 @@ export async function syncProfile(
     });
   }
   if (plan.fresh.length) {
-    await emitEvent(db, conn.tenant_id, "google.reviews", "google", "listing", null, {
+    await emitEvent(db, conn.tenant_id, "google.reviews", "listing", null, {
       source: "profile",
       fresh: plan.fresh.length,
       counted: 0,

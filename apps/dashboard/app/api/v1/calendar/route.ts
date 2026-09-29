@@ -5,6 +5,7 @@ import { addPeopleSeen } from "@/server/calendar/people-seen";
 import { weekFrom } from "@/server/calendar/calendar-week";
 import { load, readerContext } from "@/server/readers";
 import { sources } from "@/server/readers/calendar";
+import { log } from "@/server/log";
 
 const Query = z.object({
   /** YYYY-MM-DD; the Monday of today when absent. */
@@ -45,10 +46,10 @@ export const GET = read({
       people.push(
         ...(await addPeopleSeen(ctx, member.tenantId, s.parsed.items, s.serviceNames, people, rc.now).catch(
           (e: unknown) => {
-            console.error(
-              "calendar_people_seen_failed",
-              JSON.stringify({ tenant: member.tenantId, error: e instanceof Error ? e.message : String(e) }),
-            );
+            log.error("calendar_people_seen_failed", {
+              tenant: member.tenantId,
+              error: e instanceof Error ? e.message : String(e),
+            });
             return [];
           },
         )),

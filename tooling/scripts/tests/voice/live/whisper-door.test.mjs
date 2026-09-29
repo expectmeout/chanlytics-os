@@ -93,6 +93,13 @@ const unreachable = (why) => {
   };
   return p;
 };
+/** A door's line without the request it served (admin-auth names every admin door's request): what the line says. */
+const said = (line) => {
+  const { request_id: id, ...rest } = JSON.parse(line);
+  assert.match(id, /^[A-Za-z0-9._:-]{8,}$/, "the line names the request it served");
+  return rest;
+};
+
 /** The door's log lines, kept instead of printed. */
 function quiet() {
   const lines = [];
@@ -212,7 +219,7 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
     // The log: how many characters, whose call, what the provider said -- never the words.
     const line = log.lines.find((l) => l.includes('"event":"admin_whisper"'));
     assert.ok(line, "one line");
-    assert.deepEqual(JSON.parse(line), {
+    assert.deepEqual(said(line), {
       level: "info",
       event: "admin_whisper",
       call_id: CALL,
@@ -253,7 +260,7 @@ test("a call that just ended is a status in a sentence, not an exception in a ro
     gone.restore();
   }
   assert.deepEqual(await answer(res), [502, { ok: false, error: "provider_refused", status: 404 }]);
-  assert.deepEqual(JSON.parse(log.lines.find((l) => l.includes('"event":"admin_whisper"'))), {
+  assert.deepEqual(said(log.lines.find((l) => l.includes('"event":"admin_whisper"'))), {
     level: "info",
     event: "admin_whisper",
     call_id: CALL,

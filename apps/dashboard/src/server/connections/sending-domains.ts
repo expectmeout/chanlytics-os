@@ -6,9 +6,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError, sendingDomainDtoOf, type EdgeErrorCode, type SendingDomainDto } from "@chanlytics/contracts";
-import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { deployment } from "../deployment";
-import type { EdgeAnswer } from "./lines";
 
 const AUD = "/api/admin/sending-domains";
 
@@ -31,24 +30,11 @@ async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_000): P
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every provider door keeps: a preview never creates a domain at the real account.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
-  try {
-    const r = await fetch(`${edgeUrl()}${AUD}`, {
-      method: "POST",
-      headers: edgeHeaders(AUD, {
-        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
-        user: typeof body.user_id === "string" ? body.user_id : null,
-      }),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const parsed = (await r.json().catch(() => null)) as unknown;
-    return {
-      status: r.status,
-      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
-    };
-  } catch (e) {
-    return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
-  }
+  return callEdge(AUD, body, {
+    workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    user: typeof body.user_id === "string" ? body.user_id : null,
+    timeoutMs,
+  });
 }
 
 let domainsReadyCache: { at: number; ready: boolean } | null = null;

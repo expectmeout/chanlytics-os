@@ -1,6 +1,7 @@
 import "server-only";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 /**
  * Whether a stored object's path is this workspace's own: `<workspace id>/…`, as the edge writes every one (a message's
@@ -20,12 +21,12 @@ export function inWorkspace(tenantId: string, storagePath: string): boolean {
  */
 export async function signedMediaUrl(tenantId: string, storagePath: string, seconds = 300): Promise<string | null> {
   if (!inWorkspace(tenantId, storagePath)) {
-    console.error("signed_media_url_refused", tenantId);
+    log.error("signed_media_url_refused", { tenant: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
   }
   const { data, error } = await serviceDb().storage.from("media").createSignedUrl(storagePath, seconds);
   if (error) {
-    console.error("signed_media_url_failed", error.message);
+    log.error("signed_media_url_failed", { error: error.message });
     return null;
   }
   return data?.signedUrl ?? null;

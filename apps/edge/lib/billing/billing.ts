@@ -8,7 +8,7 @@
  */
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { emitEvent } from "../packages/db.js";
 import {
   BILLING_STATUSES,
@@ -260,10 +260,9 @@ export async function applySubscription(
     db,
     row.tenant_id,
     plan.switched === "paused" ? "billing.paused" : plan.switched === "resumed" ? "billing.resumed" : "billing.updated",
-    "billing",
     "subscription",
     null,
-    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id } as Json,
+    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id },
   ).catch(() => {});
   L.info("billing_applied", {
     source,
@@ -582,8 +581,8 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
   // The reason is built outside the call: the event-kinds lint reads every
   // dotted literal inside an emitEvent to its closing paren, and Stripe's own
   // event names look exactly like ours.
-  const why = { source: DELETED_CUSTOMER, status: "none" } as Json;
-  await emitEvent(db, row.tenant_id, "billing.updated", "billing", "subscription", null, why).catch(() => {});
+  const why = { source: DELETED_CUSTOMER, status: "none" };
+  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, why).catch(() => {});
 }
 
 /**

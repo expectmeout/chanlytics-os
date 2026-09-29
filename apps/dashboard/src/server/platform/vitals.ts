@@ -3,6 +3,7 @@ import "server-only";
 import { PAGE_VITALS_READ, type PageVitalsInputDto, type PageVitalsRowDto } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
 import type { BackOffice } from "./platform";
+import { log } from "@/server/log";
 
 /**
  * Field data's two doors (00255): the route keeps what a page load reported, and the back office reads the 75th
@@ -20,10 +21,7 @@ import type { BackOffice } from "./platform";
 export async function keepPageVitals(input: PageVitalsInputDto): Promise<number> {
   const { data, error } = await serviceDb().rpc("note_page_vitals", { p_page: input.page, p_vitals: input.vitals });
   if (error) {
-    console.warn(
-      "page_vitals_not_kept",
-      JSON.stringify({ code: error.code ?? null, message: String(error.message).slice(0, 200) }),
-    );
+    log.warn("page_vitals_not_kept", { code: error.code ?? null, message: String(error.message).slice(0, 200) });
     return 0;
   }
   return typeof data === "number" ? data : 0;

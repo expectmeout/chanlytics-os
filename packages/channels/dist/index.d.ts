@@ -1,6 +1,89 @@
 import { SchemaSet, DomainRecord, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
 export { GREETING_DEFAULT, greetingFor } from '@chanlytics/contracts';
 
+/**
+ * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo): bounded, never
+ * throwing, and said as one of four outcomes a caller can act on without reading the provider's answer itself.
+ *
+ * Before it, each adapter had its own fetch. Sixteen calls had no bound at all, and one hung connection held a
+ * webhook's whole invocation. A network fault surfaced three ways: thrown (Twilio, Retell's writes), returned as
+ * status 0 (WhatsApp), or read as "timeout" (email). And only email's timeout was ever marked as a send whose outcome
+ * nobody knows (the scorecard, 26 and 28 September 2026).
+ *
+ * SendOutcome, what the call came to:
+ *   ok         a 2xx.
+ *   refused    the provider answered no (a 4xx but 408 and 429): asking again gets the same answer.
+ *   retryable  nothing was done, and asking again later may work: 408 and 429 (the provider said "not now"), a
+ *              connection that never opened, or this provider's breaker open. A send with this outcome provably did
+ *              not leave.
+ *   unknown    it may have been done: a timeout, a connection dropped after the request left, or a 5xx (a 503 from
+ *              a gateway proves nothing about the service behind it). A send with this outcome is never sent again
+ *              blind; its receipt may still settle it.
+ *
+ * Retry by outcome: a call asks again, up to `tries`, only when asking again cannot do the work twice. That is a
+ * `retryable` answer always, and an `unknown` one only for an `idempotent` call (a read, or a write the provider
+ * dedupes by a key). A try that used its whole bound is not tried again: the time is the caller's. The wait is the
+ * provider's Retry-After when it gives one, else a short backoff, all inside `deadlineMs`.
+ *
+ * The breaker, one per provider in this instance: after BREAKER_FAILURES calls in a row that got no answer or a 5xx,
+ * calls to that provider are not made for BREAKER_OPEN_MS and come back `retryable` with `breaker_open`. A dead
+ * provider then costs each caller nothing instead of its whole timeout. The first call after the pause is let
+ * through (and whatever else asks at that moment); its answer closes the breaker, or opens it again. A refusal, a
+ * 408 or a 429 is the provider answering, never a fault. The state lives in the instance: each serverless instance
+ * learns an outage for itself. A call that puts words in front of a person (`breaker: "count"`: a WhatsApp or SMS
+ * send, an email, an alert) is always made, and only counts toward the breaker: a reply is never failed on the
+ * strength of another call's timeouts.
+ */
+/** Who is called: the breaker keeps one state per name. */
+type Provider = "meta" | "twilio" | "retell" | "resend" | "google" | "apify" | "expo";
+/** What a call to a provider came to (the header says each). */
+type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
+interface ProviderReply {
+    outcome: SendOutcome;
+    /** The HTTP status, or 0 when no answer came. */
+    status: number;
+    /** The answer's body as text ("" when none). */
+    text: string;
+    /** The body parsed as JSON, or null. */
+    json: unknown;
+    headers: Headers | null;
+    /** How long the provider asked us to wait (Retry-After), in ms, when it said. */
+    retryAfterMs: number | null;
+    /** Why no answer came: "timeout", "breaker_open", or the network's own words. Null when one came. */
+    error: string | null;
+    /** How many requests left: 0 when the breaker held the call. */
+    tries: number;
+}
+interface ProviderCall extends Omit<RequestInit, "signal"> {
+    /** Each try's bound. Required: a call to a provider without one is the fault this module ends. */
+    timeoutMs: number;
+    /** Tries in all, the first included (1, no retry, unless said). */
+    tries?: number;
+    /** Asking again cannot do the work twice: a read, or a write under the provider's idempotency key. */
+    idempotent?: boolean;
+    /** The longest the whole call may take, its retries and waits included. */
+    deadlineMs?: number;
+    /** "count": always made, its faults counted, never held by an open breaker (a send to a person). Default "hold". */
+    breaker?: "hold" | "count";
+}
+/** What a test hands in instead of the network and the clock. */
+interface ProviderDeps {
+    fetch?: typeof fetch;
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+}
+/** A provider's breaker as it stands: what a report of the platform's health, or a test, reads. */
+declare function breakerOf(provider: Provider, now?: number): {
+    open: boolean;
+    failures: number;
+};
+/** Every breaker closed: for a test, which must not inherit the last test's outage. */
+declare function resetBreakers(): void;
+/** One call to a provider, bounded, never thrown, retried only when asking again cannot do the work twice. */
+declare function providerFetch(provider: Provider, url: string, call: ProviderCall, deps?: ProviderDeps): Promise<ProviderReply>;
+/** An answer's JSON as an object, or null: what most adapters read. */
+declare function answerObject(a: ProviderReply): Record<string, unknown> | null;
+
 interface WaConfig {
     phoneId: string;
     accessToken: string;
@@ -162,6 +245,12 @@ interface SendResult {
      */
     leftAs?: "own" | "mailbox";
     leftAsWhy?: EmailLeftAsWhy;
+    /**
+     * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
+     * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
+     * request it will not send), which asked no provider.
+     */
+    outcome?: SendOutcome;
 }
 /**
  * Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). `domain_held`: the
@@ -921,6 +1010,8 @@ interface SmsSendResult {
     status: number;
     /** The provider's error code when refused: 21610 = the person opted out at the carrier, 30034 = the line is not registered yet. */
     code: number | null;
+    /** What the send came to (provider-fetch SendOutcome), when the provider's port said. */
+    outcome?: SendOutcome;
 }
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
 declare const RETELL_ORIGINATION = "sip:sip.retellai.com";
@@ -975,8 +1066,11 @@ declare const isAreaCode: (n: unknown) => n is number;
  */
 
 interface TwilioAnswer {
+    /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
     status: number;
     body: Record<string, unknown> | null;
+    /** What the call came to (provider-fetch SendOutcome); absent from a test double that does not say. */
+    outcome?: SendOutcome;
 }
 type TwilioHttp = (acct: ProviderAccount, method: "GET" | "POST" | "DELETE", url: string, form?: Record<string, string>) => Promise<TwilioAnswer>;
 declare const twilioUrls: {
@@ -1002,7 +1096,20 @@ declare class TwilioError extends Error {
     readonly code: number | null;
     constructor(status: number, body: Record<string, unknown> | null, what: string);
 }
-/** The fetch-backed port: basic auth as `acct`, 15 s per call. */
+/**
+ * One call to Twilio as `acct`, through providerFetch: basic auth, a form body already encoded (the port's, or A2P's
+ * own encoder), 15 s unless said. A read is asked twice when the first got no answer quickly.
+ */
+declare function twilioRequest(acct: ProviderAccount, method: "GET" | "POST" | "DELETE", url: string, o?: {
+    form?: string;
+    timeoutMs?: number;
+    breaker?: "hold" | "count";
+}): Promise<ProviderReply>;
+/**
+ * The fetch-backed port: basic auth as `acct`, 15 s per call, through twilioRequest. It never throws: a call that got
+ * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
+ * which a saga step's `need` refuses as any other failure.
+ */
 declare const fetchTwilio: TwilioHttp;
 declare function twilioProvider(http?: TwilioHttp): LineProvider;
 
@@ -1702,6 +1809,8 @@ interface ResendAnswer {
     raw: string;
     headers: Headers | null;
     timedOut: boolean;
+    /** What the call came to (provider-fetch SendOutcome). */
+    outcome: SendOutcome;
 }
 /**
  * One call to the provider. It never throws: every answer is a status the caller reads, and "we could not ask"
@@ -1712,6 +1821,7 @@ declare function resendRequest(cfg: ResendConfig, method: "GET" | "POST" | "DELE
     body?: unknown;
     timeoutMs?: number;
     idempotencyKey?: string;
+    breaker?: "hold" | "count";
 }): Promise<ResendAnswer>;
 interface SendEmailOptions {
     /** How a short wait is waited (a test hands its own). */
@@ -2303,32 +2413,6 @@ type A2PResult = {
 };
 declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
 
-/**
- * Google Places (New): the public listing — what anyone can read on Maps.
- *
- * Two calls, pinned to the documented shapes. Text Search finds the business
- * from its name and address and asks for Pro fields only (a name, an
- * address, a link and the kind of place, which tells two listings of one name
- * apart — never the rating, which would bill the Enterprise SKU for a search
- * the owner confirms by eye anyway; Google's Text Search (New) field list,
- * checked on 24 Sep 2026, has primaryTypeDisplayName under Pro). Place Details reads what
- * the listing says: the rating, the count, and the five reviews Google shows
- * first — `reviews` is the Enterprise + Atmosphere field, the one that
- * costs, and it is asked for once a day per workspace.
- *
- * The key travels in a header and the field mask in another; without the
- * mask Google refuses the call. HTTP is a port, so the planner beside this
- * (google-sync.ts) and every test run without a network.
- *
- * Details also reads what the listing says beyond its name: the week, the
- * numbers, the site, the kind of place, whether it serves an area rather
- * than an address, and its zone -- kept on the listing for the first run to
- * offer the owner (contracts GoogleListingFacts). None of those costs more:
- * `reviews` already bills the read at the top tier. The names are Google's
- * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
- * refuses the whole read, so the test pins them name by name.
- */
-
 declare const PLACES_BASE = "https://places.googleapis.com/v1";
 declare const PLACES_SEARCH_MASK: string;
 declare const PLACES_DETAILS_MASK: string;
@@ -2402,7 +2486,10 @@ declare function searchPlaces(http: PlacesHttp, key: string, query: string, opts
 declare function getPlace(http: PlacesHttp, key: string, placeId: string, opts?: {
     languageCode?: string;
 }): Promise<PlaceDetails>;
-/** The real port: fetch with a timeout, the body as text whatever the status. */
+/**
+ * The real port: providerFetch with a timeout, the body as text whatever the status. A call that got no answer throws
+ * the network's words, as the bare fetch it replaces did; a read (a GET) is asked twice first.
+ */
 declare function placesFetch(fetchImpl?: typeof fetch, timeoutMs?: number): PlacesHttp;
 /** A place id as Google issues them: letters, digits, dashes and underscores. */
 declare const PLACE_ID: RegExp;
@@ -2708,6 +2795,22 @@ type EdgeTokenVerdict = {
 /** Signature first, in constant time; only a signed payload is parsed. */
 declare function verifyEdgeToken(secret: string, token: string, aud: string, nowMs?: number): EdgeTokenVerdict;
 
+/**
+ * One request's name, from the browser to the edge and back: the dashboard names each request it serves (with-route),
+ * every line it logs carries the name, a call it makes to the edge carries it in REQUEST_ID_HEADER, and the edge's
+ * lines carry it too. "What happened to this click?" is then one search, across both apps' logs.
+ */
+/** The header a request's name rides in: from the dashboard to the edge, and back to the browser on every answer. */
+declare const REQUEST_ID_HEADER = "x-request-id";
+/**
+ * The name this request goes by. The caller's, when it is trusted to give one (the edge's admin doors, called by the
+ * dashboard with a token) and gave a sane one; else the platform's own for this request (x-vercel-id); else a fresh
+ * one. A browser's header is not taken: it could name its requests after someone else's.
+ */
+declare function requestIdOf(headers: Headers, opts: {
+    trustCaller: boolean;
+}): string;
+
 interface UnsubscribeClaims {
     tenantId: string;
     contactId: string;
@@ -2820,4 +2923,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type MailCapability, type MailDomainFacts, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProviderAnswer, type ProviderDomain, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, type SagaResult, type SendEmailOptions, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, apifyClient, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestLeavesAs, resendLimitOf, resendRequest, resendWebhookSignature, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type MailCapability, type MailDomainFacts, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderAnswer, type ProviderCall, type ProviderDomain, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, REQUEST_ID_HEADER, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, providerFetch, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestIdOf, requestLeavesAs, resendLimitOf, resendRequest, resendWebhookSignature, resetBreakers, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey };

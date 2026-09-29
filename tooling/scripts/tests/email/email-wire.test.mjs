@@ -8,7 +8,7 @@
  * customer or a model wrote can become a header, and that a retry is the same
  * request under the same key.
  */
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildEmailRequest,
@@ -23,7 +23,11 @@ import {
   replySubject,
   resendLimitOf,
   sendEmail,
+  resetBreakers,
 } from "@chanlytics/channels";
+
+// Each case starts with the provider's breaker closed: the timeouts one case stages are not the next case's outage.
+beforeEach(() => resetBreakers());
 
 const DOMAIN = "mail.chanlytics.com";
 const MAILBOX = { local_part: "bestmovers", reply_token: "abcdefghijklmnopqrstuvwx", from_name: "Best Movers" };
@@ -353,7 +357,12 @@ test("sendEmail posts the frozen request under its own key, returns what happene
   };
   try {
     const r = buildEmailRequest(input());
-    assert.deepEqual(await sendEmail({ apiKey: "test-key" }, r), { ok: true, wamid: "re_123", status: 200 });
+    assert.deepEqual(await sendEmail({ apiKey: "test-key" }, r), {
+      ok: true,
+      wamid: "re_123",
+      status: 200,
+      outcome: "ok",
+    });
     const { url, init } = seen[0];
     assert.equal(url, "https://api.resend.com/emails");
     assert.equal(init.headers["Idempotency-Key"], r.idempotency_key);
@@ -374,7 +383,7 @@ test("sendEmail posts the frozen request under its own key, returns what happene
     Object.assign(answer, { status: 200, body: "not json" });
     assert.deepEqual(
       await sendEmail({ apiKey: "k" }, r),
-      { ok: true, wamid: null, status: 200 },
+      { ok: true, wamid: null, status: 200, outcome: "ok" },
       "accepted without an id is still accepted: the receipt finds the row by its tag",
     );
     Object.assign(answer, {
@@ -388,7 +397,7 @@ test("sendEmail posts the frozen request under its own key, returns what happene
     Object.assign(answer, { throws: true });
     assert.deepEqual(
       await sendEmail({ apiKey: "k" }, r),
-      { ok: false, wamid: null, status: 0, errorBody: "socket hang up" },
+      { ok: false, wamid: null, status: 0, errorBody: "socket hang up", outcome: "unknown" },
       "status 0: never reached the provider",
     );
   } finally {
@@ -415,7 +424,7 @@ test("what the provider's refusal means for the next send: slow down, wait for t
     "a frozen request never changes: not a limit",
   );
   assert.equal(resendLimitOf(no(422, "validation_error")), null);
-  assert.equal(resendLimitOf({ ok: true, wamid: "re_1", status: 200 }), null);
+  assert.equal(resendLimitOf({ ok: true, wamid: "re_1", status: 200, outcome: "ok" }), null);
 });
 
 test("the provider's 'not this second' is waited out once, briefly, and the same bytes go again under the same key; anything longer comes back as it came", async () => {
@@ -444,7 +453,12 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
   try {
     const r = buildEmailRequest(input());
     answers = [limited("rate_limit_exceeded"), ok];
-    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { wait }), { ok: true, wamid: "re_2", status: 200 });
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { wait }), {
+      ok: true,
+      wamid: "re_2",
+      status: 200,
+      outcome: "ok",
+    });
     assert.deepEqual(waits, [1000], "as long as it asked, once");
     assert.equal(posted.length, 2);
     assert.equal(posted[1].body, posted[0].body, "the same bytes");
@@ -523,7 +537,11 @@ test("an email taken as the last its rate allowed waits out the reset before it 
     ]) {
       waits.length = 0;
       answers = [headers];
-      assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { wait }), { ok: true, wamid: "re_9", status: 200 }, why);
+      assert.deepEqual(
+        await sendEmail({ apiKey: "k" }, r, { wait }),
+        { ok: true, wamid: "re_9", status: 200, outcome: "ok" },
+        why,
+      );
       assert.deepEqual(waits, expected, why);
     }
     // With the real clock: it returns after about the second it was asked to wait.
@@ -553,7 +571,12 @@ test("a send that timed out goes once more under the same key, inside its deadli
   try {
     const r = buildEmailRequest(input());
     answers = ["timeout", { status: 200, body: JSON.stringify({ id: "re_7" }) }];
-    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { now }), { ok: true, wamid: "re_7", status: 200 });
+    assert.deepEqual(await sendEmail({ apiKey: "k" }, r, { now }), {
+      ok: true,
+      wamid: "re_7",
+      status: 200,
+      outcome: "ok",
+    });
     assert.equal(posted.length, 2, "posted again");
     assert.equal(posted[1].headers["Idempotency-Key"], posted[0].headers["Idempotency-Key"], "under the same key");
     assert.equal(posted[1].body, posted[0].body, "the same bytes");
@@ -565,6 +588,7 @@ test("a send that timed out goes once more under the same key, inside its deadli
       wamid: null,
       status: 0,
       errorBody: "timeout",
+      outcome: "unknown",
     });
     assert.equal(posted.length, 2);
 
@@ -642,12 +666,15 @@ test("after a timeout, a retry that finds the first still in flight, gets no ans
   ];
   try {
     for (const [second, why] of cases) {
+      // Each case is its own send: five faults in a row would open the provider's breaker (provider-fetch).
+      resetBreakers();
       let n = 0;
       globalThis.fetch = async () => (++n === 1 ? timeout() : second());
       const out = await sendEmail({ apiKey: "k" }, r, { now: () => 0 });
       assert.deepEqual([out.ok, out.status, out.errorBody], [false, 0, "timeout"], why);
     }
     // A plain refusal on the retry is the provider's answer: it saw the email and said no.
+    resetBreakers();
     let n = 0;
     globalThis.fetch = async () =>
       ++n === 1 ? timeout() : new Response(JSON.stringify({ name: "validation_error" }), { status: 422 });

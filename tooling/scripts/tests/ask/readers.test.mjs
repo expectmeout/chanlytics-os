@@ -20,6 +20,7 @@ import {
   toPersonVM,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -649,12 +650,18 @@ test("searches: GET lead-searches' answer -- every kept search with its latest r
 
 /* -------------------------------------- the Inbox and Today, as the page composes them */
 
-/** What `fn` logged under one event name. */
+/**
+ * What `fn` logged under one event name: a logger line's fields (src/server/log.ts), or a package's own line's values
+ * after its name.
+ */
 async function logged(event, fn) {
   const lines = [];
   const was = console.error;
-  console.error = (name, ...rest) => {
-    if (name === event) lines.push(rest);
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line) {
+      if (line.event === event) lines.push(fieldsOf(line));
+    } else if (args[0] === event) lines.push(args.slice(1));
   };
   try {
     return { result: await fn(), lines };
@@ -764,7 +771,7 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     Array.from({ length: 100 }, (_, i) => uuid(i)),
   );
   assert.equal(short.data.escalations.length, 2, "the escalations stand");
-  assert.deepEqual(lines, [[1]], "one waiting customer the read could not bring, counted");
+  assert.deepEqual(lines, [{ unread: 1 }], "one waiting customer the read could not bring, counted");
 });
 
 test("Today for Ask as the page composes it: the day's metrics, the newest hundred, the open escalations, the calls and the searches at once -- no escalated thread fetched by id, which is the Inbox's read -- each read once in the turn and shared with the Inbox; a failed calls or searches read is null and the rest stands", async () => {
@@ -826,7 +833,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noCalls.data.calls, null, "a calls read that failed is its own state, not none");
   assert.equal(noCalls.data.conversations.length, 100);
   assert.equal(noCalls.data.searches.length, 1);
-  assert.deepEqual(callLines, [["permission denied"]]);
+  assert.deepEqual(callLines, [{ error: "permission denied" }]);
 
   const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
     kernel.load(
@@ -838,7 +845,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
-  assert.deepEqual(searchLines, [["down"]]);
+  assert.deepEqual(searchLines, [{ error: "down" }]);
 });
 
 /* -------------------------------------------------- the thread and the call (PR 1.3) */
@@ -1632,7 +1639,7 @@ test("a report the function will not answer is GET reports' 404, in its sentence
   assert.equal(page.booking, null, "the line, and only the line, is lost");
   assert.deepEqual([page.report.days, page.deals.any, page.deals.clients], [30, true, 1]);
   assert.deepEqual(
-    lines.map(([json]) => JSON.parse(json)),
+    lines,
     // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
     [{ tenant: A, error: "getTenantConfig: config down" }],
   );
@@ -2280,7 +2287,7 @@ test("the people list's calendar is never fatal: settings that cannot be read co
     );
     assert.deepEqual([page.deals_on, Object.keys(page.follow_up.had), page.page.total], [true, [P2], 2]);
     assert.deepEqual(
-      lines.map(([json]) => JSON.parse(json)),
+      lines,
       // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
       [{ tenant: A, error: "getTenantConfig: config down" }],
     );
@@ -2835,10 +2842,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       "no calendar read: the moments it names are not counted",
     );
     assert.ok(blind.pools.everyone_monthly && blind.playbooks.length === 2, "and everything else stands");
-    assert.deepEqual(
-      lines.map(([json]) => JSON.parse(json)),
-      [{ tenant: A, error: "getTenantConfig: config down" }],
-    );
+    assert.deepEqual(lines, [{ tenant: A, error: "getTenantConfig: config down" }]);
     const { result: r2 } = await logged("playbook_pools_visits_failed", () =>
       kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
     );

@@ -162,7 +162,7 @@ export async function connectProfile(
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
-  await emitEvent(db, tenantId, "google.connected", "google", "listing", null, {
+  await emitEvent(db, tenantId, "google.connected", "listing", null, {
     email: claims.email,
     accounts: new Set(locations.map((l) => l.account_name)).size,
     locations: locations.length,
@@ -281,7 +281,7 @@ export async function disconnectProfile(
   if (gone.error) throw new Error(gone.error.message);
   const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);
   if (del.error) throw new Error(del.error.message);
-  await emitEvent(db, tenantId, "google.disconnected", "google", "listing", null, {
+  await emitEvent(db, tenantId, "google.disconnected", "listing", null, {
     email: conn.google_email,
     location: conn.location_name,
     revoked,

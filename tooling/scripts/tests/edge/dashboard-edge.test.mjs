@@ -15,7 +15,9 @@ const SECRET = "edge-secret-for-this-file";
 const KEY = "diag-key-for-this-file";
 const AUD = "/api/admin/lines";
 
-const { edgeHeaders, edgeConfigured, edgeUrl } = await importSrc("apps/dashboard/src/server/edge.ts");
+const { edgeHeaders, edgeConfigured, edgeUrl, callEdge, edgeAnswered } = await importSrc(
+  "apps/dashboard/src/server/edge.ts",
+);
 
 /** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */
 async function withEnv(vars, fn) {
@@ -72,4 +74,80 @@ test("where the edge is: the address the dashboard has always called unless EDGE
   await withEnv({ EDGE_URL: "https://edge-preview.example.com/" }, () =>
     assert.equal(edgeUrl(), "https://edge-preview.example.com"),
   );
+});
+
+test("every call to the edge is bounded and never throws: the door's answer as it came, a 503 named edge_timeout when it did not answer in time, edge_unreachable when it could not be reached", async () => {
+  await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
+    const calls = [];
+    const answering = async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ ok: false, error: "preview", detail: "Not here." }), { status: 409 });
+    };
+    const a = await callEdge(AUD, { tenant_id: "ws-1" }, { workspace: "ws-1", user: "u-1", fetch: answering });
+    assert.deepEqual(a, { status: 409, body: { ok: false, error: "preview", detail: "Not here." } });
+    assert.equal(edgeAnswered(a), false);
+    assert.equal(calls[0].url, "https://edge.test/api/admin/lines");
+    assert.equal(calls[0].init.method, "POST");
+    assert.equal(calls[0].init.body, JSON.stringify({ tenant_id: "ws-1" }));
+    assert.ok(calls[0].init.signal instanceof AbortSignal, "a bound rides every call");
+    assert.ok(calls[0].init.headers["x-edge-token"], "the door's token");
+
+    const read = await callEdge("/api/admin/whatsapp/signup-config", null, {
+      method: "GET",
+      fetch: async (_u, init) => {
+        assert.equal("body" in init, false, "a read carries no body");
+        return new Response(JSON.stringify([1]), { status: 200 });
+      },
+    });
+    assert.deepEqual(read, { status: 200, body: null }, "a body that is not an object is no body");
+    assert.equal(edgeAnswered(read), true);
+
+    const slow = await callEdge(
+      AUD,
+      {},
+      {
+        fetch: async () => {
+          throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+        },
+      },
+    );
+    assert.deepEqual([slow.status, slow.body.error], [503, "edge_timeout"]);
+    const gone = await callEdge(
+      AUD,
+      {},
+      {
+        fetch: async () => {
+          throw new TypeError("fetch failed");
+        },
+      },
+    );
+    assert.deepEqual([gone.status, gone.body.error, gone.body.detail], [503, "edge_unreachable", "fetch failed"]);
+  });
+});
+
+test("a request's name: the caller's only where it is trusted to give one, else the platform's, else a fresh one; the dashboard's calls to the edge carry the name of the request they serve", async () => {
+  const { requestIdOf, REQUEST_ID_HEADER } = await import("@chanlytics/channels");
+  const { withRequestId, requestId } = await importSrc("apps/dashboard/src/server/log.ts");
+  const h = (o) => new Headers(o);
+  assert.equal(REQUEST_ID_HEADER, "x-request-id");
+  assert.equal(requestIdOf(h({ "x-request-id": "dash-0123456789" }), { trustCaller: true }), "dash-0123456789");
+  assert.equal(
+    requestIdOf(h({ "x-request-id": "dash-0123456789", "x-vercel-id": "iad1::abcdefgh-1" }), { trustCaller: false }),
+    "iad1::abcdefgh-1",
+    "a browser's header is not taken",
+  );
+  assert.match(requestIdOf(h({ "x-request-id": "<script>" }), { trustCaller: true }), /^[0-9a-f-]{36}$/);
+  assert.match(requestIdOf(h({}), { trustCaller: false }), /^[0-9a-f-]{36}$/);
+
+  assert.equal(requestId(), null, "outside a request, none");
+  await withEnv({ EDGE_CALL_SECRET: SECRET }, () =>
+    withRequestId("iad1::req-0123456789", async () => {
+      await Promise.resolve();
+      assert.equal(requestId(), "iad1::req-0123456789", "held across what the request awaits");
+      assert.equal(edgeHeaders(AUD)["x-request-id"], "iad1::req-0123456789");
+    }),
+  );
+  await withEnv({ EDGE_CALL_SECRET: SECRET }, () => {
+    assert.equal("x-request-id" in edgeHeaders(AUD), false, "no request, no name");
+  });
 });

@@ -180,6 +180,13 @@ export function inAppBootScript(): string {
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 /** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
 export const PREFETCH_SLOT = "__prefetched";
+/**
+ * How long a read the head started may wait for its headers, as long as the client's own read would (client/api.ts
+ * READ_TIMEOUT_MS): a hung one used to hold the page for ever, since the client waits on it in place of its own; timed
+ * out, the client asks again itself. The bound ends when the headers arrive, so a body the client reads later is never
+ * cut off by it.
+ */
+const PREFETCH_TIMEOUT_MS = 15_000;
 
 /**
  * The route's own reads, started from the document head.
@@ -190,7 +197,8 @@ export const PREFETCH_SLOT = "__prefetched";
  * the two reads every workspace page opens on -- who is looking (GET workspaces) and, on a person's page, the person
  * -- spelled exactly as the client spells them (client/api.ts urlFor: the path, then ?workspace=<slug>), and parks
  * the promises on the window for the client to take once, in place of its own fetch. Off a workspace page nothing
- * is read. A refusal here is the client's to hear, as it would have been.
+ * is read. A refusal here is the client's to hear, as it would have been, and a read whose headers do not come in
+ * PREFETCH_TIMEOUT_MS gives way to the client's own.
  */
 export function routePrefetchScript(): string {
   return [
@@ -202,7 +210,12 @@ export function routePrefetchScript(): string {
     'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin"});',
+    "var M=window.AbortController;",
+    "var g=function(x){",
+    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
+    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
+    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
+    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
     "}}catch(e){}",
   ].join("");
 }

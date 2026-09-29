@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { logLineOf } from "../_log-lines.mjs";
 
 process.env.EDGE_PROVIDERS = "live";
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
@@ -63,7 +64,7 @@ test("an edge that cannot end a plan never fails the deletion, which already hap
   );
   const said = [];
   const realError = console.error;
-  console.error = (...args) => said.push(args[0]);
+  console.error = (...args) => said.push(logLineOf(args)?.event ?? args[0]);
   try {
     assert.deepEqual(await w.del(), { deleted: true, workspaces_left_empty: 1 });
   } finally {

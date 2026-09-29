@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -252,12 +253,18 @@ function scripted(rounds) {
   };
   return { round, requests };
 }
-/** What the turn logged under one event name, while `fn` ran. */
+/**
+ * What the turn logged under one event name, while `fn` ran: an Ask line's values after its name, or a logger line's
+ * fields (src/server/log.ts) as JSON.
+ */
 async function logged(event, fn) {
   const lines = [];
   const was = { warn: console.warn, error: console.error };
-  console.warn = console.error = (name, ...rest) => {
-    if (name === event) lines.push(rest.join(" "));
+  console.warn = console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line) {
+      if (line.event === event) lines.push(JSON.stringify(fieldsOf(line)));
+    } else if (args[0] === event) lines.push(args.slice(1).join(" "));
   };
   try {
     return { result: await fn(), lines };

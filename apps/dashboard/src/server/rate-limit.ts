@@ -28,6 +28,7 @@
 import { AppError, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "@/server/log";
 
 interface RateRule {
   limit: number;
@@ -277,7 +278,7 @@ export function postgresStore(db: Pick<SupabaseClient<Database>, "rpc">, fallbac
         const why = e instanceof Error ? e.message : String(e);
         if (now - warnedAt > WARN_EVERY_MS) {
           warnedAt = now;
-          console.error("rate_store_failed", JSON.stringify({ bucket, error: why }));
+          log.error("rate_store_failed", { bucket, error: why });
         }
         // Money is not spent on a count this instance alone would hold.
         if (strict) throw uncountable("the shared store did not answer");
@@ -306,16 +307,13 @@ export function memoryByConfiguration(
     async take(bucket, actor, rule, now, strict = false) {
       if (!said) {
         said = true;
-        console.error(
-          "rate_store_memory_by_configuration",
-          JSON.stringify({
-            production,
-            bucket,
-            note: production
-              ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance"
-              : "no database keys: ceilings are per instance, which is the whole limiter on a laptop",
-          }),
-        );
+        log.error("rate_store_memory_by_configuration", {
+          production,
+          bucket,
+          note: production
+            ? "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing: every ceiling is per instance"
+            : "no database keys: ceilings are per instance, which is the whole limiter on a laptop",
+        });
       }
       if (strict) throw uncountable("this deployment has no shared store");
       return fallback.take(bucket, actor, rule, now);

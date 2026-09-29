@@ -730,7 +730,7 @@ test("everything is filed as the workspace's own subaccount, with our primary pr
     lib.includes("accountSid: sub.sid,") && !lib.includes("accountSid: master.sid,"),
     "the address belongs to the same account as the profile",
   );
-  assert.ok(lib.includes("const acct = sub;"), "one account for every call");
+  assert.ok(lib.includes("await twilioRequest(sub, req.method, req.url, {"), "one account for every call");
   const raw = readRaw("packages/channels/src/lines/a2p/wire.ts");
   assert.ok(
     raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"),

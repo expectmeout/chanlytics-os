@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
 import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
+import { log } from "@/server/log";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -116,7 +117,7 @@ export const POST = write({
       .rpc("create_workspace", partnerCode ? { ...args, p_partner_code: partnerCode } : args)
       .single();
     if (error && partnerCode && noSuchSignature(error.code, error.message)) {
-      console.error("partner_code_dropped", JSON.stringify({ code: partnerCode, error: error.message }));
+      log.error("partner_code_dropped", { code: partnerCode, error: error.message });
       ({ data, error } = await ctx.supabase.rpc("create_workspace", args).single());
     }
 
@@ -149,9 +150,9 @@ export const POST = write({
     if (pendingWorkspaceOf(ctx.metadata)) {
       try {
         const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });
-        if (clearErr) console.error("pending_workspace_clear_failed", clearErr.message);
+        if (clearErr) log.error("pending_workspace_clear_failed", { error: clearErr.message });
       } catch (e) {
-        console.error("pending_workspace_clear_failed", e instanceof Error ? e.message : String(e));
+        log.error("pending_workspace_clear_failed", { error: e });
       }
     }
 
