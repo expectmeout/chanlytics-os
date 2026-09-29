@@ -616,9 +616,9 @@ const CalendarReal = ({ initialDay = null }) => {
         <div className="cal-bar" data-testid="cal-bar">
           <div className="cal-when">
             <div className="cal-steps">
-              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous (←)" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev"><Icon name="chevron" size={14} className="cal-flip" /></button>
-              <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
-              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next"><Icon name="chevron" size={14} /></button>
+              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev"><Icon name="chevron" size={14} className="cal-flip" /></button>
+              <button className="btn btn-ghost btn-sm cal-today-btn" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
+              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next" aria-label="Next" onClick={() => move(1)} data-testid="cal-next"><Icon name="chevron" size={14} /></button>
             </div>
             {/* The range says which days are on screen, and opens a date picker: the date field was a control of its own. */}
             <label className="cal-title" title="Go to a date">
@@ -703,7 +703,7 @@ const CalendarReal = ({ initialDay = null }) => {
             <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
             <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through {vm.offer.label}</span>
             <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
-            <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
+            <span className="cal-legend-rules">Times are {vm.zoneCity} time</span>
           </div>
           <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={toggleAbout} data-testid="cal-about-toggle">
             Hours and rules <Icon name="chevron-down" size={12} />

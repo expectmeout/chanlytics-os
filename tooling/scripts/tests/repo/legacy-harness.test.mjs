@@ -563,7 +563,19 @@ const boundNames = (p, out = []) => {
   return out;
 };
 
-/** A legacy file as the harness runs it: JSX compiled, top-level const/let/class made var as env makes them. */
+/** How many object rests (`{ a, ...rest }`, in a parameter or a declaration) a parsed file holds, at any depth. */
+const objectRestsIn = (node) => {
+  if (!node || typeof node !== "object") return 0;
+  if (Array.isArray(node)) return node.reduce((n, k) => n + objectRestsIn(k), 0);
+  let n = node.type === "ObjectPattern" && node.properties.some((p) => p.type === "RestElement") ? 1 : 0;
+  for (const [k, v] of Object.entries(node)) if (k !== "type" && v && typeof v === "object") n += objectRestsIn(v);
+  return n;
+};
+
+/**
+ * A legacy file as the harness runs it: JSX compiled, top-level const/let/class made var as env makes them; and how
+ * many object rests it holds, which env compiles to a top-level `var _excluded` (below).
+ */
 const asClassicScript = (file) => {
   let code = transformSync(fs.readFileSync(path.join(ROOT, LEGACY, file), "utf8"), {
     loader: "jsx",
@@ -572,7 +584,9 @@ const asClassicScript = (file) => {
   }).code;
   const names = [];
   const edits = [];
-  for (const s of parse(code, { ecmaVersion: "latest", sourceType: "script" }).body) {
+  const ast = parse(code, { ecmaVersion: "latest", sourceType: "script" });
+  const rests = objectRestsIn(ast);
+  for (const s of ast.body) {
     if (s.type === "VariableDeclaration") {
       for (const d of s.declarations) boundNames(d.id, names);
       if (s.kind !== "var") edits.push([s.start, s.start + s.kind.length, "var"]);
@@ -583,7 +597,7 @@ const asClassicScript = (file) => {
     }
   }
   for (const [from, to, text] of edits.sort((a, b) => b[0] - a[0])) code = code.slice(0, from) + text + code.slice(to);
-  return { code, names };
+  return { code, names, rests };
 };
 
 /** One name, one meaning: the same value, or the same function written twice (a helper copied into two files). */
@@ -606,8 +620,10 @@ const sharedScope = (() => {
   const threw = [];
   const declared = new Map();
   const twoMeanings = [];
+  const withRests = [];
   for (const file of harness) {
-    const { code, names } = asClassicScript(file);
+    const { code, names, rests } = asClassicScript(file);
+    if (rests) withRests.push(`${file} (${rests})`);
     try {
       new vm.Script(code, { filename: file }).runInContext(win);
     } catch (e) {
@@ -619,7 +635,7 @@ const sharedScope = (() => {
       declared.set(name, { file, value: win[name] });
     }
   }
-  return { threw, twoMeanings };
+  return { threw, twoMeanings, withRests };
 })();
 
 test("every file the harness loads runs in its shared scope", () => {
@@ -635,4 +651,18 @@ test("no two files the harness loads give one top-level name two meanings", () =
   // to the seed palette's AskAnswer (dashboard-a-ask.jsx), replaced by ask-turn.jsx's. A name a later file sets on
   // purpose with `window.X = ...` (the *-real.jsx pages) is an assignment, not a declaration, and is not held here.
   assert.deepEqual(sharedScope.twoMeanings, []);
+});
+
+test("at most one file the harness loads takes an object rest: Babel keeps each file's excluded keys in one global", () => {
+  // What the shared scope above cannot see, because esbuild keeps an object rest as it is: the harness compiles each
+  // file with @babel/standalone's env preset, which hoists an object rest's excluded keys to a top-level
+  // `var _excluded` (`_excluded2`, … within the file), named the same in every file. Two files with a rest give that
+  // one global two lists, and the file loaded last decides what every other file's rest leaves out: settings.jsx's
+  // SetToggle list put LeadPeek's vm, mode and deck into its panes' acts, and put id, label and unit on the record
+  // kit's <input> before RecordField gathered its rest by hand (#777). A rest is taken with window.propsWithout
+  // (data-bits.jsx); one file may keep one, having nothing to clash with.
+  assert.ok(
+    sharedScope.withRests.length <= 1,
+    `object rests in more than one file (take them with window.propsWithout): ${sharedScope.withRests.join(", ")}`,
+  );
 });

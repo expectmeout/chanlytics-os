@@ -1,6 +1,7 @@
 /**
- * The palette's jump: the pages a real workspace has (ASK_PAGES), and a few typed words matched against them and
- * against the people, threads and calls the browser already holds (askJump). A question is not a jump.
+ * The palette's jump: the pages a real workspace has (ASK_PAGES, and askPages with the two a workspace has only
+ * sometimes), and a few typed words matched against them and against the people, threads and calls the browser already
+ * holds (askJump). A question is not a jump.
  */
 
 /* ------------------------------------------------------------------- jump */
@@ -20,9 +21,10 @@ export interface JumpEntry {
 }
 
 /**
- * The pages a real workspace has. Nothing here is seeded or demo-only. The list stopped at the pages that were real
- * before the Calendar, Lists, Campaigns, Setup, Billing and Activity shipped, so ⌘K "calendar" offered only to ask
- * about it (the wiring audit's N18).
+ * The pages every real workspace has. Nothing here is seeded or demo-only, and every real page is here or in askPages
+ * (ask.test.mjs holds it against the shell's registry): the list once stopped at the pages that were real before
+ * the Calendar, Lists, Campaigns, Setup, Billing and Activity shipped, so ⌘K "calendar" offered only to ask about it
+ * (the wiring audit's N18).
  */
 export const ASK_PAGES: JumpEntry[] = [
   { label: "Today", to: "today", kind: "page" },
@@ -61,14 +63,57 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // What the receptionist knows lives in Business details; the Memory pane says so and points here.
+  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
+  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
+  // its name lands here too, never on that pane (#417).
   {
     label: "Receptionist memory",
     to: "admin/workspace",
     kind: "page",
     sub: "hours, services and notes, in Business details",
+    also: ["ai memory"],
   },
 ];
+
+/** What a workspace has, of the pages it has only sometimes. */
+interface AskPagesHas {
+  /** Deals are on here: People's surface says so (0008), and People draws the Pipeline as its third scope. */
+  dealsOn: boolean;
+  /** The person is Chanlytics staff: the rail draws the back office for them alone. */
+  platformAdmin: boolean;
+}
+
+/**
+ * The Pipeline: People's third scope where deals are on (0008, people.jsx plScopes). Where they are off its address
+ * draws People, so it is no jump there.
+ */
+const PIPELINE: JumpEntry = {
+  label: "Pipeline",
+  to: "clients/pipeline",
+  kind: "page",
+  sub: "your deals, by stage",
+  also: ["deals"],
+};
+
+/** The back office, Chanlytics staff's alone (settings.jsx SET_TABS_PLATFORM); anyone else there lands on Profile. */
+const BACK_OFFICE: JumpEntry = {
+  label: "Back office",
+  to: "admin/platform",
+  kind: "page",
+  sub: "every workspace, for Chanlytics staff",
+};
+
+/** The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, and the back office. */
+export function askPages(has: AskPagesHas): JumpEntry[] {
+  const out: JumpEntry[] = [];
+  for (const p of ASK_PAGES) {
+    out.push(p);
+    if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
+  }
+  if (has.platformAdmin) out.push(BACK_OFFICE);
+  return out;
+}
 
 /**
  * Two words jump to a page, a person, a thread or a call from what the browser already holds. A question mark or a

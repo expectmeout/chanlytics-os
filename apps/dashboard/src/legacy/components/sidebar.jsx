@@ -207,8 +207,9 @@ const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => 
 ) : null;
 
 // The workspaces this account belongs to, the one being viewed checked, the
-// caller's role beside it, ⌘1–9 when there is a choice, and the door to its
-// settings. Switching goes through the shell, which re-runs every surface.
+// caller's role beside it, and the door to its settings. Switching goes
+// through the shell, which re-runs every surface. ⌘1–9 switch too (app-shell.jsx);
+// the ? sheet says so, and nothing here draws a key.
 const WorkspaceMenu = ({ onNavigate, close }) => {
   const all = window.__WORKSPACES || (window.__DEMO_MODE ? [{ id: "demo", name: sbWorkspaceName() }] : []);
   const active = sbWorkspace() || (window.__DEMO_MODE ? all[0] : null) || null;
@@ -216,11 +217,10 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
   // Each workspace's own role beside it (0012): a partner's list says which are theirs and which they brought.
   const roleOf = (w, current) =>
     w.role && window.__identity ? window.__identity.words({ email: null, role: w.role }).role : current ? role : null;
-  const hotkey = (i) => (all.length > 1 && window.__chrome ? window.__chrome.workspaceHotkey(i) : null);
   return (
     <>
       <div className="more-header">{all.length > 1 ? "Workspaces" : "Workspace"}</div>
-      {all.map((w, i) => {
+      {all.map((w) => {
         const current = !!active && w.id === active.id;
         return (
           <button
@@ -233,7 +233,6 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
           >
             <span className="sb-ws-mark">{sbMarkOf(w.name)}</span>
             <span className="more-item-label">{w.name}{roleOf(w, current) ? <span className="sb-ws-role">{roleOf(w, current)}</span> : null}</span>
-            {hotkey(i) && <span className="more-item-meta kbd">{hotkey(i)}</span>}
             {current && <Icon name="check" size={12} />}
           </button>
         );
@@ -318,7 +317,7 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
       )}
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); window.dispatchEvent(new CustomEvent("shortcuts:open")); }} data-testid="sb-me-shortcuts">
-        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span><span className="more-item-meta kbd">?</span>
+        <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span>
       </button>
       <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
         <Icon name="logout" size={13} /><span className="more-item-label">Sign out</span>
@@ -502,14 +501,13 @@ const Sidebar = ({
           type="button"
           className="sb-collapse"
           onClick={onToggleCollapse}
-          data-tip={collapsed ? "Expand the sidebar (⌘B)" : undefined}
+          data-tip={collapsed ? "Expand the sidebar" : undefined}
           data-tip-side="right"
           aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
           data-testid="sb-collapse"
         >
           <Icon name="sidebar" size={14} />
           <span className="sb-collapse-label">Collapse</span>
-          <span className="kbd sb-collapse-label">⌘B</span>
         </button>
         <button
           type="button"

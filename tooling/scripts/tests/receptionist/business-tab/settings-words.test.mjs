@@ -586,3 +586,55 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
 // wrote"); one-hours-algorithm.test.mjs holds it to the one implementation. The editor's "Check the address"
 // button went with the form: the calendar row states its last read instead, and says a read that failed with its
 // Retry (the spec's When you're open; business-tab-open.test.mjs draws both).
+
+test("a settings control is named by the row it sits in: what the row hands it lands on its element, and what the control takes for itself does not", () => {
+  // SetRow mints an id for its label and hands it to its control as aria-labelledby. The switch and the dials each
+  // take their own props and give the rest to their element -- spelled out with window.propsWithout, because in the
+  // standalone harness an object rest's excluded keys are a `var _excluded` every file shares, and one loaded later
+  // put another file's keys in force (legacy-harness.test.mjs). This stub draws a component when it is created, before
+  // the row clones it; the row's clone is drawn here, as React draws it.
+  workspace();
+  const wasGate = globalThis.window.gate;
+  // A gate that can be told apart from nothing, so where it lands shows.
+  globalThis.window.gate = () => ({ "data-gated": "" });
+  /** The element a control draws: a dial on a desk draws the choice of a few, which draws the group. */
+  const element = (drawn) => (typeof drawn.type === "function" ? element(drawn.rendered) : drawn);
+  const controls = (tab, name) =>
+    all(settings(tab), (n) => n.type?.name === "SetRow").flatMap((row) => {
+      const label = find(row.rendered, (n) => n.props?.className === "set-row-label")?.props.id;
+      return all(row.rendered, (n) => n.type?.name === name).map((clone) => ({
+        label,
+        drawn: element(clone.type(clone.props)),
+      }));
+    });
+  try {
+    // The switches are the mockup's Notifications, drawn where no workspace's settings were read.
+    workspace({ __SETTINGS: undefined });
+    const switches = controls("notifications", "SetToggle");
+    workspace();
+    assert.ok(switches.length >= 6, `the switches on Notifications: ${switches.length}`);
+    for (const { label, drawn } of switches) {
+      assert.equal(drawn.props.role, "switch");
+      assert.equal(drawn.props["aria-labelledby"], label, "a switch is announced by its row's words");
+      assert.ok(!("on" in drawn.props) && !("onChange" in drawn.props), "and its button never carries on or onChange");
+    }
+
+    const dials = controls("autonomy", "SetDial");
+    assert.ok(dials.length > 0, "the autonomy pane's dials");
+    for (const { label, drawn } of dials) {
+      assert.equal(drawn.props.role, "group");
+      assert.equal(drawn.props["aria-labelledby"], label, "a dial is announced by its row's words");
+      for (const own of ["value", "options", "onChange", "gate", "phone", "label", "data-gated"])
+        assert.ok(!(own in drawn.props), `the group never carries ${own}`);
+      const options = all(drawn, (n) => n.type === "button");
+      assert.ok(options.length && options.every((b) => "data-gated" in b.props), "the gate is on every option instead");
+    }
+    assert.deepEqual(
+      dials.map(({ drawn }) => drawn.props["data-testid"]).filter(Boolean),
+      ["aut-reply-cap", "aut-pause"],
+      "a test id handed to a dial lands on its group",
+    );
+  } finally {
+    globalThis.window.gate = wasGate;
+  }
+});

@@ -41,7 +41,7 @@ import { api } from "./api";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
 import { heldViews } from "./held-views";
-import { type SurfaceOverride } from "./surface-data";
+import type { SurfaceOverride } from "./surface-data";
 import { unwrap, type ApiResult, type RouteKey } from "../client/api";
 
 export interface LeadsView {

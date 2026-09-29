@@ -194,9 +194,8 @@ function humanize(kind: string): string {
 }
 
 const textAt = (o: Record<string, unknown>, k: string): string | null =>
-  typeof o[k] === "string" && (o[k] as string) ? (o[k] as string) : null;
-const numberAt = (o: Record<string, unknown>, k: string): number | null =>
-  typeof o[k] === "number" ? (o[k] as number) : null;
+  typeof o[k] === "string" && o[k] ? o[k] : null;
+const numberAt = (o: Record<string, unknown>, k: string): number | null => (typeof o[k] === "number" ? o[k] : null);
 
 /**
  * An import's sentence. One row per part of fifty, and the counts are the news: the sentence is them, not the verb's

@@ -292,10 +292,7 @@ test.describe("Ask with the page it is asked on", () => {
       test.setTimeout(120_000);
       await page.goto(`/#/${q.hash}`);
       await page.waitForLoadState("networkidle");
-      test.skip(
-        !(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)),
-        "the local harness installs no Ask client",
-      );
+      test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask client on this page");
       const context = await page.evaluate((words) => {
         const h = (window.location.hash || "").replace(/^#\/?/, "");
         const [p, ...rest] = h.split("/");

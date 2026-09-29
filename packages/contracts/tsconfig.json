@@ -1,7 +1,9 @@
 {
+  "//": "noUncheckedIndexedAccess waits here until contracts' index reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them.",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts"]
 }

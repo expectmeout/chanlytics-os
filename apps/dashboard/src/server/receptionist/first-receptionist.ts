@@ -20,7 +20,7 @@ import {
   receptionistOf,
   type BrainConfig,
 } from "@chanlytics/contracts";
-import { getTenantConfig, putTenantConfig, type Json } from "@chanlytics/db";
+import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listingFactsFor } from "../connections/google";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
@@ -53,7 +53,7 @@ export async function receptionistFromWhatIsKnown(ctx: RouteContext, tenantId: s
   // failure is a fault in the builder, said as one rather than stored.
   const next = TenantConfigWriteSchema.safeParse({ ...parsed.config, brain });
   if (!next.success) throw new AppError("internal", "The receptionist could not be set up from what is known.", 500);
-  const put = await putTenantConfig(ctx.supabase, tenantId, next.data as Json, row.version, ctx.userId);
+  const put = await putTenantConfig(ctx.supabase, tenantId, next.data, row.version, ctx.userId);
   if (!put.ok) {
     // A colleague's save landed between the read and the write. Where none was set up and it set one up, theirs
     // stands; anything else is the settings' own conflict, and a second press reads what is there now.

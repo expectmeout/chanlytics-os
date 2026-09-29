@@ -18,7 +18,6 @@ import {
   withKey,
   type LinePorts,
   type LineRow,
-  type LineSecrets,
   type LineProvider,
   type LineProviderName,
   type ProviderAccount,
@@ -61,8 +60,7 @@ export function lineProviderFromEnv(): LineProviderChoice | null {
 
 type Row = Database["public"]["Tables"]["lines"]["Row"];
 
-const facts = (j: Json): Record<string, unknown> =>
-  j && typeof j === "object" && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
+const facts = (j: Json): Record<string, unknown> => (j && typeof j === "object" && !Array.isArray(j) ? j : {});
 
 /** The row as the saga reads it. */
 export function rowToLine(r: Row): LineRow {
@@ -142,15 +140,14 @@ export function linePorts(
     store: {
       async save(patch) {
         const row: Partial<Row> = {};
-        for (const [k, v] of Object.entries(patch))
-          (row as Record<string, unknown>)[k] = k === "facts" ? (v as Json) : v;
+        for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
         const { error } = await db.from("lines").update(row).eq("id", line.id);
         if (error) throw new Error(`saving the line: ${error.message}`);
       },
       async getSecrets() {
         const { data, error } = await db.rpc("get_line_credentials", { p_line_id: line.id });
         if (error) throw new Error(`reading the line's credentials: ${error.message}`);
-        return data && typeof data === "object" && !Array.isArray(data) ? (data as LineSecrets) : {};
+        return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
         const { error } = await db.rpc("put_line_credentials", { p_line_id: line.id, p_secret: s as unknown as Json });
@@ -365,7 +362,7 @@ export async function releaseRoutingRows(
       // number of its own leaves the row's number alone; the line_id still
       // moves, so the row names something that exists.
       const patch: Database["public"]["Tables"]["tenant_channels"]["Update"] = {
-        config: { ...cfg, line_id: holder.id } as Json,
+        config: { ...cfg, line_id: holder.id },
       };
       if (holder.e164) patch.number_e164 = holder.e164;
       const moved = await db.from("tenant_channels").update(patch).eq("id", id).eq("tenant_id", tenantId);

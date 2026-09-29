@@ -501,10 +501,13 @@ const sharedViewer = ({ theme, look, navigate }) => (
   </div>
 );
 
-// The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is (first-run.jsx).
-const firstRunScreen = ({ theme, look, param, navigate }) => (
+// The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is (first-run.jsx). Ask
+// is the one piece of the chrome it keeps: ⌘K opens the Line over the step, on the start surface (Ask Rewired, Phase 7).
+// No door is drawn for it here; the first run draws no chrome, and no key is drawn outside the ? sheet.
+const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) => (
   <div className="fr-shell" data-theme={theme} data-look={look}>
     <window.FirstRun param={param} onNavigate={navigate} />
+    <AskBar open={askOpen} onClose={() => setAskOpen(false)} />
   </div>
 );
 
@@ -632,7 +635,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
   if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate });
-  if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate });
+  if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate, askOpen, setAskOpen });
 
   return appChrome({
     theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace,

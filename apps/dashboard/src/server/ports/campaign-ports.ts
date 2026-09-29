@@ -71,7 +71,7 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
           broadcast_id: id,
           contact_id: r.contact_id,
           tenant_id: tenantId,
-          ...(r.facts ? { facts: r.facts as unknown as Json } : {}),
+          ...(r.facts ? { facts: r.facts } : {}),
         }));
         const { error } = await ctx.supabase.from("broadcast_recipients").insert(chunk);
         if (error) throw new Error(error.message);
@@ -125,7 +125,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
         string,
         unknown
       >;
-      const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+      const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
       return numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
     },
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),

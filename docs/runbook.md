@@ -262,11 +262,15 @@ protocol. It checks that every class in `classes.json` is drawn; that every sele
 drawn by an entry, each selector of a list alone and a press's with the presses forced; that every `var()` a kit rule
 reads moves every longhand it feeds when that token is planted on the element, and a longhand a page's rule keeps is
 named; and that a new primitive computes every longhand its source computes, on every element and pseudo-element,
-pressed or not, but those its entry excepts. It fails on faults planted in the page, which is its own proof, and it
-prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, and the twins. What it
-cannot see is in the header of `e2e/kit/kit-checks.ts`. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the
-classes in `corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against
-production the spec skips, and the nightly's skip ceiling does not count it.
+pressed or not, but those its entry excepts. In both looks and at both widths, a toast raised over an open sheet must
+stand clear of the sheet's foot. Under Glass, at both widths and in both themes, every control an entry draws must show
+the house's ring when a key focuses it, and every word an entry draws must read 4.5:1, a large one 3:1, on the pixels
+drawn under it (a control that cannot be used is not held). It fails on faults planted in the page, which is its own
+proof, and it prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, the twins,
+the controls it focused and each run's lowest ratio. What it cannot see is in the header of `e2e/kit/kit-checks.ts`.
+`tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in `corepack pnpm test`, where no browser runs:
+a kit class added without its entry is red there. Against production the spec skips, and the nightly's skip ceiling
+does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 
@@ -324,6 +328,56 @@ What it cannot prove, so a pull request does not claim it:
 
 It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
 machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
+
+### Add a look
+
+A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Classic,
+what members see, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Glass, the canvases'
+finish, is drawn, and not yet offered: steps 1 to 4 below were its 5.1 to 5.3 in the plan, and steps 5 and 6 will be
+its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` and `isLookPref` in
+`packages/contracts/src/shell/chrome.ts` (the head's script reads the list), to the list's pins in
+`tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` and `l` key
+(`tooling/scripts/e2e-harness/kit-gallery.mjs`), and to the looks `e2e/kit/kit.spec.ts` runs.
+
+1. **The blocks.** `[data-look="<name>"]` after the roles block, and `[data-look="<name>"][data-theme="dark"]` after
+   that for its dark side, as Glass's are. They set the roles: the surfaces' fills, edges, radii and depths, the
+   controls, the actions. Where the look's colours differ, they also set the theme's own (`--bg*`, `--ink*`, `--line*`,
+   the tones, the accent), which many kit rules read directly. A colour the first block sets is set again in the
+   second: both come after the themes' blocks, so otherwise the first would hold in both themes. They set no scale,
+   and no token a kit rule keeps for itself.
+2. **Classic keeps its values.** A role the look needs that nothing reads yet comes with its reader in
+   `apps/dashboard/src/surfaces/kit/kit.css`, and with Classic's value in the roles block: the one that draws what the
+   rule drew before. For a blur, that is `none`, read through `var()` in both `backdrop-filter` and
+   `-webkit-backdrop-filter`. The build drops `backdrop-filter: none` written beside its prefixed twin (#929), and
+   cannot drop a `var()`. `blur(0)` is not `none`: any value but `none` makes its element a containing block for its
+   fixed children, and a stacking context. A translucent fill falls back to an opaque one under
+   `@supports not (backdrop-filter: blur(1px))` and under `prefers-reduced-transparency: reduce`.
+3. **It moves nothing in Classic.** The recorder draws every page in Classic, the look the harness's documents stamp
+   (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery without `?look=`), in both
+   themes. A recording from before the change and one after it are equal ("Prove a style change", above), backdrop
+   filters included.
+4. **It draws.** The gallery shows it in both themes, at a desk and on a phone: `?theme=light&look=<name>`, or `l` on
+   the page ("See the kit", above). `e2e/kit/kit.spec.ts` runs every width, theme and look, and holds each entry to
+   the tokens it reads there. It compares a twin with its source under Classic alone, since a source reads the theme's
+   colours where the kit reads the look's roles. The pull request shows the gallery in the four pairings, at both
+   widths.
+
+   Two readers of the tokens stand outside the gallery. The mascot reads the document's `--bg`, `--ink`, `--accent`
+   and `--accent-fg`, and reads them again only when `data-theme` changes
+   (`apps/dashboard/src/legacy-bridge/mascot/driver.ts`). The charts' palette was validated against the surfaces it
+   sits on (`apps/dashboard/src/legacy/styles/charts.css`, whose header says how). A look that changes those is
+   looked at on them, and the palette's validator runs again.
+
+   To see the look on the app itself before it is offered, set `look` to its name in the object this device keeps
+   under `chanlytics-os-prefs` in local storage, and reload: the head's script stamps it before first paint.
+
+5. **Offered.** `LOOK_OFFERED` in `chrome.ts` turns true, and the account menu draws Look under Theme. The flag's pins
+   change with it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`, which expects no Look while it is off), and
+   the packages' `dist` is rebuilt and committed. Ruben walks it on production.
+6. **The default.** `DEFAULT_LOOK_PREF` becomes the look: every device that never chose one draws it from its next
+   load, since a device keeps a look only once it is chosen (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and
+   a member who chose Classic keeps it. `chrome.test.mjs` and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin
+   the default, and `apps/dashboard/app/layout.tsx` stamps it on the document the server sends.
 
 ## What CI proves
 

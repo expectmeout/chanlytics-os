@@ -1,8 +1,8 @@
 /**
  * The kit (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): where a surface takes its primitives
  * from, each component with the type of its props, which a surface that wraps one names. Each export is named here,
- * never `export *`, so a new one is a line in a review. The Sheet's component waits on Ruben's decision whether the
- * kit builds its interactive components on Base UI (the plan's step 2.4).
+ * never `export *`, so a new one is a line in a review. The Sheet and every other component with behaviour of its own
+ * come with step 2.5, built on Base UI (the plan's decision 15).
  */
 export { cx, variants } from "./variants";
 export { Button } from "./button";

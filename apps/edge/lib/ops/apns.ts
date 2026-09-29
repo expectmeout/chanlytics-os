@@ -80,7 +80,7 @@ interface Http2Like {
 }
 type Connect = (origin: string) => Http2Like;
 
-const realConnect: Connect = (origin) => http2.connect(origin) as unknown as Http2Like;
+const realConnect: Connect = (origin) => http2.connect(origin);
 
 /**
  * Provider tokens by key, for the life of the process: the webhook builds a port per delivery, and a token minted per
@@ -136,7 +136,8 @@ export function apns(keys: ApnsKeys, wire: ApnsWire = {}): ApnsPort {
       let hung = false;
       const one = (device: string) =>
         new Promise<ActivitySend>((resolve) => {
-          let timer: ReturnType<typeof setTimeout> | undefined;
+          // Read by `done` before the timer is set (a broken connection fails at once), so never a const.
+          let timer: ReturnType<typeof setTimeout> | undefined = undefined;
           const done = (send: ActivitySend) => {
             waiting.delete(fail);
             clearTimeout(timer);

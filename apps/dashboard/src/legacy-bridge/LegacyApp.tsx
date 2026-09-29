@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
-import { subscribeMessagesInserts } from "@chanlytics/db";
+import { subscribeWorkspaceChanges } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
 import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
@@ -185,8 +185,8 @@ const useSurface = useSurfaceWith({ useCallback, useSyncExternalStore });
 // A surface that let a message pass while its page was elsewhere is read once as its page comes on screen
 // (surface-registry.ts onlyOnItsPage).
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
-/** The runner's live feed: the one subscription, over this browser's Supabase client. */
-const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeMessagesInserts(createClient(), onChange, opts);
+/** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
+const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
 const SURFACE_LABELS: Record<string, string> = {
   conversations: "Conversations",
   inbox: "Inbox",

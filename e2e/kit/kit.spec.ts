@@ -3,8 +3,13 @@ import path from "node:path";
 import { test, expect, type Browser, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import {
   KIT_SKIP_REASON,
+  NO_WORDS,
+  NO_WORDS_CSS,
   PRESSES,
+  focusRings,
+  groundsUnder,
   kitChecks,
+  placeEntry,
   toastsOverFeet,
   type KitAnswer,
   type KitAsk,
@@ -27,7 +32,13 @@ import {
  * 4. Each new primitive computes every longhand its source computes, and so do their pseudo-elements, pressed or not,
  *    dark and light, under Classic: a source reads the theme's colours where the kit reads a look's roles, so under
  *    Glass the two part by design.
- * 5. A toast raised over an open sheet stands clear of the sheet's foot, where its Save is, at both widths.
+ * 5. A toast raised over an open sheet stands clear of the sheet's foot, where its Save is, at both widths, in both
+ *    looks.
+ * 6. Under Glass, at both widths and in both themes: every control an entry draws shows the house's ring when a key
+ *    focuses it, its own box-shadow or outline or its box's (a field's, by :focus-within).
+ * 7. Under Glass, at both widths and in both themes: every word an entry draws reads 4.5:1, or 3:1 when it is large,
+ *    on the ground drawn under it, read from the page's own pixels with the words hidden, each entry shot at the top of
+ *    the window, where the look's strongest light stands. A control that cannot be used is not held (WCAG 1.4.3).
  * And each fails when what it checks is broken, shown on faults planted in the page, never on disk. The functions that
  * run in the page are e2e/kit/kit-checks.ts, which says what they cannot see. Motion is stopped as the recorder stops
  * it (STILL), and read with it off. The presses are forced by the browser's own devtools protocol
@@ -38,6 +49,7 @@ import {
 test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 
 const KIT_SHEET = "surfaces/kit/kit.css";
+const MINUTE_MS = 60_000;
 const STILL_ID = "kit-still";
 /** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
 const LISTS: { classes: string[]; modifiers?: string[] } = JSON.parse(
@@ -68,6 +80,8 @@ const EVERY: Run[] = [
 ];
 /** Where a twin is compared with its source: both widths and themes, under Classic. */
 const CLASSIC = EVERY.filter((r) => r.look === "classic" && !r.reduced);
+/** Where the look's own promises are held (a key's focus, the words' contrast): both widths and themes, under Glass. */
+const GLASS = EVERY.filter((r) => r.look === "glass" && !r.reduced);
 
 async function open(browser: Browser, baseURL: string | undefined, width: Width, reduced = false) {
   const { VIEWPORTS } = await recorder();
@@ -137,6 +151,35 @@ async function pressing<T>(page: Page, run: () => Promise<T>): Promise<T> {
 }
 
 const ask = (page: Page, question: KitAsk): Promise<KitAnswer> => page.evaluate(kitChecks, question);
+
+/**
+ * Check 7 on the page as it stands: every kit entry brought to the top of the window in turn, its words read, the
+ * ground under them shot with the words hidden, and each word's ratio on it (kit-checks.ts, placeEntry and
+ * groundsUnder). What fails is each word under its ratio, 4.5 or 3 for a large one, but in a control that cannot be
+ * used. The ratio of every word is kept by where it stands and what it says, for the checks' own proof.
+ */
+async function contrastOf(page: Page) {
+  await page.addStyleTag({ content: NO_WORDS_CSS });
+  const entries = await page.$$eval("[data-entry]:not([data-source])", (els) =>
+    els.map((e) => (e as HTMLElement).dataset.entry as string),
+  );
+  const found = { words: 0, lowest: Infinity, failures: [] as string[], ratios: {} as Record<string, number> };
+  for (const entry of entries) {
+    const placed = await page.evaluate(placeEntry, { entry, hide: NO_WORDS });
+    if (!placed.clip) continue;
+    const png = (await page.screenshot({ clip: placed.clip })).toString("base64");
+    const shot = { png, width: placed.clip.width, words: placed.words, hide: NO_WORDS };
+    for (const w of await page.evaluate(groundsUnder, shot)) {
+      if (w.ratio === null || w.exempt) continue;
+      found.words += 1;
+      found.lowest = Math.min(found.lowest, w.ratio);
+      found.ratios[`${w.at} "${w.text}"`] = w.ratio;
+      if (w.ratio < w.need)
+        found.failures.push(`${w.at} "${w.text}" reads ${w.ratio}:1 on rgb(${w.ground}), under ${w.need}`);
+    }
+  }
+  return found;
+}
 const rulesQ = (pressed: boolean): KitAsk => ({ check: "rules", sheet: KIT_SHEET, presses: PRESSES, pressed });
 /**
  * Check 3's question for a run. A run with reduced motion plants only what reduced motion alone holds (a rule inside
@@ -297,21 +340,55 @@ test("each new primitive computes every longhand its source computes, pressed or
   expect(failures, "a primitive that does not compute what its source computes").toEqual([]);
 });
 
-test("a toast raised over an open sheet stands clear of its foot, where its Save is, at both widths", async ({
+test("a toast raised over an open sheet stands clear of its foot, where its Save is, at both widths, in both looks", async ({
   browser,
   baseURL,
 }) => {
   for (const width of ["desk", "phone"] as const) {
     const { context, page } = await open(browser, baseURL, width);
     try {
-      await show(page);
-      const found = await page.evaluate(toastsOverFeet);
-      expect(found.pairs, `${width}: toasts compared with an open sheet's foot`).toBeGreaterThan(0);
-      expect(found.over, `${width}: a toast over a sheet's foot`).toEqual([]);
+      for (const look of ["classic", "glass"] as const) {
+        await show(page, "dark", look);
+        const found = await page.evaluate(toastsOverFeet);
+        expect(found.pairs, `${width} ${look}: toasts compared with an open sheet's foot`).toBeGreaterThan(0);
+        expect(found.over, `${width} ${look}: a toast over a sheet's foot`).toEqual([]);
+      }
     } finally {
       await context.close();
     }
   }
+});
+
+test("every control an entry draws shows the house's ring when a key focuses it: Glass, both widths and themes", async ({
+  browser,
+  baseURL,
+}) => {
+  const failures: string[] = [];
+  const counts: string[] = [];
+  await eachRun(browser, baseURL, GLASS, async (page, run) => {
+    const found = await page.evaluate(focusRings);
+    counts.push(`${label(run)} ${found.focusables}`);
+    failures.push(...found.failures.map((f) => `${label(run)}: ${f}`));
+  });
+  console.log(`rings: the controls a key focused, per run: ${counts.join(", ")}`);
+  expect(failures, "a control whose focus draws no ring").toEqual([]);
+});
+
+test("every word an entry draws reads 4.5:1, a large one 3:1, on the ground under it: Glass, both widths and themes", async ({
+  browser,
+  baseURL,
+}) => {
+  // Each entry is shot on its own, four runs over: longer than the harness's two minutes for a test.
+  test.setTimeout(10 * MINUTE_MS);
+  const failures: string[] = [];
+  const counts: string[] = [];
+  await eachRun(browser, baseURL, GLASS, async (page, run) => {
+    const found = await contrastOf(page);
+    counts.push(`${label(run)} ${found.words} words, the lowest at ${found.lowest}:1`);
+    failures.push(...found.failures.map((f) => `${label(run)}: ${f}`));
+  });
+  console.log(`contrast: ${counts.join("; ")}`);
+  expect(failures, "a word under its ratio on the ground under it").toEqual([]);
 });
 
 /* ---- the checks' own proof: each fails when what it checks is broken ---- */
@@ -591,16 +668,55 @@ test("check 5 names a toast over a sheet's foot: on a phone as the bell's list l
   for (const width of ["desk", "phone"] as const) {
     const { context, page } = await open(browser, baseURL, width);
     try {
-      await show(page);
-      expect((await page.evaluate(toastsOverFeet)).over).toEqual([]);
-      await faults[width](page);
-      expect(
-        (await page.evaluate(toastsOverFeet)).over.map((o) => o.split(":")[0]),
-        width,
-      ).toEqual(["sheet"]);
+      for (const look of ["classic", "glass"] as const) {
+        await show(page, "dark", look);
+        expect((await page.evaluate(toastsOverFeet)).over).toEqual([]);
+        await faults[width](page);
+        expect(
+          (await page.evaluate(toastsOverFeet)).over.map((o) => o.split(":")[0]),
+          `${width} ${look}`,
+        ).toEqual(["sheet"]);
+      }
     } finally {
       await context.close();
     }
+  }
+});
+
+test("checks 6 and 7 name a control whose focus draws no ring, and a word under its ratio, but a large one at 3:1", async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(5 * MINUTE_MS);
+  const { context, page } = await open(browser, baseURL, "desk");
+  try {
+    await show(page, "light", "glass");
+    await plantRules(page, [
+      ".gx-probe-noring:focus-visible { box-shadow: none !important; outline: none !important; }",
+      ".gx-probe-faint { color: rgb(170, 170, 176); }",
+      ".gx-probe-large { color: rgb(114, 114, 118); font-size: 26px; }",
+    ]);
+    await plantEntries(
+      page,
+      entry("probe-ring", '<button type="button">A probe</button>') +
+        entry("probe-noring", '<button type="button" class="gx-probe-noring">A probe</button>') +
+        entry("probe-faint", '<p class="gx-probe-faint">A faint probe</p>') +
+        entry("probe-large", '<p class="gx-probe-large">A large probe</p>'),
+    );
+    // 6. The house's ring draws on a plain button; a rule that takes it away is named.
+    expect((await page.evaluate(focusRings)).failures.filter((f) => f.startsWith("probe-"))).toEqual([
+      "probe-noring: button.gx-probe-noring draws no ring when a key focuses it",
+    ]);
+    // 7. Pale words are named; a large word under 4.5:1 is held to 3:1 and passes.
+    const found = await contrastOf(page);
+    expect(found.failures.filter((f) => f.startsWith("probe-")).map((f) => f.split(" reads ")[0])).toEqual([
+      'probe-faint: p.gx-probe-faint "A faint probe"',
+    ]);
+    const large = found.ratios['probe-large: p.gx-probe-large "A large probe"'];
+    expect(large, "the large probe's words are measured, at 3:1 or more and under 4.5:1").toBeGreaterThanOrEqual(3);
+    expect(large).toBeLessThan(4.5);
+  } finally {
+    await context.close();
   }
 });
 

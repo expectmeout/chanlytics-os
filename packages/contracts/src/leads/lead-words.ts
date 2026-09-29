@@ -5,11 +5,11 @@
  */
 import type { LeadCheckKey } from "./lead-dtos";
 import {
-  LEAD_CLOSED_REASONS,
-  LEAD_EMAIL_STATES,
-  LEAD_FITS,
+  type LEAD_CLOSED_REASONS,
+  type LEAD_EMAIL_STATES,
+  type LEAD_FITS,
   LEAD_MEMBER_CLASSES,
-  LEAD_STAGES,
+  type LEAD_STAGES,
   type LeadEmailState,
   type LeadMemberClass,
   type LeadRoundEnding,
