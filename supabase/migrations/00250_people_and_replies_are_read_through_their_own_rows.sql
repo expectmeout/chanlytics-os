@@ -1,4 +1,4 @@
--- 00223 · People and replies are read through their own rows.
+-- 00250 · People and replies are read through their own rows.
 --
 -- Two reads kept a CTE that later reads look in once per row, and Postgres
 -- materialises a CTE read more than once unless it says otherwise, so each

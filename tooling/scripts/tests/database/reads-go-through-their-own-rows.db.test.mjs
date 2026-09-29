@@ -1,5 +1,5 @@
 /**
- * People and replies are read through their own rows (00223), on a real database.
+ * People and replies are read through their own rows (00250), on a real database.
  *
  * people_list and first_replies each kept a CTE that a later read looked in once per row: a person's three reads in
  * the workspace's messages, a question's two in every reply ever sent. Materialised, as Postgres makes a CTE read more

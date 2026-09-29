@@ -1,4 +1,4 @@
--- 00224 · A report draws each day from one pass.
+-- 00251 · A report draws each day from one pass.
 --
 -- report_series (00139) and campaign_series (00174) built each day of their two
 -- periods, up to 180 days, from a scalar subquery per count, and each subquery
@@ -97,7 +97,7 @@ begin
       from firsts
      where first_at >= v_start and first_at < 'infinity'::timestamptz
   ),
-  -- Each day from one pass over each source, grouped by the day (00224). A scalar subquery per day and per count
+  -- Each day from one pass over each source, grouped by the day (00251). A scalar subquery per day and per count
   -- scanned every source again for every day, and ran the contacts pass (firsts, fresh) once a day.
   per_day as (
     select d.day,
@@ -269,7 +269,7 @@ begin
        and e.created_at >= v_start
        and coalesce(e.data->>'purpose', '') <> 'email_marketing'
   ),
-  -- Each day from one pass over each source, grouped by the day (00224), where a scalar subquery per day and per
+  -- Each day from one pass over each source, grouped by the day (00251), where a scalar subquery per day and per
   -- count scanned both again for every day.
   per_day as (
     select d.day,
