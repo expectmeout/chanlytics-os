@@ -14893,9 +14893,9 @@ function addressOf(header) {
   const s2 = oneLine2(header ?? "");
   if (!s2) return null;
   const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s2);
-  const address = (angle ? angle[2] : s2).trim().toLowerCase();
+  const address = (angle ? angle[2] ?? "" : s2).trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name2 = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  const name2 = angle ? (angle[1] ?? "").trim().replace(/^"(.*)"$/, "$1").trim() : "";
   return { address, name: name2 || null };
 }
 function resendLimitOf(r222) {

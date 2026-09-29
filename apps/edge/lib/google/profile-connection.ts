@@ -103,11 +103,11 @@ export async function connectProfile(
     await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "no_locations" };
   }
-  if (!onMaps.length) {
+  const first = onMaps[0];
+  if (!first) {
     await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "not_on_maps" };
   }
-  const first = onMaps[0];
   const row = {
     tenant_id: tenantId,
     google_email: claims.email,

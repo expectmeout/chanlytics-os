@@ -187,7 +187,7 @@ export function reachOutDraftIssues(d: ReachOutDraft, has: { bookingLink: boolea
     const words = chainIssueWords(i);
     if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words);
     else if (i.field === "subject" || i.field === "body" || i.field === "after_days")
-      steps[i.step]![i.field].push(words);
+      steps[i.step][i.field].push(words);
   }
   return out;
 }

@@ -11,7 +11,7 @@
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { logger } from "../log.js";
+import type { logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -113,7 +113,7 @@ export async function invoiceOfPayment(
     { payment: { type: "payment_intent", payment_intent: paymentIntent }, limit: 1 },
     options,
   );
-  return idOf(list.data[0]?.invoice as string | { id: string } | undefined);
+  return idOf(list.data[0]?.invoice);
 }
 
 export type ReversalKind = "refund" | "dispute" | "dispute_won";

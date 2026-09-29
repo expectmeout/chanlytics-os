@@ -102,7 +102,7 @@ export function subscribeWorkspaceChanges(
   if (!tenantId) return () => {};
   const topic = `workspace:${tenantId}:changes`;
   let byTopic = hearings.get(client);
-  if (!byTopic) hearings.set(client, (byTopic = new Map()));
+  if (!byTopic) hearings.set(client, (byTopic = new Map<string, Hearing>()));
   const heard = byTopic;
   let h = heard.get(topic);
   if (!h) {
@@ -150,7 +150,7 @@ async function join(
   // as anon and is refused.
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
-  if (token) client.realtime.setAuth(token);
+  if (token) await client.realtime.setAuth(token);
   hearing.joining = null;
   if (!hearing.listeners.size) return forget(heard, topic, hearing);
   const channel = client

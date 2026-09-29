@@ -8,7 +8,6 @@ import {
   whyNotAHandoff,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
-import type { Json } from "@chanlytics/db";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { load, readerContext } from "@/server/readers";
 import { feedVisibleTo, knownFacts, settings, withHiddenFeed } from "@/server/readers/settings";
@@ -73,7 +72,7 @@ export const PUT = write({
       const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
       if (why) throw new AppError("validation", why);
     }
-    const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
+    const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data, body.version, ctx.userId);
     // Two different failures, each in its own words (settings-write.ts says why).
     if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
     await recordSettingsChanged(ctx, member.tenantId, before?.config, parsed.data, result.row.version);

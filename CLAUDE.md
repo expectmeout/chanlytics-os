@@ -107,9 +107,9 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **What is measured may only fall.** `docs/debt.md` names every number the build holds and the
   baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
-  publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
-  dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
-  give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
+  publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
+  the compiler lets pass; a table name outside `packages/db`; dead exports; a duration written as a
+  bare number (name it from `contracts/shared/time.ts`, or give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
   build. `UPDATE_BASELINES=1` banks only what fell (knip, the lint and the bundle budget: their

@@ -12968,7 +12968,7 @@ var INVOICE_STATUS_WORDS = {
 };
 function invoiceStatusWords(status) {
   if (!status) return "\u2014";
-  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] : status;
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
 }
 var CHECKOUT_RETURNS = ["billing", "start"];
 var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
@@ -13023,7 +13023,7 @@ var THEME_OPTIONS = [
 var isThemePref = (v) => v === "light" || v === "dark" || v === "system";
 function nextThemePref(pref) {
   const at3 = THEME_OPTIONS.findIndex((o) => o.id === pref);
-  return THEME_OPTIONS[(at3 + 1) % THEME_OPTIONS.length].id;
+  return (THEME_OPTIONS[(at3 + 1) % THEME_OPTIONS.length] ?? THEME_OPTIONS[0]).id;
 }
 function themeButtonWords(pref) {
   const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
@@ -13075,7 +13075,7 @@ function inAppFrom(userAgent) {
   const m = IN_APP_UA_RE.exec(userAgent ?? "");
   if (!m) return null;
   const platform = (m[2] ?? "").toLowerCase();
-  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+  return { version: m[1] ?? "", platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
 var IN_APP_CLASS = "in-app";
 var APP_KEYS_RESIZE_CLASS = "app-keys-resize";

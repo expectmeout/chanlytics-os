@@ -130,7 +130,7 @@ export async function createBroadcast(
     kept = { token: listToken(ref), rule: found.rule ?? null, counted_at: now.toISOString() };
   }
   // Everyone, or the list's people: one path for a built-in and a saved list alike.
-  const pool = members ? rows.filter((r) => members!.has(r.id)) : rows;
+  const pool = members ? rows.filter((r) => members.has(r.id)) : rows;
   // WHICH yes this send needs, from the template's category: the send job
   // derives the same purpose from the same column, so the audience enrolled
   // here is the audience the wire will accept.

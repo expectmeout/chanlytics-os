@@ -398,7 +398,7 @@ export const peopleOverride: SurfaceOverride = {
       // them took the whole surface down, and with it People, every profile and Lists.
       read("GET segments").catch((e: unknown) => e as Error),
       // A member's own views; a route that is not there yet reads as none.
-      read("GET views").catch(() => ({ views: {} as Record<string, unknown>, failed: true as const })),
+      read("GET views").catch(() => ({ views: {}, failed: true as const })),
       workspaceZone(),
     ]);
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
