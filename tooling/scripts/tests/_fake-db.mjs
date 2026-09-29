@@ -16,6 +16,7 @@
  */
 
 import crypto from "node:crypto";
+import { localHour, runDueNow } from "@chanlytics/contracts";
 
 /**
  * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
@@ -324,6 +325,35 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
 }
 
 /**
+ * The zone a row is judged in, as 00245 safe_zone answers it: the workspace's own, the product's default when it has
+ * none, and UTC when the name is not spelled Area/Location (or UTC) or is not a zone Intl knows -- the edge's own
+ * fallback (contracts parts()).
+ */
+function safeZone(name) {
+  const tz = String(name ?? "").trim() || "America/New_York";
+  if (tz !== "UTC" && !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * SQL's `order by a nulls first, b, c` over ISO timestamps and ids: the row that has waited longest first, a row that
+ * never had its turn before any that had, ties broken by the columns after.
+ */
+function byWaiting(a, b, ...cols) {
+  for (const col of cols) {
+    const x = a[col] == null ? "" : String(a[col]);
+    const y = b[col] == null ? "" : String(b[col]);
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
@@ -343,6 +373,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
    * for every owner in production. Modelled from the same rows a fixture sets,
    * and a suite may still override it by name.
    */
+  // A row's workspace always exists in the database (a foreign key); a fixture that sets no workspace row is judged
+  // on the product's default zone, as one whose row is blank is, and is not paused.
+  const tenantOf = (tenantId) => (tables.tenants ?? []).find((x) => x.id === tenantId);
+  const zoneOf = (tenantId) => safeZone(tenantOf(tenantId)?.timezone);
   const derived = {
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
@@ -365,6 +399,49 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
+    /**
+     * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way
+     * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`
+     * of them, every row carrying `due_total`, the count of all that were due. A door test runs the real sweep over
+     * what the database would have judged due; the SQL itself is proved on a stack in ops/sweep-pages.db.test.mjs.
+     */
+    playbooks_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
+      const at = new Date(p_at);
+      const due = (tables.playbooks ?? [])
+        .map((p) => ({ p, tz: zoneOf(p.tenant_id) }))
+        .filter(
+          ({ p }) =>
+            p.state === "running" &&
+            p.kind === p_kind &&
+            tenantOf(p.tenant_id)?.status !== "paused" &&
+            (p_tenant_id == null || p.tenant_id === p_tenant_id),
+        )
+        // runDueNow's rule, as the SQL restates it; the SQL is held to it on a stack (ops/sweep-pages.db.test.mjs).
+        .filter(({ p, tz }) => runDueNow(p, tz, at) && localHour(tz, at) <= p_last_hour)
+        .sort((a, b) => byWaiting(a.p, b.p, "last_run_at", "created_at", "id"));
+      return due
+        .slice(0, Math.max(0, p_limit ?? 0))
+        .map(({ p, tz }) => ({ playbook: { ...p }, timezone: tz, due_total: due.length }));
+    },
+    calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
+      const due = (tables.tenant_config ?? [])
+        .filter((c) => {
+          const url = c.config && typeof c.config === "object" ? c.config.calendar?.ical_url : undefined;
+          return (
+            url != null &&
+            String(url).trim() !== "" &&
+            (p_tenant_id == null || c.tenant_id === p_tenant_id) &&
+            (c.calendar_checked_at == null || c.calendar_checked_at < p_before)
+          );
+        })
+        .sort((a, b) => byWaiting(a, b, "calendar_checked_at", "tenant_id"));
+      return due.slice(0, Math.max(0, p_limit ?? 0)).map((c) => ({
+        tenant_id: c.tenant_id,
+        config: c.config,
+        timezone: zoneOf(c.tenant_id),
+        due_total: due.length,
+      }));
+    },
   };
 
   /**
@@ -678,7 +755,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     /**
      * @param handlers {Record<string, (args) => any>} the RPCs the code under
      *   test is allowed to call. Anything else still throws by name: a sweep
-     *   that quietly called an unmodelled function would otherwise pass.
+     *   that quietly called an unmodelled function would otherwise pass. A
+     *   suite's own handler is given the derived one, when there is one, as
+     *   its second argument: it may answer some calls itself and defer the rest.
      */
     rpc(name, args) {
       const fn = rpcs[name] ?? derived[name];
@@ -694,7 +773,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // codes (22023, 54000) to the wire.
       const run = () => {
         try {
-          return { data: fn(args), error: null };
+          return { data: fn(args, derived[name]), error: null };
         } catch (e) {
           const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
           return {

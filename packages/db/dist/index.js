@@ -5290,6 +5290,48 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
     if (channel) void client.removeChannel(channel);
   };
 }
+
+// src/sweeps.ts
+function remainingOf(rows) {
+  if (rows.length === 0) return 0;
+  const total = rows[0].due_total;
+  if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
+  return Math.max(0, total - rows.length);
+}
+async function duePlaybooks(db, p) {
+  const { data, error } = await db.rpc("playbooks_due", {
+    p_kind: p.kind,
+    p_at: p.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
+    rows: rows.map((r2) => ({ playbook: r2.playbook, timezone: r2.timezone })),
+    remaining: remainingOf(rows)
+  };
+}
+async function stampPlaybooksTried(db, tenantId, p) {
+  if (p.ids.length === 0) return;
+  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString() }).eq("tenant_id", tenantId).in("id", p.ids);
+  if (error) throw new Error(`cannot move the moments to the back of the page: ${error.message}`);
+}
+async function dueCalendars(db, p) {
+  const { data, error } = await db.rpc("calendars_due", {
+    p_before: p.before.toISOString(),
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    rows: rows.map((r2) => ({ tenant_id: r2.tenant_id, config: r2.config, timezone: r2.timezone })),
+    remaining: remainingOf(rows)
+  };
+}
 export {
   CALL_CONTROL_S,
   DEFAULT_ROW_CAP,
@@ -5333,7 +5375,9 @@ export {
   domainCapacityOf,
   domainHeldSince,
   dropFromList,
+  dueCalendars,
   dueDomains,
+  duePlaybooks,
   dueSendingDomains,
   emailWordsByTemplate,
   emailWordsFrom,
@@ -5466,6 +5510,7 @@ export {
   stampEmailLeftAs,
   stampEmailSent,
   stampMailboxReceived,
+  stampPlaybooksTried,
   stampReachOutStep,
   stuckClaims,
   subscribeMessagesInserts,

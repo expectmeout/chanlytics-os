@@ -4872,6 +4872,15 @@ export type Database = {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
       }
+      calendars_due: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          config: Json
+          due_total: number
+          tenant_id: string
+          timezone: string
+        }[]
+      }
       call_status_rank: { Args: { p_status: string }; Returns: number }
       caller_has_permission: {
         Args: { p_permission: string; p_tenant_id: string }
@@ -5950,6 +5959,20 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      playbooks_due: {
+        Args: {
+          p_at: string
+          p_kind: string
+          p_last_hour: number
+          p_limit: number
+          p_tenant_id?: string
+        }
+        Returns: {
+          due_total: number
+          playbook: Json
+          timezone: string
+        }[]
+      }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
@@ -6389,6 +6412,7 @@ export type Database = {
         Returns: number
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
+      safe_zone: { Args: { p: string }; Returns: string }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
