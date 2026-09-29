@@ -16,6 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw, stripComments } from "../_source.mjs";
+import { repoFiles, parse, importsOf } from "../_ast.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -201,30 +202,45 @@ test("every bridge request goes through the typed client", () => {
   assert.deepEqual(offenders, [], "a request outside api() re-implements the envelope, the sign-out and the refresh");
 });
 
+/**
+ * The files of packages/core that are adapters by design, each with the reason and what ends it. Every other module
+ * of core is a verb or a rule: it takes the world through its ports.
+ */
+const CORE_WALL_EXCEPTIONS = {
+  // The one send door (CLAUDE.md): it writes the outbound ledger and puts a message on the wire, so it holds db's
+  // writers and channels' senders. Ends when the send door takes a ledger port and a wire port.
+  "deliver.ts": "the one send door, over db's writers and channels' senders",
+  // deliver's wire half, split out of deliver.ts for its length (#1327): channels' senders, called only by deliver.
+  "wire-senders.ts": "deliver's wire half",
+  // The lead runner starts Apify's runs through a port typed as Apify's own client, and asks it for the run-end
+  // webhook Apify's names. Ends when Apify's actors move behind the lead port (the scorecard's domain step).
+  "leads/runner/check.ts": "Apify's run-end webhook names, until Apify moves behind the lead port",
+  "leads/runner/start.ts": "Apify's run-end webhook names, until Apify moves behind the lead port",
+};
+
+/** Whether core may import this: its own modules, contracts, and the types (never a value) of db and channels. */
+const coreMayImport = ({ specifier, typeOnly }) =>
+  specifier.startsWith(".") ||
+  specifier === "@chanlytics/contracts" ||
+  // The normalised inbound message is the channels package's shape and the inbound verb speaks it, so the TYPE
+  // crosses. A VALUE from channels would be a provider inside a verb, which is a port, not a widening.
+  (typeOnly && (specifier === "@chanlytics/db" || specifier === "@chanlytics/channels"));
+
 test("a core verb knows no database, framework, provider or environment", () => {
-  // A verb takes the world through its ports; the adapter in
-  // apps/dashboard/src/server/ports/core-ports.ts is where the tables are. Its
-  // imports are contracts, db types, and each other.
+  // A verb takes the world through its ports; the adapter in apps/dashboard/src/server/ports/core-ports.ts is where
+  // the tables are. The wall is all of packages/core/src, but the files named above.
   const offenders = [];
-  for (const group of ["conversations", "messages", "campaigns", "inbound"]) {
-    const dir = path.join(here, `../../../../packages/core/src/${group}`);
-    for (const f of fs.readdirSync(dir)) {
-      // Prettier prints a long import over several lines, so each import
-      // statement is flattened to one line before it is judged.
-      for (const stmt of readCode(`packages/core/src/${group}/${f}`).matchAll(/^import\s[\s\S]*?;$/gm)) {
-        const line = stmt[0].replace(/\s+/g, " ");
-        const ok =
-          /from "\.\.?\//.test(line) ||
-          /from "@chanlytics\/contracts"/.test(line) ||
-          /^import type .* from "@chanlytics\/db"/.test(line) ||
-          // The normalised inbound message is the channels package's shape
-          // and the inbound verb speaks it, so the TYPE crosses. A VALUE
-          // from channels would be a provider inside a verb, which is a
-          // port, not a widening.
-          /^import type .* from "@chanlytics\/channels"/.test(line);
-        if (!ok) offenders.push(`${group}/${f}: ${line.trim()}`);
-      }
+  const walled = [];
+  for (const file of repoFiles(["packages/core/src"])) {
+    const rel = file.slice("packages/core/src/".length);
+    const bad = importsOf(parse(file)).filter((i) => !coreMayImport(i));
+    if (rel in CORE_WALL_EXCEPTIONS) {
+      if (bad.length === 0) offenders.push(`${rel}: keeps the wall now; take it off CORE_WALL_EXCEPTIONS`);
+      continue;
     }
+    walled.push(rel);
+    for (const i of bad) offenders.push(`${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}`);
   }
+  assert.ok(walled.length > 60, "the wall walks every module of core, not a few folders");
   assert.deepEqual(offenders, [], "a verb takes the world through its ports; core-ports.ts is where the tables are");
 });

@@ -45,6 +45,7 @@ import {
   sourceScan,
   bankedSourceScan,
   SOURCE_SCAN_BASELINE,
+  RPC_KEY,
 } from "../_measures.mjs";
 
 const REGISTER = "docs/debt.md";
@@ -61,6 +62,9 @@ const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "
 const keys = (o) => Object.keys(o ?? {}).length;
 /** Every field of every entry, summed: a stylesheet's literal values are counted by kind. */
 const fieldsTotal = (o) => Object.values(o ?? {}).reduce((a, v) => a + Object.values(v).reduce((b, n) => b + n, 0), 0);
+
+/** tables.json's entries: a file's `.from("…")` count under its path, its `.rpc("…")` count under `<path>::rpc`. */
+const tableCalls = (o, rpc) => Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => k.endsWith(RPC_KEY) === rpc));
 
 /** The block, from a map of baseline file → its numbers, and the source-scan counts. */
 function blockFrom(by, scanCounts) {
@@ -81,7 +85,9 @@ function blockFrom(by, scanCounts) {
     ["window publishers", total(publishers), `sites in ${keys(publishers)} files`],
     ["copies", total(copies), `of ${keys(copies)} names`],
     ["as unknown as", total(by["casts.json"]), ""],
-    ["table names outside packages/db", total(by["tables.json"]), ""],
+    ["table names outside packages/db", total(tableCalls(by["tables.json"], false)), ""],
+    ["SQL functions outside packages/db", total(tableCalls(by["tables.json"], true)), "called by .rpc"],
+    ["RPC arguments cast as never", total(by["rpc-casts.json"]), `in ${keys(by["rpc-casts.json"])} files`],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [

@@ -35,6 +35,7 @@ import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { builtinModules } from "node:module";
 import { ROOT } from "./_source.mjs";
 
 export const SOURCE = /\.(ts|tsx|js|jsx|mjs)$/;
@@ -453,6 +454,105 @@ export function tableNames(sf) {
   visit(sf);
   return n;
 }
+
+/**
+ * `.rpc("<function>", …)`: a SQL function called by its string, in this file. The tables ratchet counts it beside
+ * `.from("<table>")`: a door or a reader that calls a function is reading or writing a table all the same.
+ */
+export function rpcNames(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isRpcCall(m)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+const isRpcCall = (m) =>
+  ts.isCallExpression(m) &&
+  ts.isPropertyAccessExpression(m.expression) &&
+  m.expression.name.text === "rpc" &&
+  m.arguments.length >= 1 &&
+  ts.isStringLiteralLike(m.arguments[0]) &&
+  /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
+
+/**
+ * `.rpc("<function>", args as never)`: a call whose arguments the compiler no longer checks against the function's
+ * generated `Args`, so a misspelled or renamed `p_` key compiles. Counted per argument cast, parentheses seen through.
+ */
+export function rpcArgsAsNever(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isRpcCall(m)) {
+      for (const a of m.arguments.slice(1)) {
+        let e = a;
+        while (ts.isParenthesizedExpression(e)) e = e.expression;
+        if (isCast(e) && e.type.kind === ts.SyntaxKind.NeverKeyword) n++;
+      }
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/**
+ * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and
+ * `import x = require("…")`. `typeOnly` is true when nothing the statement names survives compilation (`import type`,
+ * `export type`, or an import whose every name is `type`). A dynamic import is never type-only.
+ */
+export function importsOf(sf) {
+  const out = [];
+  const visit = (n) => {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteral(n.moduleSpecifier)
+    ) {
+      out.push({ specifier: n.moduleSpecifier.text, typeOnly: statementIsTypeOnly(n) });
+    } else if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) {
+      const e = n.moduleReference.expression;
+      if (ts.isStringLiteral(e)) out.push({ specifier: e.text, typeOnly: n.isTypeOnly });
+    } else if (
+      ts.isCallExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      n.arguments.length >= 1 &&
+      ts.isStringLiteralLike(n.arguments[0])
+    ) {
+      out.push({ specifier: n.arguments[0].text, typeOnly: false });
+    } else if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
+      out.push({ specifier: n.argument.literal.text, typeOnly: true });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+function statementIsTypeOnly(n) {
+  if (ts.isExportDeclaration(n)) {
+    if (n.isTypeOnly) return true;
+    const named = n.exportClause && ts.isNamedExports(n.exportClause) ? n.exportClause.elements : null;
+    return !!named && named.length > 0 && named.every((e) => e.isTypeOnly);
+  }
+  const clause = n.importClause;
+  if (!clause) return false; // `import "x"`: a side effect, never a type
+  if (clause.isTypeOnly) return true;
+  if (clause.name) return false;
+  const named = clause.namedBindings;
+  return !!named && ts.isNamedImports(named) && named.elements.length > 0 && named.elements.every((e) => e.isTypeOnly);
+}
+
+/** The package a bare specifier names (`@scope/name`, `name`), or null for a relative path or a Node built-in. */
+export function packageOf(specifier) {
+  if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) return null;
+  const parts = specifier.split("/");
+  const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+  return NODE_BUILTINS.has(name) ? null : name;
+}
+
+const NODE_BUILTINS = new Set(builtinModules);
 
 /* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
 

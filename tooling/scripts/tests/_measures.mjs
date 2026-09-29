@@ -34,6 +34,8 @@ import {
   copiesAmong,
   unknownCasts,
   tableNames,
+  rpcNames,
+  rpcArgsAsNever,
   durationsIn,
   inlineStyles,
   SOURCE,
@@ -46,6 +48,8 @@ export const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
 const DIRECTORY_LIMIT = 20;
 const COPY_LIMIT = 3;
+/** The suffix of a tables.json key that counts a file's `.rpc("…")` calls rather than its `.from("…")`. */
+export const RPC_KEY = "::rpc";
 
 /** The code that ships: the two apps and the packages' sources. Tests and specs are not held to a function's size. */
 const SRC = repoFiles(["apps", "packages"]);
@@ -158,15 +162,27 @@ export const MEASURES = [
       "Name the shape and parse it, or narrow it with a type guard; a value laundered through unknown is a type the compiler no longer checks.",
   },
   {
+    // A file's `.from("…")` count under its path, and its `.rpc("…")` count under `<path>${RPC_KEY}`: a SQL function
+    // called by name outside packages/db is a table read or written there all the same.
     name: "table names outside packages/db",
     file: "tables.json",
-    measure: () =>
-      perFile(
-        SRC.filter((f) => !f.startsWith("packages/db/")),
-        tableNames,
-      ),
+    measure: () => {
+      const outside = SRC.filter((f) => !f.startsWith("packages/db/"));
+      const rpcs = perFile(outside, rpcNames);
+      return {
+        ...perFile(outside, tableNames),
+        ...Object.fromEntries(Object.entries(rpcs).map(([f, n]) => [f + RPC_KEY, n])),
+      };
+    },
     advice:
-      "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+      "A table, and a SQL function, is named once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "RPC arguments cast as never",
+    file: "rpc-casts.json",
+    measure: () => perFile(SRC, rpcArgsAsNever),
+    advice:
+      "Pass the arguments as the function's generated Args (Database['public']['Functions'][name]['Args']): under `as never` a misspelled or renamed p_ key compiles.",
   },
   {
     name: "unnamed durations",

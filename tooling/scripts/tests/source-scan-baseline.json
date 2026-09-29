@@ -68,7 +68,7 @@
     "receptionist/prompt/prompt-preview.test.mjs": 1,
     "receptionist/prompt/split-shifts-closures.test.mjs": 1,
     "repo/event-kinds.test.mjs": 4,
-    "repo/hygiene.test.mjs": 6,
+    "repo/hygiene.test.mjs": 5,
     "repo/legacy-harness.test.mjs": 4,
     "repo/ops-hygiene.test.mjs": 9,
     "repo/store-retired.test.mjs": 5,
