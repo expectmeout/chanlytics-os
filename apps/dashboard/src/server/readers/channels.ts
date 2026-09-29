@@ -50,7 +50,7 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
         string,
         unknown
       >;
-      const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+      const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
       return {
         id: c.id,
         kind: c.kind,

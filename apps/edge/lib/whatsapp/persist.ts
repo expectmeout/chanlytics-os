@@ -8,7 +8,7 @@
  * write itself failed, because that is the one loss the provider can undo.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { pg } from "../pg.js";
+import type { pg } from "../pg.js";
 import { fetchMediaBytes, type NormalizedInbound } from "../packages/channels.js";
 import {
   ingestInbound,
@@ -159,7 +159,7 @@ export async function pgIngest(
       body: n.body,
       channelTs: n.channelTsIso,
       media: n.media ? (n.media as unknown as Json) : null,
-      meta: { raw_type: n.rawType } as Json,
+      meta: { raw_type: n.rawType },
       optOut: n.optOut,
       optIn: n.optIn,
       optInMarketing: n.optInMarketing,
@@ -251,11 +251,11 @@ export function pgSink(
     ): Promise<Delivered> =>
       on
         ? deliverSafely(
-            { db: db!, wire },
+            { db, wire },
             {
-              tenantId: tenantId!,
-              conversationId: ing!.conversation_id,
-              contactId: ing!.contact_id,
+              tenantId,
+              conversationId: ing.conversation_id,
+              contactId: ing.contact_id,
               to,
               channel,
               sender: "ai",
@@ -275,13 +275,10 @@ export function pgSink(
             errorBody: "no_database",
             messageId: null,
           }),
-    processed: () =>
-      on ? pgSafe("processed", () => markProcessed(db!, tenantId!, ing!.message_id)) : Promise.resolve(),
+    processed: () => (on ? pgSafe("processed", () => markProcessed(db, tenantId, ing.message_id)) : Promise.resolve()),
     allowlistSkip: () =>
       on
-        ? pgSafe("allowlist_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "message", ing!.message_id, {}),
-          )
+        ? pgSafe("allowlist_evt", () => emitEvent(db, tenantId, "ingest.allowlist_skip", "message", ing.message_id, {}))
         : Promise.resolve(),
     /**
      * The sender cannot receive a reply. Recorded like any other message, and
@@ -290,7 +287,7 @@ export function pgSink(
     unreachableSender: () =>
       on
         ? pgSafe("unreachable_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "message", ing!.message_id, {}),
+            emitEvent(db, tenantId, "ingest.unreachable_sender", "message", ing.message_id, {}),
           )
         : Promise.resolve(),
     /**
@@ -303,18 +300,18 @@ export function pgSink(
     noteEmail: (address: string) =>
       on
         ? pgSafe("note_email", async () => {
-            const { data, error: unread } = await db!
+            const { data, error: unread } = await db
               .from("contacts")
               .select("email")
-              .eq("id", ing!.contact_id)
+              .eq("id", ing.contact_id)
               .maybeSingle();
             // The door itself overwrites, so this read is the one thing that keeps an address already on file: a
             // read that failed keeps everything, rather than writing over an address nobody could see.
             if (unread) throw new Error(unread.message);
             if (data?.email) return;
-            const { error } = await db!.rpc("set_person_email", { p_contact_id: ing!.contact_id, p_email: address });
+            const { error } = await db.rpc("set_person_email", { p_contact_id: ing.contact_id, p_email: address });
             if (error && error.code === "23505") {
-              logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing!.contact_id });
+              logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing.contact_id });
               return;
             }
             if (error) throw new Error(error.message);
@@ -329,7 +326,7 @@ export function pgSink(
     vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on
         ? pgSafe("veto_fallback_evt", () =>
-            emitEvent(db!, tenantId!, "policy.veto_window_skipped", "conversation", ing!.conversation_id, {
+            emitEvent(db, tenantId, "policy.veto_window_skipped", "conversation", ing.conversation_id, {
               delay_ms: delayMs,
               // WHICH hold did not happen. The confidence dial rides this same
               // window, and labelling its hold a veto window sent owners who
@@ -343,16 +340,16 @@ export function pgSink(
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
     pause: (iso: string, keepMessageId?: string) =>
       on
-        ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso, { keepMessageId }))
+        ? pgSafe("pause", () => pauseConversation(db, tenantId, ing.conversation_id, iso, { keepMessageId }))
         : Promise.resolve(),
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
       on
         ? pgSafe("usage", async () => {
-            await recordTokens(db!, tenantId!, ing!.conversation_id, u);
+            await recordTokens(db, tenantId, ing.conversation_id, u);
             // The receptionist's first answer to a customer (not a held draft): the funnel's second milestone.
-            if (u.held == null) await recordActivation(db!, tenantId!, "first_reply", "receptionist");
+            if (u.held == null) await recordActivation(db, tenantId, "first_reply", "receptionist");
           })
         : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
@@ -361,9 +358,7 @@ export function pgSink(
      *  Postgres is off or the write failed. */
     escalate: (reason: string, details: string): Promise<EscalationOutcome | undefined> =>
       on
-        ? pgSafe("escalation", () =>
-            upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)),
-          )
+        ? pgSafe("escalation", () => upsertEscalation(db, tenantId, ing.conversation_id, reason, details.slice(0, 400)))
         : Promise.resolve(undefined),
     /** Download from Meta, upload to storage, record where it went. Resolves
      *  to the bytes when they were fetched — a photo the receptionist looks
@@ -376,13 +371,13 @@ export function pgSink(
             // whose vault read failed, or an SMS-only one, has every photo and
             // voice note their customers send stamped "failed" forever with no
             // trace of why.
-            if (!cfg) logger().error("media_no_credentials", { tenant_id: tenantId, message: ing!.message_id });
+            if (!cfg) logger().error("media_no_credentials", { tenant_id: tenantId, message: ing.message_id });
             const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {
               const ext = MIME_EXT[got.mime || ""] || "bin";
-              const path = `${tenantId}/${ing!.conversation_id}/${ing!.message_id}.${ext}`;
-              const { error } = await db!.storage.from("media").upload(path, got.bytes, {
+              const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
+              const { error } = await db.storage.from("media").upload(path, got.bytes, {
                 contentType: got.mime || "application/octet-stream",
                 upsert: true,
               });
@@ -398,11 +393,11 @@ export function pgSink(
             // `fetch_state: "pending"` forever: the bytes are in storage, the
             // Inbox shows an attachment that is still downloading, and no
             // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await db!
+            const { error: rowErr } = await db
               .from("messages")
               .update({ media: mediaOut as Json })
-              .eq("id", ing!.message_id)
-              .eq("tenant_id", tenantId!);
+              .eq("id", ing.message_id)
+              .eq("tenant_id", tenantId);
             if (rowErr) throw new Error(rowErr.message);
             return got;
           })

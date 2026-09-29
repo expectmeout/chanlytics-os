@@ -10,9 +10,9 @@
  * component's own test holds where it matters: the attributes its element carries and no others, the ref, the page's
  * class last, a face's picture and its fallback, a meter's shares, a row's lines.
  *
- * The Sheet's family is not held: its component waits on Ruben's decision whether the kit builds its interactive
- * components on Base UI (the plan's step 2.4). A family whose component is the house's JSX today is written in TSX when
- * its first surface moves (the same step), and joins this file then.
+ * The Sheet's family is not held: its component comes with the kit's other components with behaviour of their own,
+ * built on Base UI (the plan's decision 15 and step 2.5). A family whose component is the house's JSX today is written
+ * in TSX when its first surface moves (the plan's Phase 3), and joins this file then.
  *
  * Each check runs on fixtures too, where it must find what it looks for.
  */

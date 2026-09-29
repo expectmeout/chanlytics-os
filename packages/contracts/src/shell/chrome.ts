@@ -9,7 +9,9 @@ import { PAUSED_WORDS } from "../workspace/billing";
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
 
-export const THEME_OPTIONS: ReadonlyArray<{ id: ThemePref; label: string; icon: string }> = [
+type ThemeOption = { id: ThemePref; label: string; icon: string };
+/** The three, in the order the top bar's one button steps through them; a fixed three, so each is there to read. */
+export const THEME_OPTIONS: readonly [ThemeOption, ThemeOption, ThemeOption] = [
   { id: "light", label: "Light", icon: "sun" },
   { id: "dark", label: "Dark", icon: "moon" },
   { id: "system", label: "System", icon: "monitor" },
@@ -24,12 +26,12 @@ export const isThemePref = (v: unknown): v is ThemePref => v === "light" || v ==
  */
 export function nextThemePref(pref: unknown): ThemePref {
   const at = THEME_OPTIONS.findIndex((o) => o.id === pref);
-  return (THEME_OPTIONS[(at + 1) % THEME_OPTIONS.length] as (typeof THEME_OPTIONS)[number]).id;
+  return (THEME_OPTIONS[(at + 1) % THEME_OPTIONS.length] ?? THEME_OPTIONS[0]).id;
 }
 
 /** What the top bar's theme button shows and says: the preference in force, and what a press makes it. */
 export function themeButtonWords(pref: unknown): { icon: string; label: string } {
-  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? (THEME_OPTIONS[2] as (typeof THEME_OPTIONS)[number]);
+  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
   const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id)) as (typeof THEME_OPTIONS)[number];
   return { icon: now.icon, label: `Theme: ${now.label}. Switch to ${next.label}` };
 }
@@ -155,7 +157,7 @@ export function inAppFrom(userAgent: string | null | undefined): InApp | null {
   const m = IN_APP_UA_RE.exec(userAgent ?? "");
   if (!m) return null;
   const platform = (m[2] ?? "").toLowerCase();
-  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+  return { version: m[1] ?? "", platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
 /** The class on <html> that in-app rules hang from; the legacy shell reads window.__IN_APP for the same fact. */
 export const IN_APP_CLASS = "in-app";
@@ -222,11 +224,6 @@ export function routePrefetchScript(): string {
 
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
-
-/** ⌘1 … ⌘9 for the first nine workspaces; none beyond. */
-export function workspaceHotkey(index: number): string | null {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `⌘${index + 1}` : null;
-}
 
 /** Whether a key press belongs to a field the person is typing in. */
 export function isTypingTarget(tagName: string | null | undefined, contentEditable: boolean): boolean {
@@ -370,7 +367,9 @@ export interface Shortcut {
 /**
  * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
  * were listed for every list (the wiring audit's N17): "/" searches only People, and J/K walk only People's rows and
- * the Inbox's. People's rows are the keys its table's foot names.
+ * the Inbox's. The sheet is the one place a key is drawn (Ruben, 23 Sep 2026): no button, tip, foot or legend names
+ * one, so a key the app answers to is here or nowhere. The Calendar's, and ⌘↵ in the record kit's editors, were said
+ * only where they worked until then.
  */
 export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘K"], does: "Ask Chanlytics" },
@@ -378,6 +377,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘1", "⌘9"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // The record kit's fold, sheet and inline editor (record-fold.jsx recKeys): Business, a person, a deal, a step.
+  { group: "Everywhere", keys: ["⌘↵"], does: "Save the change you are making" },
   // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
   { group: "Ask", keys: ["↑", "↓"], does: "Walk what is under the line" },
   { group: "Ask", keys: ["↵"], does: "Ask, or open the row" },
@@ -396,6 +397,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
   { group: "Inbox", keys: ["⌘↵"], does: "Send" },
+  { group: "Calendar", keys: ["←", "→"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" },
 ];
 
 /** The sheet's groups, in order, each with its shortcuts. */

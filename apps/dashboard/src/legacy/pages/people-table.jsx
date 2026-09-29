@@ -126,7 +126,6 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
       </div>
       <div className="cl-table-foot">
         <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? words.one : words.many}`}</span>
-        <span className="cl-table-keys"><kbd>J</kbd><kbd>K</kbd> move · {selectable && <><kbd>x</kbd> selects · <kbd>esc</kbd> clears · </>}<kbd>↵</kbd> opens · <kbd>/</kbd> searches</span>
       </div>
     </div>
   );

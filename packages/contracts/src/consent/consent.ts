@@ -221,8 +221,7 @@ export function consentChangeOf(e: {
   data: unknown;
 }): ConsentChange {
   const d = (e.data ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null =>
-    typeof d[k] === "string" && (d[k] as string) !== "" ? (d[k] as string) : null;
+  const str = (k: string): string | null => (typeof d[k] === "string" && d[k] !== "" ? d[k] : null);
   return {
     id: e.id,
     contact_id: e.subject_id,

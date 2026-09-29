@@ -19,7 +19,7 @@
  * carriers say so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { emitEvent } from "../packages/db.js";
 import { forwardingMatch, forwardingProof, formatPhoneDisplay, type ForwardingFacts } from "../packages/contracts.js";
 import { recordNotification } from "../ops/notify.js";
@@ -74,7 +74,7 @@ export async function markForwardingVerified(
             verified_from: call.fromE164,
             // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
             verified_by: proof === "carrier" ? "carrier" : "window",
-          } as unknown as Json,
+          },
         })
         .eq("id", row.id)
         .eq("forwarding_state", "instructed")

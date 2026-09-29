@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isUuid, LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
+import { isUuid, LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import { recordActivation, type Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { serviceDb } from "@/server/service-db";
@@ -47,7 +47,7 @@ export const POST = write({
   input: CreateSchema,
   handle: async ({ ctx, member, input }) => {
     const { thread_id: thread, ...rest } = input;
-    const plan = rest as LeadSearchPlan;
+    const plan = rest;
     const threadId = isUuid(thread) ? String(thread) : null;
     const { data, error } = await ctx.supabase.rpc("lead_search_create", {
       p_tenant_id: member.tenantId,

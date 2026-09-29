@@ -129,7 +129,7 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
   const deals: PipelineRailRow[] = [
     { view: "all", label: PIPELINE_WORDS.rail.all, count: vm.groups.reduce((n, g) => n + g.count, 0), tone: null },
     ...PIPELINE_GROUPS.map((key) => ({
-      view: key as PipelineView,
+      view: key,
       label: GROUP_WORDS[key],
       count: count(key),
       tone: null,

@@ -377,21 +377,34 @@ test("once the boot is in, the runner joins the live feed the page handed it -- 
     [
       surface("inbox", { refreshOnMessageInserts: true }),
       surface("live", { refreshOnTables: ["calls"] }),
+      // Today's rule (surfaces/today.ts): a call starting or ending, never a transcript turn.
+      surface("today", {
+        refreshOnTables: ["calls"],
+        refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
+      }),
       surface("settings"),
     ],
     feed.join,
   );
   try {
     await settle(20);
-    assert.deepEqual([...asked].sort(), ["inbox", "live", "settings"], "every surface booted");
+    assert.deepEqual([...asked].sort(), ["inbox", "live", "settings", "today"], "every surface booted");
     assert.equal(feed.joins.length, 1, "one feed for the runner, joined once the boot is in");
     const [{ onChange, opts }] = feed.joins;
-    assert.equal(opts.tenantId, "id-a", "filtered to the workspace on screen");
-    assert.match(opts.topic, /:id-a$/, "on a topic that names it");
+    assert.equal(opts.tenantId, "id-a", "the workspace on screen: its topic is the one joined");
     asked.length = 0;
-    onChange({ conversation_id: "c1", tenant_id: "id-a" }, "messages", "INSERT");
+    onChange({ tenant_id: "id-a" }, "messages", "INSERT");
     await settle(20);
     assert.deepEqual(asked, ["inbox"], "a message repaints what watches messages, and nothing else");
+    // The runner hands a surface's rule the event and the row the feed heard: a turn keeps a call ongoing.
+    asked.length = 0;
+    onChange({ tenant_id: "id-a", status: "ongoing" }, "calls", "UPDATE");
+    await settle(20);
+    assert.deepEqual(asked, ["live"], "a transcript turn repaints Live, and Today waits");
+    asked.length = 0;
+    onChange({ tenant_id: "id-a", status: "ended" }, "calls", "UPDATE");
+    await settle(20);
+    assert.deepEqual([...asked].sort(), ["live", "today"], "a call ended: Today repaints too");
   } finally {
     stop();
   }

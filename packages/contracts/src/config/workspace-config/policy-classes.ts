@@ -71,8 +71,8 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
 
 /** The four modes. 'veto' is honoured where there is something to hold: a
  *  reply waits in the hold window as a draft, a playbook run waits thirty
- *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
- *  treats an unexpected mode as 'ask' (fail safe). */
+ *  minutes; POLICY_CLASS_MODES says which classes offer it (policyModeOffered).
+ *  The runtime treats an unexpected mode as 'ask' (fail safe). */
 export const POLICY_MODES = ["auto", "veto", "ask", "never"] as const;
 export type PolicyMode = (typeof POLICY_MODES)[number];
 
@@ -134,6 +134,26 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   outreach: ["veto", "ask", "never"],
 };
 
+/**
+ * Whether a class may be set to a mode: the one rule the Autonomy pane draws its dots by and the policies route refuses
+ * by (POLICY_CLASS_MODES). An unknown class or mode is not offered.
+ */
+export function policyModeOffered(cls: string, mode: string): boolean {
+  return (
+    (POLICY_CLASSES as readonly string[]).includes(cls) &&
+    (POLICY_CLASS_MODES[cls as PolicyClass] as readonly string[]).includes(mode)
+  );
+}
+
+/** Why a class cannot be set to a mode, in the words the route says; null where it can. */
+export function policyModeRefusal(cls: PolicyClass, mode: PolicyMode): string | null {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you — there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
+
 /** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
 export function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | "money" | null {
   if (intent === "booking") return "booking";
@@ -162,12 +182,14 @@ export function policyAskClass(
  * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
  * does in policyAskClass.
  *
- * The edge asks this question inline, through policyAskClass, and this must keep
- * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
- * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
- * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
- * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
- * chat reply classed as a booking -- a price or services reply still carries it).
+ * The phone asks it here: apps/edge/api/retell-fn.ts (which outbound-gate.ts
+ * refuses as booking_needs_a_person, with or without an approved booking
+ * template) and apps/edge/api/retell-availability.ts (which still offers a caller
+ * the open times, then a member of the team confirming in place of the link:
+ * describeOpenings' `bookingHeld`, the owner's decision of 21 Sep 2026). Chat
+ * asks it through policyAskClass, and this must keep agreeing with it:
+ * packages/core/src/inbound/steps.ts layerTwo takes the link back out of a chat
+ * reply classed as a booking -- a price or services reply still carries it.
  * Stated here so the Business tab reads the rule instead of keeping a copy of it.
  */
 export function bookingHeld(policy: Record<string, { mode: string }> | null | undefined): boolean {

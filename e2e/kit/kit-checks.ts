@@ -35,7 +35,9 @@
  * !important; everything else with it on, so a transition never shows a value on its way.
  *
  * `toastsOverFeet` is a function of its own, for the same reason: it asks, of each kit entry that draws an open sheet
- * and a toast, whether the toast stands on the sheet's foot, where its Save is.
+ * and a toast, whether the toast stands on the sheet's foot, where its Save is. So are `focusRings`, which focuses each
+ * control an entry draws as a key does and asks whether a ring is drawn, and `placeEntry` with `groundsUnder`, which
+ * read each word an entry draws and its contrast on the ground drawn under it, shot by the spec with the words hidden.
  *
  * What they cannot see, so a pull request does not claim it: a declaration another kit rule outranks on every element
  * it would draw is never planted; the presses are forced all at once, so a selector that needs one element pressed and
@@ -778,4 +780,181 @@ export function toastsOverFeet(): { pairs: number; over: string[] } {
     }
   }
   return found;
+}
+
+/**
+ * Whether a key's focus shows on every control a kit entry draws, the look's promise to keep the house's ring
+ * (components.css, NUANCE PASS). Each element of a kit entry a key can reach (a button, a link, a field, a tabindex of
+ * 0 or more) is focused as a key focuses it: focus() on a page no pointer has pressed, which the browser counts as a
+ * key's focus, and which is checked (:focus-visible). It must change its box-shadow or its outline, or an ancestor's
+ * inside its entry's stage must (a field's ring is its box's, drawn by :focus-within). Each that changes neither is a
+ * sentence. What it cannot see: a ring drawn by a border or a ground alone, and whether the ring stands out from what
+ * is under it.
+ */
+export function focusRings(): { focusables: number; failures: string[] } {
+  const found = { focusables: 0, failures: [] as string[] };
+  const REACHABLE =
+    'button:not(:disabled), a[href], input:not(:disabled):not([type="hidden"]), select:not(:disabled), ' +
+    'textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+  const RING = ["box-shadow", "outline-style", "outline-width", "outline-color"];
+  const name = (el: Element) => `${el.localName}${Array.from(el.classList, (c) => `.${c}`).join("")}`;
+  for (const figure of Array.from(document.querySelectorAll<HTMLElement>("[data-entry]:not([data-source])"))) {
+    const stage = figure.querySelector(":scope > .gx-stage");
+    if (!stage) continue;
+    for (const el of Array.from(stage.querySelectorAll<HTMLElement>(REACHABLE))) {
+      if (el.closest("[inert], [hidden]") || !el.getClientRects().length) continue;
+      if (getComputedStyle(el).visibility === "hidden") continue;
+      const chain: Element[] = [];
+      for (let e: Element | null = el; e && e !== stage; e = e.parentElement) chain.push(e);
+      const read = () =>
+        chain.map((e) => {
+          const cs = getComputedStyle(e);
+          return RING.map((p) => cs.getPropertyValue(p)).join(" | ");
+        });
+      const at = `${figure.dataset.entry}: ${[...chain].reverse().map(name).join(" > ")}`;
+      const rest = read();
+      el.focus({ preventScroll: true });
+      if (document.activeElement !== el) {
+        found.failures.push(`${at} takes no focus`);
+        continue;
+      }
+      found.focusables += 1;
+      if (!el.matches(":focus-visible")) found.failures.push(`${at} is focused, but not as a key focuses it`);
+      else if (read().every((v, i) => v === rest[i])) found.failures.push(`${at} draws no ring when a key focuses it`);
+      el.blur();
+    }
+  }
+  return found;
+}
+
+/** A word of a kit entry as the contrast check reads it (placeEntry): what draws it, and its box inside the shot. */
+export type KitWord = {
+  at: string;
+  text: string;
+  /** Its colour as the browser resolves it, sRGB 0 to 255 and an alpha 0 to 1. */
+  rgba: number[];
+  /** The opacity it is drawn at: its own element's times every ancestor's. */
+  opacity: number;
+  /** 24px, or 18.66px at a bold weight: WCAG's large text, which needs 3:1. */
+  large: boolean;
+  /** Inside a control that cannot be used (disabled, aria-disabled, a role's gate), which WCAG does not hold. */
+  exempt: boolean;
+  /** Left, top, right, bottom, in CSS pixels from the shot's corner. */
+  box: number[];
+};
+
+/** The class that hides every word of the gallery's entries while the contrast check shoots what is under them. */
+export const NO_WORDS = "gx-no-words";
+export const NO_WORDS_CSS =
+  `html.${NO_WORDS} [data-entry] > .gx-stage, html.${NO_WORDS} [data-entry] > .gx-stage *, ` +
+  `html.${NO_WORDS} [data-entry] > .gx-stage *::before, html.${NO_WORDS} [data-entry] > .gx-stage *::after ` +
+  "{ color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; " +
+  "text-decoration-color: transparent !important; }";
+
+/**
+ * One kit entry, brought to the top of the window, where the look's strongest light stands (the blue pool: the ground
+ * a light look's dark words and a dark look's light words read worst on), and its words read for the contrast check:
+ * each text of the entry that says a letter or a number and is seen (the element at the middle of the words is theirs,
+ * or holds them: words behind a wash, a sheet or a picture are not on their own ground), with its colour, opacity, size
+ * and box in the shot. Then the words are hidden (NO_WORDS), so what the spec shoots next is the ground alone;
+ * groundsUnder shows them again.
+ */
+export function placeEntry(ask: { entry: string; hide: string }): {
+  clip: { x: number; y: number; width: number; height: number } | null;
+  words: KitWord[];
+} {
+  const entry = ask.entry;
+  const figure = document.querySelector(`[data-entry="${CSS.escape(entry)}"]`);
+  const stage = figure?.querySelector(":scope > .gx-stage");
+  if (!stage) return { clip: null, words: [] };
+  window.scrollTo(0, window.scrollY + stage.getBoundingClientRect().top - 8);
+  const s = stage.getBoundingClientRect();
+  const x = Math.max(0, Math.floor(s.left));
+  const y = Math.max(0, Math.floor(s.top));
+  const width = Math.min(innerWidth, Math.ceil(s.right)) - x;
+  const height = Math.min(innerHeight, Math.ceil(s.bottom)) - y;
+  if (width < 2 || height < 2) return { clip: null, words: [] };
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
+  const rgba = (c: string) => {
+    cx.clearRect(0, 0, 1, 1);
+    cx.fillStyle = "#000";
+    cx.fillStyle = c;
+    cx.fillRect(0, 0, 1, 1);
+    const d = cx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2], d[3] / 255];
+  };
+  const name = (el: Element) => `${el.localName}${Array.from(el.classList, (c) => `.${c}`).join("")}`;
+  const words: KitWord[] = [];
+  const walker = document.createTreeWalker(stage, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = (n.textContent ?? "").trim();
+    const el = n.parentElement;
+    if (!el || !/[\p{L}\p{N}]/u.test(text)) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden") continue;
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    const r = range.getBoundingClientRect();
+    const box = [Math.max(r.left, x), Math.max(r.top, y), Math.min(r.right, x + width), Math.min(r.bottom, y + height)];
+    if (box[2] - box[0] < 2 || box[3] - box[1] < 4) continue;
+    const hit = document.elementFromPoint((box[0] + box[2]) / 2, (box[1] + box[3]) / 2);
+    // Its own element, or one holding it: a child over the words (a face's picture over its initials) hides them.
+    if (!hit || !(hit === el || hit.contains(el))) continue;
+    let opacity = 1;
+    for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
+    const size = parseFloat(cs.fontSize);
+    const chain: Element[] = [];
+    for (let e: Element | null = el; e && e !== stage; e = e.parentElement) chain.unshift(e);
+    words.push({
+      at: `${entry}: ${chain.map(name).join(" > ")}`,
+      text: text.slice(0, 32),
+      rgba: rgba(cs.color),
+      opacity,
+      large: size >= 24 || (size >= 18.66 && Number(cs.fontWeight) >= 700),
+      exempt: !!el.closest(':disabled, [aria-disabled="true"], [data-gated]'),
+      box: box.map((v, i) => Math.round(v - (i % 2 ? y : x))),
+    });
+  }
+  document.documentElement.classList.add(ask.hide);
+  return { clip: { x, y, width, height }, words };
+}
+
+/**
+ * Each word's contrast on what was drawn under it, from the shot the spec took with the words hidden (placeEntry): the
+ * ground is the median, by luminance, of the pixels in the words' box; the words are their colour laid over it at their
+ * alpha and opacity; the ratio is WCAG's. `width` is the shot's in CSS pixels, so a shot taken at a device scale over
+ * 1 is read where the words are. Shows the words again first.
+ */
+export async function groundsUnder(ask: { png: string; width: number; words: KitWord[]; hide: string }) {
+  document.documentElement.classList.remove(ask.hide);
+  const bytes = Uint8Array.from(atob(ask.png), (c) => c.charCodeAt(0));
+  const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+  ctx.drawImage(bitmap, 0, 0);
+  const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+  const scale = bitmap.width / ask.width;
+  const lin = (c: number) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const lum = (p: number[]) => 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]);
+  const ratio = (a: number[], b: number[]) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  return ask.words.map((w) => {
+    const px: number[][] = [];
+    const [left, top, right, bottom] = w.box.map((v) => Math.round(v * scale));
+    for (let y = Math.max(0, top); y < Math.min(bitmap.height, bottom); y += 1)
+      for (let x = Math.max(0, left); x < Math.min(bitmap.width, right); x += 1) {
+        const i = (y * bitmap.width + x) * 4;
+        px.push([data[i], data[i + 1], data[i + 2]]);
+      }
+    if (!px.length) return { ...w, ratio: null, ground: null, need: w.large ? 3 : 4.5 };
+    px.sort((a, b) => lum(a) - lum(b));
+    const ground = px[Math.floor(px.length / 2)];
+    const a = w.rgba[3] * w.opacity;
+    const fg = ground.map((c, k) => w.rgba[k] * a + c * (1 - a));
+    return { ...w, ratio: Math.round(ratio(fg, ground) * 100) / 100, ground, need: w.large ? 3 : 4.5 };
+  });
 }

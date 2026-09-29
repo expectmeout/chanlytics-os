@@ -35,13 +35,13 @@ export function platformRecipient(
   if (at < 1) return null;
   const host = a.slice(at + 1);
   const local = a.slice(0, at);
-  const reply = /^r\+([a-z2-7]{24})$/.exec(local);
+  const token = /^r\+([a-z2-7]{24})$/.exec(local)?.[1];
   const cold = (typeof coldReplyDomains === "string" ? [coldReplyDomains] : (coldReplyDomains ?? [])).map((d) =>
     d.toLowerCase(),
   );
-  if (host !== domain.toLowerCase() && cold.includes(host)) return reply ? { kind: "reply", token: reply[1] } : null;
+  if (host !== domain.toLowerCase() && cold.includes(host)) return token ? { kind: "reply", token } : null;
   if (host !== domain.toLowerCase()) return null;
-  if (reply) return { kind: "reply", token: reply[1] };
+  if (token) return { kind: "reply", token };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r"
     ? { kind: "mailbox", localPart: local }
     : null;

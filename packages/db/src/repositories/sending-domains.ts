@@ -198,7 +198,7 @@ export async function sendingDomainCounts(
 ): Promise<{ sent: number; bounced: number; complained: number; unsubscribed: number; complained_new: number }> {
   const r = await db.rpc("sending_domain_counts", { p_tenant_id: tenantId, p_host: host, p_since: since } as never);
   const c = (must("count a domain's sends", r) ?? {}) as Record<string, unknown>;
-  const n = (k: string): number => (typeof c[k] === "number" ? (c[k] as number) : Number(c[k] ?? 0) || 0);
+  const n = (k: string): number => (typeof c[k] === "number" ? c[k] : Number(c[k] ?? 0) || 0);
   return {
     sent: n("sent"),
     bounced: n("bounced"),

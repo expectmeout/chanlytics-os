@@ -64,8 +64,9 @@ const ComingSoon = ({ surface, onNavigate }) => {
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
           <Icon name="home" size={12} /> Back to Today
         </button>
-        {/* askAbout is a no-op outside demo — a button that silently does
-            nothing is its own small lie, so it only renders where it works. */}
+        {/* Outside a demo askAbout opens the Line, which answers about this
+            workspace, and a page this release does not have is nothing to ask
+            it about: the button is the demo's, where the seed palette answers. */}
         {window.__DEMO_MODE && (
           <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "About " + meta.title + ": " })}>
             <Icon name="sparkle" size={12} /> Ask about {meta.title}

@@ -240,7 +240,7 @@ export async function platformEvents(office: BackOffice, tenantId: string, limit
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []) as PlatformEvent[];
+  return data ?? [];
 }
 
 /* -------------------------------------------------------------------------- *

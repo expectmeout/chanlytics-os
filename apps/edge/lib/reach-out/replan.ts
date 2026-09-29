@@ -52,7 +52,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
   const move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>): Promise<boolean> =>
     moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
   // By step: its pace and its domains are the step's.
-  const byStep = new Map<string, ReachOutSendRow[]>();
+  const byStep = new Map<string, [...ReachOutSendRow[], ReachOutSendRow]>();
   for (const s of sends) {
     const key = s.playbook_id ?? "";
     byStep.set(key, [...(byStep.get(key) ?? []), s]);

@@ -602,7 +602,7 @@ export async function setPersonDetails(id: string, body: DetailsBody): Promise<D
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
   window.__peekPerson = peekPerson;
-  window.__warmPerson = warmPerson;
+  window.__warmPerson = (id) => void warmPerson(id);
   window.__warmPeople = warmPeople;
   window.__setPersonConsentMany = setPersonConsentMany;
   window.__setPersonDetails = setPersonDetails;
