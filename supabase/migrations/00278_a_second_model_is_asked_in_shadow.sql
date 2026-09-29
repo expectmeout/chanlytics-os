@@ -2,7 +2,8 @@
 --
 -- Scorecard move 10, step 12 (decision 0023). TypeSafe's Jev makes calibrated decisions, not text, and is asked the
 -- same closed-set questions the primary answers (the receptionist's class and stop questions, the reply reader's intent,
--- the lead judge's criteria) beside the primary, while TYPESAFE_SHADOW=1 and a key are set. Its answers are never used.
+-- the lead judge's criteria) beside the primary, while TYPESAFE_SHADOW is 1 (or lists the workspace) and a key is set.
+-- Its answers are never used.
 -- Each shadow call is written to 00276's ledger, with the columns that name the port and say it was a shadow, and, for
 -- each question it answered: the label the primary gave, the label the shadow gave, how sure it was, whether that cleared
 -- the line (contracts SHADOW_CONFIDENT), and whether the two agree. Rows carry labels and numbers, never text.

@@ -152,8 +152,7 @@ export function layerTwo(x: LayerTwoIn): LayerTwoOut {
       replyText = heldLine("faq", x.language, phone);
     }
     escalate = true;
-    // A price that was blocked keeps its own reason: the Inbox says the harder rule, and a person has the thread either way.
-    if (!priceBlocked) escalationReason = "policy_ask";
+    escalationReason = "policy_ask";
   }
   return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
 }

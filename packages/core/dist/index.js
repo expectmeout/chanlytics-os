@@ -49822,7 +49822,7 @@ function layerTwo(x) {
       replyText = heldLine("faq", x.language, phone);
     }
     escalate = true;
-    if (!priceBlocked) escalationReason = "policy_ask";
+    escalationReason = "policy_ask";
   }
   return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
 }

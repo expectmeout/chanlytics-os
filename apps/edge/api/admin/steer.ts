@@ -56,6 +56,21 @@ export interface BrainPort {
   generateReply?: typeof generateReply;
 }
 
+/**
+ * Whether a rewrite may not go out: a price never goes out, nor money a person decides (a refund, a discount, a
+ * deposit). Both are refused as policy_block_price, the one code the two apps read whichever deploys first; the log
+ * line says which, and never the words.
+ */
+function rewriteBlocked(text: string, messageId: string): boolean {
+  if (violatesNoPrices(text)) {
+    L.warn("steer_policy_block_price", { message_id: messageId });
+    return true;
+  }
+  if (!namesMoney(text)) return false;
+  L.warn("steer_policy_block_money", { message_id: messageId });
+  return true;
+}
+
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
@@ -153,17 +168,8 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     L.error("steer_brain_failed", { error: errField(e) });
     return refuse(502, "brain_failed");
   }
-  // The same second door the handler keeps: a price never goes out, nor money a person decides (a refund, a discount,
-  // a deposit), and a rewrite that would say either leaves the original draft where it was. The refusal is one code,
-  // policy_block_price: the two apps read it whichever deploys first.
-  if (violatesNoPrices(r.text)) {
-    L.warn("steer_policy_block_price", { message_id: messageId });
-    return refuse(409, "policy_block_price");
-  }
-  if (namesMoney(r.text)) {
-    L.warn("steer_policy_block_money", { message_id: messageId });
-    return refuse(409, "policy_block_price");
-  }
+  // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
+  if (rewriteBlocked(r.text, messageId)) return refuse(409, "policy_block_price");
 
   const delayMs =
     typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"

@@ -29,7 +29,13 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
+    "00270": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00271": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00272": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00273": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00274": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00275": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -271,6 +277,9 @@
     "00263_an_erased_person_s_digest_is_keyed.sql": "faa01645d719e0c56aca50d4d972978162c1bef02cd155c2221e54ede3caf6cb",
     "00264_an_event_says_which_version_of_its_kind_it_is.sql": "0c6e226a44ab7e074ff89f3ab67b606c71db7e8c0e3b4755181a87be06960275",
     "00265_the_database_tells_each_workspace_what_changed.sql": "ea6a806e26239bc4c23a0f737fef26202fd942794743d40070255568dfe87189",
-    "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197"
+    "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197",
+    "00276_every_model_call_is_kept_in_dollars.sql": "81cb9b262d5bf272291c8fad2c31d717ade6eb225d60d9630257fead32b2cf7f",
+    "00277_a_new_workspace_starts_with_a_model_budget.sql": "91420ef269aed85ffa72f9cb23606540c10e74a2141c5a6ff70b19b027e33c90",
+    "00278_a_second_model_is_asked_in_shadow.sql": "ca8bef622fd072f6d80660ff6a6d6faf6fb4d9d51f11114f9867bb71b82fe1b8"
   }
 }

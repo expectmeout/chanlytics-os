@@ -724,6 +724,30 @@ test("a rewrite that would quote a price is refused, and the original draft and 
   assert.ok(!log.lines.some((l) => l.includes("$180")), "the words stay out of the log");
 });
 
+test("a rewrite that would name money a person decides is refused the same way, and the original draft and its send are left where they were", async () => {
+  const w = fresh();
+  const { tables, db } = world(w);
+  const log = quiet();
+  let res;
+  try {
+    res = await knock(
+      { message_id: w.M, text: "tell them we will sort it out" },
+      {
+        workspace: w.T,
+        brain: brain({ ...ANSWER, text: "We can refund your deposit, and take a discount off the next visit." }).port,
+      },
+    );
+  } finally {
+    log.restore();
+  }
+  assert.deepEqual(await answer(res), [409, { ok: false, error: "policy_block_price" }]);
+  assert.equal(writes(db, "messages").length + writes(db, "jobs").length, 0, "nothing written");
+  assert.equal(tables.messages.find((m) => m.id === w.M).status, "queued");
+  assert.equal(tables.jobs.find((j) => j.id === w.J).state, "scheduled");
+  assert.ok(log.lines.some((l) => l.includes('"event":"steer_policy_block_money"')));
+  assert.ok(!log.lines.some((l) => l.includes("refund")), "the words stay out of the log");
+});
+
 test("the race: the tick sent the old draft while the model was thinking, so the retire counts zero rows -- the rewrite is taken back with 409 already_sent and its send withdrawn, and the sent reply is not touched", async () => {
   const w = fresh();
   const { tables, db } = world(w);
