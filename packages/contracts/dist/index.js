@@ -2061,6 +2061,39 @@ function keysLeftOut(raw, kept, at3 = []) {
     return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
+function sameJson(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  }
+  if (isJsonObject(a) && isJsonObject(b)) {
+    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
+    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+  }
+  return Object.is(a, b);
+}
+function withKeysLeftOut(sent, raw, kept) {
+  if (Array.isArray(sent) && Array.isArray(raw) && Array.isArray(kept)) {
+    const taken = /* @__PURE__ */ new Set();
+    return sent.map((el) => {
+      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
+      if (i < 0) return el;
+      taken.add(i);
+      return withKeysLeftOut(el, raw[i], kept[i]);
+    });
+  }
+  if (!isJsonObject(sent) || !isJsonObject(raw) || !isJsonObject(kept)) return sent;
+  const out = { ...sent };
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === void 0) continue;
+    if (!Object.hasOwn(kept, k)) {
+      if (!Object.hasOwn(sent, k)) out[k] = v;
+    } else if (Object.hasOwn(sent, k)) {
+      out[k] = withKeysLeftOut(sent[k], v, kept[k]);
+    }
+  }
+  return out;
+}
 function refuseUnknownFields(read, raw, ctx) {
   const parsed = read.safeParse(raw);
   if (!parsed.success) return;
@@ -2200,6 +2233,11 @@ function parseTenantConfigResult(raw) {
     issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
   };
 }
+function withStoredKeysKept(sent, stored) {
+  const read = TenantConfigSchema.safeParse(stored ?? {});
+  if (!read.success) return sent;
+  return withKeysLeftOut(sent, stored, read.data);
+}
 function receptionistOf(parsed) {
   if (parsed && !parsed.ok) return "broken";
   return parsed?.config.brain ? "set" : "none";
@@ -2217,7 +2255,7 @@ function withFirstAlertAddress(config, email) {
     ...current.config,
     notifications: { escalation_emails: [address] }
   });
-  return next.success ? next.data : null;
+  return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
 // src/notes/steps.ts
@@ -30791,6 +30829,7 @@ export {
   windowFor,
   withFirstAlertAddress,
   withReplies,
+  withStoredKeysKept,
   withVisitsOf,
   wordCount,
   wordsIssueWords,

@@ -6,6 +6,7 @@ import {
   resolveFacts,
   samePhone,
   whyNotAHandoff,
+  withStoredKeysKept,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
@@ -73,10 +74,13 @@ export const PUT = write({
       const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
       if (why) throw new AppError("validation", why);
     }
-    const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
+    // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any
+    // depth) is put back first: the page never saw it, so the page never meant to delete it.
+    const next = withStoredKeysKept(parsed.data, before?.config);
+    const result = await putTenantConfig(ctx.supabase, member.tenantId, next as Json, body.version, ctx.userId);
     // Two different failures, each in its own words (settings-write.ts says why).
     if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
-    await recordSettingsChanged(ctx, member.tenantId, before?.config, parsed.data, result.row.version);
+    await recordSettingsChanged(ctx, member.tenantId, before?.config, next, result.row.version);
     return {
       config: feedVisibleTo(member.role, parseTenantConfig(result.row.config) ?? {}),
       version: result.row.version,

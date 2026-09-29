@@ -426,6 +426,47 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   );
 });
 
+test("REGRESSION (defect 19): a save from a dashboard older than the row keeps what a newer build stored, at every depth, and the ledger names only the edit", async () => {
+  const brain = {
+    business_name: "Bayside Salon",
+    booking_link: "https://book.example/bayside",
+    system_prompt: "You are the receptionist for Bayside Salon, answering customers on WhatsApp in a warm, short way.",
+    fallbacks: {
+      greeting: "Hi! A person will be with you shortly.",
+      error: "Sorry, something went wrong. A person will reply soon.",
+      non_text: "Thanks! A person will look at that and reply.",
+    },
+  };
+  const stored = {
+    brain: { ...brain, a_new_brain_field: { on: true }, fallbacks: { ...brain.fallbacks, sms: "later" } },
+    guardrails: { no_prices: true },
+  };
+  const tables = {
+    memberships: both("viewer", "owner"),
+    tenant_config: [{ tenant_id: B, config: structuredClone(stored), version: 5, updated_at: "2026-09-01T00:00:00Z" }],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/New_York" }],
+    tenant_channels: [],
+    google_listings: [],
+    events: [],
+  };
+  const read = await settings.GET.run(get(inB), ctxFor(tables));
+  assert.equal("a_new_brain_field" in read.config.brain, false, "the page is never shown what this build cannot read");
+  const page = structuredClone(read.config);
+  page.brain.business_name = "Bayside Salon & Spa";
+  const saved = await settings.PUT.run(send("PUT", { config: page, version: read.version }, inB), ctxFor(tables));
+  assert.equal(saved.version, 6);
+  const row = tables.tenant_config[0].config;
+  assert.equal(row.brain.business_name, "Bayside Salon & Spa", "the edit lands");
+  assert.deepEqual(row.brain.a_new_brain_field, { on: true }, "a field a newer build wrote inside a section is kept");
+  assert.equal(row.brain.fallbacks.sms, "later", "and one two levels down");
+  assert.deepEqual(row.guardrails, { no_prices: true }, "and a section of its own");
+  assert.deepEqual(
+    tables.events.map((e) => e.data.fields),
+    [["business_name"]],
+    "the ledger names the edit, and no field as deleted",
+  );
+});
+
 test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; and saved as one", async () => {
   const brain = {
     business_name: "Harbor Moving",
