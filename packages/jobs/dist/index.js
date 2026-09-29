@@ -8141,6 +8141,7 @@ var MODEL_ROUTES2 = {
   reach_out_check: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400 },
   reply_read: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400 }
 };
+var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 var MODEL_PRICES2 = {
   [MODELS2.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS2.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
@@ -11061,6 +11062,21 @@ var CALL_ANALYSIS_FIELDS = [
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
   }
 ];
+var VOICE_LLM_DEFAULTS = {
+  model: RETELL_MODELS.llm,
+  model_temperature: 0,
+  start_speaker: "agent"
+};
+var VOICE_AGENT_DEFAULTS = {
+  voice_id: "minimax-Tamsin",
+  language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
+  end_call_after_silence_ms: 3e4,
+  max_call_duration_ms: HOUR_MS2,
+  data_storage_setting: "everything",
+  data_storage_retention_days: 90,
+  post_call_analysis_model: RETELL_MODELS.analysis,
+  allow_user_dtmf: true
+};
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -12151,6 +12167,7 @@ var MODEL_ROUTES3 = {
   reach_out_check: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400 },
   reply_read: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400 }
 };
+var RETELL_MODELS2 = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 var MODEL_PRICES3 = {
   [MODELS3.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS3.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
@@ -15076,6 +15093,21 @@ var CALL_ANALYSIS_FIELDS2 = [
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
   }
 ];
+var VOICE_LLM_DEFAULTS2 = {
+  model: RETELL_MODELS2.llm,
+  model_temperature: 0,
+  start_speaker: "agent"
+};
+var VOICE_AGENT_DEFAULTS2 = {
+  voice_id: "minimax-Tamsin",
+  language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
+  end_call_after_silence_ms: 3e4,
+  max_call_duration_ms: HOUR_MS3,
+  data_storage_setting: "everything",
+  data_storage_retention_days: 90,
+  post_call_analysis_model: RETELL_MODELS2.analysis,
+  allow_user_dtmf: true
+};
 var API22 = "https://api.twilio.com/2010-04-01";
 var TRUNKING2 = "https://trunking.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";

@@ -1136,6 +1136,7 @@ var MODEL_ROUTES = {
   reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
   reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 }
 };
+var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 var MODEL_PRICES = {
   [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
@@ -4101,6 +4102,21 @@ var CALL_ANALYSIS_FIELDS = [
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
   }
 ];
+var VOICE_LLM_DEFAULTS = {
+  model: RETELL_MODELS.llm,
+  model_temperature: 0,
+  start_speaker: "agent"
+};
+var VOICE_AGENT_DEFAULTS = {
+  voice_id: "minimax-Tamsin",
+  language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
+  end_call_after_silence_ms: 3e4,
+  max_call_duration_ms: HOUR_MS,
+  data_storage_setting: "everything",
+  data_storage_retention_days: 90,
+  post_call_analysis_model: RETELL_MODELS.analysis,
+  allow_user_dtmf: true
+};
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -7298,7 +7314,7 @@ var MONEY_PATTERNS = [
   /\bwaiv(?:e|ed|ing) (?:the |your |a |any )?(?:fee|charge|deposit|cost)s?\b/i,
   /\breembols\w*/i,
   /\bdevoluci[oó]n\b/i,
-  /\bdevolver(?:te|le|les)? (?:el|tu|su) dinero\b/i,
+  /\bdev(?:olv|uelv)\w*\s+(?:el|tu|su)\s+dinero\b/i,
   /\bdescuentos?\b/i,
   /\brebajas?\b/i,
   /\bdep[oó]sitos?\b/i,

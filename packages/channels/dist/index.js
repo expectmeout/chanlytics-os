@@ -206,6 +206,7 @@ function fallbackModel(purpose, asked) {
   const next = asked === r2.fallback ? r2.model : r2.fallback;
   return next === asked ? null : next;
 }
+var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 var NO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 var MODEL_PRICES = {
   [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
@@ -4134,7 +4135,7 @@ function agentSettingsDrift(live) {
 
 // src/voice/voice-provision.ts
 var VOICE_LLM_DEFAULTS = {
-  model: "claude-4.5-haiku",
+  model: RETELL_MODELS.llm,
   model_temperature: 0,
   start_speaker: "agent"
 };
@@ -4145,7 +4146,7 @@ var VOICE_AGENT_DEFAULTS = {
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
-  post_call_analysis_model: "gpt-4.1",
+  post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true
 };
 var VOICE_NUMBER_DEFAULTS = {

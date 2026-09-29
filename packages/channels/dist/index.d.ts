@@ -868,7 +868,7 @@ declare function agentSettingsDrift(live: LiveAgentSettings): {
     drift: string[];
 };
 
-/** The model behind the shell. Temperature 0: the facts are read, not improvised. */
+/** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
 declare const VOICE_LLM_DEFAULTS: {
     readonly model: "claude-4.5-haiku";
     readonly model_temperature: 0;

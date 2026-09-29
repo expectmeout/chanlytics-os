@@ -59,7 +59,7 @@ const MONEY_PATTERNS: RegExp[] = [
   /\bwaiv(?:e|ed|ing) (?:the |your |a |any )?(?:fee|charge|deposit|cost)s?\b/i,
   /\breembols\w*/i,
   /\bdevoluci[oó]n\b/i,
-  /\bdevolver(?:te|le|les)? (?:el|tu|su) dinero\b/i,
+  /\bdev(?:olv|uelv)\w*\s+(?:el|tu|su)\s+dinero\b/i,
   /\bdescuentos?\b/i,
   /\brebajas?\b/i,
   /\bdep[oó]sitos?\b/i,
