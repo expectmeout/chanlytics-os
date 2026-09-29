@@ -212,6 +212,7 @@ export const LOG_EVENTS = [
   "operator_page_memory_unwritable",
   "operator_page_send_threw",
   "operator_page_unaddressed",
+  "outside_page",
   "paged_read_capped",
   "partner_card_mark_skipped",
   "partner_earned",
