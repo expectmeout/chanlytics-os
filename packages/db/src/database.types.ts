@@ -5335,6 +5335,7 @@ export type Database = {
         }
         Returns: Json
       }
+      lead_cap: { Args: { p_name: string }; Returns: number }
       lead_check_again: {
         Args: { p_lead_ids: string[]; p_tenant_id: string }
         Returns: Json

@@ -14,7 +14,7 @@
  *   it sends now unless the class is set to never, at nine if now is outside the hours a send may go out in, and the
  *   ledger names them. One run per local day, so a playbook that already ran today answers that in its outcome.
  *
- * A run that failed is a 500 with its reason in `detail`; a run that was decided (sent, asked, off) is a 200.
+ * A run that failed is a 500 with its reason in `detail`; one that was decided (sent, held, empty or off) is a 200.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";

@@ -7,10 +7,11 @@
 -- conversation alone), so A's own handovers on it never showed; and 00259's moments trigger, which joins the person
 -- by id, rewrote A's person's first and last moments (the scorecard of 29 September 2026, review D).
 --
--- Every member-writable row that names another table's row now asks that the named row is its own workspace's, the
--- way segment_members and broadcast_recipients already did (00044, 00046): a message's thread and person; a
--- broadcast's playbook and template; a recipient's message; a moment's list and template, on insert and on the update
--- its column grant allows; a person's reply policy, its person (a trigger already keeps a policy's subject for life).
+-- The member insert policies whose row names another workspace-owned row now ask that the named row is its own
+-- workspace's, the way segment_members and broadcast_recipients already did (00044, 00046): a message's thread and
+-- person; a broadcast's playbook and template; a recipient's message; a moment's list and template, on insert and on
+-- the update its column grant allows; a person's reply policy, its person (a trigger already keeps a policy's subject
+-- for life).
 -- Each subselect reads under the caller's own RLS, which shows a member only their workspace's rows, so it can never
 -- answer for another's. Every other condition of each policy is as its last migration left it (00260, 00046, 00183,
 -- 00048, 00029). A decision's undo_of is left as it is: a policy on decisions cannot read decisions without

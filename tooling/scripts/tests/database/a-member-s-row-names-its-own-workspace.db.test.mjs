@@ -61,7 +61,7 @@ async function workspace(tag) {
   const contact = ok(
     await admin
       .from("contacts")
-      .insert({ tenant_id: t, phone_e164: `+1555555${n}${n}` })
+      .insert({ tenant_id: t, phone_e164: `+155555501${n}` })
       .select("id")
       .single(),
     "contact",
