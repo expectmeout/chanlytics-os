@@ -13,17 +13,21 @@ name: Database
 # its repositories through the committed dist), what the two --check steps
 # compare, and what this workflow installs. A pull request that touches none of
 # them gets that sentence and a pass without a Supabase stack being started, and
-# a push to main asks the same question of what it merged. Two workflows on
-# every push spent the included minutes by 11 September; the question costs a
-# checkout and a git diff.
+# a push to main asks the same question of everything since main's last replay
+# that passed. Two workflows on every push spent the included minutes by 11
+# September; the question costs a checkout and a git diff.
 on:
   pull_request:
   push:
     branches: [main]
+  # A merge queue runs the required checks on the queue's own commit (ci.yml).
+  merge_group:
 
+# As ci.yml: a pull request's newer run cancels its older one, and a main commit
+# is never cancelled, each in a group of its own.
 concurrency:
-  group: database-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: database-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   replay:
@@ -31,6 +35,10 @@ jobs:
     # pull request waiting for a check that never reports.
     name: Migrations replay, SQL rules hold
     runs-on: ubuntu-latest
+    # actions: read, for the push's question: which main commit last replayed green.
+    permissions:
+      contents: read
+      actions: read
     steps:
       # The whole history, so the diff below has its base to compare with.
       - uses: actions/checkout@v7
@@ -39,22 +47,36 @@ jobs:
       # The answer goes to the step's outputs and the reason to the log. A git
       # diff that fails, or a script that crashes, fails this step instead of
       # reading as "not needed" and skipping the replay.
+      #
+      # A push to main asks about everything since the last main commit whose
+      # replay passed, not only its own push: a replay that was cancelled, died
+      # on the runner, or never started (the spending-limit block of 28 Sep) is
+      # made up by the next push. Asking only of its own push, a successor
+      # answered "not needed" while the merge before it carried a migration
+      # nothing had replayed (the scorecard's defect 62: 00237). History that
+      # cannot be read, or a last green commit main no longer holds, replays.
       - id: changed
         name: Could the database have changed?
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          BEFORE: ${{ github.event.before }}
+          MERGE_BASE: ${{ github.event.merge_group.base_sha }}
           AFTER: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "$EVENT" = "pull_request" ]; then
             files="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          elif [ -z "${BEFORE//0/}" ]; then
-            echo "A push with nothing before it to compare with, so the migrations replay from zero." >&2
-            echo "db=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          elif [ "$EVENT" = "merge_group" ]; then
+            files="$(git diff --name-only "$MERGE_BASE" "$AFTER")"
           else
-            files="$(git diff --name-only "$BEFORE" "$AFTER")"
+            green="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow database.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""')" || green=""
+            if [ -z "$green" ] || ! git merge-base --is-ancestor "$green" "$AFTER"; then
+              echo "No replay on main that passed and that main still holds, so the migrations replay from zero." >&2
+              echo "db=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Asking of everything since $green, main's last replay that passed." >&2
+            files="$(git diff --name-only "$green" "$AFTER")"
           fi
           printf '%s\n' "$files" | node tooling/scripts/checks/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
       - if: steps.changed.outputs.db == 'true'

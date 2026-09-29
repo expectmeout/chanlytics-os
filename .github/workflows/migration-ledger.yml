@@ -1,0 +1,80 @@
+name: Production's migrations
+
+# Whether production has applied every migration main carries, and nothing main
+# does not. Production took migrations from branches, below main's head and out
+# of order, and nothing compared what it applied with main (the scorecard's
+# defect 59). tooling/scripts/checks/migration-ledger.mjs compares production's
+# ledger, read with the Supabase CLI, with main's folder: a migration main has
+# carried for a day that production lacks, or a version production holds that
+# main does not, keeps one issue open and pages the platform through the edge's
+# pager door; agreement closes the issue.
+#
+# It needs to read production, which CI never does by rule, so it is off until
+# Ruben sets the secret SUPABASE_PROD_READ_URL: a Postgres connection string for
+# a role that may read supabase_migrations.schema_migrations and nothing else
+# (docs/runbook.md, Apply a migration, has the statements). Paging also needs
+# PAGER_URL and PAGER_KEY, as the nightly does.
+on:
+  schedule:
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: migration-ledger
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: Production's ledger against main's
+    runs-on: ubuntu-latest
+    env:
+      PROD_READ_URL: ${{ secrets.SUPABASE_PROD_READ_URL }}
+    steps:
+      - name: Off until SUPABASE_PROD_READ_URL is set
+        if: env.PROD_READ_URL == ''
+        run: echo "::notice title=Nothing compared::SUPABASE_PROD_READ_URL is not set, so production's ledger was not read (docs/runbook.md)."
+      - if: env.PROD_READ_URL != ''
+        uses: actions/checkout@v7
+        with:
+          # When each migration landed on main is read from history.
+          fetch-depth: 0
+      - if: env.PROD_READ_URL != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - if: env.PROD_READ_URL != ''
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - id: compare
+        if: env.PROD_READ_URL != ''
+        name: Compare
+        shell: bash
+        run: |
+          set +e
+          supabase migration list --db-url "$PROD_READ_URL" > prod-ledger.txt 2> prod-ledger.err
+          node tooling/scripts/checks/migration-ledger.mjs --compare prod-ledger.txt --hours 24 > ledger.txt 2>&1
+          code=$?
+          cat ledger.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 2 is production's ledger unread: the step fails, and the log says why.
+          if [ "$code" -eq 2 ]; then cat prod-ledger.err; exit 1; fi
+      - if: steps.compare.outputs.code == '0' || steps.compare.outputs.code == '1'
+        name: Say so, where a person will see it
+        shell: bash
+        env:
+          CODE: ${{ steps.compare.outputs.code }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGER_URL: ${{ secrets.PAGER_URL }}
+          PAGER_KEY: ${{ secrets.PAGER_KEY }}
+        run: |
+          ledger=(--title "Production's migrations disagree with main's" --match "Production's migrations")
+          if [ "$CODE" = "0" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green "${ledger[@]}"
+          else
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${ledger[@]}" --body-file ledger.txt --page-after 1 --condition migration_ledger
+          fi

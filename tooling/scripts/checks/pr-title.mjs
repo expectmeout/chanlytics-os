@@ -91,9 +91,15 @@ function landedCommits(before, after) {
 }
 
 function landed(before, after) {
-  const broken = landedCommits(before, after)
-    .map((c) => ({ ...c, problems: landedProblems(c) }))
-    .filter((c) => c.problems.length);
+  let commits;
+  try {
+    commits = landedCommits(before, after);
+  } catch (e) {
+    // Not a subject that breaks the rule: the push could not be read (a force-push's `before` is gone). Exit 2.
+    console.error(`landed: could not read ${before}..${after}: ${e instanceof Error ? e.message : e}`);
+    process.exit(2);
+  }
+  const broken = commits.map((c) => ({ ...c, problems: landedProblems(c) })).filter((c) => c.problems.length);
   if (!broken.length) {
     console.log("landed: every subject keeps the title rule");
     return;

@@ -161,6 +161,13 @@ test("run on a push to main, it reads each commit the push landed from git and e
     assert.equal(merge.status, 1);
     assert.match(merge.stdout, /It is a merge commit/);
     assert.doesNotMatch(merge.stdout, /A branch's own commit/, "the first parent's line: what main landed");
+    const unreadable = landed("f".repeat(40), second);
+    assert.equal(
+      unreadable.status,
+      2,
+      "a push git cannot read is the check failing, not a subject that broke the rule",
+    );
+    assert.match(unreadable.stderr, /could not read/);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
