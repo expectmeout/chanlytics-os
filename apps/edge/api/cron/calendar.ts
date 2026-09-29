@@ -49,9 +49,16 @@ export async function POST(request: Request): Promise<Response> {
 
   const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, booked: 0, failed: 0, remaining: page.remaining };
   for (const row of page.rows) {
+    // A feed that could not be read, or a configuration that does not parse, is stamped as tried: retried the next
+    // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
+    // forty dead feeds held the page for every workspace.
+    const tried = () => markCalendarChecked(db, row.tenant_id, now).catch(() => undefined);
     const cfg = parseTenantConfig(row.config);
     const url = cfg?.calendar?.ical_url ?? null;
-    if (!url) continue;
+    if (!url) {
+      await tried();
+      continue;
+    }
     out.tenants += 1;
     try {
       // The zone comes with the page (00245): the workspace's own, UTC when that is a name nobody knows.
@@ -65,6 +72,7 @@ export async function POST(request: Request): Promise<Response> {
       );
       if (!items) {
         out.failed += 1;
+        await tried();
         continue;
       }
       const people = peopleFromItems(
@@ -78,9 +86,6 @@ export async function POST(request: Request): Promise<Response> {
       out.named += r.named;
       out.emailed += r.emailed;
       out.booked += await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
-      // Stamped only on SUCCESS. A failure leaves the row due, so the next tick
-      // retries it instead of skipping a workspace for an hour because its feed
-      // was briefly unreachable.
       await markCalendarChecked(db, row.tenant_id, now);
       if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
       // A row on the bell, not an email: people arriving is good news, not an alarm.
@@ -94,6 +99,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       out.failed += 1;
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });
+      await tried();
     }
   }
   const backlog = await noteBacklog(db, "calendar", page.remaining);

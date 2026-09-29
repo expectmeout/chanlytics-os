@@ -57,7 +57,7 @@ export const PLAYBOOKS_PER_TICK = 25;
 /** Consecutive backlogged ticks before a sweep calls itself unhealthy. */
 export const BACKLOG_TICKS_BEFORE_ALARM = 3;
 
-export type { DueCalendar, DuePage, DuePlaybook };
+export type { DuePage, DuePlaybook };
 
 /**
  * The workspaces whose calendar is due, never-read first (00245 calendars_due).

@@ -321,7 +321,7 @@ test("a booking door that refuses counts nothing and fails nothing: People is fi
 
 /* --------------------------------------------------------------- failure */
 
-test("a feed that cannot be read fails that workspace only and leaves it due: no stamp, no row, the rest of the page served", async () => {
+test("a feed that cannot be read fails that workspace only and moves it to the back of the page: stamped as tried, so it is read again the next hour behind the feeds that can be, no row, the rest of the page served", async () => {
   const w = world();
   const G = "feed-gone",
     K = "feed-fine";
@@ -345,7 +345,7 @@ test("a feed that cannot be read fails that workspace only and leaves it due: no
       remaining: 0,
     });
     assert.deepEqual(read(line), [urlG, urlK]);
-    assert.equal(checkedAt(w, G), null, "not stamped: still due, retried next tick");
+    assert.ok(fresh(checkedAt(w, G)), "stamped as tried: to the back of the page, read again the next hour");
     assert.ok(fresh(checkedAt(w, K)));
     assert.deepEqual(people(w, G), []);
     assert.deepEqual(people(w, K), [["+12125550100", null]]);

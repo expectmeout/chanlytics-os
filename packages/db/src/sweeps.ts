@@ -3,8 +3,9 @@
  * what is due beyond it. The playbooks sweep used to read a page of every running playbook and judge due-ness after,
  * so a due playbook waited behind a page of ones that had run today or were hours from their hour, and what it said
  * it could not reach counted those too: a deployment with twenty-six daily playbooks called itself backlogged every
- * hour of the day, and twenty-five in a paused workspace held the page for every workspace on the platform. The service role asks these (the edge's sweeps); a read that fails throws, so a database without
- * the function is a sweep that says so, never a quiet tick.
+ * hour of the day, and twenty-five in a paused workspace held the page for every workspace on the platform. The
+ * service role asks these (the edge's sweeps); a read that fails throws, so a database without the function is a sweep
+ * that says so, never a quiet tick.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS } from "@chanlytics/contracts";

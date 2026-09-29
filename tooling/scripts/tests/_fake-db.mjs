@@ -16,7 +16,7 @@
  */
 
 import crypto from "node:crypto";
-import { localDate, localHour } from "@chanlytics/contracts";
+import { localHour, runDueNow } from "@chanlytics/contracts";
 
 /**
  * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
@@ -326,10 +326,12 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
 
 /**
  * The zone a row is judged in, as 00245 safe_zone answers it: the workspace's own, the product's default when it has
- * none, and UTC when the name is not a zone Intl knows -- the edge's own fallback (contracts parts()).
+ * none, and UTC when the name is not spelled Area/Location (or UTC) or is not a zone Intl knows -- the edge's own
+ * fallback (contracts parts()).
  */
 function safeZone(name) {
   const tz = String(name ?? "").trim() || "America/New_York";
+  if (tz !== "UTC" && !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) return "UTC";
   try {
     new Intl.DateTimeFormat("en-CA", { timeZone: tz });
     return tz;
@@ -414,10 +416,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             tenantOf(p.tenant_id)?.status !== "paused" &&
             (p_tenant_id == null || p.tenant_id === p_tenant_id),
         )
-        .filter(({ p, tz }) => {
-          const hour = localHour(tz, at);
-          return hour >= p.run_hour && hour <= p_last_hour && p.last_run_for !== localDate(tz, at);
-        })
+        // runDueNow's rule, as the SQL restates it; the SQL is held to it on a stack (ops/sweep-pages.db.test.mjs).
+        .filter(({ p, tz }) => runDueNow(p, tz, at) && localHour(tz, at) <= p_last_hour)
         .sort((a, b) => byWaiting(a.p, b.p, "last_run_at", "created_at", "id"));
       return due
         .slice(0, Math.max(0, p_limit ?? 0))

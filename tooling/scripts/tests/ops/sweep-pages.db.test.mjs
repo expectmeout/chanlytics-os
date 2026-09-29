@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { runDueNow } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -351,6 +352,52 @@ test(
       [...held].sort(),
       "resumed, all twenty-six are due: nothing closed their day while it was paused",
     );
+  },
+);
+
+test(
+  "the page is runDueNow's rule, hour by hour: eight zones (a daylight-saving change, half and three-quarter hours, both ends of the offsets, a POSIX string and a name nobody knows) over forty-eight hours, twelve moments each, and the page is exactly what contracts' rule says is due in the zone the page names",
+  { skip },
+  async () => {
+    // Europe/London leaves summer time at 01:00Z on 25 October 2026, inside the window.
+    const ZONES = [
+      "America/Chicago",
+      "Europe/London",
+      "Asia/Kathmandu",
+      "Pacific/Chatham",
+      "Etc/GMT+12",
+      "Etc/GMT-14",
+      "UTC+5",
+      "Mars/Olympus",
+    ];
+    const FROM = Date.parse("2026-10-24T00:00:00.000Z");
+    const grid = [];
+    for (const [z, zone] of ZONES.entries()) {
+      const ws = await workspace(`grid-${z}`, zone);
+      const rows = [];
+      for (const run_hour of [9, 10, 15, 20])
+        for (const last_run_for of [null, "2026-10-24", "2026-10-25"])
+          rows.push({
+            id: await moment(ws, `At ${run_hour}, ran ${last_run_for}`, { run_hour, last_run_for }),
+            run_hour,
+            last_run_for,
+          });
+      grid.push({ ws, zone, named: ok(await db.rpc("safe_zone", { p: zone })), rows });
+    }
+    assert.deepEqual(
+      grid.map((g) => g.named),
+      [...ZONES.slice(0, 6), "UTC", "UTC"],
+      "an Area/Location name Postgres knows is itself; a POSIX string and an unknown name are UTC, as the edge reads them",
+    );
+    for (let h = 0; h < 48; h += 1) {
+      const at = new Date(FROM + h * H);
+      for (const g of grid) {
+        const got = await page(g.ws, at.toISOString());
+        const want = g.rows.filter((r) => runDueNow({ state: "running", ...r }, g.named, at)).map((r) => r.id);
+        assert.deepEqual(ids(got).sort(), want.sort(), `${g.zone} at ${at.toISOString()}`);
+        assert.ok(got.every((r) => r.timezone === g.named && r.due_total === want.length));
+      }
+    }
   },
 );
 

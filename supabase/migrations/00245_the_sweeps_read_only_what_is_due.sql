@@ -1,8 +1,8 @@
 -- 00245 · The sweeps read only what is due.
 --
--- Written as 00193 and renumbered 00196 on its branch (#1146, 26 September 2026), which never merged; applied first
--- as 00245, above the production ledger's head (00240) on 29 September. Additive: two reads and a helper, no table
--- changes; apply before the edge that calls them (an edge ahead of it fails its sweeps by name, a 500, never quietly).
+-- Written as 00193 and renumbered 00196 on its branch (#1146, 26 September 2026), which never merged; numbered 00245
+-- above the production ledger's head (00240, 29 September). Additive: two reads and a helper, no table changes;
+-- apply before the edge that calls them (an edge ahead of it fails its sweeps by name, a 500, never quietly).
 --
 -- The playbooks sweep read a page of RUNNING playbooks, least-recently-run first (00089), and judged which were due
 -- afterwards, on the edge, by each workspace's own clock. So the page held playbooks that had run today and ones
@@ -30,7 +30,10 @@
 -- A zone the database does not know is judged in UTC, as the edge judged it (contracts parts() falls back to UTC).
 -- tenants.timezone is owner-settable text (00084) checked against Intl on the way in and against pg_timezone_names
 -- only at creation (00072), and the two name sets differ; `at time zone` on a name Postgres does not know raises, and
--- one such row would fail the whole page, every tick, for every workspace. safe_zone keeps that to the one row.
+-- one such row would fail the whole page, every tick, for every workspace. safe_zone keeps that to the one row. It
+-- also takes only a name spelled as the zone database spells one (Area/Location, or UTC): a POSIX string such as
+-- 'UTC+5' is a zone to Postgres (five hours WEST of UTC) and none to the edge's Intl, which reads it as UTC, and a
+-- page judged on one clock and run on the other would call rows due that the edge never runs.
 
 set local lock_timeout = '3s';
 
@@ -42,6 +45,9 @@ stable
 set search_path = public
 as $$
 begin
+  if p is null or not (p = 'UTC' or p ~ '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$') then
+    return 'UTC';
+  end if;
   perform now() at time zone p;
   return p;
 exception when others then
@@ -50,7 +56,7 @@ end $$;
 revoke execute on function public.safe_zone(text) from public, anon, authenticated;
 grant execute on function public.safe_zone(text) to service_role;
 comment on function public.safe_zone(text) is
-  'The zone name as given when Postgres knows it, UTC otherwise: how the sweeps'' pages (00245) read a workspace''s timezone, so one unknown name never fails a tick for every workspace.';
+  'The zone name as given when it is spelled Area/Location (or UTC) and Postgres knows it, UTC otherwise: how the sweeps'' pages (00245) read a workspace''s timezone, so one unknown name never fails a tick for every workspace.';
 
 -- The running playbooks of one kind due at `p_at`: never run first, then the least recently run, `p_limit` of them,
 -- each with the zone it was judged in and `due_total`, the count of all that were due -- the caller's "left behind" is
