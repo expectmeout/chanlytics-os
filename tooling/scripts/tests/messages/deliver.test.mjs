@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { isWaitRefusal } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(
@@ -85,6 +86,8 @@ const outreachRpc = (t) => ({
       lead_stage: live[0]?.stage ?? null,
       suppressed: (t.suppressed ?? []).includes(String(a.p_to).trim().toLowerCase()),
       wrote_back: wroteBack,
+      // Its owner stopped writing to the send's own lead (00241).
+      stopped: !!(a.p_lead_id && live.find((l) => l.id === a.p_lead_id)?.reach_out_stopped_at),
       domain: d
         ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null, sent_days: d.sent_days ?? 0 }
         : null,
@@ -1581,4 +1584,40 @@ test("a cold email that names its lead is judged by that lead: a business closed
   // Another person's lead is no lead of this send's.
   const other = coldWorld({ leads: [{ id: "l9", tenant_id: T, contact_id: "someone-else", stage: "ready" }] });
   assert.equal((await deliver(ports(other, emailWire()), cold({ leadId: "l9" }))).reason, "outreach_not_a_lead");
+});
+
+test("a lead its owner stopped writing to is refused its cold email, a skip and never a wait; an older database says nothing of it", async () => {
+  // Reach out Part 6 (H10): the stop is a fact of the send's own lead (00241 outreach_lead_facts.stopped), so an email
+  // claimed or queued before the owner pressed Stop never leaves, and the clock skips it rather than planning it again.
+  const stopped = () =>
+    coldWorld({
+      leads: [
+        {
+          id: "l1",
+          tenant_id: T,
+          contact_id: "k1",
+          stage: "nurture",
+          reach_out_stopped_at: "2026-09-28T15:00:00.000Z",
+        },
+      ],
+    });
+  const t = stopped();
+  const w = emailWire();
+  const out = await deliver(ports(t, w), cold({ leadId: "l1" }));
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_stopped"]);
+  assert.equal(w.calls.length, 0, "nothing reaches the wire");
+  assert.equal(isWaitRefusal(out.reason), false, "a skip: the clock never plans it again");
+  // A database before 00241 answers without the fact: not stopped, as it was, and the SQL halves of the stop hold.
+  const u = stopped();
+  const older = {
+    outreach_facts: (a) => {
+      const { stopped: _gone, ...rest } = outreachRpc(u).outreach_facts(a);
+      return rest;
+    },
+  };
+  const before = await deliver(
+    { db: fakeDb(u, {}, older), wire: emailWire().wire, now: () => NOW },
+    cold({ leadId: "l1" }),
+  );
+  assert.equal(before.outcome, "sent");
 });

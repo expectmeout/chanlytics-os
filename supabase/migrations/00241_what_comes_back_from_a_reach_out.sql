@@ -166,7 +166,7 @@ begin
              count(*) filter (where exists (
                select 1 from public.reach_out_replies r
                 where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
-                  and r.intent in ('interested', 'question'))) as interested,
+                  and r.claim <> 'auto_reply' and r.intent in ('interested', 'question'))) as interested,
              -- Booked (00241, H2): an appointment seen after an email of the reach-out left.
              count(*) filter (where ls.booked_at is not null) as booked
         from last_sent ls
@@ -176,7 +176,10 @@ begin
       'steps', coalesce((select jsonb_agg(jsonb_build_object(
         'id', c.id,
         'n', c.n,
-        'written', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'sent'),
+        -- An email that left (00241): sent, or failed by a receipt after it left (email_left), as Reports counts it.
+        'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id
+                     where s.playbook_id = c.id
+                       and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))),
         'delivered', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
                        where s.playbook_id = c.id and s.state = 'sent' and m.status in ('delivered', 'read')),
         'bounced', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
@@ -194,7 +197,10 @@ begin
         select jsonb_build_object('id', b.id, 'step_id', b.playbook_id, 'run_for', b.run_for, 'state', b.state,
                                   'planned', b.recipient_count,
                                   'written', (select count(*) from public.reach_out_sends s
-                                               where s.broadcast_id = b.id and s.state = 'sent'),
+                                                left join public.messages m on m.id = s.message_id
+                                               where s.broadcast_id = b.id
+                                                 and (s.state = 'sent' or (s.state = 'failed'
+                                                      and public.email_left(m.status, m.error)))),
                                   'held', (select count(*) from public.reach_out_sends s
                                             where s.broadcast_id = b.id and s.state = 'held'),
                                   'handed', (select count(*) from public.reach_out_sends s
@@ -332,12 +338,19 @@ begin
   v_today := (now() at time zone v_tz)::date;
   v_since := (v_today - (p_days - 1))::timestamp at time zone v_tz;
   return (
-    with sent as (
-      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id, s.sent_at,
+    -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
+    -- the clock settles a send whose email bounced before it was read sent. Dated by when it left.
+    with left_ as (
+      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
+             coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.reach_out_sends s
         left join public.messages m on m.id = s.message_id
-       where s.tenant_id = p_tenant_id and s.state = 'sent' and s.sent_at >= v_since
+       where s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+    ),
+    sent as (
+      select * from left_ x where x.sent_at >= v_since
     ),
     handed as (
       select s.root_id, s.playbook_id, count(*) as n
@@ -361,7 +374,7 @@ begin
              coalesce(ls.contact_id in (select contact_id from wrote), false) as wrote_back,
              exists (select 1 from public.reach_out_replies r
                       where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
-                        and r.intent in ('interested', 'question')) as interested,
+                        and r.claim <> 'auto_reply' and r.intent in ('interested', 'question')) as interested,
              ls.booked_at is not null as booked,
              coalesce(ls.closed_reason = 'said_no', false) as said_no
         from last_sent ls
@@ -502,29 +515,37 @@ begin
   v_tz := coalesce(v_tz, 'America/New_York');
   v_midnight := date_trunc('day', now() at time zone v_tz) at time zone v_tz;
   return (
+    -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
     with sends as (
-      select s.id, s.lead_id, s.state, s.reason, s.send_at, s.sent_at, s.checked_at, s.domain_id, s.message_id,
+      select s.id, s.lead_id, s.state, s.reason, s.send_at, s.checked_at, s.domain_id, s.message_id,
+             case when s.state = 'sent' then s.sent_at
+                  when s.state = 'failed' and public.email_left(m.status, m.error)
+                    then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
+             coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false) as bounced,
              b.state in ('pending_approval', 'scheduled', 'sending') as live
         from public.reach_out_sends s
         join public.broadcasts b on b.id = s.broadcast_id
+        left join public.messages m on m.id = s.message_id
        where s.tenant_id = p_tenant_id and s.root_id = v_root.id
     ),
     per as (
       select x.lead_id,
-             count(*) filter (where x.state = 'sent') as sent,
-             min(x.sent_at) filter (where x.state = 'sent') as first_sent_at,
-             max(x.sent_at) filter (where x.state = 'sent') as last_sent_at,
+             count(*) filter (where x.left_at is not null) as sent,
+             min(x.left_at) as first_sent_at,
+             max(x.left_at) as last_sent_at,
              min(x.send_at) filter (where x.state = 'planned' and x.live) as next_at,
              bool_or(x.state = 'held' and x.live) as held,
              bool_or(x.state = 'handed') as handed,
-             max(x.sent_at) filter (where x.state = 'sent') as ord
+             bool_or(x.bounced and x.left_at is not null) as bounced,
+             max(x.left_at) filter (where x.bounced) as bounced_at,
+             max(x.left_at) as ord
         from sends x
        group by x.lead_id
     )
     select jsonb_build_object(
       'chain', jsonb_build_object('root_id', v_root.id, 'name', v_root.name, 'state', v_root.state),
       'written_to', (select count(*) from per where sent > 0),
-      'today', (select count(*) from sends where state = 'sent' and sent_at >= v_midnight),
+      'today', (select count(*) from sends where left_at >= v_midnight),
       'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', d.host)
                  from sends x
                  join public.leads l on l.id = x.lead_id
@@ -549,12 +570,9 @@ begin
                  'next_at', p.next_at,
                  'held', coalesce(p.held, false),
                  'handed', coalesce(p.handed, false),
-                 'bounced', exists (select 1 from sends x join public.messages m on m.id = x.message_id
-                                     where x.lead_id = p.lead_id and x.state = 'sent'
-                                       and m.status = 'failed' and m.error->>'provider' = 'bounced'),
-                 'bounced_at', (select max(x.sent_at) from sends x join public.messages m on m.id = x.message_id
-                                 where x.lead_id = p.lead_id and x.state = 'sent'
-                                   and m.status = 'failed' and m.error->>'provider' = 'bounced'),
+                 'bounced', coalesce(p.bounced, false),
+                 'bounced_at', p.bounced_at,
+                 'email_state', l.email_state,
                  'reply', (select jsonb_build_object('intent', r.intent, 'claim', r.claim, 'read_at', r.read_at,
                                                      'undone', r.undone_at is not null)
                              from public.reach_out_replies r
@@ -649,7 +667,9 @@ begin
                'state', s.state,
                'reason', s.reason,
                'send_at', s.send_at,
-               'sent_at', s.sent_at,
+               'sent_at', coalesce(s.sent_at, case when s.state = 'failed' and public.email_left(m.status, m.error)
+                                                  then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),
+               'left', s.state = 'sent' or (s.state = 'failed' and coalesce(public.email_left(m.status, m.error), false)),
                'angle', s.angle,
                'host', d.host,
                'message_id', s.message_id,
@@ -673,6 +693,10 @@ begin
                'summary', r.summary,
                'undone', r.undone_at is not null,
                'until_at', r.until_at,
+               -- What the reading did, as its door recorded it (contracts readingPlan): the page says it, never re-derives it.
+               'stops', coalesce((r.plan->>'stops')::boolean, false),
+               'convert', coalesce((r.plan->>'convert')::boolean, false),
+               'said_no', coalesce((r.plan->>'saidNo')::boolean, false),
                'can_undo', public.reach_out_reply_undoable(r.message_id) is null)
              order by r.read_at desc)
         from (select * from public.reach_out_replies x
@@ -700,6 +724,7 @@ security definer
 set search_path = public
 as $$
 declare
+  v_tenant  uuid;
   v_lead    public.leads%rowtype;
   v_skipped int;
   v_leaving int;
@@ -707,9 +732,13 @@ begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  select * into v_lead from public.leads where id = p_lead_id for update;
-  if not found or not public.is_acting_member(v_lead.tenant_id)
-     or v_lead.erased_at is not null or v_lead.blanked_at is not null then
+  -- Whose it is first, and only then the lock: a stranger never holds another workspace's lead row.
+  select l.tenant_id into v_tenant from public.leads l where l.id = p_lead_id;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  select * into v_lead from public.leads where id = p_lead_id and tenant_id = v_tenant for update;
+  if not found or v_lead.erased_at is not null or v_lead.blanked_at is not null then
     raise exception 'Lead not found.' using errcode = 'P0002';
   end if;
   if not exists (select 1 from public.reach_out_sends s where s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id) then
@@ -755,13 +784,16 @@ as $$
            date_trunc('day', p_now at time zone z.tz) at time zone z.tz as since
       from public.tenants t
      cross join lateral (select coalesce(nullif(t.timezone, ''), 'America/New_York') as tz) z
-     where extract(hour from p_now at time zone z.tz) = 18
+     where extract(hour from p_now at time zone z.tz) >= 18
        and exists (select 1 from public.playbooks p
                     where p.tenant_id = t.id and p.kind = 'reach_out' and p.trigger = 'lead_first')
   ), counted as (
     select h.id, h.day, jsonb_build_object(
-      'written', (select count(*) from public.reach_out_sends s
-                   where s.tenant_id = h.id and s.state = 'sent' and s.sent_at >= h.since and s.sent_at <= p_now),
+      'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id
+                   where s.tenant_id = h.id
+                     and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+                     and coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at))
+                         between h.since and p_now),
       'wrote_back', (select count(*) from public.reach_out_replies r
                       where r.tenant_id = h.id and r.read_at >= h.since and r.read_at <= p_now
                         and r.claim <> 'auto_reply'),
@@ -773,8 +805,10 @@ as $$
                    where r.tenant_id = h.id and r.read_at >= h.since and r.read_at <= p_now
                      and r.undone_at is null and r.intent = 'no'),
       'bounced', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                   where s.tenant_id = h.id and s.state = 'sent' and s.sent_at >= h.since and s.sent_at <= p_now
-                     and m.status = 'failed' and m.error->>'provider' = 'bounced'),
+                   where s.tenant_id = h.id and s.state in ('sent', 'failed')
+                     and m.status = 'failed' and m.error->>'provider' = 'bounced'
+                     and coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at))
+                         between h.since and p_now),
       'held', (select count(*) from public.reach_out_sends s join public.broadcasts b on b.id = s.broadcast_id
                 where s.tenant_id = h.id and s.state = 'held'
                   and b.state in ('pending_approval', 'scheduled', 'sending'))) as numbers

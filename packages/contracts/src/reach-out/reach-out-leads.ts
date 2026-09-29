@@ -7,7 +7,8 @@
  */
 import { clockDate, clockNear, clockNearWhen, clockTime, zoneDayKey } from "../shared/clock";
 import { capitalize, plural } from "../shared/words";
-import { LEAD_FIT_WORDS } from "../leads/lead-words";
+import { LEAD_FIT_WORDS, LEAD_STAGE_WORDS } from "../leads/lead-words";
+import { skippedReasonWords } from "./reach-out-approval";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "./reach-out-replies";
 import { chainPaceOf, stepLabelOf } from "./reach-out-sheet";
 import type { ReachOutChainDto } from "./reach-out-dtos";
@@ -38,6 +39,8 @@ export interface ReachOutLeadLineDto {
   handed: boolean;
   bounced: boolean;
   bounced_at: string | null;
+  /** The lead's address as last checked: a permanent bounce marks it invalid (C11). */
+  email_state: string | null;
   /** Its newest reading. */
   reply: ReachOutLineReplyDto | null;
   /** An automatic out-of-office's day back, while it is ahead. */
@@ -74,6 +77,8 @@ export interface ReachOutTimelineSendDto {
   message_id: string | null;
   email_status: string | null;
   bounced: boolean;
+  /** The email left: sent, or failed by a receipt after it left (00179 email_left). */
+  left: boolean;
 }
 
 /** One reading of a lead's reply (00241 reach_out_lead_timeline). */
@@ -85,6 +90,10 @@ export interface ReachOutTimelineReadingDto {
   summary: string | null;
   undone: boolean;
   until_at: string | null;
+  /** What it did, as its door recorded it (contracts readingPlan, kept on the reading): the chain stopped, Talking, no. */
+  stops: boolean;
+  convert: boolean;
+  said_no: boolean;
   /** The caller may undo it (00222 reach_out_reply_undoable, the one rule). */
   can_undo: boolean;
 }
@@ -169,7 +178,8 @@ export function reachOutLineOf(l: ReachOutLeadLineDto, nowMs: number, tz: string
     return `Wrote back ${near(r.read_at, tz, nowMs)} · ${intentWords(r.intent)}`;
   }
   if (l.closed_reason === "said_no") return "Said no";
-  if (l.bounced) return `Bounced ${near(l.bounced_at, tz, nowMs)} · address dropped`;
+  if (l.bounced)
+    return `Bounced ${near(l.bounced_at, tz, nowMs)}${l.email_state === "invalid" ? " · address dropped" : ""}`;
   if (l.stopped_at) return `Stopped ${near(l.stopped_at, tz, nowMs)}`;
   const away = at(l.away_until);
   if (l.sent > 0 && away !== null && away > nowMs)
@@ -233,28 +243,9 @@ function emailWords(s: ReachOutTimelineSendDto): string {
   return "sent";
 }
 
-/** Why a send was skipped, as a lead's story says it; null for one it need not mention (a run stopped whole). */
-function skippedWords(reason: string | null): string | null {
-  switch (reason) {
-    case "run_canceled":
-      return null;
-    case "owner_stopped":
-    case "outreach_stopped":
-      return "you stopped writing to them";
-    case "owner_skipped":
-      return "skipped by you";
-    case "not_a_fit":
-      return "marked Not a fit";
-    case "kept_waiting":
-      return "waited past fourteen days";
-    case "outreach_wrote_back":
-      return "they wrote back first";
-    case "outreach_away":
-      return "away, so it waited";
-    default:
-      return "not written";
-  }
-}
+/** Why a send was skipped, in the run's own words; null for one a lead's story need not mention (a run stopped whole). */
+const skippedWords = (reason: string | null): string | null =>
+  reason === "run_canceled" ? null : skippedReasonWords(reason ?? "");
 
 /** A step's name: "Your email", "A short nudge", "A call for you". */
 const stepName = (n: number | null, hand: HandKind | null): string =>
@@ -279,7 +270,7 @@ function sendLine(s: ReachOutTimelineSendDto, tz: string, nowMs: number): ReachO
     when: capitalize(clockNearWhen(t, tz, nowMs)),
     text,
   });
-  if (s.state === "sent") {
+  if (s.left) {
     const from = s.host ? ` · from ${s.host}` : "";
     const angle = s.angle ? ` · angle: ${s.angle}` : "";
     return line(`${name}${from}${angle} · ${emailWords(s)}`);
@@ -338,7 +329,7 @@ export const REACH_OUT_STOP_WORDS = {
   door: "Stop writing to them",
   ask: (business: string) => `Stop writing to ${business}?`,
   detail:
-    "Nothing more goes to them from this reach-out: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
+    "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
   yes: "Stop writing",
   done: (business: string) => `Stopped: nothing more will be written to ${business}`,
   already: (business: string) => `${business} was already stopped`,
@@ -357,16 +348,24 @@ export interface ReachOutPersonVM {
   about: string | null;
 }
 
-/** What a reading did, in the few words a person's timeline puts under their reply. */
+/**
+ * What a reading did, in the few words a person's timeline puts under their reply: the plan its door recorded
+ * (readingPlan, the one table of effects), never worked out again here.
+ */
 function readingEffect(r: ReachOutTimelineReadingDto): string {
   if (r.undone) return "undone";
-  if (r.claim === "auto_reply") return r.intent === "away" ? "the chain waits" : "the chain stopped";
-  if (r.intent === "interested" || r.intent === "question") return "the chain stopped · Talking";
-  if (r.intent === "no") return "nothing more will be written";
-  return "the chain stopped";
+  if (r.said_no) return "nothing more will be written";
+  if (r.convert) return "the chain stopped · Talking";
+  if (r.stops) return "the chain stopped";
+  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the chain waits";
+  return "nothing changed";
 }
 
-/** Where a lead stands in its reach-out, for the About rail: "Talking · wrote back Thu". */
+/** A lead's stage in the Leads page's words: Ready, Contacted, Talking, Closed. */
+const stageWords = (stage: string): string =>
+  stage in LEAD_STAGE_WORDS ? LEAD_STAGE_WORDS[stage as keyof typeof LEAD_STAGE_WORDS] : stage;
+
+/** Where a lead stands in its reach-out, for the About rail: "wrote back Thu · interested". */
 function standingWords(t: ReachOutLeadTimelineDto, tz: string, nowMs: number): string {
   const reply = t.readings.find((r) => !r.undone && r.claim !== "auto_reply") ?? null;
   const booked = at(t.booked_at);
@@ -384,7 +383,7 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
   const chain = t.chain?.name ?? null;
   const emails = new Map<string, { who: string; sub: string }>();
   for (const s of t.sends) {
-    if (s.state !== "sent" || !s.message_id) continue;
+    if (!s.left || !s.message_id) continue;
     const parts = [stepName(s.n, s.hand)];
     if (s.angle) parts.push(`angle: ${s.angle}`);
     if (s.host) parts.push(`from ${s.host}`);
@@ -415,6 +414,6 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
     emails,
     readings,
     found,
-    about: t.chain ? `${t.chain.name} · ${standingWords(t, tz, nowMs)}` : null,
+    about: t.chain ? `${t.chain.name} · ${stageWords(t.stage)} · ${standingWords(t, tz, nowMs)}` : null,
   };
 }

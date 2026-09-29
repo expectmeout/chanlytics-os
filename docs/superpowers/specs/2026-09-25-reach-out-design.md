@@ -491,7 +491,7 @@ makes the dated step the hand-to-you and "write again in January" need (today on
 **As built (Part 6; 00241).** **The day's numbers at 6 PM** (H12) are a line in the bell, a notification of kind
 `reach_out_day` with no push and no email: "Today's reach-outs", then what was written, who wrote back and how many
 were interested, the noes, the bounces and what waits for a say, with its door to Playbooks. The hourly playbooks sweep
-writes it at 18:00 in each workspace's zone, on a day a reach-out wrote, heard back or holds an email for its owner,
+writes it from 18:00 in each workspace's zone, on a day a reach-out wrote, heard back or holds an email for its owner,
 through one service-role read, `reach_out_day_due`, which leaves out a workspace already told that day, so it goes
 once. Settings › Notifications' Reach-outs group has the row, "The day's numbers", and the card no longer says every
 alert is an email.
@@ -503,9 +503,10 @@ bounced; replies by angle; sends by domain with delivered, bounced and complaint
 day. The sources table shows each step on its own line. No opens or clicks anywhere.
 
 **As built (Part 6; 00241).**
-- **What each number counts** (H1). Written is an email that left; delivered, of them, delivered or read; wrote back is
-  the send door's own reading (`outreach_wrote_back`); interested is a reading of the lead's reply, not undone, of intent
-  interested or a question; booked is `leads.booked_at`; said no is the lead's `closed_reason`; bounced is the provider's
+- **What each number counts** (H1). Written is an email that left (`sent`, or `failed` by a receipt after it left,
+  00179's `email_left`: the clock settles a fast bounce failed, and it was still written); delivered, of them, delivered
+  or read; wrote back is the send door's own reading (`outreach_wrote_back`); interested is a reading of the lead's reply
+  by a person's words, not undone, of intent interested or a question (an automatic reply changes nothing); booked is `leads.booked_at`; said no is the lead's `closed_reason`; bounced is the provider's
   bounce. Each lead is counted once, at the last email that wrote to it, as the chain's report always counted wrote back.
 - **Booked is stamped on the lead, whatever its stage** (H2). `reach_out_booked` (00227's, re-created) stamps
   `leads.booked_at` once, the start of the first appointment seen after an email of the reach-out left, for a lead Talking
@@ -518,8 +519,9 @@ day. The sources table shows each step on its own line. No opens or clicks anywh
   One member read, `reach_out_report(workspace, days)`, over Reports' own period (7, 30 or 90 days in the workspace's
   zone), `GET /api/v1/reports/reach-outs`, drawn by `pages/reach-out/reach-out-report.jsx`. A workspace with no
   reach-out draws nothing of it; a read that failed says so, and the rest of the page stands.
-- **Playbooks' open row** counts interested and booked per step (`reach_out_chain_report`, 00228's, re-created); a report
-  read before 00241 says neither, as unknown, never as a zero.
+- **Playbooks' open row** counts interested and booked per step, and its written counts an email that left, as Reports
+  does (`reach_out_chain_report`, 00228's, re-created); a report read before 00241 says neither, as unknown, never as a
+  zero.
 
 ### 4.11 What the UI shows
 

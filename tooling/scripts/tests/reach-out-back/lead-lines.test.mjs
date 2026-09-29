@@ -31,6 +31,7 @@ const line = (over = {}) => ({
   handed: false,
   bounced: false,
   bounced_at: null,
+  email_state: "ok",
   reply: null,
   away_until: null,
   resume_at: null,
@@ -65,7 +66,12 @@ test("the line under a lead's stage says where it stands, first that holds", () 
     "Not now · until Jan 12, 2027",
   );
   assert.equal(said({ closed_reason: "said_no", stage: "archived" }), "Said no");
-  assert.equal(said({ bounced: true, bounced_at: "2026-09-23T15:00:00.000Z" }), "Bounced Wed · address dropped");
+  // Any bounce stops the chain; only a permanent one marks the address invalid, and only that one says it was dropped.
+  assert.equal(
+    said({ bounced: true, bounced_at: "2026-09-23T15:00:00.000Z", email_state: "invalid" }),
+    "Bounced Wed · address dropped",
+  );
+  assert.equal(said({ bounced: true, bounced_at: "2026-09-23T15:00:00.000Z" }), "Bounced Wed");
   assert.equal(said({ stopped_at: "2026-09-25T15:00:00.000Z" }), "Stopped Fri");
   assert.equal(said({ away_until: "2026-10-02T05:00:00.000Z" }), "Written Tue · away until Oct 2");
   assert.equal(said({ booked_at: "2026-10-01T18:30:00.000Z", stage: "converted" }), "Booked Thu 1:30 PM");
@@ -157,6 +163,7 @@ const story = (over = {}) => ({
       message_id: "m1",
       email_status: "delivered",
       bounced: false,
+      left: true,
     },
     {
       id: "s2",
@@ -171,6 +178,7 @@ const story = (over = {}) => ({
       message_id: null,
       email_status: null,
       bounced: false,
+      left: false,
     },
     {
       id: "s3",
@@ -185,6 +193,7 @@ const story = (over = {}) => ({
       message_id: null,
       email_status: null,
       bounced: false,
+      left: false,
     },
   ],
   readings: [
@@ -196,6 +205,9 @@ const story = (over = {}) => ({
       summary: "Wants a demo",
       undone: false,
       until_at: null,
+      stops: true,
+      convert: true,
+      said_no: false,
       can_undo: false,
     },
   ],
@@ -235,6 +247,9 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
           summary: null,
           undone: false,
           until_at: null,
+          stops: true,
+          convert: false,
+          said_no: true,
           can_undo: true,
         },
       ],
@@ -254,6 +269,9 @@ test("a stopped lead says so and offers no stop; a no that may be undone offers 
           summary: null,
           undone: false,
           until_at: "2026-10-02T05:00:00.000Z",
+          stops: false,
+          convert: false,
+          said_no: false,
           can_undo: false,
         },
       ],
@@ -290,11 +308,43 @@ test("a person's page names the reach-out's emails, says how each reply was read
     at: Date.parse("2026-09-20T15:00:00.000Z"),
     text: "Found on Google Maps by “personal trainers in Austin” · strong fit · address checked",
   });
-  assert.equal(vm.about, "Trainers in Austin · wrote back Thu · interested");
+  assert.equal(vm.about, "Trainers in Austin · Talking · wrote back Thu · interested");
   const booked = reachOutPersonOf(story({ booked_at: "2026-10-01T18:30:00.000Z" }), NOW, TZ);
-  assert.equal(booked.about, "Trainers in Austin · booked Thu 1:30 PM");
+  assert.equal(booked.about, "Trainers in Austin · Talking · booked Thu 1:30 PM");
   const written = reachOutPersonOf(story({ readings: [] }), NOW, TZ);
-  assert.equal(written.about, "Trainers in Austin · written Tue");
+  assert.equal(written.about, "Trainers in Austin · Talking · written Tue");
+  // What a reading did is its door's record, never worked out again: an automatic reply that changed nothing says so.
+  const auto = reachOutPersonOf(
+    story({
+      readings: [
+        {
+          message_id: "m5",
+          read_at: "2026-09-27T15:00:00.000Z",
+          intent: "interested",
+          claim: "auto_reply",
+          summary: null,
+          undone: false,
+          until_at: null,
+          stops: false,
+          convert: false,
+          said_no: false,
+          can_undo: false,
+        },
+      ],
+    }),
+    NOW,
+    TZ,
+  );
+  assert.equal(auto.readings.get("m5"), "Read as interested · nothing changed");
+  // An email that left and then bounced, which the clock settles failed, is still an email they were sent.
+  const bounced = reachOutPersonOf(
+    story({
+      sends: [{ ...story().sends[0], state: "failed", reason: "bounced", email_status: "failed", bounced: true }],
+    }),
+    NOW,
+    TZ,
+  );
+  assert.equal(bounced.emails.get("m1").sub, "Your email · angle: their rating · from mail.example.com · bounced");
   assert.equal(reachOutPersonOf(story({ chain: null }), NOW, TZ).about, null);
 });
 

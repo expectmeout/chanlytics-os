@@ -208,7 +208,7 @@ async function build() {
   );
   const run1 = await runOf(root, root);
   const run2 = await runOf(root, step2);
-  const names = ["interested", "saidNo", "bounced", "stopped", "quiet", "planned"];
+  const names = ["interested", "saidNo", "bounced", "stopped", "quiet", "planned", "leaving"];
   const W0 = { s, root, step2, run1, run2, domain, leads: {}, persons: {}, threads: {} };
   for (const k of names) {
     const personId = await one(
@@ -255,15 +255,37 @@ async function build() {
     });
   await sent("interested", "delivered", "their rating");
   await sent("saidNo", "read", "their rating");
-  await sent("bounced", "failed", "their reviews", { provider: "bounced", kind: "permanent" });
   await sent("stopped", "delivered", null);
   await sent("quiet", "delivered", "their rating");
-  // The sixth business's first email, planned and checked: Stop writing to them skips it.
+  // The bounce the clock read before it read the email sent: its send settled failed, with no sent_at. It left all the
+  // same (00179 email_left), dated by its email's own time of leaving.
+  await sendIn(run1, root, root, {
+    lead_id: W0.leads.bounced,
+    contact_id: W0.persons.bounced,
+    domain_id: domain,
+    state: "failed",
+    reason: "bounced",
+    angle: "their reviews",
+    message_id: await email("bounced", "failed", {
+      error: { provider: "bounced", kind: "permanent" },
+      meta: { source: "reach_out", status_at: { sent: iso(Date.now() - 2 * DAY) } },
+    }),
+  });
+  // The sixth business's first email, held by the check for its owner's say: Stop writing to them skips it.
   W0.plannedSend = await sendIn(run1, root, root, {
     lead_id: W0.leads.planned,
     contact_id: W0.persons.planned,
     domain_id: domain,
-    checked_at: iso(Date.now()),
+    state: "held",
+    reason: "check_unavailable",
+  });
+  // The seventh's is on its way (queued): the stop says it is leaving, and the send door refuses it by the stop.
+  W0.leavingSend = await sendIn(run1, root, root, {
+    lead_id: W0.leads.leaving,
+    contact_id: W0.persons.leaving,
+    domain_id: domain,
+    state: "queued",
+    message_id: await email("leaving", "queued"),
   });
   // They wrote back, interested, and the reading says so.
   const inbound = await one(
@@ -305,6 +327,16 @@ before(async () => {
   ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   B = await one(db.from("tenants").insert({ slug: `back-b-${stamp}`, name: "Elsewhere Co" }));
   for (const role of ["owner", "operator", "viewer"]) as[role] = await person(role);
+  // An operator of another workspace: a member, and never of A.
+  const email = `back-stranger-${stamp}@fixture-back.example`;
+  const password = `pw-${stamp}-stranger-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  ok(await db.from("memberships").insert({ tenant_id: B, user_id: made.data.user.id, role: "operator" }));
+  const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  ok(await c.auth.signInWithPassword({ email, password }));
+  as.stranger = { id: made.data.user.id, c };
 });
 after(async () => {
   if (skip) return;
@@ -347,6 +379,7 @@ test(
     assert.ok((await followers()).includes(w.leads.stopped), "before: the next step would take it");
 
     refusedWith(await as.viewer.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }), "P0002");
+    refusedWith(await as.stranger.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }), "P0002");
     const untouched = await lead();
     refusedWith(
       await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: untouched }),
@@ -356,9 +389,14 @@ test(
     // Between its steps: nothing to skip, and the stop is the lead's.
     const r = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }));
     assert.deepEqual(r, { stopped: true, already: false, skipped: 0, leaving: 0 });
-    // Its first email planned: skipped.
+    // Its first email held for its owner's say: skipped.
     const p = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.planned }));
     assert.deepEqual(p, { stopped: true, already: false, skipped: 1, leaving: 0 });
+    // Its first email on its way: left alone here, said as leaving, and refused at the door by the stop.
+    const l = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.leaving }));
+    assert.deepEqual(l, { stopped: true, already: false, skipped: 0, leaving: 1 });
+    const queued = ok(await db.from("reach_out_sends").select("state").eq("id", w.leavingSend).single());
+    assert.equal(queued.state, "queued");
     const planned = ok(await db.from("reach_out_sends").select("state, reason").eq("id", w.plannedSend).single());
     assert.deepEqual(planned, { state: "skipped", reason: "owner_stopped" });
     const facts = ok(
@@ -402,6 +440,7 @@ test(
     ok(await db.rpc("reach_out_booked", { p_tenant_id: A, p_seen: [{ email, start: iso(Date.now() + 3 * DAY) }] }));
     ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }));
     ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.planned }));
+    ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.leaving }));
 
     const rep = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7 }));
     assert.equal(rep.has_reach_out, true);
@@ -441,6 +480,8 @@ test(
       REACH_OUT_REFUSALS.period,
     );
     refusedWith(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: B, p_days: 7 }), "P0002");
+    refusedWith(await as.viewer.c.rpc("reach_out_search_lines", { p_tenant_id: B, p_search_id: w.s }), "P0002");
+    refusedWith(await as.stranger.c.rpc("reach_out_search_lines", { p_tenant_id: A, p_search_id: w.s }), "P0002");
 
     const cr = ok(await as.viewer.c.rpc("reach_out_chain_report", { p_tenant_id: A, p_root_id: w.root }));
     assert.deepEqual(
@@ -576,7 +617,7 @@ test("each function re-created whole is its source's body but for the lines it m
     .replace("l.stage in ('ready', 'nurture', 'converted')", "l.stage in ('ready', 'nurture')")
     .replace("group by m.id, l.stage", "group by m.id")
     .replace(
-      /\n    -- The first appointment seen[\s\S]*?booked_at is null;\n    if v_lead\.stage in \('ready', 'nurture'\) and coalesce/,
+      /\n {4}-- The first appointment seen[\s\S]*?booked_at is null;\n {4}if v_lead\.stage in \('ready', 'nurture'\) and coalesce/,
       "\n    if coalesce",
     );
   assert.equal(back, bodyIn(migration("00227"), "create or replace function public.reach_out_booked("));
@@ -588,6 +629,21 @@ test("each function re-created whole is its source's body but for the lines it m
     .replace(
       /\n\s+'interested', coalesce\(\(select a\.interested[^\n]*\n\s+'booked', coalesce\(\(select a\.booked[^\n]*/,
       "",
+    )
+    // Written is an email that left, per step and per run, as Reports counts it.
+    .replace(
+      "        -- An email that left (00241): sent, or failed by a receipt after it left (email_left), as Reports counts it.\n" +
+        "        'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id\n" +
+        "                     where s.playbook_id = c.id\n" +
+        "                       and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))),\n",
+      "        'written', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'sent'),\n",
+    )
+    .replace(
+      "                                                left join public.messages m on m.id = s.message_id\n" +
+        "                                               where s.broadcast_id = b.id\n" +
+        "                                                 and (s.state = 'sent' or (s.state = 'failed'\n" +
+        "                                                      and public.email_left(m.status, m.error)))),\n",
+      "                                               where s.broadcast_id = b.id and s.state = 'sent'),\n",
     );
   assert.equal(was, bodyIn(migration("00228"), "create or replace function public.reach_out_chain_report("));
 

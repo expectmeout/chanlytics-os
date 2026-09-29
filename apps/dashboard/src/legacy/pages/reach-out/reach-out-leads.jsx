@@ -28,9 +28,11 @@ const useReachOutLeads = (searchId) => {
       window.removeEventListener("reach_out:leads", bump);
     };
   }, []);
+  // Another search: nothing of the last one's stands while this one's is read.
+  React.useEffect(() => { setDto(null); }, [searchId]);
   React.useEffect(() => {
     const V = window.__reachOuts;
-    if (!searchId || !V) { setDto(null); return undefined; }
+    if (!searchId || !V) return undefined;
     let live = true;
     readAt.current = Date.now();
     V.leadLines(searchId).then((d) => { if (live) setDto(d && d.lines ? d : null); });

@@ -6,13 +6,17 @@
  * time it holds a send in a run that is not waiting. Pure: the page and the edge say every sentence from here.
  */
 import { clockWhen } from "../shared/clock";
+import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import type { ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { approvalWordsOf, chainPaceOf } from "./reach-out-sheet";
 
-/** Why a send of the run was skipped, as the block's line says it after the count. */
-function skippedReasonWords(reason: string): string {
+/**
+ * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
+ * the engine writes, then a refusal's own short words (run-words.ts), then a plain line for anything else.
+ */
+export function skippedReasonWords(reason: string): string {
   switch (reason) {
     case "closed_every_day":
       return "keep no open hour all week";
@@ -34,7 +38,7 @@ function skippedReasonWords(reason: string): string {
     case "erased":
       return "their record was erased";
     default:
-      return "could not be written to";
+      return HELD_REASONS[reason] ?? "could not be written to";
   }
 }
 

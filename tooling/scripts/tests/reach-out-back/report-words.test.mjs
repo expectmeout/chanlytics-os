@@ -146,9 +146,19 @@ test("each reach-out is a line, with each of its steps on its own line under it"
   assert.equal(chain.to, "outbound/r1");
   assert.equal(chain.meta, "Reach-out · 3 steps · 2 runs · Personal trainers · Austin");
   assert.deepEqual(
-    [chain.written, chain.delivered, chain.wroteBack, chain.interested, chain.booked, chain.saidNo, chain.last],
-    ["40", "95%", "15% (6)", "3", "1", "2", "Sep 23"],
+    [
+      chain.written,
+      chain.delivered,
+      chain.wroteBack,
+      chain.interested,
+      chain.booked,
+      chain.saidNo,
+      chain.bounced,
+      chain.last,
+    ],
+    ["40", "95%", "15% (6)", "3", "1", "2", "1", "Sep 23"],
   );
+  assert.deepEqual([first.bounced, nudge.bounced, call.bounced], ["1", "0", "—"]);
   assert.deepEqual(
     [first.kind, first.name, first.written, first.wroteBack],
     ["step", "1 · Your email", "30", "17% (5)"],

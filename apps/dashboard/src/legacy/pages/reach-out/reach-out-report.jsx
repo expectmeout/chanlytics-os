@@ -13,7 +13,7 @@ const roRptNav = (to) => window.CHANLY && window.CHANLY.nav(to);
 const RptReachOutSources = ({ rows }) => (
   <div className="ck-table-wrap rpt-sources">
     <table className="ck-table">
-      <thead><tr><th>Reach-out</th><th className="num">Written</th><th className="num">Delivered</th><th className="num">Wrote back</th><th className="num">Interested</th><th className="num">Booked</th><th className="num">Said no</th><th className="num">Last</th></tr></thead>
+      <thead><tr><th>Reach-out</th><th className="num">Written</th><th className="num">Delivered</th><th className="num">Wrote back</th><th className="num">Interested</th><th className="num">Booked</th><th className="num">Said no</th><th className="num">Bounced</th><th className="num">Last</th></tr></thead>
       <tbody>
         {rows.map((s) => (
           <tr key={s.id} data-testid={s.kind === "chain" ? "ro-source-row" : "ro-step-row"}>
@@ -29,6 +29,7 @@ const RptReachOutSources = ({ rows }) => (
             <td className="num">{s.interested}</td>
             <td className="num">{s.booked}</td>
             <td className="num">{s.saidNo}</td>
+            <td className="num">{s.bounced}</td>
             <td className="num rpt-dim">{s.last}</td>
           </tr>
         ))}
@@ -90,7 +91,7 @@ const RptReachOuts = ({ R }) => {
               describe={(d) => `${d.label}: ${d.written} written`} />
           </ChartCard>
           <ChartCard className="rpt-span-12" title="By reach-out and step" testid="ro-sources" switchable={false}
-            table={{ columns: ["Reach-out", "Written", "Delivered", "Wrote back", "Interested", "Booked", "Said no"], rows: ro.sources.map((s) => [s.name, s.written, s.delivered, s.wroteBack, s.interested, s.booked, s.saidNo]) }}>
+            table={{ columns: ["Reach-out", "Written", "Delivered", "Wrote back", "Interested", "Booked", "Said no", "Bounced"], rows: ro.sources.map((s) => [s.name, s.written, s.delivered, s.wroteBack, s.interested, s.booked, s.saidNo, s.bounced]) }}>
             <RptReachOutSources rows={ro.sources} />
           </ChartCard>
         </div>

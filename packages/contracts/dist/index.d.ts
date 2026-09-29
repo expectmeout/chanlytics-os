@@ -7534,6 +7534,8 @@ interface ReachOutLeadLineDto {
     handed: boolean;
     bounced: boolean;
     bounced_at: string | null;
+    /** The lead's address as last checked: a permanent bounce marks it invalid (C11). */
+    email_state: string | null;
     /** Its newest reading. */
     reply: ReachOutLineReplyDto | null;
     /** An automatic out-of-office's day back, while it is ahead. */
@@ -7576,6 +7578,8 @@ interface ReachOutTimelineSendDto {
     message_id: string | null;
     email_status: string | null;
     bounced: boolean;
+    /** The email left: sent, or failed by a receipt after it left (00179 email_left). */
+    left: boolean;
 }
 /** One reading of a lead's reply (00241 reach_out_lead_timeline). */
 interface ReachOutTimelineReadingDto {
@@ -7586,6 +7590,10 @@ interface ReachOutTimelineReadingDto {
     summary: string | null;
     undone: boolean;
     until_at: string | null;
+    /** What it did, as its door recorded it (contracts readingPlan, kept on the reading): the chain stopped, Talking, no. */
+    stops: boolean;
+    convert: boolean;
+    said_no: boolean;
     /** The caller may undo it (00222 reach_out_reply_undoable, the one rule). */
     can_undo: boolean;
 }
@@ -7689,7 +7697,7 @@ declare function reachOutTimelineOf(t: ReachOutLeadTimelineDto, nowMs: number, t
 declare const REACH_OUT_STOP_WORDS: {
     readonly door: "Stop writing to them";
     readonly ask: (business: string) => string;
-    readonly detail: "Nothing more goes to them from this reach-out: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.";
+    readonly detail: "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.";
     readonly yes: "Stop writing";
     readonly done: (business: string) => string;
     readonly already: (business: string) => string;
@@ -19967,6 +19975,7 @@ interface ReachOutSourceRow {
     interested: string;
     booked: string;
     saidNo: string;
+    bounced: string;
     last: string;
 }
 interface ReachOutReportVM {

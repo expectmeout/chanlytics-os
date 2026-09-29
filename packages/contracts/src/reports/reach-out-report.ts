@@ -109,6 +109,7 @@ export interface ReachOutSourceRow {
   interested: string;
   booked: string;
   saidNo: string;
+  bounced: string;
   last: string;
 }
 
@@ -226,6 +227,7 @@ function chainRowOf(c: ReachOutReportChainDto, nowMs: number, tz: string): Reach
     interested: String(sum("interested")),
     booked: String(sum("booked")),
     saidNo: String(sum("said_no")),
+    bounced: String(sum("bounced")),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : "",
   };
 }
@@ -245,6 +247,7 @@ function stepRowOf(root: string, s: ReachOutReportStepDto): ReachOutSourceRow {
       interested: "—",
       booked: "—",
       saidNo: "—",
+      bounced: "—",
       last: "",
     };
   return {
@@ -259,6 +262,7 @@ function stepRowOf(root: string, s: ReachOutReportStepDto): ReachOutSourceRow {
     interested: String(s.interested),
     booked: String(s.booked),
     saidNo: String(s.said_no),
+    bounced: String(s.bounced),
     last: "",
   };
 }
