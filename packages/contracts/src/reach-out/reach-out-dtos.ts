@@ -63,6 +63,10 @@ export interface ReachOutStepCounts {
   held: number;
   /** A hand step's leads, handed to the team (00228); absent from a report read before it. */
   handed?: number;
+  /** Leads whose reply was read as interested or a question, not undone (00241, Part 6's H1); absent before it. */
+  interested?: number;
+  /** Leads with an appointment seen after an email of the reach-out left (00241, H2); absent before it. */
+  booked?: number;
 }
 
 export interface ReachOutRunLine {

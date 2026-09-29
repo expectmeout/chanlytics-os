@@ -625,6 +625,20 @@
       "rate": "lead_search",
       "spend": true
     },
+    "POST lead-searches/chosen": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_bulk",
+      "spend": false
+    },
+    "POST lead-searches/import": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_search",
+      "spend": true
+    },
     "GET lead-suggestions": {
       "kind": "read",
       "scope": "workspace",
@@ -1052,6 +1066,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/reach-outs": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports": {
       "kind": "read",
       "scope": "workspace",
@@ -1248,6 +1269,13 @@
       "rate": null,
       "spend": false
     },
+    "POST vitals": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "vitals",
+      "spend": false
+    },
     "POST workspaces/create": {
       "kind": "write",
       "scope": "account",
@@ -1358,6 +1386,20 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "GET reach-outs/leads": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-outs/leads/[id]/stop": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
       "spend": false
     },
     "GET reach-outs": {

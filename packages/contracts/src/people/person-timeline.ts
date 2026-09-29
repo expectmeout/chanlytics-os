@@ -22,6 +22,8 @@ import { type MessageAuthor, messageAuthor } from "../conversations/message-auth
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { messageWords } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
+import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
+import { leadsRoute } from "../leads/lead-plan";
 
 export type TimelineKind =
   "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
@@ -168,8 +170,15 @@ function speakerOf(author: MessageAuthor | null): string {
         : capitalize(author.words);
 }
 
+/** What the reach-out that found them wrote and read (Part 6, H11), when the lead they came from has one. */
+const reachOutOf = ({ profile, nowMs, tz }: PersonCardContext): ReachOutPersonVM | null =>
+  profile.lead?.reach_out ? reachOutPersonOf(profile.lead.reach_out, nowMs, tz) : null;
+
 /** Their messages and ours, from every thread: what was said, by whom, and whether it reached them. */
-function messageItems({ profile, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
+  const { profile, base, stamp } = ctx;
+  // A reach-out's email is named for its chain and step, and a reply it read says how it was read (Part 6, H11).
+  const reach = reachOutOf(ctx);
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -183,13 +192,16 @@ function messageItems({ profile, base, stamp }: PersonCardContext): PersonTimeli
       if (t === null) continue;
       const kind = timelineKindOf(m.sender);
       const author = messageAuthor(asRunMessage(m, runOf.get(m.id)));
-      const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
+      const cold = reach?.emails.get(m.id);
+      const read = reach?.readings.get(m.id);
+      const sub =
+        cold?.sub ?? read ?? (m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined);
       items.push({
         id: `m-${m.id}`,
         ts: t,
         ...stamp(t),
         kind,
-        who: kind === "customer" ? first : speakerOf(author),
+        who: kind === "customer" ? first : (cold?.who ?? speakerOf(author)),
         text: messageWords(m),
         ...(sub ? { sub } : {}),
         link: { label: "Open the thread", to: `inbox/th-${c.id}` },
@@ -361,6 +373,24 @@ function addedItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM
   return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
 }
 
+/** Where the reach-out's lead was found, with the door to it on Leads (Part 6, H11). */
+function foundItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
+  const found = reachOutOf(ctx)?.found;
+  const lead = ctx.profile.lead;
+  if (!found || !lead) return [];
+  return [
+    {
+      id: "found",
+      ts: found.at,
+      ...ctx.stamp(found.at),
+      kind: "system",
+      who: "Leads",
+      text: found.text,
+      link: { label: "Open the lead", to: leadsRoute({ peek: lead.id }) },
+    },
+  ];
+}
+
 /** What has happened, newest first, from every source; a visit that has not ended is in it too, marked `ahead`. */
 export function timelineOf(ctx: PersonCardContext): PersonTimelineItemVM[] {
   const items = [
@@ -372,6 +402,7 @@ export function timelineOf(ctx: PersonCardContext): PersonTimelineItemVM[] {
     ...visitItems(ctx),
     ...dealItems(ctx),
     ...addedItems(ctx),
+    ...foundItems(ctx),
   ];
   items.sort((a, b) => b.ts - a.ts);
   return items;

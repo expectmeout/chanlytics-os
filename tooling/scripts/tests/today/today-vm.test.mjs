@@ -950,7 +950,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   assert.equal(partial.meta, "first contact today");
   assert.equal(
     partial.receipt.text,
-    "Counted however they reached you — a message, a call, or a booking, so not everyone here has a thread to open yet.",
+    "Counted however they reached you — a message or a call, so not everyone here has a thread to open yet.",
   );
   assert.equal(partial.receipt.door.to, "clients/seg:new_week", "and the door that answers it");
   for (const n of ["Renata", "Solís", "Marco", "Ibáñez"])
@@ -964,7 +964,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
     [],
     NOW,
   ).figures.find((f) => f.id === "new");
-  assert.equal(over.receipt.text, "Counted however they reached you — a message, a call, or a booking.");
+  assert.equal(over.receipt.text, "Counted however they reached you — a message or a call.");
   // Four new people, all held: three named, the fourth counted.
   const four = busyThreads()
     .slice(0, 2)

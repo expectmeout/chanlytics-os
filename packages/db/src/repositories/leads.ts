@@ -14,7 +14,11 @@ const ONE_LEAD_COLUMNS =
   "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
 
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
-export type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at" | "website_root">;
+// A reach-out's facts (resume_at; booked_at and reach_out_stopped_at, 00241) are its own reads', never the page's row.
+export type LeadOneLead = Omit<
+  LeadsRow,
+  "country" | "logo_url" | "resume_at" | "website_root" | "booked_at" | "reach_out_stopped_at"
+>;
 
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
 export interface LeadOneMember {

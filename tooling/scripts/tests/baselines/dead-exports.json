@@ -51,7 +51,6 @@
   "apps/edge/lib/ops/page-operator.ts": 4,
   "apps/edge/lib/ops/push.ts": 4,
   "apps/edge/lib/ops/sweep-health.ts": 1,
-  "apps/edge/lib/ops/sweep-rotation.ts": 1,
   "apps/edge/lib/paged.ts": 1,
   "apps/edge/lib/partners/earnings.ts": 2,
   "apps/edge/lib/pg.ts": 1,

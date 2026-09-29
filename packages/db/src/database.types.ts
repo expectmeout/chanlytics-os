@@ -1061,6 +1061,21 @@ export type Database = {
           },
         ]
       }
+      erasure_keying: {
+        Row: {
+          id: boolean
+          keyed_at: string | null
+        }
+        Insert: {
+          id?: boolean
+          keyed_at?: string | null
+        }
+        Update: {
+          id?: boolean
+          keyed_at?: string | null
+        }
+        Relationships: []
+      }
       escalations: {
         Row: {
           conversation_id: string
@@ -2755,6 +2770,7 @@ export type Database = {
         Row: {
           about: string | null
           blanked_at: string | null
+          booked_at: string | null
           business_name: string
           category: string | null
           city: string | null
@@ -2793,6 +2809,7 @@ export type Database = {
           price: string | null
           rank: number | null
           rating: number | null
+          reach_out_stopped_at: string | null
           region: string | null
           resume_at: string | null
           reviews: number | null
@@ -2808,6 +2825,7 @@ export type Database = {
         Insert: {
           about?: string | null
           blanked_at?: string | null
+          booked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
@@ -2846,6 +2864,7 @@ export type Database = {
           price?: string | null
           rank?: number | null
           rating?: number | null
+          reach_out_stopped_at?: string | null
           region?: string | null
           resume_at?: string | null
           reviews?: number | null
@@ -2861,6 +2880,7 @@ export type Database = {
         Update: {
           about?: string | null
           blanked_at?: string | null
+          booked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
@@ -2899,6 +2919,7 @@ export type Database = {
           price?: string | null
           rank?: number | null
           rating?: number | null
+          reach_out_stopped_at?: string | null
           region?: string | null
           resume_at?: string | null
           reviews?: number | null
@@ -3346,6 +3367,30 @@ export type Database = {
         }
         Relationships: []
       }
+      page_vitals: {
+        Row: {
+          at: string
+          id: string
+          metric: string
+          page: string
+          value: number
+        }
+        Insert: {
+          at?: string
+          id: string
+          metric: string
+          page: string
+          value: number
+        }
+        Update: {
+          at?: string
+          id?: string
+          metric?: string
+          page?: string
+          value?: number
+        }
+        Relationships: []
+      }
       partner_earnings: {
         Row: {
           amount_cents: number
@@ -3678,6 +3723,63 @@ export type Database = {
           written_through?: string
         }
         Relationships: []
+      }
+      person_moments: {
+        Row: {
+          added_at: string
+          contact_id: string
+          first_call_at: string | null
+          first_row_at: string | null
+          first_word_at: string | null
+          in_touch_at: string
+          last_call_at: string | null
+          last_word_at: string | null
+          moved_in: boolean
+          new_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          added_at: string
+          contact_id: string
+          first_call_at?: string | null
+          first_row_at?: string | null
+          first_word_at?: string | null
+          in_touch_at?: string
+          last_call_at?: string | null
+          last_word_at?: string | null
+          moved_in?: boolean
+          new_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          first_call_at?: string | null
+          first_row_at?: string | null
+          first_word_at?: string | null
+          in_touch_at?: string
+          last_call_at?: string | null
+          last_word_at?: string | null
+          moved_in?: boolean
+          new_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_moments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_moments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       person_notes: {
         Row: {
@@ -4744,6 +4846,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          left_empty_at: string | null
           locale: string
           name: string
           sells_by: string | null
@@ -4755,6 +4858,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          left_empty_at?: string | null
           locale?: string
           name: string
           sells_by?: string | null
@@ -4766,6 +4870,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          left_empty_at?: string | null
           locale?: string
           name?: string
           sells_by?: string | null
@@ -4871,6 +4976,15 @@ export type Database = {
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
+      }
+      calendars_due: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          config: Json
+          due_total: number
+          tenant_id: string
+          timezone: string
+        }[]
       }
       call_status_rank: { Args: { p_status: string }; Returns: number }
       caller_has_permission: {
@@ -5035,6 +5149,24 @@ export type Database = {
         Args: { p_contact_id: string }
         Returns: undefined
       }
+      erasure_digest: {
+        Args: { p_tenant_id: string; p_value: string }
+        Returns: string
+      }
+      erasure_digest_legacy: {
+        Args: { p_tenant_id: string; p_value: string }
+        Returns: string
+      }
+      erasure_digests: {
+        Args: { p_tenant_id: string; p_values: string[] }
+        Returns: string[]
+      }
+      erasure_key: { Args: { p_digest: string }; Returns: string }
+      erasure_rekey: {
+        Args: { p_apply?: boolean; p_tenant_id?: string }
+        Returns: Json
+      }
+      erasure_rekey_hashes: { Args: { p_list: Json }; Returns: Json }
       expire_stale_pauses: { Args: never; Returns: number }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }
@@ -5333,6 +5465,10 @@ export type Database = {
         Args: { p_gen: number; p_owner: string; p_run_id: string }
         Returns: boolean
       }
+      lead_search_choose: {
+        Args: { p_lead_ids: string[]; p_name: string; p_tenant_id: string }
+        Returns: Json
+      }
       lead_search_create: {
         Args: {
           p_estimate_usd: number
@@ -5340,6 +5476,16 @@ export type Database = {
           p_tenant_id: string
           p_thread_id?: string
           p_via: string
+        }
+        Returns: Json
+      }
+      lead_search_import: {
+        Args: {
+          p_asked: string
+          p_estimate_usd: number
+          p_name: string
+          p_rows: Json
+          p_tenant_id: string
         }
         Returns: Json
       }
@@ -5487,11 +5633,30 @@ export type Database = {
         Args: { p_page: string; p_tenant_id: string; p_view: Json }
         Returns: Json
       }
+      message_moment: {
+        Args: {
+          p_channel_ts: string
+          p_created_at: string
+          p_meta: Json
+          p_status: string
+          p_type: string
+        }
+        Returns: Record<string, unknown>
+      }
       metrics_summary: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
       mint_reply_token: { Args: never; Returns: string }
+      newest_messages: {
+        Args: {
+          p_each: number
+          p_most: number
+          p_tenant_id: string
+          p_threads: string[]
+        }
+        Returns: Json
+      }
       note_candidates: {
         Args: { p_limit?: number }
         Returns: {
@@ -5516,6 +5681,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: undefined
+      }
+      note_page_vitals: {
+        Args: { p_page: string; p_vitals: Json }
+        Returns: number
       }
       note_sweep_backlog: {
         Args: { p_remaining: number; p_sweep: string }
@@ -5557,6 +5726,16 @@ export type Database = {
       outreach_wrote_back: {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
+      }
+      page_vitals_p75: {
+        Args: { p_days?: number; p_most?: number }
+        Returns: {
+          metric: string
+          p75: number
+          page: string
+          samples: number
+          since: string
+        }[]
       }
       partner_balance: {
         Args: never
@@ -5769,6 +5948,38 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      person_moments_check: {
+        Args: { p_after?: string; p_limit?: number; p_tenant_id: string }
+        Returns: {
+          contact_id: string
+          what: string
+        }[]
+      }
+      person_moments_fill: {
+        Args: { p_after: string; p_limit: number; p_tenant_id: string }
+        Returns: {
+          filled: number
+          last_contact_id: string
+        }[]
+      }
+      person_moments_of: {
+        Args: { p_contacts: string[] }
+        Returns: {
+          added_at: string
+          contact_id: string
+          first_call_at: string
+          first_row_at: string
+          first_word_at: string
+          last_call_at: string
+          last_word_at: string
+          moved_in: boolean
+          tenant_id: string
+        }[]
+      }
+      person_moments_recompute: {
+        Args: { p_contacts: string[] }
+        Returns: number
+      }
       person_note_add: {
         Args: {
           p_body: string
@@ -5950,6 +6161,20 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      playbooks_due: {
+        Args: {
+          p_at: string
+          p_kind: string
+          p_last_hour: number
+          p_limit: number
+          p_tenant_id?: string
+        }
+        Returns: {
+          due_total: number
+          playbook: Json
+          timezone: string
+        }[]
+      }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
@@ -6087,6 +6312,14 @@ export type Database = {
           send: Json
         }[]
       }
+      reach_out_day_due: {
+        Args: { p_limit: number; p_now: string }
+        Returns: {
+          day: string
+          numbers: Json
+          tenant_id: string
+        }[]
+      }
       reach_out_due_domains: {
         Args: {
           p_at: string
@@ -6173,6 +6406,11 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      reach_out_lead_stop: { Args: { p_lead_id: string }; Returns: Json }
+      reach_out_lead_timeline: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: Json
       }
       reach_out_month_sent: {
         Args: { p_at: string; p_tenant_id: string }
@@ -6286,9 +6524,17 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: string
       }
+      reach_out_report: {
+        Args: { p_days: number; p_tenant_id: string }
+        Returns: Json
+      }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
       reach_out_save: {
         Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+        Returns: Json
+      }
+      reach_out_search_lines: {
+        Args: { p_search_id: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_send_decide: {
@@ -6389,6 +6635,7 @@ export type Database = {
         Returns: number
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
+      safe_zone: { Args: { p: string }; Returns: string }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number

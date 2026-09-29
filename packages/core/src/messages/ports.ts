@@ -35,6 +35,40 @@ export interface SendQueuedPorts {
   alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */
   page?(key: string, subject: string, body: string): Promise<unknown>;
+  /**
+   * The same send, as a FRESH job of its kind, due then (the ledger's scheduleJob). Asked when the wire could not be
+   * bound (deliver WireUnavailableError): nothing left and nothing was written, so a second job is safe where a second
+   * run of this one is not -- the ledger never tries a kind that speaks to a person again (SPEAKS_TO_A_PERSON), because
+   * a run that threw mid-send may have sent. The payload carries how many fresh jobs this send is already the result
+   * of (`resumes`, as a resumed broadcast's does), and the verb bounds them.
+   */
+  retry(dueAt: Date, payload: SendQueuedCommand["payload"]): Promise<void>;
+  /** Epoch ms; injected so the wait is testable. */
+  now?: () => number;
+}
+
+/** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
+export interface SendQueuedCommand {
+  tenantId: string;
+  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+  payload: {
+    message_id: string;
+    conversation_id: string;
+    to_phone?: string;
+    to_email?: string;
+    body?: string;
+    template?: { name: string; language: string; params: string[] };
+    /**
+     * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
+     * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
+     * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
+     * which the door holds to its own rules.
+     */
+    purpose?: SendPurpose;
+    proactive?: boolean;
+    /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
+    resumes?: number;
+  };
 }
 
 export interface ProvisionLinePorts {
@@ -116,6 +150,15 @@ export interface BroadcastBatchPorts {
   alreadySent(id: string, contactIds: string[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
   mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
   deliver: Door;
+  /**
+   * Why the run's wire cannot be bound right now -- the workspace's credentials could not be read (deliver
+   * WireUnavailable) -- or null when the door can be asked. Asked BEFORE anyone is claimed: a claim settles only to
+   * sent or skipped (00182), never back to queued, so a wire known to be unbound claims nobody and the batch waits.
+   * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
+   */
+  wireUnavailable(channel: "whatsapp"): Promise<string | null>;
+  /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
+  page?(key: string, subject: string, body: string): Promise<unknown>;
   /** How many are still queued; throws when it cannot be counted. */
   remaining(id: string): Promise<number>;
   /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */

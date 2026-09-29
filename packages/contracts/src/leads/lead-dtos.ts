@@ -3,7 +3,7 @@
  * re-exports it.
  */
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
-import type { LeadEmailState, LeadRoundEnding } from "./search/sets";
+import type { LeadEmailState, LeadRoundEnding, LeadSearchVia } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
 
 /* ------------------------------------------------- what the doors answer -- */
@@ -138,6 +138,11 @@ export interface LeadSearchDto {
   name: string;
   asked: string;
   asked_on: string;
+  /**
+   * How it was made (00242): the finder (people, ask), or a list of the owner's own (import, chosen), whose plan has the
+   * plan's shape and no area, and which nothing searches again. Optional: a fixture from before carries none.
+   */
+  via?: LeadSearchVia;
   plan: LeadSearchPlan;
   plan_version: number;
   /**

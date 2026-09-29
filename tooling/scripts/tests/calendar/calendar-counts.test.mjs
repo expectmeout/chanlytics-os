@@ -397,8 +397,8 @@ test("the sweep's library: a person the feed names is made once, a name fills on
 });
 
 test("the sweep's library: a person who asked to be erased is not brought back by their own appointment", async () => {
-  const { erasedPhoneHash } = await import("@chanlytics/contracts");
-  const h = await erasedPhoneHash(T, "+19175550003");
+  const { legacyErasedPhoneHash } = await import("@chanlytics/contracts");
+  const h = await legacyErasedPhoneHash(T, "+19175550003");
   const db = fakeDb({
     contacts: [
       {

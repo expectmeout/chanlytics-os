@@ -1580,6 +1580,107 @@ test("a person found as a lead says so, with the way back to the lead -- About s
   assert.deepEqual(went, [`clients/leads:p-${LEAD}`]);
 });
 
+test("a person a reach-out found reads its emails, how their reply was read, where they were found, and where they stand (Part 6, H11)", () => {
+  const out = {
+    id: "m-out",
+    conversation_id: "cv1",
+    direction: "outbound",
+    sender: "human",
+    type: "text",
+    body: "Saw your studio on the map.",
+    media: null,
+    meta: { source: "reach_out" },
+    status: "delivered",
+    created_at: iso(5 * D),
+  };
+  const base = detail();
+  const d = {
+    ...base,
+    conversations: [{ ...base.conversations[0], messages: [out, ...base.conversations[0].messages] }],
+    lead: {
+      id: LEAD,
+      business_name: "Glow Studio",
+      found_at: iso(9 * D),
+      reach_out: {
+        lead_id: LEAD,
+        business_name: "Glow Studio",
+        stage: "converted",
+        closed_reason: null,
+        found_at: iso(9 * D),
+        email_state: "ok",
+        resume_at: null,
+        booked_at: null,
+        stopped_at: null,
+        chain: { root_id: "r1", name: "Salons in Miami", state: "running" },
+        search: { id: "s1", name: "Salons · Miami", asked: "salons in Miami", fit: "strong" },
+        conversation_id: "cv1",
+        sends: [
+          {
+            id: "s1",
+            n: 0,
+            hand: null,
+            state: "sent",
+            reason: null,
+            send_at: iso(5 * D),
+            sent_at: iso(5 * D),
+            angle: "their reviews",
+            host: "mail.example.com",
+            message_id: "m-out",
+            email_status: "delivered",
+            bounced: false,
+            left: true,
+          },
+        ],
+        readings: [
+          {
+            message_id: "m1",
+            read_at: iso(3 * H),
+            intent: "question",
+            claim: "person",
+            summary: "Asks about Saturday",
+            undone: false,
+            until_at: null,
+            stops: true,
+            convert: true,
+            said_no: false,
+            can_undo: false,
+          },
+        ],
+        can_stop: false,
+      },
+    },
+  };
+  const vm = toPersonVM(d, ZONE, new Date(NOW));
+  const email = vm.timeline.find((t) => t.id === "m-m-out");
+  assert.deepEqual(
+    [email.who, email.sub],
+    ["Reach out · Salons in Miami", "Your email · angle: their reviews · from mail.example.com · delivered"],
+  );
+  const reply = vm.timeline.find((t) => t.id === "m-m1");
+  assert.equal(reply.sub, "Read as a question · the chain stopped · Talking");
+  const found = vm.timeline.find((t) => t.id === "found");
+  assert.deepEqual(
+    [found.who, found.text, found.link && found.link.to],
+    ["Leads", "Found on Google Maps by “salons in Miami” · strong fit · address checked", `clients/leads:p-${LEAD}`],
+  );
+  const about = vm.about.find((a) => a.k === "Reach out");
+  assert.ok(about && about.v.startsWith("Salons in Miami · Talking · wrote back"), about && about.v);
+  // A lead with no reach-out, or one whose story could not be read, adds none of it.
+  const plain = toPersonVM(
+    detail({ lead: { id: LEAD, business_name: "Glow Studio", found_at: iso(9 * D), reach_out: null } }),
+    ZONE,
+    new Date(NOW),
+  );
+  assert.equal(
+    plain.timeline.find((t) => t.id === "found"),
+    undefined,
+  );
+  assert.equal(
+    plain.about.find((a) => a.k === "Reach out"),
+    undefined,
+  );
+});
+
 test("the profile's Campaigns rows open each run's report, and its Lists name the lists that keep themselves current, each opening on People", async () => {
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
   const draw = await profile(vm);

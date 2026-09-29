@@ -54,6 +54,7 @@ import {
   type Database,
   type Json,
 } from "@chanlytics/db";
+import { putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
 
@@ -111,8 +112,11 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * channel at all. `null`: the channel exists but this workspace holds no
  * credentials or line for it -- refused here, never guessed from the
  * environment, which is how one business's message left on another's line.
+ * A WireUnavailable: the channel may well be this workspace's, but its
+ * credentials could not be read just now -- nothing is sent, nothing is
+ * failed, and the caller tries again later.
  */
-export type Wire = Partial<Record<Channel, Sender | null>>;
+export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
 
 export interface Delivery {
   tenantId: string;
@@ -275,6 +279,8 @@ interface OutreachFacts {
   wroteBack: boolean;
   /** An automatic out-of-office whose day is still ahead (00226): the chain waits for it. */
   away: boolean;
+  /** Its owner stopped writing to this lead (00241): the email is skipped. */
+  stopped: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -310,6 +316,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       suppressed: false,
       wroteBack: false,
       away: false,
+      stopped: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -340,6 +347,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
     away: facts.away,
+    stopped: facts.stopped,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -390,6 +398,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
       suppressed: o.suppressed,
       wroteBack: o.wroteBack,
       away: o.away,
+      stopped: o.stopped,
     });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
@@ -547,25 +556,6 @@ function assertFrozenFor(d: Delivery): void {
   );
 }
 
-type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
-
-/** The words on this workspace's wire for the channel, or why there is none. */
-async function putOnWire(wire: Wire, d: Delivery): Promise<WireResult> {
-  const send = wire[d.channel];
-  if (send === undefined)
-    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
-  if (send === null)
-    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
-  // Only a person's reply may leave by an own domain (G15); any other send never carries the twin.
-  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
-    body: d.body,
-    template: d.template,
-    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
-    ...reply,
-  });
-}
-
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
@@ -604,7 +594,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   };
   if (reason) return refuse(reason);
 
-  const sent = await putOnWire(ports.wire, d);
+  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply");
 
   // The carrier's own no, on the person's behalf (channels smsRefusalOf:
   // Twilio 21610, the recipient replied STOP to this number before we heard --

@@ -35,9 +35,10 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
     items={[
       { header: words.askedLine },
       { label: "Rename", icon: "pencil", onClick: () => onRename(s), gate: canFind ? undefined : window.gate("find", "rename this search") },
-      { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick: () => onMore(s), gate: canFind ? undefined : window.gate("find", "search again") },
+      // A list of your own (00242) is never searched again: its menu offers neither way back to the finder.
+      ...(s.list ? [] : [{ label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick: () => onMore(s), gate: canFind ? undefined : window.gate("find", "search again") },
       // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
-      { label: "Search again, changed", icon: "three", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") },
+      { label: "Search again, changed", icon: "three", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") }]),
       { label: `Export these ${s.count}`, icon: "external", onClick: () => { if (exportHref) window.open(exportHref, "_self"); }, gate: canFind ? undefined : window.gate("find", "export these leads") },
       // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named
       // for what it does; the toast it answers with carries its own Undo, which puts them back.
@@ -54,7 +55,7 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
 // the rail never loses the row that is being named.
 // `compact` is the phone's sheet (People's RailEmpty): a list with no lead in it is said in a line, not drawn -- all
 // leads and the one picked always are. Searches are always drawn: each is a thing kept, with its own menu.
-const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, onWarmList = () => {}, onWarmSearch = () => {}, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew, compact = false }) => {
+const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, onWarmList = () => {}, onWarmSearch = () => {}, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew, importDoor = null, compact = false }) => {
   const quiet = compact ? window.railQuiet(rail.lists, (l) => l.id === "all" || (!searchId && list === l.id)) : [];
   return (
   <>
@@ -98,6 +99,8 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
       <button type="button" className="cl-rail-newseg" onClick={onNew} data-testid="leads-new-search" {...(canFind ? {} : window.gate("find", "find leads"))}>
         <Icon name="plus" size={11} /> New search
       </button>
+      {/* A list of your own (Reach out Part 7): a file of businesses, checked first, as a search. */}
+      {importDoor}
     </div>
   </>
   );
@@ -107,7 +110,7 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
 // a file. Each acts on the rows shown AND selected; the header box's "Select all N that match" hands the view's
 // filters to the server instead of a list of ids, so a view of 1,240 does not become 1,240 ids in a request.
-const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null, phone = false, sheet = null, onSheet = () => {} }) => {
+const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null, phone = false, sheet = null, onSheet = () => {}, write }) => {
   // The view models, for what a check costs. Check again read V with no V in its scope (the other `const V` in this
   // file are other functions' own), so a selection of leads to check again threw as the bar drew.
   const V = window.__LEAD_VM || {};
@@ -147,7 +150,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
               {acts.includes("check_again") && review.canCheckAgain ? <Row icon="refresh" label={`Check ${ids.length} again`} meta={`about ${V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length}¢`} disabled={busy} onClick={shut(() => review.onCheckAgain(ids))} testid="leads-bulk-check-again" gate={canFind ? null : gate} /> : null}
               {acts.includes("keep") ? <Row icon="check" label={`Keep ${ids.length}`} disabled={busy} onClick={shut(() => review.onKeep(ids))} testid="leads-bulk-keep" gate={canFind ? null : gate} /> : null}
               {acts.includes("exclude") ? <Row icon="x" label={`Exclude ${ids.length}`} disabled={busy} onClick={shut(() => review.onExclude(ids))} testid="leads-bulk-exclude" gate={canFind ? null : gate} /> : null}
-              <Row icon="copy" label="Copy emails" disabled={busy} onClick={shut(() => onCopyEmails(picked))} testid="leads-bulk-copy" />
+              <Row icon="copy" label="Copy emails" disabled={busy} onClick={shut(() => onCopyEmails(picked))} testid="leads-bulk-copy" />{write}
               <Row icon="ban" label="Not a fit" next disabled={busy} onClick={() => onSheet("why")} testid="leads-bulk-not-a-fit" gate={canFind ? null : window.gate("find", "mark these leads not a fit")} />
               {canExport
                 ? <a className="pp-sheet-row" href={exportHref} download onClick={() => onSheet(null)} data-testid="leads-bulk-export"><Icon name="external" size={16} /><span className="pp-sheet-row-words">Export</span><span className="pp-sheet-row-meta">CSV</span></a>
@@ -175,7 +178,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
       {acts.includes("check_again") && review.canCheckAgain ? <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => review.onCheckAgain(ids)} data-testid="leads-bulk-check-again" {...gate}><Icon name="refresh" size={12} /> Check {ids.length} again <span className="dim">· about {(V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length)}¢</span></button> : null}
       {acts.includes("keep") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onKeep(ids)} data-testid="leads-bulk-keep" {...gate}>Keep {ids.length}</button> : null}
       {acts.includes("exclude") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onExclude(ids)} data-testid="leads-bulk-exclude" {...gate}>Exclude {ids.length}</button> : null}
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onCopyEmails(picked)} data-testid="leads-bulk-copy"><Icon name="copy" size={12} /> Copy emails</button>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onCopyEmails(picked)} data-testid="leads-bulk-copy"><Icon name="copy" size={12} /> Copy emails</button>{write}
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onContacted(allMatching ? { by: "view", action: "contacted", view } : { by: "ids", action: "contacted", ids })} data-testid="leads-bulk-contacted" {...(canFind ? {} : window.gate("find", "mark these leads contacted"))}><Icon name="check" size={12} /> Mark contacted</button>
       {/* The same five whys the peek asks, asked once for the whole selection: LeadNotFitWhy is leads-peek.jsx's
           own list, published for this bar, so the words are spelled in one place (Task 15 step 4). */}
@@ -357,7 +360,7 @@ const LeadsScope = (p) => {
           onRemoveNo={p.onRemoveNo}
           removeBusy={p.removeBusy}
           removeError={p.removeError}
-          onMore={p.onFindNewOnes}
+          onMore={p.onFindNewOnes} importDoor={p.importDoor}
           onAgain={p.onSearchAgain}
       hrefFor={p.exportHrefFor}
       onNew={p.onFind}
@@ -506,6 +509,7 @@ const LeadsScope = (p) => {
             </LeadStrip>
           ) : null}
           {search && !p.strip && p.band && <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />}
+          {p.reachOutStrip}
           {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
           {p.view.cls === "review" && !p.benchGroups.length && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
 
@@ -579,7 +583,7 @@ const LeadsScope = (p) => {
             </div>
           )}
         </div>
-        {p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)) && (
+        {p.listsNode}{p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)) && (
           <LeadsBulkBar
             sel={p.sel}
             rows={p.rows}
@@ -601,7 +605,7 @@ const LeadsScope = (p) => {
             exportHref={p.exportHref}
             phone={phone}
             sheet={p.bulkSheet}
-            onSheet={p.onBulkSheet}
+            onSheet={p.onBulkSheet} write={p.writeToThem}
           />
         )}
         {/* The peek (Task 12): the page's state and its setters, so its own acts (LeadPeekActions) are built

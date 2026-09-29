@@ -786,6 +786,7 @@ test("Notifications lists what is sent in contracts' groups, the Reach-outs grou
       "A reach-out waits for you",
       "A reach-out holds an email for you",
       "A sending domain is held, and when it sends again",
+      "The day's numbers",
     ]);
     assert.equal(
       all(kinds, (n) => n.type === "input" || n.props?.role === "switch").length,

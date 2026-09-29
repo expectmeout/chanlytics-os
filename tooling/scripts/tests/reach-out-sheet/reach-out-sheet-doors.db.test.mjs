@@ -494,8 +494,9 @@ test(
       x.waiting,
       x.held,
     ]);
+    // Written is an email that left (00241): the one that bounced left too, though the clock settled its send failed.
     assert.deepEqual(counts, [
-      [0, 3, 3, 1, 0, 0, 0, 0],
+      [0, 4, 3, 1, 0, 0, 0, 0],
       [1, 2, 0, 0, 1, 1, 1, 0],
     ]);
     assert.equal(r.runs.length, 2);

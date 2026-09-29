@@ -14,11 +14,6 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts::handle#1": {
-    "lines": 230,
-    "branches": 29,
-    "depth": 2
-  },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
     "lines": 125,
     "branches": 46,
@@ -34,20 +29,10 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/login/page.tsx::LoginPage#1": {
-    "lines": 225,
-    "branches": 11,
-    "depth": 0
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
     "depth": 0
-  },
-  "apps/dashboard/app/signup/page.tsx::SignupPage#1": {
-    "lines": 256,
-    "branches": 19,
-    "depth": 1
   },
   "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
     "lines": 155,
@@ -59,19 +44,9 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
-    "lines": 218,
-    "branches": 17,
-    "depth": 2
-  },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
     "lines": 173,
     "branches": 4,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
-    "lines": 243,
-    "branches": 8,
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts::apply#1": {
@@ -360,7 +335,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
-    "lines": 301,
+    "lines": 300,
     "branches": 84,
     "depth": 1
   },
@@ -445,7 +420,7 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-peek.jsx::LeadPeekInfo#1": {
-    "lines": 169,
+    "lines": 170,
     "branches": 26,
     "depth": 0
   },
@@ -455,7 +430,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
-    "lines": 326,
+    "lines": 327,
     "branches": 62,
     "depth": 0
   },
@@ -530,7 +505,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
-    "lines": 227,
+    "lines": 204,
     "branches": 38,
     "depth": 1
   },
@@ -625,7 +600,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 257,
+    "lines": 250,
     "branches": 50,
     "depth": 1
   },
@@ -649,11 +624,6 @@
     "branches": 34,
     "depth": 4
   },
-  "apps/edge/api/admin/voice-provision.ts::POST#1": {
-    "lines": 202,
-    "branches": 43,
-    "depth": 2
-  },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
     "lines": 192,
     "branches": 47,
@@ -664,16 +634,6 @@
     "branches": 41,
     "depth": 1
   },
-  "apps/edge/api/cron/calendar.ts::POST#1": {
-    "lines": 81,
-    "branches": 32,
-    "depth": 3
-  },
-  "apps/edge/api/cron/calls.ts::POST#1": {
-    "lines": 191,
-    "branches": 36,
-    "depth": 3
-  },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,
     "branches": 35,
@@ -683,11 +643,6 @@
     "lines": 279,
     "branches": 40,
     "depth": 3
-  },
-  "apps/edge/api/stripe-webhook.ts::POST#1": {
-    "lines": 256,
-    "branches": 70,
-    "depth": 4
   },
   "apps/edge/api/whatsapp.ts::POST#1": {
     "lines": 186,
@@ -700,14 +655,9 @@
     "depth": 2
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
-    "lines": 273,
+    "lines": 271,
     "branches": 1,
     "depth": 0
-  },
-  "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
-    "lines": 213,
-    "branches": 26,
-    "depth": 1
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
     "lines": 164,
@@ -820,13 +770,13 @@
     "depth": 2
   },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
-    "lines": 194,
-    "branches": 77,
+    "lines": 181,
+    "branches": 71,
     "depth": 1
   },
   "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {
-    "lines": 146,
-    "branches": 58,
+    "lines": 142,
+    "branches": 56,
     "depth": 0
   },
   "packages/contracts/src/people/list-rules.ts::listFactWords#1": {
@@ -940,14 +890,9 @@
     "depth": 2
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 249,
+    "lines": 236,
     "branches": 30,
     "depth": 3
-  },
-  "packages/core/src/messages/send.ts::sendQueued#1": {
-    "lines": 136,
-    "branches": 49,
-    "depth": 1
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
     "lines": 184,

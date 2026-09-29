@@ -66,8 +66,15 @@ export {
   replyUndoableOf,
   undoReplyReading,
   markReplyTold,
+  reachOutDayDue,
 } from "./repositories/outreach";
-export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow, ReplyListRow } from "./repositories/outreach";
+export type {
+  OutreachFactsRow,
+  ReachOutReplyOf,
+  ReplyReadingRow,
+  ReplyListRow,
+  ReachOutDayDue,
+} from "./repositories/outreach";
 export {
   domainCapacityOf,
   reachOutAudience,
@@ -195,7 +202,14 @@ export {
   setPersonReplyMode,
 } from "./repositories/control-plane";
 export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
-export { PEOPLE_PAGE, IDS_PER_READ, namesOfPeople, peoplePage, everyoneIn } from "./repositories/people";
+export {
+  PEOPLE_PAGE,
+  IDS_PER_READ,
+  namesOfPeople,
+  peoplePage,
+  everyoneIn,
+  erasureDigests,
+} from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,
@@ -272,4 +286,6 @@ export { watchedTables, subscribeMessagesInserts } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
+export { duePlaybooks, dueCalendars, stampPlaybooksTried } from "./sweeps";
+export type { DuePage, DuePlaybook, DueCalendar } from "./sweeps";
 export type { Database, Json } from "./database.types";

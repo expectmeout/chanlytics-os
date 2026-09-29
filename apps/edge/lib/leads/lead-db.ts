@@ -6,11 +6,10 @@
  * Nothing here decides anything: the rules are in core and in SQL.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressesSuppressed, type Database, type Json } from "../packages/db.js";
+import { addressesSuppressed, erasureDigests, type Database, type Json } from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
-  leadSuppressionHash,
   type LeadRoundEnding,
   type LeadRunState,
   type LeadSearchPlan,
@@ -38,6 +37,20 @@ function must<T>(what: string, r: { data: T | null; error: { message: string } |
 }
 
 type RunRow = Database["public"]["Tables"]["lead_runs"]["Row"];
+
+/**
+ * How many ids one read names: PostgREST carries `.in()` in the URL, which fails past about 208 of them, and a list of
+ * the owner's own (00242) puts up to 500 members in one round (J10).
+ */
+const LEAD_IDS_PER_READ = 150;
+
+/** `ids` in parts of LEAD_IDS_PER_READ, one read each, in order. */
+async function inParts<T>(ids: string[], read: (part: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += LEAD_IDS_PER_READ)
+    out.push(...(await read(ids.slice(i, i + LEAD_IDS_PER_READ))));
+  return out;
+}
 const runOf = (r: RunRow): LeadRunRow => ({
   ...r,
   tenant_id: asTenantId(r.tenant_id),
@@ -174,32 +187,32 @@ export function leadDb(db: Db): LeadDb {
         await db.from("lead_search_members").select("*").eq("round_id", roundId),
       );
       if (!members.length) return [];
-      const leads = must<
-        Pick<
-          Database["public"]["Tables"]["leads"]["Row"],
-          | "id"
-          | "lat"
-          | "lng"
-          | "phone_e164"
-          | "email"
-          | "email_state"
-          | "place_id"
-          | "stage"
-          | "contact_id"
-          | "contacted_at"
-          | "last_outcome"
-          | "phone_wrong"
-        >[]
-      >(
-        "leads read",
-        await db
-          .from("leads")
-          .select(
-            "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
-          )
-          .in(
-            "id",
-            members.map((m) => m.lead_id),
+      type LeadFacts = Pick<
+        Database["public"]["Tables"]["leads"]["Row"],
+        | "id"
+        | "lat"
+        | "lng"
+        | "phone_e164"
+        | "email"
+        | "email_state"
+        | "place_id"
+        | "stage"
+        | "contact_id"
+        | "contacted_at"
+        | "last_outcome"
+        | "phone_wrong"
+      >;
+      const leads = await inParts(
+        members.map((m) => m.lead_id),
+        async (part) =>
+          must<LeadFacts[]>(
+            "leads read",
+            await db
+              .from("leads")
+              .select(
+                "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
+              )
+              .in("id", part),
           ),
       );
       const byId = new Map(leads.map((l) => [l.id, l]));
@@ -289,11 +302,9 @@ export function leadDb(db: Db): LeadDb {
     },
     async suppressed(tenantId, keys) {
       // An address asks the one predicate (00220: its own row, or its business's domain after a no), which answers the
-      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the keyed
-      // digest 00140's lead_suppression_hash writes (contracts erasure.ts). The two reads run together.
-      const byHash = new Map(
-        await Promise.all(keys.placeIds.map(async (p) => [await leadSuppressionHash(tenantId, p), p] as const)),
-      );
+      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the erasure
+      // digest 00140's lead_suppression_hash writes, which the database makes (00263 erasure_digests).
+      const byHash = new Map([...(await erasureDigests(db, tenantId, keys.placeIds))].map(([p, h]) => [h, p]));
       const [held, rows] = await Promise.all([
         addressesSuppressed(db, tenantId, keys.emails),
         byHash.size

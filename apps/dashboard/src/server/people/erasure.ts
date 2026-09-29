@@ -1,7 +1,8 @@
 import "server-only";
-import { erasedEmailHash, erasedPhoneHash, formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
-import { readAllRowsByKey } from "@chanlytics/db";
+import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
+import { erasureDigests, readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
+import { inWorkspace } from "../conversations/media";
 
 /** A North American number as formatPhoneDisplay writes it, `+1 (AAA) EEE-NNNN`, read back into its three groups. */
 const NORTH_AMERICAN = /^\+1 \((\d{3})\) (\d{3})-(\d{4})$/;
@@ -63,7 +64,7 @@ export function erasureKeys(
  * The first leg of an erasure: the block, written before anything is
  * destroyed. From this moment the wire refuses the person (deliver.ts reads
  * erasing_since beside erased_at), and the tombstone keeps a keyed digest of
- * each identifier the person has (contracts/erasure.ts) so the calendar
+ * each identifier the person has (made by the database, 00263) so the calendar
  * import, a late call event, or mail from the address do not bring them back.
  * Both identifiers are named by the caller, present or null: a digest that is
  * not written here can never be written, because the erasure removes what it
@@ -76,8 +77,14 @@ export async function beginErasure(
   contactId: string,
   ids: { phone: string | null; email: string | null },
 ): Promise<void> {
-  const phoneHash = ids.phone ? await erasedPhoneHash(tenantId, ids.phone) : null;
-  const emailHash = ids.email ? await erasedEmailHash(tenantId, ids.email) : null;
+  // The database makes the digests (00263): only it holds the pepper that keys them.
+  const digests = await erasureDigests(
+    serviceDb(),
+    tenantId,
+    [ids.phone, ids.email].filter((v): v is string => !!v),
+  );
+  const phoneHash = ids.phone ? (digests.get(ids.phone) ?? null) : null;
+  const emailHash = ids.email ? (digests.get(ids.email) ?? null) : null;
   const { error } = await serviceDb()
     .from("contacts")
     .update({
@@ -92,9 +99,16 @@ export async function beginErasure(
   if (error) throw new Error(`begin_erasure: ${error.message}`);
 }
 
+/**
+ * The stored objects an erased person's rows name, removed. Only this workspace's own (`<tenant>/…`, inWorkspace): a
+ * row that names another workspace's object, which a member could write before 00260, never has it removed here.
+ */
 export async function removeMediaObjects(
-  paths: string[],
+  tenantId: string,
+  named: string[],
 ): Promise<{ requested: number; removed: string[]; error: string | null }> {
+  const paths = named.filter((p) => inWorkspace(tenantId, p));
+  if (paths.length < named.length) console.error("media_remove_refused", tenantId, named.length - paths.length);
   if (!paths.length) return { requested: 0, removed: [], error: null };
   const { data, error } = await serviceDb().storage.from("media").remove(paths);
   if (error) {

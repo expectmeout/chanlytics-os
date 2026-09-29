@@ -398,10 +398,9 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   assert.deepEqual(await inForce([mode(null, "auto"), mode(P1, "never")]), ["never", "never", "auto"], "their own");
   assert.deepEqual(await inForce([mode(null, "ask"), mode(P2, "never")]), ["ask", null, "ask"], "else the workspace's");
   assert.deepEqual(await inForce([]), [null, null, null], "else none");
-  const erase = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
-  // With every spelling of the number, and the address: an email send carries `to_email`, never a number
-  // (people/erasure/erasure-jobs-scrub.test.mjs runs the scrub itself).
-  assert.ok(erase.includes("scrubErasedJobs(contact.tenant_id, id, identifiers)"));
+  // An erasure scrubs the jobs with every spelling of the number, and the address: an email send carries `to_email`,
+  // never a number. people/erasure/erasure-door.test.mjs runs the door and reads the jobs it scrubbed;
+  // people/erasure/erasure-jobs-scrub.test.mjs runs the scrub itself.
   const service = readCode("apps/dashboard/src/server/people/erasure.ts");
   // No kind is spared any more. One was -- the blob_thread_erase job that
   // removed the second copy of the conversation, which the scrub would

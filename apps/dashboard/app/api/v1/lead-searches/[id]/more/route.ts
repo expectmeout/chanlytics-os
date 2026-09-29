@@ -4,6 +4,7 @@ import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { answerOf, estimateForRound, refusalOf, searchRow } from "@/server/leads/leads";
+import { refuseList } from "@/server/leads/lead-lists";
 
 const Body = z.object({
   purpose: z.enum(["topup", "renew"]),
@@ -25,6 +26,8 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
+    // A list of your own (00242) is never searched again: a finder's plan never lands on it (J9).
+    refuseList(search);
     const plan = input.plan as LeadSearchPlan;
     const { data, error } = await ctx.supabase.rpc("lead_search_more", {
       p_search_id: search.id,

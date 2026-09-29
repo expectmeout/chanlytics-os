@@ -71,7 +71,7 @@ export interface ReachOutLead {
 export interface ReachOutFollower extends ReachOutLead {
   contact_id: string;
   /** The lead's own facts (outreach_lead_facts): the answer the send door will give about them. */
-  facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean };
+  facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean; stopped?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4). */
   bounced: boolean;
 }

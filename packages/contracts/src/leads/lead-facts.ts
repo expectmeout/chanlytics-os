@@ -97,9 +97,11 @@ export const LEAD_UNDO_MS = DAY_MS;
  * just paid for.
  */
 export function leadUndoable(
-  s: { round: { undo_op_id: string | null; ended_at: string | null } | null } | null,
+  s: { via?: string; round: { undo_op_id: string | null; ended_at: string | null } | null } | null,
   now: Date,
 ): boolean {
+  // Leads chosen on Leads (00242) join outside their round and drew nothing: there is nothing to give back.
+  if (s?.via === "chosen") return false;
   const r = s?.round;
   return !!r && !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
 }

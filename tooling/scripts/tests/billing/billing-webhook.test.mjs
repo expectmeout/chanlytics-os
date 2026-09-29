@@ -582,3 +582,17 @@ test("a finished Checkout is read back from Stripe under the same budget, and ap
     "one read, under the door's own budget",
   );
 });
+
+test("the kinds are a table: a kind named like a property every object has is a kind nobody acts on, kept once and ignored", async () => {
+  // The switch over event.type became a table of handlers (E17). A lookup on a plain object would find
+  // Object.prototype's own names; the table answers only for the kinds it names.
+  for (const type of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    const db = fakeDb(tables(), {}, {}, { unique: ["billing_events"] });
+    setPg(db);
+    const res = await deliver(type, { id: "obj_1", object: "unknown", metadata: {} });
+    assert.equal(res.status, 200, type);
+    assert.deepEqual(await res.json(), { ok: true, ignored: type });
+    assert.equal(claims(db).length, 1, `${type}: kept once`);
+    assert.equal(writes(db, "billing_accounts").length, 0, `${type}: nothing else written`);
+  }
+});

@@ -1,6 +1,7 @@
 /**
- * The erased, recognised by the digest they left (contracts/erasure.ts,
- * migration 00124), so the passive doors leave them erased.
+ * The erased, recognised by the digest they left (migrations 00124, 00125;
+ * made by the database, 00263 erasure_digests), so the passive doors leave them
+ * erased.
  *
  * Passive: the calendar import, which makes people from appointments; a call
  * event for a call that began before the deletion request, which would make
@@ -8,8 +9,7 @@
  * -- is the person coming back, and is not this file's business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./packages/db.js";
-import { erasedEmailHash, erasedPhoneHash } from "./packages/contracts.js";
+import { erasureDigests, type Database } from "./packages/db.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -23,8 +23,8 @@ export async function erasedTombstones(db: Db, tenantId: string, phones: string[
   const out = new Map<string, Tombstone>();
   const unique = [...new Set(phones.filter(Boolean))];
   if (!unique.length) return out;
-  const hashes = await Promise.all(unique.map((p) => erasedPhoneHash(tenantId, p)));
-  const byHash = new Map(unique.map((p, i) => [hashes[i], p]));
+  const byHash = new Map([...(await erasureDigests(db, tenantId, unique))].map(([p, h]) => [h, p]));
+  const hashes = [...byHash.keys()];
   const { data, error } = await db
     .from("contacts")
     .select("erased_phone_hash, erased_at, erasing_since")
@@ -73,11 +73,13 @@ export async function erasedBeforeEmail(
   address: string,
   receivedAtIso: string,
 ): Promise<boolean> {
+  const digest = (await erasureDigests(db, tenantId, [address])).get(address);
+  if (!digest) throw new Error("erased_tombstones: the database made no digest of the address");
   const { data, error } = await db
     .from("contacts")
     .select("erased_at, erasing_since")
     .eq("tenant_id", tenantId)
-    .eq("erased_email_hash", await erasedEmailHash(tenantId, address));
+    .eq("erased_email_hash", digest);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
   return ((data ?? []) as Tombstone[]).some((t) => {
     const since = t.erasing_since ?? t.erased_at;

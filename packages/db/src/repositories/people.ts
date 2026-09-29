@@ -79,3 +79,18 @@ export async function everyoneIn(db: Db, tenantId: string): Promise<PersonRowDto
     if (page.length < PEOPLE_PAGE) return all;
   }
 }
+
+/**
+ * The erasure digests of these values in this workspace (00263 erasure_digests): the database's own, since only it
+ * holds the pepper that keys them once the re-key has run. Value → digest, one call for all of them; a value asked
+ * twice is asked once. Throws when the database cannot answer: "we could not check" is never "nobody was erased".
+ */
+export async function erasureDigests(db: Db, tenantId: string, values: string[]): Promise<Map<string, string>> {
+  const asked = [...new Set(values.filter((v) => v !== ""))];
+  if (asked.length === 0) return new Map();
+  const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: asked });
+  if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
+  const digests = data ?? [];
+  if (digests.length !== asked.length) throw new Error("the erasure digests came back short");
+  return new Map(asked.map((v, i) => [v, digests[i]]));
+}

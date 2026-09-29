@@ -65,9 +65,11 @@ export const ROUTES = {
   "GET reach-out-replies": { method: "GET", path: "/api/v1/reach-out-replies" },
   "GET reach-outs": { method: "GET", path: "/api/v1/reach-outs" },
   "GET reach-outs/[id]": { method: "GET", path: "/api/v1/reach-outs/[id]" },
+  "GET reach-outs/leads": { method: "GET", path: "/api/v1/reach-outs/leads" },
   "GET reach-outs/reach": { method: "GET", path: "/api/v1/reach-outs/reach" },
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
+  "GET reports/reach-outs": { method: "GET", path: "/api/v1/reports/reach-outs" },
   "GET segments": { method: "GET", path: "/api/v1/segments" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
@@ -127,6 +129,8 @@ export const ROUTES = {
   "POST lead-searches/[id]/more": { method: "POST", path: "/api/v1/lead-searches/[id]/more" },
   "POST lead-searches/[id]/stop": { method: "POST", path: "/api/v1/lead-searches/[id]/stop" },
   "POST lead-searches/[id]/undo": { method: "POST", path: "/api/v1/lead-searches/[id]/undo" },
+  "POST lead-searches/chosen": { method: "POST", path: "/api/v1/lead-searches/chosen" },
+  "POST lead-searches/import": { method: "POST", path: "/api/v1/lead-searches/import" },
   "POST leads/[id]/draft": { method: "POST", path: "/api/v1/leads/[id]/draft" },
   "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
   "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
@@ -162,6 +166,7 @@ export const ROUTES = {
   "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
+  "POST reach-outs/leads/[id]/stop": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/stop" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
@@ -176,6 +181,7 @@ export const ROUTES = {
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
   "POST templates/sync": { method: "POST", path: "/api/v1/templates/sync" },
+  "POST vitals": { method: "POST", path: "/api/v1/vitals" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
   "PUT business-record": { method: "PUT", path: "/api/v1/business-record" },
   "PUT contacts/[id]/consent": { method: "PUT", path: "/api/v1/contacts/[id]/consent" },
@@ -265,9 +271,11 @@ export type Routes = {
   "GET reach-out-replies": typeof import("../../app/api/v1/reach-out-replies/route").GET;
   "GET reach-outs": typeof import("../../app/api/v1/reach-outs/route").GET;
   "GET reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").GET;
+  "GET reach-outs/leads": typeof import("../../app/api/v1/reach-outs/leads/route").GET;
   "GET reach-outs/reach": typeof import("../../app/api/v1/reach-outs/reach/route").GET;
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
+  "GET reports/reach-outs": typeof import("../../app/api/v1/reports/reach-outs/route").GET;
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
@@ -327,6 +335,8 @@ export type Routes = {
   "POST lead-searches/[id]/more": typeof import("../../app/api/v1/lead-searches/[id]/more/route").POST;
   "POST lead-searches/[id]/stop": typeof import("../../app/api/v1/lead-searches/[id]/stop/route").POST;
   "POST lead-searches/[id]/undo": typeof import("../../app/api/v1/lead-searches/[id]/undo/route").POST;
+  "POST lead-searches/chosen": typeof import("../../app/api/v1/lead-searches/chosen/route").POST;
+  "POST lead-searches/import": typeof import("../../app/api/v1/lead-searches/import/route").POST;
   "POST leads/[id]/draft": typeof import("../../app/api/v1/leads/[id]/draft/route").POST;
   "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
   "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;
@@ -362,6 +372,7 @@ export type Routes = {
   "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
+  "POST reach-outs/leads/[id]/stop": typeof import("../../app/api/v1/reach-outs/leads/[id]/stop/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
@@ -376,6 +387,7 @@ export type Routes = {
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;
   "POST templates/sync": typeof import("../../app/api/v1/templates/sync/route").POST;
+  "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
   "PUT business-record": typeof import("../../app/api/v1/business-record/route").PUT;
   "PUT contacts/[id]/consent": typeof import("../../app/api/v1/contacts/[id]/consent/route").PUT;

@@ -56,6 +56,30 @@ import {
   stepLabel,
   stepLabelOf,
   HAND_WORDS_MAX,
+  REACH_OUT_STOP_WORDS,
+  reachOutLineOf,
+  reachOutStripOf,
+  reachOutTimelineOf,
+  isLeadList,
+  LEAD_IMPORT_WORDS,
+  LEAD_LIST_MAX,
+  leadCheckAgainCents,
+  leadChooseAnswerWords,
+  leadChooseNameOf,
+  leadImportAnswerWords,
+  leadImportColumnWords,
+  leadImportCountWords,
+  leadImportNameOf,
+  leadImportPlanOf,
+  leadImportReady,
+  leadImportSaveLabel,
+  leadListEmptyOf,
+  leadListStripOf,
+  type LeadChooseInput,
+  type LeadImportInput,
+  type ReachOutLeadLineDto,
+  type ReachOutLeadTimelineDto,
+  type ReachOutLeadsDto,
   type ReachOutChainDto,
   type ReachOutChainInput,
   type ReachOutDecision,
@@ -96,6 +120,22 @@ export const reachOutsOverride: SurfaceOverride = {
 /** The reaches read in this tab, by search, in memory: one read each until the next write. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
 
+/** The business's zone, as the shell's clock holds it. */
+const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
+
+/**
+ * Leads while a reach-out writes, and one lead's story (Part 6, H8, H9): each read when a page asks, never held, and
+ * null when it could not be read, so the page draws nothing of it rather than a line it did not read.
+ */
+async function readLeads(query: { search?: string; lead?: string }): Promise<ReachOutLeadsDto | null> {
+  try {
+    return await read("GET reach-outs/leads", { query });
+  } catch (e) {
+    console.error("reach_out_leads_failed", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export const reachOuts = {
   /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
   report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),
@@ -123,6 +163,17 @@ export const reachOuts = {
       return null;
     }
   },
+  /** An open search's chain and its leads' lines (Part 6, H8): null when it could not be read. */
+  leadLines: (searchId: string) => readLeads({ search: searchId }),
+  /** One lead's story for its peek (H9): null when it could not be read, or the workspace holds no such lead. */
+  leadTimeline: async (leadId: string): Promise<ReachOutLeadTimelineDto | null> =>
+    (await readLeads({ lead: leadId }))?.timeline ?? null,
+  /** "Stop writing to them" (H10): the door's answer, or its refusal in contracts' words. */
+  stopLead: (leadId: string) => api()("POST reach-outs/leads/[id]/stop", { params: { id: leadId } }),
+  /** A lead's line under its stage, the strip and the peek's block, by the business's clock. */
+  lineOf: (line: ReachOutLeadLineDto): string | null => reachOutLineOf(line, Date.now(), businessZone()),
+  stripOf: (d: ReachOutLeadsDto) => (d.lines ? reachOutStripOf(d.lines, d.chain, Date.now(), businessZone()) : null),
+  timelineOf: (t: ReachOutLeadTimelineDto) => reachOutTimelineOf(t, Date.now(), businessZone()),
   /** An owner's answer to one held email (R18). */
   decide: (sendId: string, decision: ReachOutDecision) =>
     api()("POST reach-out-sends/[id]/decide", { params: { id: sendId }, body: { decision } }),
@@ -172,6 +223,32 @@ export const reachOuts = {
     next();
     return stop;
   },
+  /**
+   * A list of your own (Part 7, 00242): a file's rows, or leads chosen on Leads, as a search a reach-out writes to. The
+   * two doors answer or refuse in words (the typed client's result); the rest is contracts' reading of a file
+   * (lead-import.ts) and every sentence the import sheet, *Write to them* and a list's strip say.
+   */
+  lists: {
+    importLeads: (body: LeadImportInput) => api()("POST lead-searches/import", { body }),
+    chooseLeads: (body: LeadChooseInput) => api()("POST lead-searches/chosen", { body }),
+    planOf: leadImportPlanOf,
+    ready: leadImportReady,
+    countWords: leadImportCountWords,
+    columnWords: leadImportColumnWords,
+    saveLabel: leadImportSaveLabel,
+    /** A list's name from its file's, by the business's clock when the file has none. */
+    nameOf: (fileName: string | null) => leadImportNameOf(fileName, Date.now(), businessZone()),
+    /** "Chosen on Sep 28", by the business's clock. */
+    chooseNameOf: () => leadChooseNameOf(Date.now(), businessZone()),
+    importAnswerWords: leadImportAnswerWords,
+    chooseAnswerWords: leadChooseAnswerWords,
+    stripOf: leadListStripOf,
+    emptyOf: leadListEmptyOf,
+    isList: isLeadList,
+    cents: leadCheckAgainCents,
+    words: LEAD_IMPORT_WORDS,
+    max: LEAD_LIST_MAX,
+  },
   /** Every sentence a chain's row, an email row, the sheet and the Leads door say (contracts reach-out-*.ts). */
   words: {
     HOLD_DOOR_WORDS,
@@ -219,6 +296,7 @@ export const reachOuts = {
     stepLabelOf,
     HAND_WORDS_MAX,
     stepWhenWords,
+    REACH_OUT_STOP_WORDS,
   },
 };
 

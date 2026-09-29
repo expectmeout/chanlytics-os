@@ -211,12 +211,23 @@ function publishLeads(failed = false): void {
   };
 }
 
+/**
+ * A page of a view, one row per lead: with no search named, leads_page (00212) answers a row per membership, so a lead
+ * two searches hold (one found, and the list it was chosen into, Reach out Part 7) came twice and drew twice under one
+ * key. The first of each is kept, in the order the door sorted them.
+ */
+async function leadsPage(v: LeadsView, after?: { key: string; id: string } | null): Promise<LeadsPageAnswer> {
+  const page = await leadRead<LeadsPageAnswer>("GET leads", queryOf(v, after));
+  const seen = new Set<string>();
+  return { ...page, rows: page.rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true))) };
+}
+
 /** Page one of a view, read under its key: what a first read and a warm both do. */
 async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
-    leadRead<LeadsPageAnswer>("GET leads", queryOf(v)),
+    leadsPage(v),
     workspaceZone(),
   ]);
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
@@ -311,10 +322,7 @@ async function refreshView(): Promise<void> {
   const L = leadsLoaded;
   if (!L) return readView(view);
   const key = L.key;
-  const [searches, page] = await Promise.all([
-    leadRead<LeadSearchesAnswer>("GET lead-searches"),
-    leadRead<LeadsPageAnswer>("GET leads", queryOf(L.view)),
-  ]);
+  const [searches, page] = await Promise.all([leadRead<LeadSearchesAnswer>("GET lead-searches"), leadsPage(L.view)]);
   if (!leadsLoaded || leadsLoaded.key !== key) return; // the view moved while this was out
   const fresh = new Map(page.rows.map((r) => [r.id, r]));
   const loaded = new Set(L.rows.map((r) => r.id));
@@ -382,7 +390,7 @@ export async function leadsMore(): Promise<void> {
   const L = leadsLoaded;
   if (!L?.next) return;
   const key = L.key;
-  const page = await leadRead<LeadsPageAnswer>("GET leads", queryOf(L.view, L.next));
+  const page = await leadsPage(L.view, L.next);
   if (!leadsLoaded || leadsLoaded.key !== key) return;
   const seen = new Set(leadsLoaded.rows.map((r) => r.id));
   leadsLoaded.rows = [...leadsLoaded.rows, ...page.rows.filter((r) => !seen.has(r.id))];

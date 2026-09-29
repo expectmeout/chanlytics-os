@@ -13,11 +13,19 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { isWaitRefusal } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { deliver, deliverSafely, templatePurpose, whatsappSender } = await import(
-  pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
-);
+const {
+  deliver,
+  deliverSafely,
+  templatePurpose,
+  whatsappSender,
+  whatsappWire,
+  wireUnavailable,
+  isWireUnavailable,
+  isWireUnavailableError,
+} = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
 
 const T = "t1";
 const NOW = Date.parse("2026-09-10T10:00:00.000Z");
@@ -85,6 +93,8 @@ const outreachRpc = (t) => ({
       lead_stage: live[0]?.stage ?? null,
       suppressed: (t.suppressed ?? []).includes(String(a.p_to).trim().toLowerCase()),
       wrote_back: wroteBack,
+      // Its owner stopped writing to the send's own lead (00241).
+      stopped: !!(a.p_lead_id && live.find((l) => l.id === a.p_lead_id)?.reach_out_stopped_at),
       domain: d
         ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null, sent_days: d.sent_days ?? 0 }
         : null,
@@ -382,6 +392,71 @@ test("the receptionist's draft is retired when a person answered after it was wr
   assert.equal(w.calls.length, 0);
   assert.equal(t.messages[0].status, "canceled");
   assert.equal(t.events[0].data.after, "m2");
+});
+
+test("a wire that could not be BOUND is not a wire with no credentials: the door throws by name before anything is written, the queued row stays queued, and deliverSafely says it as wire_unreadable", async () => {
+  // The workspace's credentials could not be read (Vault, the database). The
+  // number may well be connected; nobody knows. A refusal would burn the row
+  // and tell the owner to reconnect a number that works; a read that failed
+  // throws, as every read that fails at the door throws, and the caller waits.
+  const queued = () =>
+    tables({
+      messages: [
+        {
+          id: "m1",
+          tenant_id: T,
+          conversation_id: "c1",
+          status: "queued",
+          body: "See you at 3",
+          sender: "human",
+          direction: "outbound",
+          created_at: "2026-09-10T09:59:00.000Z",
+        },
+      ],
+    });
+  const t = queued();
+  const wire = { whatsapp: wireUnavailable("vault unavailable") };
+  await assert.rejects(deliver({ db: fakeDb(t), wire, now: () => NOW }, words({ messageId: "m1" })), (e) => {
+    assert.ok(isWireUnavailableError(e), "typed, so a caller can tell it from any other throw");
+    assert.equal(e.name, "WireUnavailableError");
+    assert.equal(e.channel, "whatsapp");
+    assert.match(e.message, /could not be bound/);
+    assert.match(e.message, /vault unavailable/);
+    assert.ok(!/not connected|reconnect/i.test(e.message), "nothing in it says the number is disconnected");
+    return true;
+  });
+  assert.equal(t.messages[0].status, "queued", "left for the retry");
+  assert.equal(t.messages[0].error, undefined);
+  assert.deepEqual(kinds(t), [], "nothing left, so nothing is said to have failed");
+
+  // A send with no row yet writes none either.
+  const bare = tables();
+  await assert.rejects(deliver({ db: fakeDb(bare), wire, now: () => NOW }, words()), isWireUnavailableError);
+  assert.deepEqual(bare.messages, []);
+  assert.deepEqual(kinds(bare), []);
+
+  // The door a webhook uses never throws: the same read failure is a failure by its own name, never "no credentials".
+  const safe = queued();
+  const out = await deliverSafely({ db: fakeDb(safe), wire, now: () => NOW }, words({ messageId: "m1" }));
+  assert.deepEqual([out.outcome, out.reason, out.messageId], ["failed", "wire_unreadable", "m1"]);
+  assert.equal(safe.messages[0].status, "queued");
+
+  // A refusal is still a refusal: the wire is asked only of words that may go.
+  const no = queued();
+  no.conversations[0].contacts = person({ consent: "opted_out" });
+  const refused = await deliver({ db: fakeDb(no), wire, now: () => NOW }, words({ messageId: "m1" }));
+  assert.deepEqual([refused.outcome, refused.reason], ["refused", "opted_out"]);
+  assert.equal(no.messages[0].status, "canceled");
+});
+
+test("the WhatsApp wire from a credentials read: present is a sender, absent is null, unavailable is the marker", async () => {
+  const sender = whatsappWire({ outcome: "present", credentials: { phoneId: "p1", accessToken: "tok" } });
+  assert.equal(typeof sender, "function");
+  assert.equal(whatsappWire({ outcome: "absent" }), null, "no credentials: refused at the door, never guessed");
+  const down = whatsappWire({ outcome: "unavailable", error: "connection reset" });
+  assert.ok(isWireUnavailable(down));
+  assert.deepEqual(down, { unavailable: true, error: "connection reset" });
+  assert.ok(!isWireUnavailable(null) && !isWireUnavailable(undefined) && !isWireUnavailable(sender));
 });
 
 test("no wire, no credentials, a provider that says no: each is OURS, a failed row, and an event with the status", async () => {
@@ -1581,4 +1656,40 @@ test("a cold email that names its lead is judged by that lead: a business closed
   // Another person's lead is no lead of this send's.
   const other = coldWorld({ leads: [{ id: "l9", tenant_id: T, contact_id: "someone-else", stage: "ready" }] });
   assert.equal((await deliver(ports(other, emailWire()), cold({ leadId: "l9" }))).reason, "outreach_not_a_lead");
+});
+
+test("a lead its owner stopped writing to is refused its cold email, a skip and never a wait; an older database says nothing of it", async () => {
+  // Reach out Part 6 (H10): the stop is a fact of the send's own lead (00241 outreach_lead_facts.stopped), so an email
+  // claimed or queued before the owner pressed Stop never leaves, and the clock skips it rather than planning it again.
+  const stopped = () =>
+    coldWorld({
+      leads: [
+        {
+          id: "l1",
+          tenant_id: T,
+          contact_id: "k1",
+          stage: "nurture",
+          reach_out_stopped_at: "2026-09-28T15:00:00.000Z",
+        },
+      ],
+    });
+  const t = stopped();
+  const w = emailWire();
+  const out = await deliver(ports(t, w), cold({ leadId: "l1" }));
+  assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_stopped"]);
+  assert.equal(w.calls.length, 0, "nothing reaches the wire");
+  assert.equal(isWaitRefusal(out.reason), false, "a skip: the clock never plans it again");
+  // A database before 00241 answers without the fact: not stopped, as it was, and the SQL halves of the stop hold.
+  const u = stopped();
+  const older = {
+    outreach_facts: (a) => {
+      const { stopped: _gone, ...rest } = outreachRpc(u).outreach_facts(a);
+      return rest;
+    },
+  };
+  const before = await deliver(
+    { db: fakeDb(u, {}, older), wire: emailWire().wire, now: () => NOW },
+    cold({ leadId: "l1" }),
+  );
+  assert.equal(before.outcome, "sent");
 });

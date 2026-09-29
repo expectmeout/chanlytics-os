@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -83,10 +82,11 @@ test("a part is normalised before the door sees it, the unreadable are skipped i
       ["+16465550102", "", "Dee"],
     ],
   );
-  // The digests are of the number and the address as stored, keyed to the workspace, as the erasure wrote them.
-  assert.equal(calls[0].p_phone_digest, await erasedPhoneHash(A, "+16465550101"));
-  assert.equal(calls[0].p_email_digest, await erasedEmailHash(A, "ana@example.com"));
-  assert.equal(calls[1].p_email_digest, undefined, "no address, no digest: the door's default is none");
+  // No digest travels (00263): the door makes its own, since only the database holds the pepper that keys it.
+  assert.ok(
+    calls.every((c) => !("p_phone_digest" in c) && !("p_email_digest" in c)),
+    "the route computes no digest",
+  );
   assert.equal(out.added, 1);
   assert.equal(out.existed, 1);
   assert.equal(out.emails_set, 1);

@@ -337,7 +337,7 @@ test("the door: a partner's seat on a session without the code is refused, read 
   assert.doesNotThrow(() => requireSecondFactor({ aal: "aal2" }));
 });
 
-test("the partner account's doors and the boot: refused without the code, before the database is asked", async () => {
+test("the partner account's doors, its own reads and the boot: refused without the code, before the database is asked", async () => {
   const asked = [];
   const rpcs = Object.fromEntries(
     ["partner_become", "create_workspace_for_business", "partner_handover_resend"].map((n) => [
@@ -364,6 +364,16 @@ test("the partner account's doors and the boot: refused without the code, before
   await assert.rejects(boot.GET.run(home, session("aal1", world({ partners: [partnerRow] }))), mfa);
   const opened = await boot.GET.run(home, session("aal2", world({ partners: [partnerRow] })));
   assert.equal(opened.user.partner.code, "ada");
+
+  // The partner account's own reads (00261 gates the database's answers too): past the second factor for a partner;
+  // a caller who is no partner is told so, as ever.
+  const own = new Request("http://localhost/api/v1/x");
+  await assert.rejects(partnerDoor.GET.run(own, session("aal1", world({ partners: [partnerRow] }))), mfa);
+  await assert.rejects(handoverDoor.GET.run(own, session("aal1", world({ partners: [partnerRow] }))), mfa);
+  assert.deepEqual(await partnerDoor.GET.run(own, session("aal1", world({ partners: [] }))), {
+    partner: null,
+    balance: [],
+  });
   const owner = {
     memberships: [seat(A, "owner", "harbor", "2026-01-01T00:00:00Z")],
     tenants: world().tenants.slice(0, 1),

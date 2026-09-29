@@ -88,6 +88,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A draft is not here on purpose -- it changes no row a surface shows; the
   // lead moves when the owner answers "Did you send it?", which is a stage.
   "POST lead-searches": leads,
+  // A list of your own (00242) is a search: the rail and the leads read again.
+  "POST lead-searches/import": leads,
+  "POST lead-searches/chosen": leads,
   "POST lead-searches/[id]/answer": leads,
   "POST lead-searches/[id]/more": leads,
   "POST lead-searches/[id]/stop": leads,
@@ -117,6 +120,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // "Stop writing to them" skips the lead's planned and held emails in their runs (Part 6, H10).
+  "POST reach-outs/leads/[id]/stop": () => [broadcastsOverride, playbooksOverride, leadsOverride],
   // "Read as no · undo" moves the reading, the person's consent and the leads the no closed.
   "POST reach-out-replies/[id]/undo": () => [repliesOverride, ...thread(), leadsOverride],
   "POST broadcasts/[id]/recheck": runs,

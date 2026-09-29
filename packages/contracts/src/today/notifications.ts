@@ -228,6 +228,8 @@ export const SERVER_NOTIFICATION_KINDS = [
   "note_for_you",
   /** A business wrote back to a reach-out, and what it meant (Reach out Part 5, 00222): told once per reading. */
   "reach_out_replied",
+  /** The day's reach-out numbers, at 6 PM in the business's zone (Reach out Part 6, H12): a line in the bell, no more. */
+  "reach_out_day",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -398,6 +400,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
     /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
     reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
+    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Playbooks. */
+    reach_out_day: { icon: "mail", tone: "", action: "Open Playbooks", to: "outbound" },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 

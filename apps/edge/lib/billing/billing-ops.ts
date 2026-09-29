@@ -21,14 +21,14 @@ export interface BillingBody {
 }
 
 /** The ops past status, each over the workspace's row. */
-export type BillingOp = "checkout" | "portal" | "invoices" | "sync" | "resume" | "start_now";
+export type BillingOp = "checkout" | "portal" | "invoices" | "sync" | "resume" | "start_now" | "end";
 
 export const UNKNOWN_BILLING_OP: DoorAnswer = {
   status: 400,
   body: {
     ok: false,
     error: "unknown_op",
-    detail: "op must be status, checkout, portal, invoices, sync, resume or start_now",
+    detail: "op must be status, checkout, portal, invoices, sync, resume, start_now or end",
   },
 };
 
@@ -45,6 +45,7 @@ const STATUS_OF: Partial<Record<EdgeErrorCode, number>> = {
   no_subscription: 409,
   not_paused: 409,
   not_trialing: 409,
+  platform_hold: 409,
   stripe_refused: 502,
 };
 
@@ -53,8 +54,9 @@ export function billingStatusOf(r: BillingOutcome): number {
 }
 
 /** The ops that move the subscription log the status they left it in, or the refusal. */
-const MOVES: Record<"sync" | "resume" | "start_now", { done: LogEvent; refused: LogEvent }> = {
+const MOVES: Record<"sync" | "resume" | "start_now" | "end", { done: LogEvent; refused: LogEvent }> = {
   sync: { done: "billing_synced", refused: "billing_sync_refused" },
+  end: { done: "billing_ended", refused: "billing_end_refused" },
   resume: { done: "billing_resumed", refused: "billing_resume_refused" },
   start_now: { done: "billing_started_now", refused: "billing_start_now_refused" },
 };

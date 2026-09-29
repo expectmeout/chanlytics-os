@@ -50,6 +50,7 @@ export async function runReachOut(
             suppressed: f.facts.suppressed,
             wroteBack: f.facts.wrote_back,
             away: f.facts.away === true,
+            stopped: f.facts.stopped === true,
           });
       if (refused) skips.push({ lead: f, reason: refused });
       else leads.push(f);

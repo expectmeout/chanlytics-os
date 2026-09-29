@@ -62,7 +62,7 @@ interface PgError {
  * A door's refusal, as the route answers it: the database raises contracts' own sentences, said as they are; the
  * status follows the code (P0002 not found, 22023 or 23514 not as it may be, 23505 or 23503 in the way of something).
  */
-function reachOutRefusal(e: PgError): Error {
+export function reachOutRefusal(e: PgError): Error {
   const said = isReachOutRefusal(e.message) ? e.message : null;
   switch (e.code) {
     case "P0002":
@@ -178,7 +178,7 @@ export async function reachOf(ctx: RouteContext, tenantId: string, searchId: str
 }
 
 /** A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it. */
-const dtoOf = <T>(data: unknown): T => data as T;
+export const dtoOf = <T>(data: unknown): T => data as T;
 
 /** The workspace's booking link, which {{booking link}} needs. */
 async function bookingLinkOf(ctx: RouteContext, tenantId: string): Promise<string | null> {

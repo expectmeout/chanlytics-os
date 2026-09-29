@@ -26,6 +26,7 @@ import {
   platformPartnerRows,
   platformPartnerSummary,
   platformPartnerStanding,
+  pageVitalsWords,
   partnerPayoutOutcomeWords,
   partnerStandingOutcomeWords,
   partnerStatusOutcomeWords,
@@ -42,6 +43,7 @@ import {
   type PlatformQueue,
   type PlatformPartnerBalanceDto,
   type PlatformPartnerWorkspaceDto,
+  type PageVitalsRowDto,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
@@ -70,6 +72,11 @@ type OverviewAnswer = {
   queue: PlatformQueue | null;
   /** Every partner and who brought each workspace (0012, P5); null when it could not be read. */
   partners: { balances: PlatformPartnerBalanceDto[]; workspaces: PlatformPartnerWorkspaceDto[] } | null;
+  /**
+   * How fast the pages are (00255): the 75th percentile of each metric, over every page and each; null when unread,
+   * and absent from an overview that predates it, which draws no card.
+   */
+  vitals?: PageVitalsRowDto[] | null;
   message: string;
 };
 type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
@@ -82,6 +89,8 @@ export interface PlatformApi {
   list(): Promise<OverviewAnswer>;
   /** One sentence for the health card. Pure, from contracts. */
   healthWords: typeof platformHealthWords;
+  /** The field data card: a sentence, a line per metric, the slowest pages. Pure, from contracts. */
+  vitalsWords: typeof pageVitalsWords;
   /** The waiting list as rows and a sentence. Pure, from contracts. */
   queue: typeof platformQueue;
   /**
@@ -168,7 +177,16 @@ export function installPlatform(win: Window = window): void {
     list: () =>
       overviews.through("all", async () => {
         const r = await api()("GET platform/overview");
-        if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, partners: null, message: r.message };
+        if (!r.ok)
+          return {
+            ok: false,
+            tenants: [],
+            health: null,
+            queue: null,
+            partners: null,
+            vitals: null,
+            message: r.message,
+          };
         // `health` rides on this read rather than a route of its own: the same
         // question, the same door, and the page that lists the workspaces is the
         // one that should say whether the machinery under them is running.
@@ -178,6 +196,7 @@ export function installPlatform(win: Window = window): void {
           health: r.data.health ?? null,
           queue: r.data.queue ?? null,
           partners: r.data.partners ?? null,
+          vitals: r.data.vitals,
           message: "",
         };
       }),
@@ -268,6 +287,7 @@ export function installPlatform(win: Window = window): void {
     partnerStanding: platformPartnerStanding,
     rows: platformRows,
     healthWords: platformHealthWords,
+    vitalsWords: pageVitalsWords,
     queue: platformQueue,
     words: activityWords,
     clock: { time: clockTime, dateYear: clockDateYear, dayLabel: clockDayLabel, dayKey: zoneDayKey },

@@ -185,13 +185,47 @@ function liquidOnDemand(env: DriverEnv): { now(): Liquid | null; release(): void
   };
 }
 
-export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mounted | null {
+/**
+ * A face as it is mounted: what it draws with, and what changes as it runs. `loop` is the one frame callback of its
+ * life, handed to `env.raf` each frame.
+ */
+interface LiveFace {
+  readonly canvas: CanvasLike;
+  readonly env: DriverEnv;
+  readonly button: Element | null;
+  readonly role: Role;
+  readonly ctx: CanvasRenderingContext2D;
+  readonly liquid: { now(): Liquid | null; release(): void };
+  readonly character: Character;
+  readonly tone: Tone;
+  palTarget: Palette;
+  readonly pal: Palette;
+  w: number;
+  h: number;
+  heardLevel: number;
+  // the tile's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
+  // second so the tiles grow with the stage instead of jumping ahead of it
+  sideTarget: number;
+  sideNow: number;
+  raf: number;
+  last: number;
+  visible: boolean;
+  onScreen: boolean;
+  dead: boolean;
+  attention: number;
+  focused: boolean;
+  drawn: string;
+  readonly undo: (() => void)[];
+  readonly loop: (ms: number) => void;
+}
+
+/** The face on this canvas, at rest and not yet drawn: null where the canvas has no 2D context. */
+function liveFaceOf(canvas: CanvasLike, opts: MountOptions): LiveFace | null {
   const env: DriverEnv = { ...browserEnv(), ...(opts.env ?? {}) };
   const button = typeof canvas.closest === "function" ? canvas.closest("button, a") : null;
   const role: Role = opts.role ?? (button ? "icon" : "open");
   const own = typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
   if (!own) return null;
-  const ctx: CanvasRenderingContext2D = own;
   const liquid = liquidOnDemand(env);
   const character: Character = createCharacter({
     seed: opts.seed ?? 7,
@@ -201,146 +235,175 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     quietAfter: role === "icon" ? ICON_QUIET_AFTER : Infinity,
   });
   const tone = opts.tone ?? "page";
-  let palTarget = palette(env.theme(), env.tokens(), tone);
-  const pal: Palette = clonePalette(palTarget);
-  let w = 0;
-  let h = 0;
-  let heardLevel = 0;
-  // the tile's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
-  // second so the tiles grow with the stage instead of jumping ahead of it
-  let sideTarget = opts.side ?? 0;
-  let sideNow = sideTarget;
-  let raf = 0;
-  let last = 0;
-  let visible = !env.hidden();
-  let onScreen = true;
-  let dead = false;
-  let attention = role === "icon" ? 0 : 1;
-  let focused = false;
-  let drawn = "";
-  const undo: (() => void)[] = [];
+  const palTarget = palette(env.theme(), env.tokens(), tone);
+  const sideTarget = opts.side ?? 0;
+  const face: LiveFace = {
+    canvas,
+    env,
+    button,
+    role,
+    ctx: own,
+    liquid,
+    character,
+    tone,
+    palTarget,
+    pal: clonePalette(palTarget),
+    w: 0,
+    h: 0,
+    heardLevel: 0,
+    sideTarget,
+    sideNow: sideTarget,
+    raf: 0,
+    last: 0,
+    visible: !env.hidden(),
+    onScreen: true,
+    dead: false,
+    attention: role === "icon" ? 0 : 1,
+    focused: false,
+    drawn: "",
+    undo: [],
+    loop: (ms) => loopFrame(face, ms),
+  };
+  return face;
+}
 
-  function fit(): boolean {
-    const cw = canvas.clientWidth;
-    const ch = canvas.clientHeight;
-    if (!cw || !ch) return false;
-    const dpr = env.dpr();
-    const nw = Math.round(cw * dpr);
-    const nh = Math.round(ch * dpr);
-    if (nw !== w || nh !== h) {
-      w = nw;
-      h = nh;
-      canvas.width = w;
-      canvas.height = h;
-      drawn = "";
-    }
-    return true;
+function fitCanvas(face: LiveFace): boolean {
+  const cw = face.canvas.clientWidth;
+  const ch = face.canvas.clientHeight;
+  if (!cw || !ch) return false;
+  const dpr = face.env.dpr();
+  const nw = Math.round(cw * dpr);
+  const nh = Math.round(ch * dpr);
+  if (nw !== face.w || nh !== face.h) {
+    face.w = nw;
+    face.h = nh;
+    face.canvas.width = face.w;
+    face.canvas.height = face.h;
+    face.drawn = "";
   }
-  function frame(dt: number): void {
-    // a word heard lifts the level to 0.8; it falls to nothing in about half a second of silence
-    heardLevel = Math.max(0, heardLevel - dt * 1.5);
-    character.hear(heardLevel);
-    if (sideTarget > 0)
-      sideNow = env.reduced ? sideTarget : sideNow + (sideTarget - sideNow) * (1 - Math.exp(-dt / 0.1));
-    if (!fit()) return;
-    const side = sideTarget > 0 ? sideNow * env.dpr() : fitSide(w, h);
-    character.detail(side / env.dpr());
-    character.attend(focused ? 1 : attention);
-    if (!env.reduced) character.tick(dt);
-    easePalette(pal, palTarget, env.reduced ? 1e6 : dt);
-    const f = character.frame();
-    const sig = signature(f, pal, side, w, h);
-    if (sig === drawn) return;
-    drawn = sig;
-    // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
-    const fused = f.liquid > 0.001 && (liquid.now()?.draw(ctx, f, pal, side, w, h) ?? false);
-    if (!fused) drawCharacter(ctx, w, h, f, pal, side);
+  return true;
+}
+function drawFrame(face: LiveFace, dt: number): void {
+  const { env, character, pal } = face;
+  // a word heard lifts the level to 0.8; it falls to nothing in about half a second of silence
+  face.heardLevel = Math.max(0, face.heardLevel - dt * 1.5);
+  character.hear(face.heardLevel);
+  if (face.sideTarget > 0)
+    face.sideNow = env.reduced
+      ? face.sideTarget
+      : face.sideNow + (face.sideTarget - face.sideNow) * (1 - Math.exp(-dt / 0.1));
+  if (!fitCanvas(face)) return;
+  const { w, h } = face;
+  const side = face.sideTarget > 0 ? face.sideNow * env.dpr() : fitSide(w, h);
+  character.detail(side / env.dpr());
+  character.attend(face.focused ? 1 : face.attention);
+  if (!env.reduced) character.tick(dt);
+  easePalette(pal, face.palTarget, env.reduced ? 1e6 : dt);
+  const f = character.frame();
+  const sig = signature(f, pal, side, w, h);
+  if (sig === face.drawn) return;
+  face.drawn = sig;
+  // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
+  const fused = f.liquid > 0.001 && (face.liquid.now()?.draw(face.ctx, f, pal, side, w, h) ?? false);
+  if (!fused) drawCharacter(face.ctx, w, h, f, pal, side);
+}
+function loopFrame(face: LiveFace, ms: number): void {
+  face.raf = face.env.raf(face.loop);
+  const dt = Math.min(0.05, Math.max(0, (ms - (face.last || ms)) / 1000));
+  face.last = ms;
+  drawFrame(face, dt);
+}
+/** The loop runs while the face is shown, on screen and free to move, and stops otherwise. */
+function runLoop(face: LiveFace): void {
+  if (face.dead) return;
+  const go = face.visible && face.onScreen && !face.env.reduced;
+  if (go && !face.raf) {
+    face.last = 0;
+    face.raf = face.env.raf(face.loop);
   }
-  function loop(ms: number): void {
-    raf = env.raf(loop);
-    const dt = Math.min(0.05, Math.max(0, (ms - (last || ms)) / 1000));
-    last = ms;
-    frame(dt);
+  if (!go && face.raf) {
+    face.env.caf(face.raf);
+    face.raf = 0;
   }
-  function run(): void {
-    if (dead) return;
-    const go = visible && onScreen && !env.reduced;
-    if (go && !raf) {
-      last = 0;
-      raf = env.raf(loop);
-    }
-    if (!go && raf) {
-      env.caf(raf);
-      raf = 0;
-    }
+}
+function stillFrame(face: LiveFace): void {
+  if (!face.env.reduced) return;
+  face.character.still();
+  drawFrame(face, 0);
+}
+function lookAtPointer(face: LiveFace, e: { clientX: number; clientY: number } | null): void {
+  const { canvas, button, role, character } = face;
+  if (face.env.reduced) return;
+  if (!e) {
+    character.away();
+    if (role === "icon") face.attention = 0;
+    return;
   }
-  function stillFrame(): void {
-    if (!env.reduced) return;
-    character.still();
-    frame(0);
+  const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
+  if (!r || !(r.width > 0) || !(r.height > 0)) return;
+  const b = button && typeof button.getBoundingClientRect === "function" ? button.getBoundingClientRect() : null;
+  // how far outside a box the pointer is, each way
+  const outside = (box: { left: number; top: number; width: number; height: number }) =>
+    Math.hypot(
+      Math.max(box.left - e.clientX, 0, e.clientX - (box.left + box.width)),
+      Math.max(box.top - e.clientY, 0, e.clientY - (box.top + box.height)),
+    );
+  if (role === "icon") face.attention = outside(b ?? r) < ATTEND_WITHIN ? 1 : 0;
+  const unit = face.sideTarget > 0 ? face.sideNow : fitSide(r.width, r.height);
+  const dx = e.clientX - (r.left + r.width / 2);
+  const dy = e.clientY - (r.top + r.height / 2);
+  const within = role === "icon" ? LOOK_WITHIN.icon : Math.max(LOOK_WITHIN.open, r.width * 1.6);
+  const dist = Math.hypot(dx, dy);
+  // full attention up to half the radius, fading to none at it
+  const fade = 1 - smooth((dist - within / 2) / (within / 2));
+  if (fade <= 0) {
+    character.away();
+    return;
   }
-  function pointer(e: { clientX: number; clientY: number } | null): void {
-    if (env.reduced) return;
-    if (!e) {
-      character.away();
-      if (role === "icon") attention = 0;
-      return;
-    }
-    const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
-    if (!r || !(r.width > 0) || !(r.height > 0)) return;
-    const b = button && typeof button.getBoundingClientRect === "function" ? button.getBoundingClientRect() : null;
-    // how far outside a box the pointer is, each way
-    const outside = (box: { left: number; top: number; width: number; height: number }) =>
-      Math.hypot(
-        Math.max(box.left - e.clientX, 0, e.clientX - (box.left + box.width)),
-        Math.max(box.top - e.clientY, 0, e.clientY - (box.top + box.height)),
-      );
-    if (role === "icon") attention = outside(b ?? r) < ATTEND_WITHIN ? 1 : 0;
-    const unit = sideTarget > 0 ? sideNow : fitSide(r.width, r.height);
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    const within = role === "icon" ? LOOK_WITHIN.icon : Math.max(LOOK_WITHIN.open, r.width * 1.6);
-    const dist = Math.hypot(dx, dy);
-    // full attention up to half the radius, fading to none at it
-    const fade = 1 - smooth((dist - within / 2) / (within / 2));
-    if (fade <= 0) {
-      character.away();
-      return;
-    }
-    const inside = b ? outside(b) === 0 : dist / unit < 2.3;
-    character.look((dx / unit / 4) * fade, (dy / unit / 4) * fade, inside);
-  }
+  const inside = b ? outside(b) === 0 : dist / unit < 2.3;
+  character.look((dx / unit / 4) * fade, (dy / unit / 4) * fade, inside);
+}
 
+/**
+ * The page's listeners, in order: the tab shown or hidden, the canvas on or off screen, its size, the pointer, the
+ * theme.
+ */
+function listenToPage(face: LiveFace): void {
+  const { env, canvas, undo } = face;
   undo.push(
     env.onVisibility(() => {
-      visible = !env.hidden();
-      run();
+      face.visible = !env.hidden();
+      runLoop(face);
     }),
   );
   undo.push(
     env.onScreen(canvas as unknown as Element, (v) => {
-      onScreen = v;
-      run();
+      face.onScreen = v;
+      runLoop(face);
     }),
   );
   undo.push(
     env.onResize(canvas as unknown as Element, () => {
-      if (!raf) frame(0);
+      if (!face.raf) drawFrame(face, 0);
     }),
   );
-  undo.push(env.onPointer(pointer));
+  undo.push(env.onPointer((e) => lookAtPointer(face, e)));
   undo.push(
     env.onTheme(() => {
-      palTarget = palette(env.theme(), env.tokens(), tone);
-      stillFrame();
-      if (!raf) frame(0);
+      face.palTarget = palette(env.theme(), env.tokens(), face.tone);
+      stillFrame(face);
+      if (!face.raf) drawFrame(face, 0);
     }),
   );
+}
+/** An icon's button: a press gathers the stack, and its focus attends. */
+function listenToButton(face: LiveFace): void {
+  const { button, character } = face;
   if (button && typeof button.addEventListener === "function") {
     const down = () => character.press(true);
     const up = () => character.press(false);
-    const fin = () => (focused = true);
-    const fout = () => (focused = false);
+    const fin = () => (face.focused = true);
+    const fout = () => (face.focused = false);
     const names: [string, () => void][] = [
       ["pointerdown", down],
       ["pointerup", up],
@@ -350,33 +413,36 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       ["focusout", fout],
     ];
     for (const [n, fn] of names) button.addEventListener(n, fn);
-    undo.push(() => {
+    face.undo.push(() => {
       for (const [n, fn] of names) button.removeEventListener(n, fn);
     });
   }
-  run();
-  if (env.reduced) stillFrame();
-  else frame(0);
-
+}
+/**
+ * What the page holds of a mounted face. `destroy` stops the loop, gives back its share of the GPU, then undoes the
+ * listeners in the order they were added.
+ */
+function mountedOf(face: LiveFace): Mounted {
+  const { character, env } = face;
   return {
     get state() {
       return character.state;
     },
-    role,
+    role: face.role,
     set(next) {
       character.set(next);
-      stillFrame();
+      stillFrame(face);
     },
     setSide(px) {
-      sideTarget = Math.max(1, px);
-      if (env.reduced) sideNow = sideTarget;
-      if (!raf) frame(0);
+      face.sideTarget = Math.max(1, px);
+      if (env.reduced) face.sideNow = face.sideTarget;
+      if (!face.raf) drawFrame(face, 0);
     },
-    side: () => sideNow,
+    side: () => face.sideNow,
     hear(v) {
-      heardLevel = Math.max(heardLevel, Math.min(1, Math.max(0, v)));
+      face.heardLevel = Math.max(face.heardLevel, Math.min(1, Math.max(0, v)));
     },
-    level: () => heardLevel,
+    level: () => face.heardLevel,
     beat(v) {
       character.beat(v);
     },
@@ -389,17 +455,28 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     },
     glow(v) {
       character.glow(v);
-      stillFrame();
+      stillFrame(face);
     },
     step(dt = 1 / 60, frames = 1) {
-      for (let i = 0; i < frames; i++) frame(dt);
+      for (let i = 0; i < frames; i++) drawFrame(face, dt);
     },
     destroy() {
-      dead = true;
-      if (raf) env.caf(raf);
-      raf = 0;
-      liquid.release();
-      for (const u of undo.splice(0)) u();
+      face.dead = true;
+      if (face.raf) env.caf(face.raf);
+      face.raf = 0;
+      face.liquid.release();
+      for (const u of face.undo.splice(0)) u();
     },
   };
+}
+
+export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mounted | null {
+  const face = liveFaceOf(canvas, opts);
+  if (!face) return null;
+  listenToPage(face);
+  listenToButton(face);
+  runLoop(face);
+  if (face.env.reduced) stillFrame(face);
+  else drawFrame(face, 0);
+  return mountedOf(face);
 }

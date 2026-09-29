@@ -19,7 +19,7 @@ import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email/email.js";
-import { whatsappSender } from "../../lib/packages/core.js";
+import { isWireUnavailable, whatsappWire, wireUnavailable } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
 import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
@@ -35,6 +35,7 @@ import {
   dispatchJob,
   scheduleJob,
   scheduleJobOnce,
+  lateFields,
   CLAIM_FOR_MS,
   YIELD_AT_MS,
   LEAD_YIELD_AT_MS,
@@ -74,21 +75,29 @@ export async function POST(request: Request): Promise<Response> {
           // TENANT's WhatsApp credentials, never the environment's (a second
           // business's reply must not leave from the first one's number), and
           // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess. Email's provider key
+          // either is a refusal at the door, not a guess; a read that FAILED
+          // is neither (core whatsappWire, WireUnavailable): the reply waits
+          // for a heartbeat that can read the vault. Email's provider key
           // is the deployment's, so its wire is bound to the tenant's MAILBOX:
           // it sends a frozen request only when that request leaves as this
           // workspace, and a workspace without a mailbox has no email line.
           const line = await smsSenderForTenant(db, job.tenant_id);
-          const email = await emailWireFor(db, job.tenant_id);
+          // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
+          // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
+          const email = await emailWireFor(db, job.tenant_id).catch((e: unknown) => {
+            L.error("email_wire_unavailable", { tenant_id: job.tenant_id, error: errField(e) });
+            return wireUnavailable(errField(e));
+          });
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = emailIntake(db);
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
           const leads = leadPipeline();
           const wire = {
-            whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
-            sms: line
-              ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body)
-              : null,
+            whatsapp: whatsappWire(await waCredentialsForTenant(db, job.tenant_id)),
+            sms:
+              line === null || isWireUnavailable(line)
+                ? line
+                : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
             ...(email !== undefined ? { email } : {}),
           };
           return dispatchJob(
@@ -138,20 +147,23 @@ export async function POST(request: Request): Promise<Response> {
         leaseSeconds: LEASE_SECONDS,
       },
     );
-    L.info("jobs_tick", { ...counts });
+    // How late each kind's first claim came rides on the heartbeat's line (0018,
+    // step 1); the answer to pg_net keeps its counts alone.
+    const { lateMs, ...tally } = counts;
+    L.info("jobs_tick", { ...tally, ...lateFields(lateMs) });
     // Many failures in one heartbeat are also the platform's condition: one page
     // with the counts in words and where to look. Each failed job has already
     // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is
     // in addition to those, not instead of them.
-    if (counts.failed + counts.gaveUp >= MASS_FAILURE_PAGE) {
+    if (tally.failed + tally.gaveUp >= MASS_FAILURE_PAGE) {
       await pageOperator(
         { db },
         "jobs_mass_failure",
-        `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`,
-        massFailureBody(counts),
+        `${tally.failed + tally.gaveUp} jobs failed in one heartbeat`,
+        massFailureBody(tally),
       );
     }
-    return json(200, { ok: true, ...counts });
+    return json(200, { ok: true, ...tally });
   } catch (e) {
     // Only the claim throws out of runTick; everything per job is caught inside
     // it. A ledger that cannot be claimed from is a database problem, and a 503

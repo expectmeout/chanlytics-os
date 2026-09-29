@@ -12,6 +12,7 @@ import { smsStatusUrl, smsRefusalOf } from "../packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "../lines/lines.js";
 import { logger, errField } from "../log.js";
 import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
+import { wireUnavailable, type WireUnavailable } from "../packages/core.js";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -157,8 +158,13 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
   };
 }
 
-/** The sender a job runner injects for a tenant: nothing when the workspace has no texting line yet. */
-export async function smsSenderForTenant(db: Db, tenantId: string): Promise<SmsSender | null> {
+/**
+ * The sender a job runner injects for a tenant: nothing when the workspace has no texting line yet, or its line
+ * carries no credentials -- a refusal at the door. A read that FAILED (the lines table, the vault) is neither: the line
+ * may well be there, so the wire could not be bound (core WireUnavailable), and a reply waits for a heartbeat that
+ * can read it instead of failing for good and flagging a thread over a blip.
+ */
+export async function smsSenderForTenant(db: Db, tenantId: string): Promise<SmsSender | null | WireUnavailable> {
   try {
     const line = await smsLineForTenant(db, tenantId);
     if (!line) return null;
@@ -166,6 +172,6 @@ export async function smsSenderForTenant(db: Db, tenantId: string): Promise<SmsS
     return acct ? smsSenderFor(line, acct) : null;
   } catch (e) {
     logger({ tenant_id: tenantId }).error("sms_sender_unavailable", { error: errField(e) });
-    return null;
+    return wireUnavailable(errField(e));
   }
 }

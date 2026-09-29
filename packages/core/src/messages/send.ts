@@ -1,27 +1,19 @@
-import { isCampaignEmail, type SendPurpose } from "@chanlytics/contracts";
-import type { Channel } from "../deliver";
-import type { SendQueuedPorts } from "./ports";
+import { isCampaignEmail, MIN_MS, type SendPurpose } from "@chanlytics/contracts";
+import type { Channel, Delivered } from "../deliver";
+import { isWireUnavailableError, type WireUnavailableError } from "../wire-senders";
+import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
 
-export interface SendQueuedCommand {
-  tenantId: string;
-  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
-  payload: {
-    message_id: string;
-    conversation_id: string;
-    to_phone?: string;
-    to_email?: string;
-    body?: string;
-    template?: { name: string; language: string; params: string[] };
-    /**
-     * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
-     * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
-     * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
-     * which the door holds to its own rules.
-     */
-    purpose?: SendPurpose;
-    proactive?: boolean;
-  };
-}
+export type { SendQueuedCommand } from "./ports";
+
+/**
+ * How long a reply whose wire could not be bound waits before a FRESH job tries it again, by how many fresh jobs it
+ * already is the result of (payload.resumes): a blip, a bad minute, a short outage, and one more before a person is
+ * told. The list's length is the bound: a send past its last wait fails loudly by name, and the ledger settles the
+ * row and tells the owner as it does for any run that did not finish -- never "reconnect the number", because
+ * nobody knows that it is off. Fresh rows rather than the ledger's own retry (RETRY_WAITS_MS), which is closed to a
+ * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
+ */
+export const SEND_RETRY_WAITS_MS: readonly number[] = [MIN_MS, 3 * MIN_MS, 10 * MIN_MS, 30 * MIN_MS];
 
 /**
  * outbound_send: the honest undo — the message sat status='queued' through
@@ -65,26 +57,119 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`,
     );
-  const out = await ports.deliver({
-    tenantId: cmd.tenantId,
-    conversationId: p.conversation_id,
-    contactId: null,
-    to,
-    channel,
-    // Read from the ROW, not hardcoded: under a veto window the receptionist's
-    // own reply travels this path, and stamping every send "human" would make
-    // the metrics report a bot's words as a person's.
-    sender: (msg.sender ?? "human") as "ai" | "human" | "system",
-    purpose,
-    proactive: p.proactive === true,
-    body: p.body ?? msg.body ?? "",
-    template: p.template,
-    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
-    ...(msg.leadId ? { leadId: msg.leadId } : {}),
-    messageId: p.message_id,
-  });
+  let out: Delivered;
+  try {
+    out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to,
+      channel,
+      // Read from the ROW, not hardcoded: under a veto window the receptionist's
+      // own reply travels this path, and stamping every send "human" would make
+      // the metrics report a bot's words as a person's.
+      sender: (msg.sender ?? "human") as "ai" | "human" | "system",
+      purpose,
+      proactive: p.proactive === true,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+      ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
+      ...(msg.leadId ? { leadId: msg.leadId } : {}),
+      messageId: p.message_id,
+    });
+  } catch (e) {
+    // The wire could not be BOUND: the workspace's credentials could not be read. Not a refusal, and not "no
+    // credentials" -- the number may well be connected -- so nothing is flagged and nobody is told to reconnect it.
+    // Nothing left and the row is still queued, so the same send is handed to a fresh job a while on, a bounded
+    // number of times; the platform is paged, because a credentials store that does not answer is its condition.
+    // Any other throw is the door's own, and stays as loud as it was.
+    if (!isWireUnavailableError(e)) throw e;
+    await resendWhenBound(ports, cmd, channel, e);
+    return;
+  }
   if (out.outcome !== "failed") return;
+  await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
+}
+
+/**
+ * A reply whose wire could not be BOUND (deliver WireUnavailableError), handed to a fresh job a while on, a bounded
+ * number of times (SEND_RETRY_WAITS_MS); past the last wait it fails loudly by name.
+ */
+async function resendWhenBound(
+  ports: SendQueuedPorts,
+  cmd: SendQueuedCommand,
+  channel: Channel,
+  e: WireUnavailableError,
+): Promise<void> {
+  const p = cmd.payload;
+  const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+  const wait = SEND_RETRY_WAITS_MS[resumes];
+  if (wait === undefined)
+    throw new Error(
+      `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
+      { cause: e },
+    );
+  // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must
+  // not turn a reply that is waiting into one that failed.
+  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  await ports
+    .page?.(
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
+    )
+    ?.catch(() => undefined);
+}
+
+/** What a failed send owes: the platform paged for its own conditions, the thread flagged and the owner told. */
+interface FailedSend {
+  msg: NonNullable<Awaited<ReturnType<SendQueuedPorts["queued"]>>>;
+  channel: Channel;
+  purpose: SendPurpose;
+  to: string;
+  out: Extract<Delivered, { outcome: "failed" }>;
+}
+
+/** The wire could not carry it. */
+async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: FailedSend): Promise<void> {
+  const p = cmd.payload;
+  const { msg, channel, to, out } = f;
+  await pageTheProvider(ports, cmd, f);
+  // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
+  // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
+  // receipt and a job that died ask too (contracts isCampaignEmail).
+  if (channel === "email" && isCampaignEmail(msg.email)) return;
+  // The wire could not carry it: the thread is flagged for a person and the
+  // owner told, in words that say whose reply it was and what stopped it --
+  // a number with no credentials is not "HTTP 503". A refusal needs neither;
+  // the row says why.
+  const cause = causeOf(out, channel);
+  const receptionist = msg.sender === "ai";
+  await ports.escalate(
+    p.conversation_id,
+    "send_failed",
+    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
+  );
+  // The line above just flagged the thread, so this is a conversation that
+  // needs a person: the same thing a WhatsApp handoff is, drawn the same way,
+  // and its button opens THAT thread rather than the Inbox's front page. The
+  // job itself completes; it never was "a job did not finish". (Today drops an
+  // away-row whose conversation the queue already shows, so this row usually
+  // appears only as the thread at the top of the page, which is where it is.)
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
+    subject: `Reply delivery failed: ${to}`,
+    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
+  });
+}
+
+/** A provider's limit or a refused key is the platform's to hear, never one thread's. */
+async function pageTheProvider(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: FailedSend): Promise<void> {
+  const p = cmd.payload;
+  const { channel, purpose, out } = f;
   // A limit at the mail provider (named by the door, deliver.ts) is not this thread's fault either. A used-up day or
   // month stops every workspace's email on the key, so it is recorded for the platform (provider_quota:email, shown on
   // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one
@@ -114,14 +199,11 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`,
     );
   }
-  // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
-  // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
-  // receipt and a job that died ask too (contracts isCampaignEmail).
-  if (channel === "email" && isCampaignEmail(msg?.email)) return;
-  // The wire could not carry it: the thread is flagged for a person and the
-  // owner told, in words that say whose reply it was and what stopped it --
-  // a number with no credentials is not "HTTP 503". A refusal needs neither;
-  // the row says why.
+}
+
+/** Why it did not leave, in words for the owner: a number with no credentials is not "HTTP 503". */
+function causeOf(out: FailedSend["out"], channel: Channel): string {
+  const limit = out.limit ?? null;
   // Named for the wire it was going out on: a text with no line is not a
   // WhatsApp number that failed.
   const notConnected =
@@ -130,41 +212,21 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
       : channel === "whatsapp"
         ? "the WhatsApp number is not connected"
         : `the ${channel} channel is not connected`;
-  const cause =
-    out.reason === "no_credentials"
-      ? notConnected
-      : out.reason === "no_sender_for_channel"
-        ? `this runtime has no ${channel} line`
-        : out.reason === "wire_unreadable"
-          ? "the thread could not be read at the wire"
-          : limit === "daily" || limit === "monthly"
-            ? "the mail provider's sending limit is used up for now"
-            : limit === "rate"
-              ? "the mail provider asked us to slow down"
-              : limit === "in_flight"
-                ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
-                : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-                  // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-                  out.status === 0
-                  ? "it never reached the provider"
-                  : `HTTP ${out.status}`;
-  const receptionist = msg.sender === "ai";
-  await ports.escalate(
-    p.conversation_id,
-    "send_failed",
-    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
-  );
-  // The line above just flagged the thread, so this is a conversation that
-  // needs a person: the same thing a WhatsApp handoff is, drawn the same way,
-  // and its button opens THAT thread rather than the Inbox's front page. The
-  // job itself completes; it never was "a job did not finish". (Today drops an
-  // away-row whose conversation the queue already shows, so this row usually
-  // appears only as the thread at the top of the page, which is where it is.)
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${p.conversation_id}`,
-    about: { type: "conversation", id: p.conversation_id },
-    subject: `Reply delivery failed: ${to}`,
-    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
-  });
+  return out.reason === "no_credentials"
+    ? notConnected
+    : out.reason === "no_sender_for_channel"
+      ? `this runtime has no ${channel} line`
+      : out.reason === "wire_unreadable"
+        ? "the thread could not be read at the wire"
+        : limit === "daily" || limit === "monthly"
+          ? "the mail provider's sending limit is used up for now"
+          : limit === "rate"
+            ? "the mail provider asked us to slow down"
+            : limit === "in_flight"
+              ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
+              : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+                // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+                out.status === 0
+                ? "it never reached the provider"
+                : `HTTP ${out.status}`;
 }
