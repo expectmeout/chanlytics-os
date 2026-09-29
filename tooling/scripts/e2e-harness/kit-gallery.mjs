@@ -225,6 +225,36 @@ const PANE_ROWS = ["Consultation", "Follow-up visit", "Full treatment"]
   .map((name) => `<div class="gx-panel-row">${name}</div>`)
   .join("");
 
+/**
+ * What a bare face's twin does not compare: where the row places its face (a grid row and column, its alignment and
+ * that it never shrinks), which is .list-row-face's and is compared in the row's twin; and its tag, a div in
+ * plRowCard, whose text direction a block isolates, where the kit draws a span beside words.
+ */
+const FACE_APART = ["grid-column-start", "grid-row-start", "grid-row-end", "align-self", "flex-shrink", "unicode-bidi"];
+
+/** A face's picture: a made-up one, drawn inline, so the page asks for nothing. */
+const PHOTO =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' " +
+  "fill='%23a3a3a3'/%3E%3Ccircle cx='16' cy='13' r='6' fill='%23e5e5e5'/%3E%3Cpath d='M5 32a11 11 0 0 1 22 0' " +
+  "fill='%23e5e5e5'/%3E%3C/svg%3E";
+
+/** A person's row on a phone, as the kit draws it, with a line of words said or not and a note under it or not. */
+const listRow = ({ said = true, note = false } = {}) =>
+  `<div class="list-row"><span class="face list-row-face" aria-hidden="true">AR</span>` +
+  `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
+  (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
+  `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
+  (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
+  `</div>`;
+/** The same row as People's plRowCard draws it (pages/people.jsx), the classes it draws with and the same words. */
+const plCard = ({ said = true, note = false } = {}) =>
+  `<div class="pl-card"><div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>` +
+  `<div class="pl-card-name">Aisha Rahman</div><span class="pill pill-warn">Needs you</span>` +
+  (said ? `<div class="pl-card-lead">asked about Saturday</div>` : "") +
+  `<div class="pl-card-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
+  (note ? `<div class="pl-card-tail">Next step: call back on Monday</div>` : "") +
+  `</div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -953,6 +983,103 @@ export const FAMILIES = [
         id: "src-cl-bucket-link-danger",
         source: "styles/components.css:1885",
         html: `<button type="button" class="cl-bucket-link danger">Delete the list</button>`,
+      },
+    ],
+  },
+  {
+    family: "Face",
+    about:
+      "kit.css's face (step 2.2): a person, a lead or a conversation as initials in a circle, a glyph for someone " +
+      "known by a number or an address, and a picture over the initials. At a phone's width each beside the phone " +
+      "row's face, which the spec holds it equal to.",
+    entries: [
+      {
+        id: "face",
+        html:
+          `<div class="gx-row"><span class="face" aria-hidden="true">AR</span>` +
+          `<span class="face" aria-hidden="true">SO</span></div>`,
+      },
+      { id: "face-glyph", html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>` },
+      {
+        id: "face-photo",
+        html: `<span class="face" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span>`,
+      },
+      {
+        id: "face-twin",
+        width: "phone",
+        html: `<span class="face" aria-hidden="true">AR</span>`,
+        twin: "src-face",
+        except: FACE_APART,
+      },
+      {
+        id: "src-face",
+        width: "phone",
+        source: "styles/inbox.css:276, styles/clients.css:2466",
+        html: `<div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>`,
+      },
+      {
+        id: "face-glyph-twin",
+        width: "phone",
+        html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>`,
+        twin: "src-face-glyph",
+        except: FACE_APART,
+      },
+      {
+        id: "src-face-glyph",
+        width: "phone",
+        source: "styles/inbox.css:276, styles/clients.css:2051",
+        html: `<div class="ix-thread-avatar pl-card-face cl-row-avatar-glyph" aria-hidden="true">${icon("phone", 12)}</div>`,
+      },
+      {
+        id: "face-photo-twin",
+        width: "phone",
+        html: `<span class="face" aria-hidden="true">AR<img class="face-photo" src="${PHOTO}" alt=""></span>`,
+        twin: "src-face-photo",
+        except: FACE_APART,
+      },
+      {
+        id: "src-face-photo",
+        width: "phone",
+        source: "styles/inbox.css:276, styles/clients.css:2481",
+        html: `<div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR<img class="pl-card-photo" src="${PHOTO}" alt=""></div>`,
+      },
+    ],
+  },
+  {
+    family: "List row",
+    about:
+      "kit.css's list row (step 2.2): a face, the lines beside it and what trails, on the row tokens every list on a " +
+      "phone shares: three lines, two (nothing said, so the face spans two), and a line of its own under the facts. " +
+      "At a phone's width a row of each shape beside People's phone row, which the spec holds it equal to.",
+    entries: [
+      { id: "list-row", html: listRow() },
+      { id: "list-row-two", html: listRow({ said: false }) },
+      { id: "list-row-note", html: listRow({ note: true }) },
+      {
+        id: "list-row-twin",
+        width: "phone",
+        html: listRow({ note: true }),
+        twin: "src-pl-card",
+        except: ["unicode-bidi"],
+      },
+      {
+        id: "src-pl-card",
+        width: "phone",
+        source: "styles/clients.css:2465, styles/inbox.css:276",
+        html: plCard({ note: true }),
+      },
+      {
+        id: "list-row-two-twin",
+        width: "phone",
+        html: listRow({ said: false }),
+        twin: "src-pl-card-two",
+        except: ["unicode-bidi"],
+      },
+      {
+        id: "src-pl-card-two",
+        width: "phone",
+        source: "styles/clients.css:2467, styles/inbox.css:276",
+        html: plCard({ said: false }),
       },
     ],
   },
