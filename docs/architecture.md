@@ -359,6 +359,7 @@ apps/dashboard/src/
   legacy-bridge/
   lib/
   server/
+  surfaces/
   yes/
 apps/dashboard/src/server/
   ask/

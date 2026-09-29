@@ -300,15 +300,21 @@ a surface's own stylesheet   layout only
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
     a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim`.
   - Each surface's `-fill`, `-blur`, `-edge` (hairline or rim), `-depth` (shadow) and `-radius`.
-  - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--chip-h`, `--chip-radius`, `--selected-fill` (the picked
-    segment).
+  - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--control-radius-sm` (a small control's, step 1.4),
+    `--chip-h`, `--chip-radius`, `--selected-fill` (the picked segment).
   - Actions: `--primary-fill`, `--primary-ink`, `--primary-hover`, `--secondary-fill`, `--quiet-ink`.
   - The existing roles stay (`--bg-*`, `--ink*`, `--line*`, the statuses, the accent). In Classic the new roles are
     defined from them, so today's rules keep reading what they read.
+  - A role arrives with its first reader (step 1.4). Classic has no blur, no pane depth and no control-layer fill,
+    so those roles, and `--control-h-lg`, arrive with the look or the rule that first reads them.
 - **Tier 3, component.** Private to `kit.css` (for example `--btn-h: var(--control-h-md)`); never set by a look.
-- **The looks.** `:root` and `[data-look="classic"]` set tier 2 to today's values, so Classic is today, pixel for
-  pixel. `[data-look="glass"]` sets tier 2 to the canvases' values (Appendix B), with
-  `[data-look="glass"][data-theme="dark"]` for its dark side. A third look later is one more block.
+- **The looks.** `:root, [data-theme]` sets tier 2 to today's values, so Classic is today, pixel for pixel (step
+  1.4). Every element that stamps a theme is listed, not `:root` alone: a custom property is made where it is set,
+  and `.app-root`, `.shared-root` and `.fr-shell` each stamp their own theme, so a role made on the root alone
+  would keep the root's colours inside a root of the other theme. Those roots stamp `data-look` too (step 1.6).
+  `[data-look="glass"]` sets tier 2 to the canvases' values (Appendix B), with
+  `[data-look="glass"][data-theme="dark"]` for its dark side, written after Classic's block so it wins at every
+  root that carries both. A third look later is one more block.
 - **Material rules.** The glass rim is a masked gradient on a pseudo-element, never an extra element in the markup.
   `@supports not (backdrop-filter: blur(1px))` and `prefers-reduced-transparency: reduce` fall back to opaque fills.
   Reduced motion keeps its rule.
@@ -421,6 +427,12 @@ variant appears (decision 7).
 - A move never changes a page's look, and neither does anything else in the same pull request. For each surface, three
   pull requests in this order: **the move** (0015) → **the kit** (the surface's primitives come from the kit and its
   own are deleted) → **the look** (its canvas layout, under Glass only).
+- **A moved surface waits in `KIT_PENDING` for its kit step.** The move draws what the JSX drew, raw `<button>`s and
+  all, so it adds the surface's folder to `KIT_PENDING` (`eslint.config.mjs`), which lifts the rule on raw elements
+  (§3.7, item 4) there and nothing else; the kit step draws the surface's controls with the kit and takes the folder
+  out. The function limits stay: `src/surfaces` is in `LIMITED_TREES` from its first file (step 1.7), so a surface
+  moves with its functions under the limits. The pilot therefore splits `ReportsSections`
+  (`legacy/pages/reports-sections.jsx`, 206 lines and 39 branches on 28 September) before its move or in it.
 - The kit's CSS reaches pages before they move, so Phases 1, 2 and the Glass tokens do not wait on 0015. The React
   components arrive with each surface's move.
 - A shared component moves with the first surface that draws it and is published under its old name (§3.4).
@@ -440,8 +452,12 @@ in `docs/debt.md`:
 3. **`inline-styles.json`:** per file, `style={…}` props under `src/legacy` and `src/surfaces` (148 today), counted
    with the TypeScript parser.
 4. **A lint error in `src/surfaces`:** a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` outside
-   `src/surfaces/kit/` (`no-restricted-syntax`, with the message naming the kit's component), proved by a probe in
-   `repo/lint-boundaries.test.mjs`.
+   `src/surfaces/kit/`, written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement`, `jsx`,
+   `jsxs`, `jsxDEV`) (`no-restricted-syntax`, with the message naming the kit's component), proved by a probe in
+   `repo/lint-boundaries.test.mjs`. A surface moved before its kit step is listed in `KIT_PENDING`
+   (`eslint.config.mjs`, empty until the first move), and the rule passes over it alone: a pure move under decision
+   0015 adds its surface's folder, and that surface's kit step (Phase 4) removes it (§3.6). A test fails an entry
+   that names no surface's folder.
 
 Each measure's advice names the kit: "Take the kit's Chip (`src/surfaces/kit/`). If the kit has no variant for this,
 add one there with its gallery entry." The style tests live in a new `tooling/scripts/tests/styles/` folder, since

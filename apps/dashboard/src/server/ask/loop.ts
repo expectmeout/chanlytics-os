@@ -521,7 +521,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
       const last = round === ASK_MAX_ROUNDS;
-      const request = requestOf(messages, anchor, last);
+      const request = { ...requestOf(messages, anchor, last), diagnostics: meter.follows(live, input.chain) };
 
       const roundAt = Date.now();
       let blocks: RoundBlock[];

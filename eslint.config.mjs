@@ -83,6 +83,7 @@ const DASHBOARD_MARKUP = [
   "apps/dashboard/src/client/**/*.tsx",
   "apps/dashboard/src/auth/**/*.tsx",
   "apps/dashboard/src/yes/**/*.tsx",
+  "apps/dashboard/src/surfaces/**/*.tsx",
   "apps/dashboard/src/legacy/**/*.jsx",
 ];
 
@@ -92,8 +93,8 @@ const DASHBOARD_MARKUP = [
  * file could reach into a server module, and only a failed Vercel build would
  * have said so. Type-only imports cross freely; they carry a shape, not code.
  *
- *   browser code (legacy-bridge, client, yes, auth) → never the server, never
- *                                                     the packages that hold
+ *   browser code (legacy-bridge, client, yes, auth, → never the server, never
+ *                 surfaces)                           the packages that hold
  *                                                     rules or providers
  *   server code (src/server, app/api)               → never the shell or the
  *                                                     bridge that feeds it
@@ -158,6 +159,49 @@ const EDGE_MAY_NOT_IMPORT = [
 ];
 
 /**
+ * A surface draws its controls with the kit's components (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
+ * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, whether it is
+ * written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement("button")`, and the JSX
+ * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead. The kit draws each raw element
+ * once, in its component.
+ */
+const KIT_TAKES = {
+  button: "Take the kit's Button, not a raw <button>; a button that opens a page is a link, as a door is.",
+  input: "Take the kit's Field, or the kit's Switch for a checkbox, not a raw <input>.",
+  select: "Take the kit's Select, not a raw <select>.",
+  textarea: "Take the kit's Field, not a raw <textarea>.",
+  dialog: "Take the kit's Sheet, or the kit's Confirm for a confirmation, not a raw <dialog>.",
+};
+/** The calls that make an element from its name: React's own, and the JSX runtime's. */
+const MAKES_AN_ELEMENT = "/^(createElement|jsx|jsxs|jsxDEV)$/";
+const RAW_ELEMENTS = Object.entries(KIT_TAKES).map(([element, take]) => ({
+  selector: [
+    `JSXOpeningElement[name.name='${element}']`,
+    `JSXOpeningElement[name.property.name='${element}']`,
+    `CallExpression[callee.name=${MAKES_AN_ELEMENT}][arguments.0.value='${element}']`,
+    `CallExpression[callee.property.name=${MAKES_AN_ELEMENT}][arguments.0.value='${element}']`,
+  ].join(", "),
+  message: `${take} The kit is apps/dashboard/src/surfaces/kit/: if it has no variant for this, add one there with its gallery entry. A pure move under decision 0015 adds its surface's folder to KIT_PENDING (eslint.config.mjs), and that surface's kit step (Phase 4) removes it.`,
+}));
+
+/**
+ * The surfaces that have moved under decision 0015 and not yet had their kit step (Phase 4 of the interface kit's
+ * plan, §3.6), each by its folder (`apps/dashboard/src/surfaces/reports`). A move draws what the JSX drew, raw
+ * elements and all, so it adds its surface here, and the kit step, which draws the surface's controls with the kit,
+ * takes it out. Only the rule on raw elements passes over a listed surface: the layers and the function limits hold it
+ * as they hold the rest of src/surfaces. Empty until the first move; repo/lint-boundaries.test.mjs fails an entry that
+ * names no surface's folder.
+ */
+export const KIT_PENDING = [];
+
+/** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */
+export const rawElementsRule = (pending) => ({
+  files: ["apps/dashboard/src/surfaces/**/*.{ts,tsx}"],
+  ignores: ["apps/dashboard/src/surfaces/kit/**", ...pending.map((folder) => `${folder}/**`)],
+  rules: { "no-restricted-syntax": ["error", ...RAW_ELEMENTS] },
+});
+
+/**
  * A function's limits, the complexity ratchet's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
  * branches, 5 levels. The ratchet holds every function over them by name (baselines/complexity.json), counted as
  * these rules count (repo/measures.test.mjs), and a listed one may only shrink. Where a tree's last entry has been
@@ -168,8 +212,9 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
 
 /**
  * The trees whose complexity baseline is empty: a package's src, an app area, or a domain folder in one. A tree joins
- * in the change that banks its last entry; a parent replaces its folders once all of it is held. The shell
- * (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
+ * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
+ * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
+ * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
  * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
@@ -188,6 +233,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
   "apps/dashboard/src/lib",
+  "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
@@ -331,6 +377,8 @@ export default [
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
       // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
       "apps/dashboard/src/yes/**/*.tsx",
+      // The surfaces that leave the shell (decision 0015), and the kit they draw with.
+      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
       // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
       "apps/dashboard/src/*.ts",
       "apps/dashboard/*.{ts,mjs}",
@@ -363,6 +411,7 @@ export default [
       "apps/dashboard/src/client/**/*.{ts,tsx}",
       "apps/dashboard/src/yes/**/*.tsx",
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
+      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
     ],
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: BROWSER_MAY_NOT_IMPORT }],
@@ -374,6 +423,10 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: SERVER_MAY_NOT_IMPORT }],
     },
   },
+
+  // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
+  // a surface moved before its kit step waits in KIT_PENDING.
+  rawElementsRule(KIT_PENDING),
 
   // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they
   // do to the ratchet.

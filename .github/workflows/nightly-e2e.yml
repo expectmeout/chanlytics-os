@@ -60,6 +60,30 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Ask's last 24 hours against the nightly's lines (the Ask Rewired Phase 6
+      # plan, D4): a median cache hit under 50% or a median first text over 6 s
+      # is a silent invalidator or a slow model, caught the day it lands. Read
+      # only; the service key because a day's turns are every workspace's. Its
+      # verdict is the output's last line, and a crossed line is its own issue,
+      # never the suite's red.
+      - name: Ask's cache and first words hold their lines
+        id: ask_day
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: node tooling/scripts/ops/ask-day.mjs --check | tee ask-day.txt
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+      - name: Say so when Ask crossed a line
+        if: ${{ steps.ask_day.outcome == 'failure' }}
+        run: |
+          gh issue create \
+            --title "Ask's cache or first words crossed a line $(date -u +%F)" \
+            --body "$(tail -n 1 ask-day.txt) Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm e2e:install
       # The 62 integration suites talk to real Postgres. ci.yml holds no live
       # secrets by policy, so until now they ran NOWHERE — 62 written tests

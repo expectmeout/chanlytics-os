@@ -63,6 +63,11 @@ export interface Chain {
   /** The answer row the replay ends on: the next turn's `after`. */
   after: string;
   /**
+   * The API's id for the previous turn's last message, which this turn's first round names for the cache diagnostics
+   * (the Phase 6 plan, D2); null for a turn kept before it.
+   */
+  lastId: string | null;
+  /**
    * What happened since (D8): each outcome recorded on the chain's cards -- every card of the thread's after a rebuild
    * that kept what its lines told (chainFrom) -- that no turn of it told, oldest first: told by what each turn kept
    * (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
@@ -280,6 +285,7 @@ interface Kept {
   at: number;
   model: string;
   prefix: string;
+  id: string | null;
   after: string | null;
   told: string[] | null;
   base: Msg[] | null;
@@ -313,7 +319,8 @@ function keptOf(v: unknown): Kept | null {
   if ((b.base !== undefined && !base) || !rounds || !Array.isArray(question) || !Array.isArray(final)) return null;
   if (!Array.isArray(results)) return null;
   const link = typeof after === "string" ? after : null;
-  return { at, model, prefix, after: link, told, base, question, rounds, final, results };
+  const id = typeof raw.id === "string" ? raw.id : null;
+  return { at, model, prefix, id, after: link, told, base, question, rounds, final, results };
 }
 
 /**
@@ -348,7 +355,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
     )
     .filter((o) => !told.has(toldOf(o)));
   const { results, model, prefix } = newest;
-  return { messages, anchor, results, model, prefix, after: ids[0], since };
+  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since };
 }
 
 /**
@@ -366,7 +373,10 @@ export function replayFor<W>(
   const { data, words, question } = asked;
   const messages: Msg[] = [...chain.messages, { role: "user", content: [...chain.results, ...data, words, question] }];
   const request = round1(messages, chain.anchor);
-  const fits = JSON.stringify(request).length <= LIVE_REQUEST_CHARS;
+  // As round one sends it: the diagnostics name the chain's last message (the Phase 6 plan, D2), in the size, never the
+  // prefix.
+  const sent = { ...request, diagnostics: { previous_message_id: chain.lastId } };
+  const fits = JSON.stringify(sent).length <= LIVE_REQUEST_CHARS;
   return request.model === chain.model && prefixOf(request) === chain.prefix && fits
     ? { messages, anchor: chain.anchor, words }
     : null;
@@ -381,6 +391,8 @@ interface LastRound {
     tools: unknown[];
     tool_choice: unknown;
     output_config: unknown;
+    /** The cache diagnostics the request carried (the Phase 6 plan, D2): counted in its size, never in its prefix. */
+    diagnostics?: { previous_message_id: string | null };
   };
   blocks: RoundBlock[];
   outcomes: CallOutcome[];
@@ -388,6 +400,8 @@ interface LastRound {
   roundAt: number;
   /** The stream broke after it began: the blocks are what came before the break, perhaps not all the model wrote. */
   streamError: string | null;
+  /** The API's id for the round's message: the next turn's first round names it (the Phase 6 plan, D2). */
+  messageId?: string | null;
 }
 
 /** How a turn ended, as each of runAskTurn's ends says it. */
@@ -434,6 +448,8 @@ export interface RawTurn {
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
   after?: string;
+  /** The API's id for the last round's message (Chain.lastId); none when the stream never said it. */
+  id?: string;
   /**
    * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
    * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
@@ -493,7 +509,7 @@ const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m
  * keeps beside: a live turn's link and what it told (`after`, chainEnd), which keeps no base; a rebuilt turn's `told`.
  */
 export function rawTurn(
-  { request, blocks, outcomes, roundAt }: LastRound,
+  { request, blocks, outcomes, roundAt, messageId }: LastRound,
   questionAt: number,
   kept: { after?: string; told?: string[] },
 ): RawTurn {
@@ -508,6 +524,7 @@ export function rawTurn(
     at: roundAt,
     model,
     prefix: prefixOf(request),
+    ...(messageId ? { id: messageId } : {}),
     ...kept,
   };
 }
@@ -519,13 +536,19 @@ export function rawTurn(
  * and a replay must be the bytes that were sent: the cache is a prefix match, and a thinking block is bound to the
  * conversation as it was sent. A string comes back as it went, and JSON.parse keeps its keys' order.
  */
-export function storedRaw(
-  raw: RawTurn | null,
-): { at: number; model: AskModelId; prefix: string; blocks: string; after?: string; told?: string[] } | null {
+export function storedRaw(raw: RawTurn | null): {
+  at: number;
+  model: AskModelId;
+  prefix: string;
+  blocks: string;
+  id?: string;
+  after?: string;
+  told?: string[];
+} | null {
   if (!raw) return null;
-  const { base, question, rounds, final, results, at, model, prefix, after, told } = raw;
+  const { base, question, rounds, final, results, at, model, prefix, id, after, told } = raw;
   const blocks = JSON.stringify(
     base ? { base, question, rounds, final, results } : { question, rounds, final, results },
   );
-  return { at, model, prefix, blocks, ...(after ? { after } : {}), ...(told ? { told } : {}) };
+  return { at, model, prefix, blocks, ...(id ? { id } : {}), ...(after ? { after } : {}), ...(told ? { told } : {}) };
 }
