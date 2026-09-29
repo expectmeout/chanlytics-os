@@ -282,7 +282,7 @@ test("a reach-out step is on its own page, judged the same way, and never on the
       trigger: "after_step",
       lead_search_id: null,
       after_playbook_id: root,
-      after_days: 1,
+      after_days: 2,
       last_run_for: "2026-09-26",
       last_run_at: iso(Date.parse(AT) - H),
     }),
