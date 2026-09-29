@@ -12,10 +12,22 @@
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
  *
  * --check says last, in one line, whether the day held the nightly's lines (ask-stats.mjs askDayVerdict), and exits 1
- * when it crossed one: the nightly workflow opens an issue with that line.
+ * when it crossed one: the nightly workflow opens an issue with that line. It exits 2, with a last line that says so,
+ * when the day could not be read at all (a variable missing, a read refused or thrown): that is not Ask crossing a
+ * line, and the nightly titles its issue by which it was (the scorecard's I2:2).
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { spread, pct, ms, missTally, askDayVerdict } from "../ask-stats.mjs";
+
+/** The exits the nightly reads: the day held its lines, crossed one, or could not be read. */
+const ASK_DAY_EXIT = { held: 0, crossed: 1, could_not_run: 2 };
+
+/** Said last, so the nightly's issue carries it, and the exit that tells it apart from a crossed line. */
+function couldNotRun(why) {
+  console.log(`\nAsk's day could not be checked: ${why}`);
+  process.exit(ASK_DAY_EXIT.could_not_run);
+}
+process.on("uncaughtException", (e) => couldNotRun(e instanceof Error ? e.message : String(e)));
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -24,10 +36,7 @@ const TENANT = process.env.TENANT || null;
 const JSON_OUT = process.argv.includes("--json");
 /** The nightly's check (the Phase 6 plan, D4): the day against its lines, said last, exit 1 when one is crossed. */
 const CHECK = process.argv.includes("--check");
-if (!URL_ || !KEY) {
-  console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
-  process.exit(2);
-}
+if (!URL_ || !KEY) couldNotRun("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required");
 
 /** Dollars per million tokens: uncached input, output, a five-minute cache write, a cache read (Anthropic's pages, read 23 Sep 2026). */
 const PRICE = {
@@ -199,5 +208,5 @@ if (CHECK) {
     misses: whole.misses,
   });
   console.log(`\n${verdict.line}`);
-  if (!verdict.ok) process.exitCode = 1;
+  if (!verdict.ok) process.exitCode = ASK_DAY_EXIT.crossed;
 }

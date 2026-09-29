@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ledgerProblems, readFolder, readLedger } from "../../checks/migration-ledger.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const DIR = path.join(ROOT, "supabase", "migrations");
@@ -56,14 +57,11 @@ test("a migration is numbered and named the way the folder reads", () => {
   }
 });
 
-test("the numbers only go up", () => {
-  // Not that they have no gaps -- a renumbered file leaves one, and that is the
-  // right outcome -- but that reading the folder in name order is reading it in
-  // the order the database will apply it.
-  const versions = files.map((f) => Number(f.split("_")[0]));
-  assert.deepEqual(
-    versions,
-    [...versions].sort((a, b) => a - b),
-    "the folder's name order is the apply order; a version out of sequence reads as applied when it is not",
-  );
+test("every migration is in the ledger with the text it was recorded with, in the order production applies it", () => {
+  // The ledger (supabase/migrations-ledger.json) is what production applies, in order, with each file's checksum. The
+  // test this replaces compared the folder's sorted names with themselves sorted, so it could not fail: a file below
+  // the head, a rename and an edit all passed it (the scorecard's defect 59). ledgerProblems names each of those; the
+  // cases that plant them are in migration-ledger.test.mjs.
+  const problems = ledgerProblems(readLedger(ROOT), readFolder(ROOT));
+  assert.deepEqual(problems, [], problems.join(" | "));
 });
