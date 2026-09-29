@@ -285,6 +285,41 @@ test("every file under src/surfaces is TypeScript the lint and the typecheck rea
   );
 });
 
+/** Base UI's index or one of its parts, named each way an import names a module. */
+const baseUi = (from) =>
+  [
+    `import { Dialog } from "${from}";`,
+    `import type { Menu } from "${from}";`,
+    `export { Popover } from "${from}";`,
+    `export * from "${from}";`,
+    "export const a = Dialog;",
+    "export type B = Menu;",
+    "",
+  ].join("\n");
+
+test("Base UI's parts are imported one at a time anywhere in the dashboard, and its index never, as a type or a re-export either", async () => {
+  const places = [
+    ...SURFACES,
+    "apps/dashboard/src/legacy-bridge/probe.tsx",
+    "apps/dashboard/src/client/probe.ts",
+    "apps/dashboard/app/probe/page.tsx",
+  ];
+  for (const at of places) {
+    const [result] = await eslint.lintText(baseUi("@base-ui/react"), { filePath: path.join(ROOT, at) });
+    const refused = result.messages.filter((m) => m.severity === 2);
+    assert.deepEqual(
+      refused.map((m) => [m.line, m.ruleId]),
+      [1, 2, 3, 4].map((line) => [line, "no-restricted-imports"]),
+      `${at}: the index, imported, as a type, and re-exported by name and whole`,
+    );
+    for (const { message } of refused) {
+      assert.match(message, /Import the Base UI part you draw \(`@base-ui\/react\/dialog`/, `${at}: ${message}`);
+      assert.match(message, /A surface takes the kit's component instead/, "and a surface is sent to the kit");
+    }
+    assert.deepEqual(await rulesFiredOn(at, baseUi("@base-ui/react/dialog")), [], `${at}: a part passes`);
+  }
+});
+
 test("server code may not import the shell, the bridge or the browser client", async () => {
   for (const at of ["apps/dashboard/src/server/probe.ts", "apps/dashboard/app/api/v1/probe/route.ts"]) {
     assert.deepEqual(

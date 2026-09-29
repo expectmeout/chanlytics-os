@@ -185,6 +185,18 @@ const RAW_ELEMENTS = Object.entries(KIT_TAKES).map(([element, take]) => ({
 }));
 
 /**
+ * Base UI (`@base-ui/react`), which the kit's components with behaviour of their own are built on (the interface
+ * kit's plan, decision 15): one exact version, pinned in apps/dashboard/package.json, and each part imported alone
+ * (`@base-ui/react/dialog`), never through the package's index, so a component names the one part it draws and
+ * nothing else of the library rides along. Anywhere in the dashboard's TypeScript, the kit's or not.
+ */
+export const BASE_UI_INDEX = {
+  name: "@base-ui/react",
+  message:
+    "Import the Base UI part you draw (`@base-ui/react/dialog`, `@base-ui/react/menu`), never the package's index. A surface takes the kit's component instead (apps/dashboard/src/surfaces/kit/), which is built on its own part.",
+};
+
+/**
  * The surfaces that have moved under decision 0015 and not yet had their kit step (Phase 4 of the interface kit's
  * plan, §3.6), each by its folder (`apps/dashboard/src/surfaces/reports`). A move draws what the JSX drew, raw
  * elements and all, so it adds its surface here, and the kit step, which draws the surface's controls with the kit,
@@ -440,6 +452,12 @@ export default [
   // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
   // a surface moved before its kit step waits in KIT_PENDING.
   rawElementsRule(KIT_PENDING),
+
+  // Base UI's parts are imported one at a time (BASE_UI_INDEX above).
+  {
+    files: ["apps/dashboard/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { paths: [BASE_UI_INDEX] }] },
+  },
 
   // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they
   // do to the ratchet.
