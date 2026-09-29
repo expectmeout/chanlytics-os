@@ -1061,6 +1061,21 @@ export type Database = {
           },
         ]
       }
+      erasure_keying: {
+        Row: {
+          id: boolean
+          keyed_at: string | null
+        }
+        Insert: {
+          id?: boolean
+          keyed_at?: string | null
+        }
+        Update: {
+          id?: boolean
+          keyed_at?: string | null
+        }
+        Relationships: []
+      }
       escalations: {
         Row: {
           conversation_id: string
@@ -4750,6 +4765,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          left_empty_at: string | null
           locale: string
           name: string
           sells_by: string | null
@@ -4761,6 +4777,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          left_empty_at?: string | null
           locale?: string
           name: string
           sells_by?: string | null
@@ -4772,6 +4789,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          left_empty_at?: string | null
           locale?: string
           name?: string
           sells_by?: string | null
@@ -5050,6 +5068,24 @@ export type Database = {
         Args: { p_contact_id: string }
         Returns: undefined
       }
+      erasure_digest: {
+        Args: { p_tenant_id: string; p_value: string }
+        Returns: string
+      }
+      erasure_digest_legacy: {
+        Args: { p_tenant_id: string; p_value: string }
+        Returns: string
+      }
+      erasure_digests: {
+        Args: { p_tenant_id: string; p_values: string[] }
+        Returns: string[]
+      }
+      erasure_key: { Args: { p_digest: string }; Returns: string }
+      erasure_rekey: {
+        Args: { p_apply?: boolean; p_tenant_id?: string }
+        Returns: Json
+      }
+      erasure_rekey_hashes: { Args: { p_list: Json }; Returns: Json }
       expire_stale_pauses: { Args: never; Returns: number }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }

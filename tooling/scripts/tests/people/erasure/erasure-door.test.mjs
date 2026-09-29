@@ -97,6 +97,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = 
 test("an erasure runs its legs in the design's order: the block, the copies, Storage, the rows, then the rest", async () => {
   const { value, steps, removed, tables } = await erase();
   assert.deepEqual(steps, [
+    "rpc:erasure_digests", // the digests the block keeps, the database's own (00249)
     "contacts.update", // the block, with the number still on the row
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only

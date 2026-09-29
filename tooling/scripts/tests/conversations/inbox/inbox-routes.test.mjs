@@ -18,9 +18,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 // Storage's answer to "sign this object", for the recording route; every other request goes where it was going.
 // Installed before anything builds the service client, which keeps the fetch it was built with.
 const realFetch = globalThis.fetch;
+/** Every object storage was asked to sign, in order. */
+const signedUrls = [];
 globalThis.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
   const signing = /\/storage\/v1\/object\/sign\/media\/(.+)$/.exec(url);
+  if (signing) signedUrls.push(signing[1]);
   if (signing)
     return new Response(JSON.stringify({ signedURL: `/object/sign/media/${signing[1]}?token=abc` }), {
       status: 200,
@@ -410,7 +413,7 @@ test("a stored recording is a redirect to a link signed for this request: the <a
     memberships: both("viewer", "operator"),
     calls: [
       call(L3, B, {
-        recording: { storage_path: "t1/calls/k.wav", fetch_state: "stored", mime: "audio/wav", bytes: 10 },
+        recording: { storage_path: `${B}/calls/k.wav`, fetch_state: "stored", mime: "audio/wav", bytes: 10 },
       }),
     ],
   };
@@ -422,9 +425,25 @@ test("a stored recording is a redirect to a link signed for this request: the <a
   );
   assert.match(
     res.headers.get("location") || "",
-    /\/object\/sign\/media\/t1\/calls\/k\.wav\?token=abc$/,
+    new RegExp(`/object/sign/media/${B}/calls/k\\.wav\\?token=abc$`),
     "the stored copy, signed now",
   );
+});
+
+test("a recording whose path names another workspace is never signed: the signer holds the service role, so the path on the row is the fence, and one outside the workspace is a 404", async () => {
+  const before = signedUrls.length;
+  for (const [storage_path, why] of [
+    [`${A}/calls/k.wav`, "another workspace's recording"],
+    [`${B}/../${A}/calls/k.wav`, "a path that climbs out of the workspace"],
+    ["calls/k.wav", "a path that names no workspace"],
+  ]) {
+    const tables = {
+      memberships: both("viewer", "operator"),
+      calls: [call(L3, B, { recording: { storage_path, fetch_state: "stored", mime: "audio/wav", bytes: 10 } })],
+    };
+    await refused(recording.GET.run(get(), ctxFor(tables, { id: L3 })), "not_found", 404, why);
+  }
+  assert.equal(signedUrls.length, before, "nothing was asked of storage");
 });
 
 test("ending a call and passing it to the business: the call is the row, only a call in progress, a workspace with no line is told the fix, never from a preview, and nothing is recorded for a control that did not happen", async () => {

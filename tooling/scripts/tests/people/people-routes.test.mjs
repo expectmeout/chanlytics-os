@@ -420,7 +420,8 @@ test("an erasure hands the Ask scrub every spelling of the number and the addres
   );
   assert.deepEqual(
     seen.filter((s) => s.rpc).map((s) => s.rpc),
-    ["scrub_ask_for_contact", "erase_contact", "scrub_ask_for_contact"],
+    ["erasure_digests", "scrub_ask_for_contact", "erase_contact", "scrub_ask_for_contact"],
+    "the digests are the database's (00249), made before the block is written",
   );
 
   // Already erased: nothing is left to spell them by, and the re-drive scrubs by the id alone.

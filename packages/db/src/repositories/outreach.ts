@@ -4,8 +4,8 @@
  * because "we could not check" is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { leadSuppressionHash } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { erasureDigests } from "./people";
 
 type Db = SupabaseClient<Database>;
 
@@ -107,9 +107,7 @@ const missingDoor = (e: { code?: string | null; message: string }): boolean =>
 
 /** The list as a database before 00220 holds it for addresses: each one's own email row. */
 async function addressesHeldBefore00220(db: Db, tenantId: string, asked: string[]): Promise<Set<string>> {
-  const byHash = new Map(
-    await Promise.all(asked.map(async (a) => [await leadSuppressionHash(tenantId, a), a] as const)),
-  );
+  const byHash = new Map([...(await erasureDigests(db, tenantId, asked))].map(([a, h]) => [h, a]));
   const { data, error } = await db
     .from("lead_suppressions")
     .select("hash")

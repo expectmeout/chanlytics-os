@@ -653,6 +653,35 @@ test("a texting line the vault did not answer for is not a workspace with no lin
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
+test("a mailbox that could not be read unbinds email's wire and nothing else: a WhatsApp reply in the same workspace leaves on the same heartbeat", async () => {
+  // The re-score's probe (case B): email on, the mailbox read fails once, and the tick used to throw building the
+  // job's wires -- so a WhatsApp reply that needs no email was failed for good as "may have sent", its thread flagged.
+  const L = ledger({ faults: { "mailboxes.select": { message: "connection reset" } } });
+  const ws = L.workspace({ whatsapp: "own" });
+  const reply = ws.queue({ to: "+13475550108", body: "See you at 3" });
+  const before = process.env.EMAIL_DOMAIN;
+  process.env.EMAIL_DOMAIN = "mail.platform.test";
+  try {
+    await listening(async (log) => {
+      assert.deepEqual(await answer(await knock()), [
+        200,
+        { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 },
+      ]);
+      assert.deepEqual(
+        log.said("email_wire_unavailable").map((l) => [l.stream, l.tenant_id, l.error]),
+        [["error", ws.T, "Error: mailbox: connection reset"]],
+        "said once, under its own name",
+      );
+    });
+  } finally {
+    if (before === undefined) delete process.env.EMAIL_DOMAIN;
+    else process.env.EMAIL_DOMAIN = before;
+  }
+  assert.equal(reply.message.status, "sent", "the WhatsApp reply left");
+  assert.equal(L.left().graph.length, 1, "on Meta's wire, once");
+  assert.deepEqual(L.tables.escalations, [], "nobody flagged");
+});
+
 /* ------------------------------------------------------------ tried again */
 
 test("an email intake that throws is claimed again five minutes later, then thirty; nobody is told while it is still being tried, and its last failed try tells the owner and marks the mailbox", async () => {

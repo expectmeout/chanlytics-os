@@ -23,7 +23,7 @@ export const GET = read({
     if (!rec?.storage_path || rec.fetch_state !== "stored") {
       throw new AppError("not_found", "No recording stored for this call yet.");
     }
-    const url = await signedMediaUrl(rec.storage_path, 300);
+    const url = await signedMediaUrl(call.tenant_id, rec.storage_path, 300);
     if (!url) throw new AppError("internal", "Could not prepare the recording.");
     return new Response(null, { status: 302, headers: { location: url } });
   },

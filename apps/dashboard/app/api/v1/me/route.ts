@@ -1,5 +1,6 @@
 import { write, account } from "@/server/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
+import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -30,7 +31,8 @@ export const PUT = write({
  * owner of a workspace with other members, who must make someone else an owner first, and a partner whose record
  * holds workspaces or money, which the platform closes first; each refusal is a conflict the page says in its own
  * words. Anything else the door says is not the person's to read: it is logged, and they are told nothing changed.
- * On success the session is ended here too, so the page that asked lands on the sign-in.
+ * On success the session is ended here too, so the page that asked lands on the sign-in. A workspace the person was
+ * the only member of is ended (00248): the door pauses it, and its plan is ended here, through the edge's billing door.
  */
 const REFUSALS: Record<string, string> = {
   sole_owner: "You are the only owner of a workspace with other members. Make someone else an owner first.",
@@ -54,10 +56,9 @@ export const DELETE = write({
       );
     }
     await ctx.supabase.auth.signOut().catch(() => undefined);
-    const left =
-      data && typeof data === "object" && !Array.isArray(data)
-        ? Number((data as { workspaces_left_empty?: unknown }).workspaces_left_empty ?? 0)
-        : 0;
+    const answer = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+    const left = Number(answer.workspaces_left_empty ?? 0);
+    await endEmptiedWorkspaces(answer.workspaces_emptied);
     return { deleted: true, workspaces_left_empty: left };
   },
 });

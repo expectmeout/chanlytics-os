@@ -200,6 +200,7 @@ function stripe(answers = {}) {
       list: method("subscriptions.list"),
       resume: method("subscriptions.resume"),
       update: method("subscriptions.update"),
+      cancel: method("subscriptions.cancel"),
     },
   });
   return { calls, asked: (name) => calls.filter((c) => c[0] === name).map((c) => c.slice(1)) };
@@ -377,7 +378,7 @@ test("past status every op needs a database and a workspace id; an unknown op is
   const list = {
     ok: false,
     error: "unknown_op",
-    detail: "op must be status, checkout, portal, invoices, sync, resume or start_now",
+    detail: "op must be status, checkout, portal, invoices, sync, resume, start_now or end",
   };
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, list]);
   assert.deepEqual(await answer(await knock({})), [400, list]);
@@ -831,6 +832,73 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
     { ok: false, error: "stripe_refused", detail: "No such subscription: 'sub_1'" },
   ]);
   assert.equal(t6.billing_accounts[0].status, "trialing", "the row keeps what it had");
+});
+
+/* ----------------------------------- end ---------------------------------- */
+
+test("end: a workspace its last member left (00248) has its plan ended now and applied at once -- canceled on Stripe, the row says so, and the workspace stays paused; nothing to end is an answer, not a refusal, and Stripe is not asked", async () => {
+  const t = tables({
+    tenants: [
+      {
+        id: A,
+        slug: "harbor",
+        name: "Harbor Moving",
+        status: "paused",
+        timezone: "America/New_York",
+        left_empty_at: "2026-09-29T00:00:00Z",
+      },
+    ],
+    billing_accounts: [subscribed({ status: "active" })],
+  });
+  use(t);
+  const s = stripe({ "subscriptions.cancel": async () => sub({ status: "canceled" }) });
+  assert.deepEqual(await answer(await knock({ op: "end" })), [200, { ok: true, status: "canceled" }]);
+  assert.deepEqual(s.asked("subscriptions.cancel"), [["sub_1", { expand: ["default_payment_method"] }]]);
+  assert.equal(t.billing_accounts[0].status, "canceled");
+  assert.equal(t.tenants[0].status, "paused");
+
+  for (const [r, why] of [
+    [row(), "no plan"],
+    [subscribed({ status: "canceled" }), "a plan already ended"],
+    [subscribed({ mode: "direct", status: "active" }), "a workspace invoiced by hand"],
+  ]) {
+    use(tables({ billing_accounts: [r] }));
+    const s2 = stripe();
+    const [status, body] = await answer(await knock({ op: "end" }));
+    assert.deepEqual([status, body.ok], [200, true], why);
+    assert.equal(s2.calls.length, 0, `${why}: Stripe is not asked`);
+  }
+  use(tables({ billing_accounts: [] }));
+  assert.deepEqual(await answer(await knock({ op: "end" })), [200, { ok: true, status: "none" }], "no billing row");
+});
+
+test("billing never resumes a workspace its last member left, and a plan still live when its event comes is ended then (00248)", async () => {
+  const t = tables({
+    tenants: [
+      {
+        id: A,
+        slug: "harbor",
+        name: "Harbor Moving",
+        status: "paused",
+        timezone: "America/New_York",
+        left_empty_at: "2026-09-29T00:00:00Z",
+      },
+    ],
+    billing_accounts: [subscribed({ status: "paused" })],
+  });
+  use(t);
+  const s = stripe({
+    "subscriptions.retrieve": async () => sub({ status: "active" }),
+    "subscriptions.cancel": async () => sub({ status: "canceled" }),
+  });
+  const [status] = await answer(await knock({ op: "sync" }));
+  assert.equal(status, 200);
+  assert.equal(t.tenants[0].status, "paused", "an active reading does not wake a workspace nobody is in");
+  assert.deepEqual(
+    s.asked("subscriptions.cancel").map((c) => c[0]),
+    ["sub_1"],
+    "and the plan it found live is ended",
+  );
 });
 
 /* ---------------------------------- resume -------------------------------- */

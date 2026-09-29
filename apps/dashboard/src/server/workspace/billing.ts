@@ -24,6 +24,18 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
   return data ? billingAccountDto(data) : null;
 }
 
+/**
+ * The plans of the workspaces a deleted account was the only member of, ended through the edge (00248). Never throws:
+ * the account is already gone, and a plan the edge could not end is ended by its next event there (applySubscription).
+ */
+export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
+  const list = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  for (const tenantId of list) {
+    const r = await edgeBilling({ op: "end", tenant_id: tenantId });
+    if (r.status !== 200) console.error("account_delete_plan_not_ended", tenantId, r.status, JSON.stringify(r.body));
+  }
+}
+
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };

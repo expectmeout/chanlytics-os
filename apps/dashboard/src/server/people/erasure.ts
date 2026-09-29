@@ -1,6 +1,6 @@
 import "server-only";
-import { erasedEmailHash, erasedPhoneHash, formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
-import { readAllRowsByKey } from "@chanlytics/db";
+import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
+import { erasureDigests, readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
 
 /** A North American number as formatPhoneDisplay writes it, `+1 (AAA) EEE-NNNN`, read back into its three groups. */
@@ -63,7 +63,7 @@ export function erasureKeys(
  * The first leg of an erasure: the block, written before anything is
  * destroyed. From this moment the wire refuses the person (deliver.ts reads
  * erasing_since beside erased_at), and the tombstone keeps a keyed digest of
- * each identifier the person has (contracts/erasure.ts) so the calendar
+ * each identifier the person has (made by the database, 00249) so the calendar
  * import, a late call event, or mail from the address do not bring them back.
  * Both identifiers are named by the caller, present or null: a digest that is
  * not written here can never be written, because the erasure removes what it
@@ -76,8 +76,14 @@ export async function beginErasure(
   contactId: string,
   ids: { phone: string | null; email: string | null },
 ): Promise<void> {
-  const phoneHash = ids.phone ? await erasedPhoneHash(tenantId, ids.phone) : null;
-  const emailHash = ids.email ? await erasedEmailHash(tenantId, ids.email) : null;
+  // The database makes the digests (00249): only it holds the pepper that keys them.
+  const digests = await erasureDigests(
+    serviceDb(),
+    tenantId,
+    [ids.phone, ids.email].filter((v): v is string => !!v),
+  );
+  const phoneHash = ids.phone ? (digests.get(ids.phone) ?? null) : null;
+  const emailHash = ids.email ? (digests.get(ids.email) ?? null) : null;
   const { error } = await serviceDb()
     .from("contacts")
     .update({

@@ -167,6 +167,49 @@ test("a partner's seat on a session without the code: not visible, not acting, n
   assert.equal(await acting(owner.client), true);
 });
 
+test(
+  "the definer doors a session calls straight through PostgREST (00247): a partner's password alone opens none of them, and the session that showed the code opens each as before",
+  { skip },
+  async () => {
+    const shown = partner.client;
+    const password = await signIn(partner.email, partner.password);
+    const period = new Date().toISOString().slice(0, 7);
+
+    // The lead finder's doors ask has_permission(auth.uid(), …, 'find'): the month's read stands for all eleven.
+    ok(await shown.rpc("lead_month_used", { p_tenant_id: owner.tenant, p_period: period }));
+    const month = await password.rpc("lead_month_used", { p_tenant_id: owner.tenant, p_period: period });
+    assert.equal(month.error?.code, "42501", "no finding, and no spending the month, on a password alone");
+
+    // Every member's email.
+    const roster = ok(await shown.rpc("team_roster", { p_tenant_id: owner.tenant }));
+    assert.ok(
+      roster.some((r) => r.role === "partner"),
+      "the roster, to the session that showed the code",
+    );
+    const hidden = await password.rpc("team_roster", { p_tenant_id: owner.tenant });
+    assert.equal(hidden.error?.code, "42501", "and nobody's email to a password alone");
+
+    // The partner's own reads: the workspaces they brought, and the money.
+    const brought = ok(await shown.rpc("partner_overview"));
+    assert.ok(brought.some((r) => r.tenant_id === owner.tenant));
+    assert.deepEqual(ok(await password.rpc("partner_overview")), [], "nothing, as to a caller who is no partner");
+    assert.deepEqual(ok(await password.rpc("partner_workspace_money")), []);
+
+    // Reach out's reads of the workspace.
+    const search = "55555555-5555-4555-8555-555555555555";
+    const reach = await password.rpc("reach_out_reach", { p_tenant_id: owner.tenant, p_search_id: search });
+    assert.equal(reach.error?.code, "P0002", "the workspace is not found, as it is to a stranger");
+    const report = await password.rpc("reach_out_chain_report", { p_tenant_id: owner.tenant, p_root_id: search });
+    assert.equal(report.error?.code, "P0002");
+    const shownReach = await shown.rpc("reach_out_reach", { p_tenant_id: owner.tenant, p_search_id: search });
+    assert.equal(shownReach.error, null, `the session that showed the code reads it: ${shownReach.error?.message}`);
+
+    // Every other role is unchanged: the owner, on a password, as ever.
+    ok(await owner.client.rpc("team_roster", { p_tenant_id: owner.tenant }));
+    ok(await owner.client.rpc("lead_month_used", { p_tenant_id: owner.tenant, p_period: period }));
+  },
+);
+
 test("the SQL says what contracts says, role by role, on a session without the code", { skip }, async () => {
   const ACTS = { owner: true, operator: true, partner: true, viewer: false };
   for (const role of Object.keys(ACTS)) {

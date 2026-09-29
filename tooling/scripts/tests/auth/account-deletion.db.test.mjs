@@ -87,10 +87,13 @@ test(
     const s = await sessionOf(only.email);
     const { data, error } = await s.rpc("delete_my_account");
     assert.equal(error, null, error?.message);
-    assert.deepEqual(data, { deleted: true, workspaces_left_empty: 1 });
+    assert.deepEqual(data, { deleted: true, workspaces_left_empty: 1, workspaces_emptied: [t] });
     assert.ok(!(await userExists(only.id)), "the auth user is gone");
     const { data: tenant } = await admin.from("tenants").select("id").eq("id", t).maybeSingle();
     assert.ok(tenant, "the workspace's data stays for the platform to erase");
+    const { data: ended } = await admin.from("tenants").select("status, left_empty_at").eq("id", t).single();
+    assert.equal(ended.status, "paused", "and it is ended (00248): its receptionist stops");
+    assert.ok(ended.left_empty_at, "marked, so billing never resumes it");
     const { data: phones } = await admin.from("push_devices").select("id").eq("user_id", only.id);
     assert.deepEqual(phones, []);
     const { data: members } = await admin.from("memberships").select("id").eq("tenant_id", t);

@@ -192,8 +192,10 @@ export async function applySubscription(
   now = new Date(),
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
   const L = logger({ tenant: row.tenant_id, subscription: sub.id });
-  const tenant = await db.from("tenants").select("status").eq("id", row.tenant_id).maybeSingle();
+  const tenant = await db.from("tenants").select("status, left_empty_at").eq("id", row.tenant_id).maybeSingle();
   if (tenant.error) throw new Error(tenant.error.message);
+  // A workspace its last member left (00248) is ended: billing never resumes it, and a plan still live is ended now.
+  const leftEmpty = !!tenant.data?.left_empty_at;
   const facts = subscriptionFacts(sub);
   // The card's mark for the partner sweep (0012): kept apart from the row every member reads, and before the
   // compare-and-set below, so a reading that loses the race still leaves it.
@@ -226,10 +228,11 @@ export async function applySubscription(
     L.info("billing_apply_raced", { source, status: facts.status });
     return { switched: null, status: facts.status };
   }
-  if (plan.tenantStatus) {
+  if (plan.tenantStatus && !(leftEmpty && plan.tenantStatus === "active")) {
     const t = await db.from("tenants").update({ status: plan.tenantStatus }).eq("id", row.tenant_id);
     if (t.error) throw new Error(t.error.message);
   }
+  if (leftEmpty && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
   if (plan.bell) {
     await recordNotification(row.tenant_id, {
       kind: "billing",
@@ -273,6 +276,49 @@ async function customerFor(
   const up = await db.from("billing_accounts").update({ stripe_customer_id: c.id }).eq("tenant_id", row.tenant_id);
   if (up.error) throw new Error(up.error.message);
   return c.id;
+}
+
+/** A plan in one of these states charges nothing more: nothing to end. */
+const PLAN_ENDED: ReadonlySet<string> = new Set(["none", "canceled", "incomplete_expired"]);
+
+/**
+ * The plan of a workspace its last member left, ended at once (00248): a card whose holder can no longer sign in is
+ * charged nothing more. Never throws: the plan's next event asks again (applySubscription), and the log says why.
+ */
+async function endLeftEmpty(subscriptionId: string, L: ReturnType<typeof logger>): Promise<void> {
+  const s = stripe();
+  if (!s) return;
+  try {
+    await s.subscriptions.cancel(subscriptionId);
+    L.info("billing_ended", { status: "canceled", left_empty: true });
+  } catch (e) {
+    L.error("billing_end_refused", { error: errField(e) });
+  }
+}
+
+/**
+ * A workspace nobody is in any more (delete_my_account, 00248): its plan ended now, and the ending applied at once, so
+ * a card whose holder can no longer sign in is charged nothing more. Nothing to end is an answer, not a refusal: a
+ * workspace with no billing row, a direct one, one with no plan, one whose plan already ended.
+ */
+export async function endFor(
+  db: Db,
+  tenantId: string,
+  now = new Date(),
+): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
+  const s = stripe();
+  if (!s) return { ok: false, error: "not_ready" };
+  const row = await accountOf(db, tenantId);
+  const status = (row?.status as BillingStatus | undefined) ?? "none";
+  if (!row || row.mode === "direct" || !row.stripe_subscription_id || PLAN_ENDED.has(status))
+    return { ok: true, status };
+  try {
+    const sub = await s.subscriptions.cancel(row.stripe_subscription_id, { expand: ["default_payment_method"] });
+    const r = await applySubscription(db, row, sub, "end", now);
+    return { ok: true, status: r.status };
+  } catch (e) {
+    return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 type BillingFailure =
