@@ -13,7 +13,6 @@
   "apps/dashboard/src/legacy-bridge/mascot/character-tick.ts": 14,
   "apps/dashboard/src/legacy-bridge/mascot/colour.ts": 16,
   "apps/dashboard/src/legacy-bridge/people-detail.ts": 1,
-  "apps/dashboard/src/legacy-bridge/policy-store.ts": 1,
   "apps/dashboard/src/legacy-bridge/reports-sample.ts": 4,
   "apps/dashboard/src/legacy-bridge/surface-cache.ts": 2,
   "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": 1,

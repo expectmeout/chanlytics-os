@@ -564,7 +564,14 @@
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "packages/contracts/src/ask-proposals/spec.ts": {
-    "@typescript-eslint/no-base-to-string": 1
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/ask/ask-answer.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/ask/ask-settings-change.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "packages/contracts/src/config/business-tab/how-it-answers.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1,
