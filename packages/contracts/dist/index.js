@@ -1377,9 +1377,9 @@ function leadLowShare(dist) {
   if (!dist) return null;
   const total = dist.one + dist.two + dist.three + dist.four + dist.five;
   if (total <= 0) return null;
-  const share3 = (dist.one + dist.two) / total;
-  if (share3 < LEAD_LOW_SHARE_FLOOR) return null;
-  return `${Math.round(share3 * 100)}% at 1\u20132 stars`;
+  const share = (dist.one + dist.two) / total;
+  if (share < LEAD_LOW_SHARE_FLOOR) return null;
+  return `${Math.round(share * 100)}% at 1\u20132 stars`;
 }
 var LEAD_NO_CARD_LINE = "I can find local businesses for now.";
 var LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
@@ -1774,9 +1774,9 @@ function leadPlanLikely(plan, facts) {
   if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
     return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
   }
-  const share3 = Math.min(1, p.with_email / p.matched);
-  const emailPct = Math.round(share3 * 100);
-  const withEmail = Math.round(plan.count * share3);
+  const share = Math.min(1, p.with_email / p.matched);
+  const emailPct = Math.round(share * 100);
+  const withEmail = Math.round(plan.count * share);
   const of = facts.priorOf ? ` \xB7 from past searches for ${facts.priorOf}` : "";
   return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
 }
@@ -4272,7 +4272,11 @@ var EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo elect
 function phoneShaped(v) {
   return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
 }
-function share(rows, col, is) {
+function isHeaderRow(first) {
+  return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+}
+var COLUMN_SHARE = 0.6;
+function columnShare(rows, col, is) {
   let seen = 0;
   let hit = 0;
   for (const r2 of rows) {
@@ -4286,7 +4290,7 @@ function share(rows, col, is) {
 function matchColumns(rows) {
   const first = rows[0] ?? [];
   const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
-  const header = first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+  const header = isHeaderRow(first);
   const body = header ? rows.slice(1) : rows;
   const columns = { name: null, last: null, phone: null, email: null };
   if (header) {
@@ -4300,13 +4304,15 @@ function matchColumns(rows) {
   }
   for (let i = 0; i < width; i++) {
     if (Object.values(columns).includes(i)) continue;
-    if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share(body, i, phoneShaped) >= 0.6) columns.phone = i;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
   }
   if (columns.name === null) {
     for (let i = 0; i < width; i++) {
       if (Object.values(columns).includes(i)) continue;
-      if (share(body, i, (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null) >= 0.6) {
+      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
+      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }
@@ -4352,7 +4358,6 @@ var WORDS = {
   name: /^(business|business ?name|company|company ?name|name|organi[sz]ation|account|account ?name|store|shop|practice|brand)$/i
 };
 var ORDER = ["email", "phone", "website", "city", "region", "category", "name"];
-var phoneShaped2 = (v) => /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
 function websiteHostOf(raw) {
   const s = String(raw ?? "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^www\./, "").split(/[/?#:]/)[0];
   if (!s || s.length > 120 || s.includes("@")) return null;
@@ -4365,21 +4370,10 @@ function regionOf(raw) {
   if (/^[A-Za-z]{2}$/.test(s) && codes.has(s.toUpperCase())) return s.toUpperCase();
   return US_STATES[s.toLowerCase()] ?? null;
 }
-function share2(rows, col, is) {
-  let seen = 0;
-  let hit = 0;
-  for (const r2 of rows) {
-    const v = (r2[col] ?? "").trim();
-    if (!v) continue;
-    seen += 1;
-    if (is(v)) hit += 1;
-  }
-  return seen ? hit / seen : 0;
-}
 function leadImportColumns(rows) {
   const first = rows[0] ?? [];
   const width = rows.reduce((w, r2) => Math.max(w, r2.length), 0);
-  const header = first.length > 0 && !first.some((c) => phoneShaped2(c) || normalizeEmail(c) !== null);
+  const header = isHeaderRow(first);
   const body = header ? rows.slice(1) : rows;
   const columns = {
     name: null,
@@ -4398,14 +4392,17 @@ function leadImportColumns(rows) {
     });
   for (let i = 0; i < width; i++) {
     if (taken(i)) continue;
-    if (columns.email === null && share2(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share2(body, i, phoneShaped2) >= 0.6) columns.phone = i;
-    else if (columns.website === null && share2(body, i, (v) => websiteHostOf(v) !== null) >= 0.6) columns.website = i;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
+    else if (columns.website === null && columnShare(body, i, (v) => websiteHostOf(v) !== null) >= COLUMN_SHARE)
+      columns.website = i;
   }
   if (columns.name === null)
     for (let i = 0; i < width; i++) {
       if (taken(i)) continue;
-      if (share2(body, i, (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null) >= 0.6) {
+      const words3 = (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
+      if (columnShare(body, i, words3) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }
@@ -11147,12 +11144,12 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share3, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share3 - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
+  const [share, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
 }
 function promptCostWords(chars, total) {
-  const share3 = blockShareWords(chars, total);
-  return `${count(chars)} characters${share3 ? ` \u2014 ${share3}` : ""}.`;
+  const share = blockShareWords(chars, total);
+  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
 }
 function promptTotalWords(total) {
   return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
@@ -11194,9 +11191,9 @@ function servicesWords(services) {
 function servicesToldWords(i) {
   const n = i.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
-  const share3 = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
-  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share3 ? ` \u2014 ${share3}` : ""}.`;
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
 }
 function serviceUndoName(name) {
   const n = typeof name === "string" ? name.trim() : "";
@@ -20813,8 +20810,8 @@ var STATE_WORDS = {
   sending: "Sending"
 };
 function reachOutRunWordsOf(r2, p) {
-  const share3 = chainPaceOf(r2).share;
-  const a = approvalWordsOf(r2, { timezone: p.timezone, share: share3, today: p.today, now: p.now });
+  const share = chainPaceOf(r2).share;
+  const a = approvalWordsOf(r2, { timezone: p.timezone, share, today: p.today, now: p.now });
   const waiting = p.state === "pending_approval";
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const checked = r2.planned.filter((x) => x.checked);
@@ -20910,8 +20907,8 @@ function reachOutLineOf(l, nowMs, tz) {
 }
 function reachOutStripOf(s, chain, nowMs, tz) {
   const running = s.chain.state === "running";
-  const share3 = chain ? chainPaceOf(chain).share : 0;
-  const parts2 = [share3 > 0 ? `${s.today} of ${share3} today` : `${s.today} today`];
+  const share = chain ? chainPaceOf(chain).share : 0;
+  const parts2 = [share > 0 ? `${s.today} of ${share} today` : `${s.today} today`];
   const next = s.next ? at(s.next.at) : null;
   if (!running) parts2.push("nothing goes while it is paused");
   else if (s.next && next !== null) {
@@ -20924,7 +20921,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     title: running ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
     parts: parts2,
     running,
-    progress: share3 > 0 ? Math.min(1, s.today / share3) : null,
+    progress: share > 0 ? Math.min(1, s.today / share) : null,
     going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
     toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
     waiting: s.waiting_run_id ? { label: "A run waits for you", to: `broadcasts/run:${s.waiting_run_id}` } : null
@@ -30802,6 +30799,7 @@ export {
   vitalsPageOf,
   waWindow,
   waitAfterDays,
+  waitWords,
   waitedLabel,
   waitingOnProposal,
   wallClockAt,

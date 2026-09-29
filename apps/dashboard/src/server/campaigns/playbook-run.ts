@@ -1,7 +1,7 @@
 import "server-only";
 import { deployment } from "../deployment";
 import { MIN_MS } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
 /** A run now plans its sends and may start them: the edge's work for one playbook, as long as its door may take. */
 const RUN_TIMEOUT_MS = MIN_MS;
@@ -22,7 +22,7 @@ export type RunPlaybookOutcome =
       planned?: number;
       runId?: string | null;
     }
-  | { ok: false; reason: string; detail?: string };
+  | { ok: false; reason: EdgeReason; detail?: string };
 
 /**
  * The edge runs it (lib/playbooks.ts) as this person's decision: it sends
@@ -52,7 +52,6 @@ export async function runPlaybookNow(
     reason?: unknown;
     planned?: unknown;
     run_id?: unknown;
-    error?: string;
     detail?: string;
   };
   if (
@@ -75,5 +74,5 @@ export async function runPlaybookNow(
       runId: at(j.run_id),
     };
   }
-  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
+  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
 }

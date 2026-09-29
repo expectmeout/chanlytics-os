@@ -1,9 +1,19 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { callEdge, edgeAnswered } from "../edge";
+import type { EdgeAnswerCode } from "@chanlytics/contracts";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../edge";
 
 /** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */
 const LIVE_CALL_TIMEOUT_MS = 15_000;
+
+/** Why a live call was not reached: the edge's code, with the provider's status when the door gave one ("provider 404"). */
+type LiveCallOutcome = { ok: true } | { ok: false; reason: EdgeReason | `${EdgeAnswerCode} ${number}` };
+
+function refusalOf(r: EdgeAnswer): LiveCallOutcome {
+  const status = typeof r.body?.status === "number" ? r.body.status : null;
+  const reason = edgeReasonOf(r);
+  return { ok: false, reason: status && r.body?.error ? `${r.body.error} ${status}` : reason };
+}
 
 /**
  * Whisper to the phone receptionist mid-call, through the edge — the
@@ -11,11 +21,7 @@ const LIVE_CALL_TIMEOUT_MS = 15_000;
  * preview must never speak into a real customer's call. Returns a reason
  * instead of throwing so the route can answer in a sentence.
  */
-export async function whisperLiveCall(
-  retellCallId: string,
-  text: string,
-  trigger: boolean,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function whisperLiveCall(retellCallId: string, text: string, trigger: boolean): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/whisper",
@@ -23,8 +29,7 @@ export async function whisperLiveCall(
     { timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return refusalOf(r);
 }
 
 /**
@@ -33,12 +38,11 @@ export async function whisperLiveCall(
  * customer's call -- and a reason instead of a throw, so the route answers
  * in a sentence.
  */
-export async function stopLiveCall(retellCallId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function stopLiveCall(retellCallId: string): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge("/api/admin/stop-call", { call_id: retellCallId }, { timeoutMs: LIVE_CALL_TIMEOUT_MS });
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return refusalOf(r);
 }
 
 /**
@@ -46,10 +50,7 @@ export async function stopLiveCall(retellCallId: string): Promise<{ ok: true } |
  * receptionist the owner is picking up and overrides the line its transfer
  * tool dials. Same guard, same shape of answer.
  */
-export async function handOverLiveCall(
-  retellCallId: string,
-  line: string,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function handOverLiveCall(retellCallId: string, line: string): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/hand-over",
@@ -57,6 +58,5 @@ export async function handOverLiveCall(
     { timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return refusalOf(r);
 }
