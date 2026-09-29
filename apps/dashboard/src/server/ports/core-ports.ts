@@ -1,9 +1,10 @@
 /**
  * The adapter between the core verbs and this runtime: the only file that
  * knows both a port's meaning and the table it touches. A verb never sees a
- * client, a service module or an environment; it sees these. Every UPDATE
- * here names its columns in full, so hygiene.test.mjs can hold them to the
- * session role's grants.
+ * client, a service module or an environment; it sees these. A thread's
+ * UPDATE is its move's patch from contracts (conversation-moves.ts), whose
+ * columns are the session role's grants; every other UPDATE here names its
+ * columns in full, so hygiene.test.mjs can hold them to the grants.
  */
 import crypto from "node:crypto";
 import {
@@ -15,6 +16,7 @@ import {
   type Json,
 } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
+import { conversationPatch } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
@@ -42,43 +44,27 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
       changed(
         ctx.supabase
           .from("conversations")
-          .update({ state: "needs_human", paused_until: until, snooze_until: null, assignee_user_id: userId })
+          .update(conversationPatch("take_over", { until, user: userId }))
           .eq("id", id)
           .select("id"),
       ),
     release: (id) =>
-      changed(
-        ctx.supabase
-          .from("conversations")
-          .update({ state: "open", paused_until: null, snooze_until: null, assignee_user_id: null })
-          .eq("id", id)
-          .select("id"),
-      ),
+      changed(ctx.supabase.from("conversations").update(conversationPatch("hand_back")).eq("id", id).select("id")),
     snooze: (id, until) =>
       changed(
-        ctx.supabase
-          .from("conversations")
-          .update({ state: "snoozed", snooze_until: until, paused_until: null, assignee_user_id: null })
-          .eq("id", id)
-          .select("id"),
+        ctx.supabase.from("conversations").update(conversationPatch("snooze", { until })).eq("id", id).select("id"),
       ),
     wake: (id) =>
       changed(
         ctx.supabase
           .from("conversations")
-          .update({ state: "open", snooze_until: null })
+          .update(conversationPatch("wake"))
           .eq("id", id)
           .eq("state", "snoozed")
           .select("id"),
       ),
     archive: (id) =>
-      changed(
-        ctx.supabase
-          .from("conversations")
-          .update({ state: "archived", paused_until: null, assignee_user_id: null })
-          .eq("id", id)
-          .select("id"),
-      ),
+      changed(ctx.supabase.from("conversations").update(conversationPatch("archive")).eq("id", id).select("id")),
     // Control is written by the service role -- the column grant fences these
     // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
@@ -201,13 +187,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
         return await changed(
           ctx.supabase
             .from("conversations")
-            .update({
-              state: "needs_human",
-              paused_until: until,
-              snooze_until: null,
-              assignee_user_id: userId,
-              last_message_at: nowIso,
-            })
+            .update(conversationPatch("reply_claim", { until, user: userId, now: nowIso }))
             .eq("id", id)
             .select("id"),
         );

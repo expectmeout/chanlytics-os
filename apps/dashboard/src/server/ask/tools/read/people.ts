@@ -161,6 +161,11 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
     contact_id: id,
     route: `clients/${id}`,
     name: vm.name,
+    // Where they stand, as their People row and people.search say it: the row's rule (contracts personStateFor, for
+    // the member asking) under the page's own view model. Without it an answer read the stored thread states below,
+    // and a thread the member holds, still needs_human in storage, read "Needs you".
+    state: vm.stateLabel,
+    state_detail: vm.stateDetail || null,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
     // The deal's fact says its value at every stage (0008), and where its proposal lives: the host, never the address.
@@ -343,7 +348,7 @@ export const peopleTool = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
       label: "Reading the profile",
       words:
-        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words.",
+        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: their state in the pages' words, as their People row says it, right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words.",
       run: getPerson,
     }),
     lists: readAction({
