@@ -30,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { reportsSample } from "./reports-sample";
 import { TODAY_HELPERS } from "./today";
-import type { ReportsSurface } from "./surface-data";
+import type { ReportsSurface } from "./surfaces/reports";
 // The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
 // own `./api` import never reaches this browser-only bundle.
 import type { BellRow } from "./notifications";
@@ -64,7 +64,7 @@ export interface TodaySample {
 }
 
 /** The day, surface by surface: the rows first, the metrics counted from them, then each surface's view model. */
-function build(nowMs: number, day: SampleDay): TodaySample {
+function buildSample(nowMs: number, day: SampleDay): TodaySample {
   const clock = sampleClock(nowMs);
   const conversations = sampleConversations(clock, day);
   const escalations = sampleEscalations(clock, day);
@@ -86,15 +86,15 @@ function build(nowMs: number, day: SampleDay): TodaySample {
   };
 }
 
-const kept = new Map<string, TodaySample>();
+const keptSamples = new Map<string, TodaySample>();
 
 /** The sample as of `nowMs`: the same moment gives the same day, kept rather than rebuilt on every draw. */
 export function todaySample(nowMs: number = Date.now(), day: SampleDay = "usual"): TodaySample {
   const key = `${nowMs}:${day}`;
-  const hit = kept.get(key);
+  const hit = keptSamples.get(key);
   if (hit) return hit;
-  const built = build(nowMs, day);
-  kept.set(key, built);
+  const built = buildSample(nowMs, day);
+  keptSamples.set(key, built);
   return built;
 }
 

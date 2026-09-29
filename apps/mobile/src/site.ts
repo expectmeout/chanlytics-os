@@ -6,13 +6,13 @@
  * ("ChanlyticsApp/1.2.0 (ios)"); the two are held to each other by test/site.test.mjs. A workspace page's address is
  * legacy-bridge/workspace.ts's: /w/<slug>, with the hash route after it.
  */
-import { APP_ROUTE_RE } from "@chanlytics/contracts";
+import { APP_ROUTE_RE } from "@chanlytics/contracts/phone-app";
 
 /** The product's one address, as the e2e suite and the env examples name it; an EAS environment may point elsewhere. */
 export const DEFAULT_SITE_ORIGIN = "https://app.chanlytics.com";
 export const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_ORIGIN || DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
 
-export type Platform = "ios" | "android";
+type Platform = "ios" | "android";
 
 export function userAgentToken(version: string, platform: Platform): string {
   return `ChanlyticsApp/${version || "0.0.0"} (${platform})`;

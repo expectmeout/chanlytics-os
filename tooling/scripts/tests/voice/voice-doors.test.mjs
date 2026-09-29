@@ -287,11 +287,11 @@ test("provision, the workspace: a token naming one refuses a body naming another
     await withEnv({ EDGE_CALL_SECRET: undefined, DIAG_KEY: "diag-key-for-this-file" }, async () => {
       assert.deepEqual(await answer(await knock({}, { "x-diag-key": "diag-key-for-this-file" })), [
         400,
-        { ok: false, error: "tenant_id (a workspace id) is required" },
+        { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" },
       ]);
       assert.deepEqual(
         await answer(await knock({ tenant_id: "not-a-workspace" }, { "x-diag-key": "diag-key-for-this-file" })),
-        [400, { ok: false, error: "tenant_id (a workspace id) is required" }],
+        [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
       );
       const [status, body] = await answer(await knock({ tenant_id: B }, { "x-diag-key": "diag-key-for-this-file" }));
       assert.equal(status, 200, "a key-holder's body is believed");
@@ -301,7 +301,7 @@ test("provision, the workspace: a token naming one refuses a body naming another
       await answer(
         await knock({}, { "x-edge-token": token(PROVISION, { workspace: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }) }),
       ),
-      [404, { ok: false, error: "no such workspace" }],
+      [404, { ok: false, error: "not_found", detail: "no such workspace" }],
     );
     const [status, body] = await answer(await knockRaw(""));
     assert.equal(status, 200, "no body: the token's workspace, a dry run");
@@ -610,7 +610,11 @@ test("provision, a run that fails partway answers with the step, the provider's 
     failing.restore();
   }
   assert.equal(status, 503, "a provider 5xx is our 503");
-  assert.deepEqual(body.error, { step: "agent", status: 500, detail: { message: "internal" } });
+  assert.deepEqual(
+    [body.error, body.step, body.status, body.detail],
+    ["provider_refused", "agent", 500, JSON.stringify({ message: "internal" })],
+    "the step, the provider's status, and its body as text",
+  );
   assert.deepEqual(
     body.result,
     { llm: { llm_id: "llm_1", version: 0 } },
@@ -695,7 +699,10 @@ test("provision, a run that fails partway answers with the step, the provider's 
     blind.restore();
   }
   assert.equal(status, 502);
-  assert.deepEqual(body.error, { step: "agent", status: 404, detail: "agent_ghost is not readable with this key" });
+  assert.deepEqual(
+    [body.error, body.step, body.status, body.detail],
+    ["provider_refused", "agent", 404, "agent_ghost is not readable with this key"],
+  );
   assert.deepEqual(blind.paths(), ["GET /get-agent/agent_ghost"]);
 
   // The number step refused, or answered without a number: no row, and the ids to resume with.
@@ -709,7 +716,10 @@ test("provision, a run that fails partway answers with the step, the provider's 
     noNumber.restore();
   }
   assert.equal(status, 502);
-  assert.deepEqual(body.error, { step: "number", status: 402, detail: { message: "insufficient balance" } });
+  assert.deepEqual(
+    [body.error, body.step, body.status, body.detail],
+    ["provider_refused", "number", 402, JSON.stringify({ message: "insufficient balance" })],
+  );
   assert.deepEqual(
     [body.result.llm.llm_id, body.result.agent.agent_id, "channel" in body.result],
     ["llm_1", "agent_2", false],
@@ -724,8 +734,8 @@ test("provision, a run that fails partway answers with the step, the provider's 
     noAnswer.restore();
   }
   assert.deepEqual(
-    [status, body.error],
-    [503, { step: "number", status: 502, detail: "the provider answered without a phone number" }],
+    [status, body.error, body.step, body.status, body.detail],
+    [503, "provider_refused", "number", 502, "the provider answered without a phone number"],
     "an answer with no number in it is the provider's failure, not the caller's",
   );
 
@@ -738,9 +748,9 @@ test("provision, a run that fails partway answers with the step, the provider's 
     bound.restore();
   }
   assert.equal(status, 503);
-  assert.equal(body.error.step, "channel");
+  assert.deepEqual([body.error, body.step], ["write_failed", "channel"], "the row, not the provider, refused");
   assert.equal(
-    body.error.detail,
+    body.detail,
     `duplicate key value violates unique constraint — the number ${NUMBER} is bound to agent_2; re-run with number and agent_id`,
   );
   assert.ok(!printed(body).includes(FN_SECRET));

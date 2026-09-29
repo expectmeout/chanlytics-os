@@ -6,24 +6,27 @@
  * The same read the receptionists use (one fetch per five minutes, parsed
  * once), the same pure extraction the dashboard applies when an owner opens
  * the Calendar, so a person is created once whichever path saw them first.
+ * The same appointments' addresses and numbers go to the booking door, which
+ * stops a reach-out to a business that booked after it was written to.
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { calendarDue, markCalendarChecked, noteBacklog, CALENDAR_PER_TICK } from "../../lib/ops/sweep-rotation.js";
 import { feedItemsFor } from "../../lib/calendar/availability.js";
 import { addPeopleFromCalendar } from "../../lib/calendar/calendar-people.js";
+import { bookedFromCalendar } from "../../lib/calendar/reach-out-booked.js";
 import { recordNotification } from "../../lib/ops/notify.js";
-import { parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
+import { ownAddressesOf, parseTenantConfig, peopleFromItems } from "../../lib/packages/contracts.js";
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calendar" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
@@ -41,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
     return json(500, { ok: false });
   }
 
-  const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, failed: 0, remaining: page.remaining };
+  const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, booked: 0, failed: 0, remaining: page.remaining };
   for (const row of page.rows) {
     const cfg = parseTenantConfig(row.config);
     const url = cfg?.calendar?.ical_url ?? null;
@@ -71,6 +74,7 @@ export async function POST(request: Request): Promise<Response> {
       out.added += r.added;
       out.named += r.named;
       out.emailed += r.emailed;
+      out.booked += await bookedFromCalendar(db, row.tenant_id, items, ownAddressesOf(cfg));
       // Stamped only on SUCCESS. A failure leaves the row due, so the next tick
       // retries it instead of skipping a workspace for an hour because its feed
       // was briefly unreachable.

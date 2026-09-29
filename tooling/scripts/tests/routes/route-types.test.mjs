@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROUTE_KEYS } from "@chanlytics/contracts";
-import { generate, OUT, KEYS_OUT } from "../../gen-route-types.mjs";
+import { generate, OUT, KEYS_OUT } from "../../gen/route-types.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const current = generate(ROOT);

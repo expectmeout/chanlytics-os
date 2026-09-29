@@ -161,7 +161,7 @@ test("without a provider key there is nobody to whisper to, said before the body
     ]) {
       assert.deepEqual(
         await answer(await knock(body)),
-        [400, { ok: false, error: "call_id + text (1-500 chars) required" }],
+        [400, { ok: false, error: "bad_request", detail: "call_id + text (1-500 chars) required" }],
         JSON.stringify(body),
       );
     }

@@ -2,7 +2,7 @@
  * The day's card: today and tomorrow as the calendar reads them, who is coming and when, what is open, and the
  * visit playbooks' line. Its foot line is today-period.ts's.
  */
-import { clockLabel } from "../calendar/calendar";
+import { clockLabel } from "../calendar/calendar-words";
 
 /* ------------------------------ the day ---------------------------------- */
 

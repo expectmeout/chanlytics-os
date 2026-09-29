@@ -42,22 +42,22 @@ function billingReturnUrl(slug: string | null, outcome: "success" | "cancel" | "
   return `${dashboardOrigin()}${page}?billing=${outcome}#/${CHECKOUT_RETURN_ROUTE[back]}`;
 }
 
-let client: Stripe | null = null;
-let injected: Stripe | null = null;
+let stripeClient: Stripe | null = null;
+let injectedStripe: Stripe | null = null;
 /** Tests: a Stripe client handed in (the SDK's own webhooks helper beside fakes for the calls), so the webhook and the ops run without a key or a network. */
 export function setStripeClient(c: Stripe | null): void {
-  injected = c;
+  injectedStripe = c;
 }
 /** How long one call through the shared Stripe client may take. */
 const STRIPE_TIMEOUT_MS = 20_000;
 export function stripe(): Stripe | null {
-  if (injected) return injected;
+  if (injectedStripe) return injectedStripe;
   const key = env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
   // a deployment without a key must still answer "not ready".
-  client ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
-  return client;
+  stripeClient ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
+  return stripeClient;
 }
 
 function priceId(): string | null {
@@ -670,8 +670,18 @@ export async function forgetEvent(db: Db, id: string, lease: string): Promise<vo
   if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event_id: id, error: error.message });
 }
 
-/** The bells a payment event rings, beside the row facts it keeps. */
-export async function notePayment(db: Db, row: BillingRow, kind: "failed" | "paid", now = new Date()): Promise<void> {
+/**
+ * The bells a payment event rings, beside the row facts it keeps. A paid invoice that took no money (a trial's $0 first
+ * invoice, a full discount) is not a payment and stamps nothing: last_paid_at says the workspace has paid, which
+ * Billing shows and 0020 reads to decide whether a partner joining it earns. `amountPaid` absent is a payment.
+ */
+export async function notePayment(
+  db: Db,
+  row: BillingRow,
+  kind: "failed" | "paid",
+  amountPaid?: number,
+  now = new Date(),
+): Promise<void> {
   if (kind === "failed") {
     const up = await db
       .from("billing_accounts")
@@ -685,7 +695,7 @@ export async function notePayment(db: Db, row: BillingRow, kind: "failed" | "pai
       route: "admin/billing",
       about: null,
     });
-  } else {
+  } else if (amountPaid === undefined || amountPaid > 0) {
     const up = await db
       .from("billing_accounts")
       .update({ last_paid_at: now.toISOString() })

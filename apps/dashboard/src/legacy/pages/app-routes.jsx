@@ -546,13 +546,14 @@ const SHELL_ROUTES = [
 
 /**
  * What an address draws: the first row that takes it, else not found, then the honesty gate. `r` is the route as the
- * shell resolved it, with the shell's doors and the Inbox's preferences (see the rows). Every route lands here, and
- * the answer is the shell's view: `activeNav`, `crumbs`, `pane` (false unless the row says), `primaryAction` (null
- * unless the row says), `content`, and `mountKey`, what the view is mounted under (the row's `mount`, else the route).
+ * shell resolved it (app-shell.jsx routeAt: its page, its param and its key, `routeKey`), with the shell's doors and
+ * the Inbox's preferences (see the rows). Every route lands here, and the answer is the shell's view: `activeNav`,
+ * `crumbs`, `pane` (false unless the row says), `primaryAction` (null unless the row says), `content`, and `mountKey`,
+ * what the view is mounted under (the row's `mount`, else the route's own key).
  */
 const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
-  const drawn = { pane: false, primaryAction: null, ...(row ? row.draw(r) : drawNotFound(r)), mountKey: (row && row.mount) || `${r.page}/${r.param || ""}` };
+  const drawn = { pane: false, primaryAction: null, ...(row ? row.draw(r) : drawNotFound(r)), mountKey: (row && row.mount) || r.routeKey };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 

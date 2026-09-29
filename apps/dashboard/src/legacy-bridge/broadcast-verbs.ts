@@ -22,7 +22,7 @@ import {
 import { api } from "./api";
 import { readCache } from "./read-cache";
 import type { ApiResult, Output } from "../client/api";
-import { broadcastsOverride } from "./surface-data";
+import { broadcastsOverride } from "./surfaces/broadcasts";
 import { refreshSurfaces } from "./surface-runner";
 
 export interface SendBody {

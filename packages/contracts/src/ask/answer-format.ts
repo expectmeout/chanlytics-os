@@ -2,14 +2,14 @@
  * The format the model writes Ask's answer in: the answer's shape (ask-answer.ts) as a JSON schema, passed as
  * `output_config.format` and read back by normalizeAnswer. It rides in every request. Pure.
  */
-import { ASK_LANGUAGES } from "./ask";
+import { ASK_LANGUAGES } from "./ask-language";
 import { ASK_ANSWER_CAPS as C } from "./ask-answer";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 
 const SOURCE = {
   type: "object",
   description:
-    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },

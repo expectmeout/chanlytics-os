@@ -1,9 +1,9 @@
 /**
  * What a People list offers to do next (a broadcast to the ones who said yes, the step that gets more), and the
- * page's aggregates. Moved whole from people.ts (Reach out Part 2.5), which re-exports it.
+ * page's aggregates. Moved whole from people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import type { AskedPurpose } from "../consent/consent";
-import type { PersonRowVM } from "./people";
+import type { PersonRowVM } from "./person-row";
 import { mayReceive, saidYesTo } from "./person-consent";
 import { MONTH_MS } from "./person-helpers";
 import { DAY_MS, WEEK_MS } from "../shared/time";

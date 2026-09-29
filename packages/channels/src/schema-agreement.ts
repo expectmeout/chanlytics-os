@@ -4,8 +4,8 @@
  * stops compiling, a list here and its column disagree.
  */
 import type { Exactly, Holds, SchemaSet, Within } from "@chanlytics/contracts";
-import type { A2P_STEPS } from "./a2p";
-import type { LineProviderName } from "./lines";
+import type { A2P_STEPS } from "./lines/a2p/steps";
+import type { LineProviderName } from "./lines/lines";
 
 export type ChannelsSchemaAgreement = [
   // The registration saga walks exactly the steps a line may record, in its own order.

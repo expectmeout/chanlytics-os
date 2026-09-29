@@ -138,6 +138,8 @@ export {
   tenantZoneOf,
   heldNoticeDue,
   markHeldNotice,
+  leadNamesByIds,
+  handRun,
 } from "./repositories/reach-out-sheet";
 export type {
   ReachOutStepRow,
@@ -145,6 +147,7 @@ export type {
   OutreachMode,
   HeldNoticeMark,
   HeldNoticeRun,
+  HandItem,
 } from "./repositories/reach-out-sheet";
 export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
@@ -232,6 +235,13 @@ export {
   declineHandover,
   getPartnerHandovers,
   getHandoverInvite,
+  invitePartner,
+  withdrawPartnerInvite,
+  getWorkspacePartner,
+  getPartnerInvitations,
+  acceptPartnerInvite,
+  declinePartnerInvite,
+  getPartnerInviteMail,
 } from "./repositories/partner";
 export type {
   PartnerRow,
@@ -250,6 +260,11 @@ export type {
   OpenHandover,
   PartnerHandoverLine,
   HandoverInvite,
+  PartnerInviteSent,
+  WorkspacePartner,
+  PartnerInvitation,
+  PartnerJoined,
+  PartnerInviteMail,
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";

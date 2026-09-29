@@ -9,7 +9,7 @@ import type { EscalationDto } from "../conversations/escalations";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { reasonShort } from "../people/people";
+import { reasonShort } from "../people/person-row-facts";
 import { capitalize, plural } from "../shared/words";
 import { andList, secondsPhrase } from "./today-bands";
 import { tzClock, tzDayAndTime } from "./today-clock";

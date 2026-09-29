@@ -2,7 +2,8 @@
  * The steps due at the head of the day (0007, amended): whose next step's day has come or gone, the oldest first,
  * as steps.ts judges them.
  */
-import { NOTE_WORDS, type PersonRowVM } from "../people/people";
+import type { PersonRowVM } from "../people/person-row";
+import { NOTE_WORDS } from "../notes/person-notes";
 import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "../notes/steps";
 
 /* ------------------------------------------------ the steps due (0007, amended) */

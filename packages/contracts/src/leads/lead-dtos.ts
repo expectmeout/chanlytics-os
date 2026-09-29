@@ -2,7 +2,8 @@
  * What the Leads routes answer: the check, the row, a search and its rounds, the counts and the month. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
  */
-import type { LeadArea, LeadEmailState, LeadRoundEnding, LeadSearchPlan } from "./lead-search";
+import type { LeadArea, LeadSearchPlan } from "./search/plan";
+import type { LeadEmailState, LeadRoundEnding } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
 
 /* ------------------------------------------------- what the doors answer -- */

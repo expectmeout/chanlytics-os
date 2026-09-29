@@ -24,7 +24,7 @@
  * the job, and the shape the dashboard wants back. The same split the texting
  * door (inbound-sms.ts with sms-ingress.ts) uses.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import {
   errorMessage,
@@ -39,13 +39,13 @@ import { emitEvent } from "../../lib/packages/db.js";
 import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../../lib/packages/contracts.js";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "../../lib/lines/lines.js";
 import { releaseLine } from "../../lib/lines/line-release.js";
+import { registerLine } from "../../lib/lines/a2p-register.js";
+import { syncRegistration } from "../../lib/lines/a2p-sync.js";
 import {
-  registerLine,
-  syncRegistration,
   unfileMockRegistration,
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
-} from "../../lib/lines/a2p.js";
+} from "../../lib/lines/a2p-refile.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { claimLineForResume, type LineDbRow } from "../../lib/lines/line-resume.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
@@ -138,7 +138,7 @@ async function search(choice: LineProviderChoice, body: LinesBody): Promise<Resp
     const numbers = await choice.provider.searchLocal(choice.master, { areaCode: plan.areaCode, limit: 8 });
     return respond(searchAnswer(choice, plan.areaCode, numbers));
   } catch (e) {
-    return json(502, { ok: false, error: errorMessage(e) });
+    return refuse(502, "provider_refused", errorMessage(e));
   }
 }
 
@@ -149,7 +149,7 @@ async function writingCall(
 ): Promise<{ ok: true; value: LineCall } | Refused> {
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return stop(json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" }));
+  if (!apiKey || !fnSecret) return stop(refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret"));
   const ws = workspaceOf(body.tenant_id);
   if (!ws.ok) return ws;
   let read;
@@ -157,7 +157,7 @@ async function writingCall(
     read = await ws.db.from("tenants").select("id, name, slug").eq("id", ws.tenantId).maybeSingle();
   } catch (e) {
     // This door answers a read that throws as one that failed; the Google and billing doors let it throw.
-    return stop(json(503, { ok: false, error: errorMessage(e) }));
+    return stop(refuse(503, "read_failed", errorMessage(e)));
   }
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
@@ -177,10 +177,10 @@ async function spendGate(c: LineCall, doing: SpendWords): Promise<Response | nul
 /** The named line of the named workspace, or the refusal: another workspace's row does not exist as far as this one can see. */
 async function lineRowOf(c: LineCall): Promise<{ ok: true; row: LineDbRow } | Refused> {
   const lineId = typeof c.body.line_id === "string" ? c.body.line_id.trim() : "";
-  if (!UUID.test(lineId)) return stop(json(400, { ok: false, error: "line_id is required" }));
+  if (!UUID.test(lineId)) return stop(refuse(400, "bad_request", "line_id is required"));
   const row = await c.db.from("lines").select("*").eq("id", lineId).eq("tenant_id", c.tenantId).maybeSingle();
-  if (row.error) return stop(json(503, { ok: false, error: row.error.message }));
-  if (!row.data) return stop(json(404, { ok: false, error: "no such line" }));
+  if (row.error) return stop(refuse(503, "read_failed", row.error.message));
+  if (!row.data) return stop(refuse(404, "not_found", "no such line"));
   return { ok: true, row: row.data };
 }
 
@@ -208,7 +208,7 @@ async function buy(c: LineCall): Promise<Response> {
   // nothing -- see the insert below.
   const ours = () => c.db.from("lines").select("*").eq("tenant_id", c.tenantId).order("created_at");
   const others = await ours();
-  if (others.error) return json(503, { ok: false, error: others.error.message });
+  if (others.error) return refuse(503, "read_failed", others.error.message);
   const now = new Date();
   const plan = planBuy({
     tenantId: c.tenantId,
@@ -228,14 +228,14 @@ async function buy(c: LineCall): Promise<Response> {
     // -- before a saga is queued for it, and before the carrier hears of it.
     // Answered as the read above would have answered it, with the line that
     // stands. A conflict that leaves this workspace with no live line (a
-    // number another workspace holds) is not its line_exists and keeps the
-    // provider's words.
+    // number another workspace holds) is not its line_exists: a write that
+    // failed, with the database's words in `detail`.
     if (ins.error.code === "23505") {
       const again = await ours();
       const stands = liveLineOf(again.data ?? []);
       if (stands) return json(409, { ok: false, error: "line_exists", line: lineForClient(stands) });
     }
-    return json(503, { ok: false, error: ins.error.message });
+    return refuse(503, "write_failed", ins.error.message);
   }
   return queue(c, ins.data, "owner", now);
 }
@@ -256,7 +256,7 @@ async function retry(c: LineCall): Promise<Response> {
   try {
     taken = await claimLineForResume(c.db, read.row, now.getTime(), plan.by);
   } catch (e) {
-    return json(503, { ok: false, error: errorMessage(e) });
+    return refuse(503, "write_failed", errorMessage(e));
   }
   if (!taken) return respond(retryTakenAnswer(read.row));
   return queue(c, taken, plan.by, now);
@@ -290,7 +290,7 @@ async function record(c: LineCall): Promise<Response> {
   const refused = recordRefusal(plan.row, plan.path, ourNumbers);
   if (refused) return respond(refused);
   const up = await c.db.from("business_records").upsert(plan.row, { onConflict: "tenant_id" }).select("*").single();
-  if (up.error) return json(503, { ok: false, error: up.error.message });
+  if (up.error) return refuse(503, "write_failed", up.error.message);
   await emitEvent(c.db, c.tenantId, "business.recorded", "setup", "tenant", c.tenantId, {
     legal_name: plan.row.legal_name,
     path: plan.path,
@@ -311,7 +311,7 @@ async function register(c: LineCall): Promise<Response> {
     if (refused) return refused;
   }
   const rec = await c.db.from("business_records").select("*").eq("tenant_id", c.tenantId).maybeSingle();
-  if (rec.error) return json(503, { ok: false, error: rec.error.message });
+  if (rec.error) return refuse(503, "read_failed", rec.error.message);
   if (!rec.data) {
     await c.db
       .from("lines")

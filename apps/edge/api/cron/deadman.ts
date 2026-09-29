@@ -23,7 +23,7 @@
  * request: a lost or duplicated call finds the same candidates next tick, and
  * an escalation is flagged at most once however long it stays open.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify, reachesTenant } from "../../lib/ops/notify.js";
@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) {
     L.error("deadman_no_db");
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
 
   const denied = await authorizeCron(request, db, L);

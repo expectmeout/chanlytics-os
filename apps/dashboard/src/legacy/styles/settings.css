@@ -160,8 +160,8 @@
 /* The controls a row carries, at the row's scale: the product's small button,
    quiet link and pill are sized for a dense list, and looked lost at the end of
    a row this tall. Scoped here so nothing outside Settings moves. */
-.settings .btn-sm { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-sm); }
-.settings .btn-icon.btn-sm { width: 30px; padding: 0; }
+.settings .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--set-hint); border-radius: var(--control-radius-sm); }
+.settings .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
 .settings .cl-bucket-link {
   height: 30px;
   padding: 0 8px;
@@ -351,7 +351,7 @@
 /* Switch */
 .set-switch {
   width: 36px; height: 20px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--line-strong);
   border: none;
   position: relative;
@@ -366,7 +366,7 @@
   position: absolute;
   top: 2px; left: 2px;
   width: 16px; height: 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--knob);
   transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
 }
@@ -546,7 +546,7 @@
   width: 18px; height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--ink-dim);
   cursor: help;
@@ -603,7 +603,7 @@
   color: var(--ink-dim);
   padding-top: 2px;
 }
-.set-mem-v { font-size: 12.5px; color: var(--ink); line-height: 1.45; }
+.set-mem-v { font-size: var(--text-sm); color: var(--ink); line-height: 1.45; }
 
 /* Billing */
 .set-usage { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -622,7 +622,7 @@
   border-radius: 3px;
   transition: width 0.5s var(--ease-out);
 }
-.set-usage-note { font-size: 11px; color: var(--ink-dim); }
+.set-usage-note { font-size: var(--text-xs); color: var(--ink-dim); }
 .set-billing-actions { display: flex; gap: 8px; margin-top: 14px; }
 
 /* Billing: pace tick + per-agent spend rows */
@@ -802,7 +802,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .cw-head { display: grid; gap: 6px; }
 .cw-head .cw-lede { margin: 0; }
 .cw-kicker { margin: 0; font-size: 12px; font-weight: 500; color: var(--ink-dim); }
-.cw-title { margin: 0; font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.cw-title { margin: 0; font-size: var(--text-2xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
 .cw-lede { margin: -8px 0 4px; font-size: 13px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
 .cw-field { display: grid; gap: 6px; }
 /* A yes beside its sentence: the partner a link brought (0012). */
@@ -812,20 +812,20 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   width: 100%;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   color: var(--ink);
   font: inherit;
   font-size: 14px;
   padding: 9px 12px;
 }
 .cw-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
-.cw-hint { font-size: 11px; color: var(--ink-faint); }
+.cw-hint { font-size: var(--text-xs); color: var(--ink-faint); }
 .cw-error {
   font-size: 13px;
   color: var(--ink);
   background: var(--danger-soft, var(--accent-soft));
   border: 1px solid var(--danger, var(--accent));
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   padding: 9px 12px;
 }
 .cw-submit {
@@ -833,7 +833,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   background: var(--accent);
   color: var(--accent-fg);
   border: none;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   padding: 11px 16px;
   font: inherit;
   font-size: 14px;
@@ -993,18 +993,18 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-place { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
 .setup-place-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .setup-place-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-.setup-place-where { font-size: 11px; color: var(--ink-muted); }
+.setup-place-where { font-size: var(--text-xs); color: var(--ink-muted); }
 .setup-fw-seg { display: flex; gap: 6px; flex-wrap: wrap; }
-.setup-seg { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-raised); color: var(--ink); font-size: 12px; cursor: pointer; }
+.setup-seg { padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); color: var(--ink); font-size: 12px; cursor: pointer; }
 .setup-seg.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .setup-fw-code { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
-.setup-fw-dial { font-size: 22px; font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
+.setup-fw-dial { font-size: var(--text-2xl); font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
 .setup-fw-dial:hover { text-decoration: underline; }
 .setup-fw-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
-.setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; }
+.setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--text-sm); }
 .setup-fw-ok { color: var(--ink); }
 .setup-fw-off { color: var(--ink-muted); }
-.setup-fw-note { margin: 0; font-size: 12.5px; color: var(--warn); }
+.setup-fw-note { margin: 0; font-size: var(--text-sm); color: var(--warn); }
 
 /* You, on the team card: the name you go by. */
 /* Your name sits in a SetRow's control slot now, so it carries the input and
@@ -1385,8 +1385,8 @@ html.legacy-on .bt-link { position: relative; }
    (.settings .btn-sm, above), a remove is 44px wide under a finger (mobile.css gives .settings' icon buttons that),
    where it was 26px, and the numbers line up as the column's do (.settings, tabular-nums). Scoped to the sheets, not
    the settings root, which they are not inside. */
-:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: 30px; padding: 0 12px; font-size: var(--text-sm); border-radius: var(--radius-sm); }
-:is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 30px; padding: 0; }
+:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--text-sm); border-radius: var(--control-radius-sm); }
+:is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
 @media (pointer: coarse) {
   html.legacy-on :is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 44px; }
 }
@@ -1714,7 +1714,7 @@ html.legacy-on .bt-link { position: relative; }
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1729,7 +1729,7 @@ html.legacy-on .bt-link { position: relative; }
 }
 .set-records-intro {
   margin: 0 0 10px;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   line-height: 1.5;
   max-width: 76ch;
   text-wrap: pretty;

@@ -1,7 +1,8 @@
 /**
  * The app's configuration (app.config.ts) spells two things the app spells too, since the config loader reads no file
  * of the app's: the product's own address (src/site.ts DEFAULT_SITE_ORIGIN) and Google's iOS URL scheme
- * (src/shell/sign-in.ts reversedClientId). Each copy is held to its original here, so the two cannot drift.
+ * (src/shell/sign-in.ts reversedClientId). Each copy is held to its original here, so the two cannot drift. What an
+ * environment sets is read as the config is evaluated, so a test sets it and evaluates again.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,6 +26,17 @@ test("Google's iOS URL scheme is the client id reversed, as sign-in reverses it"
   );
   assert.ok(google, "the plugin is there when the client id is set");
   assert.equal(google[1].iosUrlScheme, reversedClientId(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID));
+});
+
+test("Android's Firebase file is the path EAS names for it, and without one the config has no such key", () => {
+  delete process.env.GOOGLE_SERVICES_JSON;
+  assert.ok(!("googleServicesFile" in configOf({ config: {} }).android), "unset: the build is what it was");
+  process.env.GOOGLE_SERVICES_JSON = " /eas/secrets/google-services.json ";
+  try {
+    assert.equal(configOf({ config: {} }).android.googleServicesFile, "/eas/secrets/google-services.json");
+  } finally {
+    delete process.env.GOOGLE_SERVICES_JSON;
+  }
 });
 
 test("the app opens on the dark paper, and its notification wears the three's coral", () => {

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -59,7 +59,7 @@ interface WirePayload {
     template?: TemplateSend;
     /**
      * The request an email leaves as, built and frozen when the message was
-     * queued (channels email.ts). Present on the email wire and nowhere else.
+     * queued (channels email/request.ts). Present on the email wire and nowhere else.
      */
     email?: EmailRequest;
     /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
@@ -200,9 +200,11 @@ interface EmailRoute {
  * frozen with an own domain's From never leaves around outreach's rules, and a
  * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
  * still applies. No routes, no email line (null, like a number with no
- * credentials).
+ * credentials). `held` is the addresses of the workspace's own domains that
+ * are held: no route, but a reply frozen with one says why it went as the
+ * mailbox.
  */
-declare function emailSender(routes: EmailRoute[]): Sender | null;
+declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -959,6 +961,8 @@ interface ReplyFacts {
     /** The address the reach-out wrote to, and the lead's website. */
     leadAddress: string | null;
     leadWebsite: string | null;
+    /** Whether the finder saw that website as its host's root (00237); null when it was not kept. */
+    leadWebsiteRoot?: boolean | null;
     /** The chain's signature ({{your name}}), which a draft ends with. */
     signedBy: string | null;
     /** The business's zone. */
@@ -1474,6 +1478,8 @@ declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, u
 declare const reachOutRunIdFor: (stepId: string, runFor: string) => Promise<string>;
 declare const sendIdFor: (runId: string, leadId: string) => Promise<string>;
 declare const sendMessageId: (sendId: string, attempt: number) => Promise<string>;
+/** The team's step a hand step makes for a lead (Part 5, G20): once per step and lead, whichever day's run reaches it. */
+declare const handStepIdFor: (stepId: string, leadId: string) => Promise<string>;
 
 /**
  * What assembling a reach-out step's run needs (Part 3), as ports: the edge's run context builds them over the database
@@ -1500,6 +1506,39 @@ interface ReachOutStep {
     template_id: string;
     template_name: string;
     template_language: string;
+}
+/** What a later step's leads are read by (reach_out_followers): an email step's, or a hand step's. */
+type FollowedStep = Pick<ReachOutStep, "id" | "after_playbook_id" | "after_days" | "cap_per_run">;
+/**
+ * A chain's last step that hands each lead it reaches to the team (Part 5, G20): an email step's shape without its
+ * template, and with its hand.
+ */
+interface HandStep extends Omit<ReachOutStep, "template_id" | "template_name" | "template_language"> {
+    hand: StepHand;
+}
+/** One lead a hand step hands over, as the door takes it (00228 reach_out_hand_run). */
+type HandItem = {
+    send_id: string;
+    lead_id: string;
+    contact_id: string;
+    words: string;
+    source_id: string;
+};
+/** What a hand step's run reads and writes, over the database on the edge and arrays in tests. */
+interface HandStepPorts {
+    followers(step: FollowedStep): Promise<ReachOutFollower[]>;
+    /** The businesses' names, by lead id: what the team's step calls each. */
+    businessNames(leadIds: string[]): Promise<Map<string, string>>;
+    /** The run, a handed send per lead and each lead's step, written whole: how many made, how many it had already. */
+    handRun(p: {
+        stepId: string;
+        runId: string;
+        day: string;
+        items: HandItem[];
+    }): Promise<{
+        made: number;
+        already: number;
+    }>;
 }
 interface ReachOutLead {
     lead_id: string;
@@ -1578,7 +1617,7 @@ interface ReachOutRunPorts {
      */
     chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
     audience(step: ReachOutStep): Promise<ReachOutLead[]>;
-    followers(step: ReachOutStep): Promise<ReachOutFollower[]>;
+    followers(step: FollowedStep): Promise<ReachOutFollower[]>;
     /** The step's verified domains, each with its day's share and the times it already spends (db capacity). */
     domains(step: ReachOutStep): Promise<TimetableDomain[]>;
     /**
@@ -1616,6 +1655,10 @@ type ReachOutRunOutcome = {
 };
 
 declare function runReachOut(ports: ReachOutRunPorts, step: ReachOutStep, cmd: {
+    runFor: string;
+}): Promise<ReachOutRunOutcome>;
+
+declare function runHandStep(ports: HandStepPorts, step: HandStep, cmd: {
     runFor: string;
 }): Promise<ReachOutRunOutcome>;
 
@@ -1754,6 +1797,11 @@ interface LeadColumns {
     lat: number | null;
     lng: number | null;
     website_host: string | null;
+    /**
+     * Whether the website is that host's root (00237): a page under a host (an ISP's "/~joe/") is no proof the host is
+     * the business's own, so a no from it never closes the host's whole domain.
+     */
+    website_root: boolean | null;
     instagram_url: string | null;
     /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
     neighborhood: string | null;
@@ -2090,6 +2138,8 @@ interface CleanPlace {
     /** 0 none, 1 the listing, 2 the listing's number is on their site too. */
     phoneSources: 0 | 1 | 2;
     host: string | null;
+    /** Whether the listing's website is that host's root, not a page under it (00237); null without a host. */
+    root: boolean | null;
     region: string | null;
     emails: string[];
     dropped: {
@@ -2144,7 +2194,7 @@ declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressed
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
+ * zcta-centroids.json is written by tooling/scripts/gen/zcta-centroids.mjs
  * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
  */
 
@@ -2639,13 +2689,14 @@ declare function isThreadUnknown(s: ThreadState): boolean;
 /**
  * Everything answerInbound reaches outside itself, as one object.
  *
- * The verb is the customer path: nine hundred lines of decisions, most of them
- * pure steps (./steps.ts), joined to the world by a dozen modules -- the
- * database, the memory, the tenant runtime, the sink and the sender, the
- * alerts, the pager, the model. On the edge those were module imports, which
- * is why no test could run the handler and fifty source reads pinned its text
- * instead; here they are named ports, and the adapter that knows the tables,
- * the provider and the environment is apps/edge/lib/whatsapp/ports.ts.
+ * The verb is the customer path: an order of phases (./answer.ts), each a
+ * module beside it, their decisions most of them pure steps (./steps.ts),
+ * joined to the world by a dozen modules -- the database, the memory, the
+ * tenant runtime, the sink and the sender, the alerts, the pager, the model.
+ * On the edge those were module imports, which is why no test could run the
+ * handler and fifty source reads pinned its text instead; here they are named
+ * ports, and the adapter that knows the tables, the provider and the
+ * environment is apps/edge/lib/whatsapp/ports.ts.
  *
  * Every member was `typeof someEdgeModule` there. Written out here because a
  * verb may not import the edge: the signature is the contract, copied from the
@@ -3153,4 +3204,4 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
  */
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, HOLD_EXPIRY_MS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

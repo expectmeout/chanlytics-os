@@ -2,26 +2,21 @@
  * The Google sweep: every hour, every listing not read for twenty hours is
  * read again — the rating, the count, the five reviews Google shows — and
  * every connected profile not synced for twenty hours is synced — every
- * review, every reply. What changed reaches the bell (lib/google.ts, shared
- * with the link, the connect and "Check now"). Forty of each per tick, the
- * never-read first, then the oldest; a failure stays on its row and is
- * tried again next hour.
+ * review, every reply. What changed reaches the bell (lib/google's
+ * listing-check.ts and profile-sync.ts, shared with the link, the connect
+ * and "Check now"). Forty of each per tick, the never-read first, then the
+ * oldest; a failure stays on its row and is tried again next hour.
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00069).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import {
-  checkListing,
-  connectionsDue,
-  listingsDue,
-  placesKey,
-  profileClient,
-  syncProfile,
-} from "../../lib/google/google.js";
+import { placesKey, profileClient } from "../../lib/google/google-config.js";
+import { checkListing, connectionsDue, listingsDue } from "../../lib/google/listing-check.js";
+import { syncProfile } from "../../lib/google/profile-sync.js";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 40;
@@ -29,7 +24,7 @@ const MAX_PER_TICK = 40;
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "google" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
   const places = !!placesKey();

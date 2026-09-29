@@ -6,9 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { couldTheDatabaseHaveChanged } from "../../db-paths-changed.mjs";
+import { couldTheDatabaseHaveChanged } from "../../checks/db-paths-changed.mjs";
 
-const CLI = fileURLToPath(new URL("../../db-paths-changed.mjs", import.meta.url));
+const CLI = fileURLToPath(new URL("../../checks/db-paths-changed.mjs", import.meta.url));
 const ask = (files) => spawnSync(process.execPath, [CLI], { input: files.join("\n") + "\n", encoding: "utf8" });
 
 test("a migration, a SQL suite, the checks' inputs or the lockfile could change what the replay proves", () => {
@@ -28,10 +28,10 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "packages/jobs/src/handlers.ts",
     "apps/dashboard/src/server/ports/campaign-ports.ts",
     "packages/contracts/src/schema-sets.generated.ts",
-    "tooling/scripts/gen-schema-sets.mjs",
-    "tooling/scripts/check-db-types.mjs",
+    "tooling/scripts/gen/schema-sets.mjs",
+    "tooling/scripts/gen/db-types.mjs",
     ".github/workflows/database.yml",
-    "tooling/scripts/db-paths-changed.mjs",
+    "tooling/scripts/checks/db-paths-changed.mjs",
     "package.json",
     "pnpm-lock.yaml",
   ]) {
