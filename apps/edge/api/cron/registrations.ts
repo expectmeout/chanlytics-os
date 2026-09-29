@@ -9,12 +9,13 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00077).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
-import { registerLine, syncRegistration } from "../../lib/lines/a2p.js";
+import { registerLine } from "../../lib/lines/a2p-register.js";
+import { syncRegistration } from "../../lib/lines/a2p-sync.js";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 20;
@@ -25,7 +26,7 @@ const WAITING = ["registering", "approved"];
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "registrations" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
@@ -48,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
     .not("brand_sid", "is", null)
     .order("updated_at", { ascending: true })
     .limit(MAX_PER_TICK);
-  if (error) return json(503, { ok: false, error: error.message });
+  if (error) return refuse(503, "read_failed", error.message);
   if (!lines?.length) return json(200, { ok: true, checked: 0 });
 
   const origin = dashboardOrigin();
@@ -63,13 +64,11 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const r = await syncRegistration(db, line);
       if (!r.ok) {
-        if (
-          r.error === "provider_unauthorized" ||
-          r.error === "no_line_credentials" ||
-          /credentials/.test(r.error ?? "")
-        ) {
+        // We could not ask: the provider refused the credentials (the platform's, or the line's after a refresh), or
+        // the line has none on file.
+        if (r.error === "provider_unauthorized" || r.error === "no_line_credentials") {
           unreadable++;
-          L.error("registration_unreadable", { line_id: line.id, error: r.error });
+          L.error("registration_unreadable", { line_id: line.id, error: r.error, detail: r.detail });
         }
         continue;
       }

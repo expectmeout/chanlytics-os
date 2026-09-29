@@ -11,7 +11,7 @@
  * name and id and who asked; no customer content exists here to withhold.
  * Diagnostic-key only.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
@@ -60,9 +60,9 @@ const WHAT: Record<string, { subject: string; how: string }> = {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/setup-request");
   if (!auth.ok) return auth.response;
-  if (!env.LEAD_TO || !env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
+  if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   let body: Body = {};
   try {
@@ -76,11 +76,11 @@ export async function POST(request: Request): Promise<Response> {
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const what = typeof body.what === "string" ? body.what : "";
   if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !WHAT[what])
-    return json(400, { ok: false, error: "tenant_id and a known `what` are required" });
+    return refuse(400, "bad_request", "tenant_id and a known `what` are required");
 
   const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
-  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
-  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const by = typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 120) : "a member";
   const w = WHAT[what];

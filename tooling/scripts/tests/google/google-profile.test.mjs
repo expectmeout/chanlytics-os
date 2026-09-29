@@ -676,7 +676,10 @@ test("the migration: the connection row, the three Vault doors for the service r
 });
 
 test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
-  const lib = readCode("apps/edge/lib/google/google.ts");
+  // The library's modules that hold the client, the vault doors, the connection, the sync and the listing's check.
+  const lib = ["google-config", "profile-credentials", "profile-connection", "profile-sync", "listing-check"]
+    .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
+    .join("\n");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])
     assert.ok(lib.includes(`env.${v}`), v);
   assert.ok(
@@ -851,7 +854,7 @@ const connected = (over = {}) => ({
 
 test("a re-connect whose vault write fails puts the working connection back, instead of deleting it", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     // A workspace already connected and syncing. The upsert below writes
     // `location_name: null` over it before the credentials are stored, so a
     // rollback that DELETED the row -- as this used to -- cost a workspace its
@@ -882,7 +885,7 @@ test("a re-connect whose vault write fails puts the working connection back, ins
 
 test("a FIRST connect whose vault write fails leaves nothing behind, and does give the grant back", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     const tables = { google_connections: [] };
     const g = fakeGoogle("sub-9");
     const db = fakeDb(
@@ -903,7 +906,7 @@ test("a FIRST connect whose vault write fails leaves nothing behind, and does gi
 
 test("re-connecting a DIFFERENT Google account still hands its grant back", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     const tables = { google_connections: [connected({ google_sub: "sub-1" })] };
     const g = fakeGoogle("sub-2", "bo@example.com");
     const db = fakeDb(
@@ -923,7 +926,7 @@ test("re-connecting a DIFFERENT Google account still hands its grant back", () =
 
 test("a connect that reaches the vault leaves the workspace pending on its choice of location", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     const tables = { google_connections: [] };
     const g = fakeGoogle();
     const kept = [];
@@ -949,7 +952,7 @@ test("a connect that reaches the vault leaves the workspace pending on its choic
 
 test("every refusal on the way to a connection hands the grant back, and writes nothing", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     // Each refusal, driven through the injected transport. A grant we cannot
     // keep and do not give back is a workspace's Google account left
     // authorised to an app that has no record of it.
@@ -1031,7 +1034,7 @@ test("every refusal on the way to a connection hands the grant back, and writes 
 
 test("a workspace with ONE location on Maps is bound and synced through the injected transport, not round it", () =>
   withOAuthEnv(async () => {
-    const { connectProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
     // This is the branch the transport had to be threaded all the way down
     // for: connect -> bindLocation -> syncProfile -> tokenFor. A `net` that
     // covered only the outer calls left this path talking to the real Google
@@ -1099,7 +1102,7 @@ test("a sync that ANSWERS reviews stays inside the injected transport too", () =
     // model call to compose it. Global fetch is replaced with a counter rather
     // than a throw, because the auto-reply is wrapped in `.catch()` and would
     // swallow an exception, reporting a clean pass over an escaped call.
-    const { syncProfile } = await import("../../../../apps/edge/lib/google/google.ts");
+    const { syncProfile } = await import("../../../../apps/edge/lib/google/profile-sync.ts");
     const now = new Date("2026-09-12T00:00:00Z");
     const seen = [];
     const net = async (req) => {

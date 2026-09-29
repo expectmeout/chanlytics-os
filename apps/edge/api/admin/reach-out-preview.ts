@@ -114,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
   const input = previewInputOf(body, tenantId);
   if (!input) return json(400, { ok: false, error: "bad_request" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_db" });
+  if (!db) return json(503, { ok: false, error: "no_database" });
   const used = await askTokensLast24h(db, tenantId);
   if (used >= ASK_TOKENS_DAY) {
     logger({ tenant_id: tenantId }).warn("ask_budget_spent", { used, cap: ASK_TOKENS_DAY });

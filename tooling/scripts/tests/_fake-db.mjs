@@ -16,6 +16,7 @@
  */
 
 import crypto from "node:crypto";
+import { localHour, runDueNow } from "@chanlytics/contracts";
 
 /**
  * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
@@ -44,6 +45,56 @@ function cell(row, col) {
     return v && typeof v === "object" ? v[key] : undefined;
   }
   return row[col];
+}
+
+/**
+ * A select that names a JSON path the way PostgREST spells one there -- `alias:column->key`, or `column->key`, named
+ * for its key -- answers with exactly the columns it names: a path's value under its name, null where the row holds no
+ * such key, as `->` answers. Modelled for Ask's thread read (store.ts readThread), which reads each key of a turn it
+ * draws and never the turn as the model was sent it (content.raw). A select that names no path answers whole rows, as
+ * it always has here; any other spelling beside a path is refused by name. Null when the select names no path.
+ * Not modelled: a column the table does not have, which PostgREST refuses with a 400; here it reads as undefined, or
+ * as null through a path.
+ */
+function projectionOf(columns) {
+  if (typeof columns !== "string" || !columns.includes("->")) return null;
+  const picks = columns
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((spec) => {
+      const m = /^(?:(\w+):)?(\w+)(?:->(\w+))?$/.exec(spec);
+      if (!m) throw new Error(`fakeDb: select(${spec}) is not modelled`);
+      const [, alias, column, key] = m;
+      if (key === undefined) return [alias ?? column, (row) => row[column]];
+      return [
+        alias ?? key,
+        (row) => (row[column] && typeof row[column] === "object" ? (row[column][key] ?? null) : null),
+      ];
+    });
+  return (row) => Object.fromEntries(picks.map(([name, read]) => [name, read(row)]));
+}
+
+/** jsonb's order for an object's keys: the shorter first, then by their bytes. */
+const byJsonbKey = (a, b) =>
+  Buffer.byteLength(a) - Buffer.byteLength(b) || Buffer.compare(Buffer.from(a), Buffer.from(b));
+/**
+ * A value as jsonb keeps it: written as JSON, then every object's keys, at every depth, in jsonb's order. Not modelled:
+ * a key that reads as an integer ("10"), which JavaScript always orders first, ascending, whatever order an object's
+ * keys were set in -- jsonb puts "10" after "a", and an object here cannot.
+ */
+function asJsonb(value) {
+  const reorder = (v) =>
+    Array.isArray(v)
+      ? v.map(reorder)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort(byJsonbKey)
+              .map((k) => [k, reorder(v[k])]),
+          )
+        : v;
+  return value === undefined ? undefined : reorder(JSON.parse(JSON.stringify(value)));
 }
 
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
@@ -274,6 +325,35 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
 }
 
 /**
+ * The zone a row is judged in, as 00245 safe_zone answers it: the workspace's own, the product's default when it has
+ * none, and UTC when the name is not spelled Area/Location (or UTC) or is not a zone Intl knows -- the edge's own
+ * fallback (contracts parts()).
+ */
+function safeZone(name) {
+  const tz = String(name ?? "").trim() || "America/New_York";
+  if (tz !== "UTC" && !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz)) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * SQL's `order by a nulls first, b, c` over ISO timestamps and ids: the row that has waited longest first, a row that
+ * never had its turn before any that had, ties broken by the columns after.
+ */
+function byWaiting(a, b, ...cols) {
+  for (const col of cols) {
+    const x = a[col] == null ? "" : String(a[col]);
+    const y = b[col] == null ? "" : String(b[col]);
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
@@ -293,6 +373,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
    * for every owner in production. Modelled from the same rows a fixture sets,
    * and a suite may still override it by name.
    */
+  // A row's workspace always exists in the database (a foreign key); a fixture that sets no workspace row is judged
+  // on the product's default zone, as one whose row is blank is, and is not paused.
+  const tenantOf = (tenantId) => (tables.tenants ?? []).find((x) => x.id === tenantId);
+  const zoneOf = (tenantId) => safeZone(tenantOf(tenantId)?.timezone);
   const derived = {
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
@@ -304,8 +388,74 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
+    // Ask's day (00240): input plus output of the workspace's usage.ask_tokens events of the last 24 hours, a value
+    // that is not a number counting nothing, as the SQL sums them.
+    ask_tokens_day: ({ p_tenant }) => {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      return (tables.events ?? [])
+        .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
+        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
+    /**
+     * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way
+     * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`
+     * of them, every row carrying `due_total`, the count of all that were due. A door test runs the real sweep over
+     * what the database would have judged due; the SQL itself is proved on a stack in ops/sweep-pages.db.test.mjs.
+     */
+    playbooks_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
+      const at = new Date(p_at);
+      const due = (tables.playbooks ?? [])
+        .map((p) => ({ p, tz: zoneOf(p.tenant_id) }))
+        .filter(
+          ({ p }) =>
+            p.state === "running" &&
+            p.kind === p_kind &&
+            tenantOf(p.tenant_id)?.status !== "paused" &&
+            (p_tenant_id == null || p.tenant_id === p_tenant_id),
+        )
+        // runDueNow's rule, as the SQL restates it; the SQL is held to it on a stack (ops/sweep-pages.db.test.mjs).
+        .filter(({ p, tz }) => runDueNow(p, tz, at) && localHour(tz, at) <= p_last_hour)
+        .sort((a, b) => byWaiting(a.p, b.p, "last_run_at", "created_at", "id"));
+      return due
+        .slice(0, Math.max(0, p_limit ?? 0))
+        .map(({ p, tz }) => ({ playbook: { ...p }, timezone: tz, due_total: due.length }));
+    },
+    calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
+      const due = (tables.tenant_config ?? [])
+        .filter((c) => {
+          const url = c.config && typeof c.config === "object" ? c.config.calendar?.ical_url : undefined;
+          return (
+            url != null &&
+            String(url).trim() !== "" &&
+            (p_tenant_id == null || c.tenant_id === p_tenant_id) &&
+            (c.calendar_checked_at == null || c.calendar_checked_at < p_before)
+          );
+        })
+        .sort((a, b) => byWaiting(a, b, "calendar_checked_at", "tenant_id"));
+      return due.slice(0, Math.max(0, p_limit ?? 0)).map((c) => ({
+        tenant_id: c.tenant_id,
+        config: c.config,
+        timezone: zoneOf(c.tenant_id),
+        due_total: due.length,
+      }));
+    },
+  };
+
+  /**
+   * A row as it is written: a column named in `opts.jsonb` (`"<table>.<column>"`) is kept as jsonb keeps it (asJsonb),
+   * its objects' keys in jsonb's order and never the writer's. Modelled for Ask's raw turn, which must come back as the
+   * bytes that were sent (server/ask/memory.ts storedRaw). A column not named is kept as the writer gave it, as always.
+   */
+  const written = (table, values) => {
+    const row = { ...values };
+    for (const named of opts.jsonb ?? []) {
+      const [t, column] = named.split(".");
+      if (t === table && column in row) row[column] = asJsonb(row[column]);
+    }
+    return row;
   };
 
   const from = (table) => {
@@ -332,11 +482,13 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // what was written, as PostgREST does.
       if (q.op === "insert") {
         const at = stampOf(tables);
-        const made = q.values.map((v) => ({
-          id: crypto.randomUUID(),
-          created_at: at,
-          ...v,
-        }));
+        const made = q.values.map((v) =>
+          written(table, {
+            id: crypto.randomUUID(),
+            created_at: at,
+            ...v,
+          }),
+        );
         // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
         // as Postgres fails it (23505). Modelled for a writer whose row's id is derived, so a second write of the same
         // email is the same row, never a second one.
@@ -380,8 +532,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         // limit and its range, whatever it asked for. The Inbox asked for 4,000 messages and got 1,000, silently.
         if (opts.maxRows != null) out = out.slice(0, opts.maxRows);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
-        // by holding on to a row it read.
-        return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
+        // by holding on to a row it read. A select that names a JSON path answers
+        // the columns it names (projectionOf).
+        const project = projectionOf(q.columns) ?? ((r) => ({ ...r }));
+        return { data: out.map(project), error: null, count: q.counted ? matched : null };
       }
 
       // A delete removes what matches, in place, and counts it when asked:
@@ -412,11 +566,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             // alone, as PostgREST does: a claim on a unique row learns it lost
             // by getting no row back. A merging upsert answers with the row.
             if (q.ignoreDuplicates) continue;
-            Object.assign(existing, v);
+            Object.assign(existing, written(table, v));
             made.push(existing);
             continue;
           }
-          const r = { id: crypto.randomUUID(), created_at: at, ...v };
+          const r = written(table, { id: crypto.randomUUID(), created_at: at, ...v });
           rows().push(r);
           made.push(r);
         }
@@ -436,7 +590,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         rows().filter((r) => !hit.includes(r)),
       );
       if (clash) return { data: null, error: clash };
-      for (const r of hit) Object.assign(r, q.values);
+      for (const r of hit) Object.assign(r, written(table, q.values));
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
       // it just wrote avoids a second round trip. No select at all answers with ids.
@@ -601,7 +755,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     /**
      * @param handlers {Record<string, (args) => any>} the RPCs the code under
      *   test is allowed to call. Anything else still throws by name: a sweep
-     *   that quietly called an unmodelled function would otherwise pass.
+     *   that quietly called an unmodelled function would otherwise pass. A
+     *   suite's own handler is given the derived one, when there is one, as
+     *   its second argument: it may answer some calls itself and defer the rest.
      */
     rpc(name, args) {
       const fn = rpcs[name] ?? derived[name];
@@ -617,7 +773,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // codes (22023, 54000) to the wire.
       const run = () => {
         try {
-          return { data: fn(args), error: null };
+          return { data: fn(args, derived[name]), error: null };
         } catch (e) {
           const code = e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
           return {

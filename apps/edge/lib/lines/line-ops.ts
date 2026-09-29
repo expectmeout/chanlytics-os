@@ -37,7 +37,10 @@ import {
   type RegistrationPath,
 } from "../packages/contracts.js";
 import { lineForClient, type LineProviderChoice } from "./lines.js";
-import { campaignFactsFor, type RegisterResult } from "./a2p.js";
+import { campaignFactsFor } from "./a2p-campaign-facts.js";
+import type { RegisterResult } from "./a2p-register.js";
+import type { RefileOutcome } from "./a2p-refile.js";
+import type { RegistrationSync } from "./a2p-sync.js";
 import { retryRequestedBy, type LineDbRow } from "./line-resume.js";
 import type { LineReleaseResult } from "./line-release.js";
 import { errorMessage, type DoorAnswer } from "../admin-door.js";
@@ -74,7 +77,11 @@ export interface LinesBody {
 
 export const UNKNOWN_LINE_OP: DoorAnswer = {
   status: 400,
-  body: { ok: false, error: "op must be status, search, buy, retry, release, record, register or registration-status" },
+  body: {
+    ok: false,
+    error: "unknown_op",
+    detail: "op must be status, search, buy, retry, release, record, register or registration-status",
+  },
 };
 
 /** Nothing to fake with and no credentials: the Setup page keeps "we set it up with you". */
@@ -108,7 +115,10 @@ export function planSearch(
   if (!isAreaCode(areaCode)) {
     return {
       kind: "refuse",
-      answer: { status: 400, body: { ok: false, error: "area_code must be three digits, like 305" } },
+      answer: {
+        status: 400,
+        body: { ok: false, error: "bad_request", detail: "area_code must be three digits, like 305" },
+      },
     };
   }
   return { kind: "search", areaCode };
@@ -154,7 +164,7 @@ interface BillingRead {
  * asked where the ROW says what the filing will actually be (filingFlags).
  */
 export function spendRefusal(bill: BillingRead, doing: SpendWords): DoorAnswer | null {
-  if (bill.error) return { status: 503, body: { ok: false, error: bill.error.message } };
+  if (bill.error) return { status: 503, body: { ok: false, error: "read_failed", detail: bill.error.message } };
   if (!bill.data) return { status: 402, body: { ok: false, error: "no_billing_record" } };
   const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus, doing);
   if (why)
@@ -173,7 +183,10 @@ export function buyRequest(
   if (!isE164(number)) {
     return {
       kind: "refuse",
-      answer: { status: 400, body: { ok: false, error: "number must be E.164, like +13055550100" } },
+      answer: {
+        status: 400,
+        body: { ok: false, error: "bad_request", detail: "number must be E.164, like +13055550100" },
+      },
     };
   }
   const areaCode = areaCodeOf(rawAreaCode) ?? (number.startsWith("+1") ? Number(number.slice(2, 5)) : null);
@@ -249,7 +262,7 @@ export function queuedAnswer(choice: LineProviderChoice, row: LineDbRow): DoorAn
 export function notScheduledAnswer(e: unknown, row: LineDbRow): DoorAnswer {
   return {
     status: 503,
-    body: { ok: false, error: errorMessage(e), line: lineForClient(row) },
+    body: { ok: false, error: "could_not_queue", detail: errorMessage(e), line: lineForClient(row) },
   };
 }
 
@@ -272,7 +285,13 @@ export function planRetry(
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "claim"; by: "owner" | "support" } {
   const refusal = lineRetryRefusal(lineForClient(row), now.getTime());
   if (refusal)
-    return { kind: "refuse", answer: { status: 409, body: { ok: false, error: refusal, line: lineForClient(row) } } };
+    return {
+      kind: "refuse",
+      answer: {
+        status: 409,
+        body: { ok: false, error: "line_not_retryable", detail: refusal, line: lineForClient(row) },
+      },
+    };
   return { kind: "claim", by: retryRequestedBy(rawBy) };
 }
 
@@ -282,7 +301,8 @@ export function retryTakenAnswer(row: LineDbRow): DoorAnswer {
     status: 409,
     body: {
       ok: false,
-      error: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself",
+      error: "line_retry_taken",
+      detail: "somebody restarted this line a moment ago — it is setting up now, and this page updates by itself",
       line: lineForClient(row),
     },
   };
@@ -291,7 +311,7 @@ export function retryTakenAnswer(row: LineDbRow): DoorAnswer {
 /* --------------------------------------------------------------- release */
 
 export function releaseAnswer(r: LineReleaseResult): DoorAnswer {
-  if (!r.ok) return { status: r.status, body: { ok: false, error: r.error, released: r.released } };
+  if (!r.ok) return { status: r.status, body: { ok: false, error: r.error, detail: r.detail, released: r.released } };
   return { status: 200, body: { ok: true, released: r.released } };
 }
 
@@ -304,7 +324,11 @@ export function planRecord(
   tenantId: string,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
   const b = rawRecord && typeof rawRecord === "object" ? (rawRecord as Record<string, unknown>) : null;
-  if (!b) return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "record is required" } } };
+  if (!b)
+    return {
+      kind: "refuse",
+      answer: { status: 400, body: { ok: false, error: "bad_request", detail: "record is required" } },
+    };
   const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
 
   // WHICH registration this record is for. Taken from the caller when it says,
@@ -363,12 +387,21 @@ type RecordDraft = ReturnType<typeof recordDraft>;
  * each registration needs -- this door used to keep its own, and a list that
  * required a website of a sole proprietor whose filing never sends one is a
  * door that refuses a customer for a field nobody reads. The first problem,
- * in the owner's words, or nothing.
+ * in the owner's words, or nothing: the words in `detail`, beside the code the
+ * filing's own pre-flight answers for the same record.
  */
 export function recordRefusal(row: RecordDraft, path: RegistrationPath, ourNumbers: string[]): DoorAnswer | null {
   const problems = businessRecordProblems(row, path, { ourNumbers });
   const first = Object.values(problems)[0];
-  return first ? { status: 400, body: { ok: false, error: first } } : null;
+  if (!first) return null;
+  return {
+    status: 400,
+    body: {
+      ok: false,
+      error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
+      detail: first,
+    },
+  };
 }
 
 export function recordAnswer(kept: Pick<RecordRow, "legal_name" | "ein" | "updated_at">): DoorAnswer {
@@ -541,14 +574,6 @@ function refileRefusal(row: LineDbRow, flags: FilingFlags): DoorAnswer | null {
   return null;
 }
 
-/** What a2p's refile doors answer: a pre-flight refusal in the owner's sentences, a failure, or the row as it now reads. */
-interface RefileOutcome {
-  ok: boolean;
-  error?: string;
-  problems?: string[];
-  row?: LineDbRow;
-}
-
 /** A refile door's word, decided: refused, or the row to go on from. */
 type RefileVerdict = { kind: "refuse"; answer: DoorAnswer } | { kind: "ready"; row: LineDbRow };
 
@@ -566,7 +591,10 @@ export function resubmitVerdict(again: RefileOutcome): RefileVerdict {
     };
   }
   if (!again.ok || !again.row) {
-    return { kind: "refuse", answer: { status: 502, body: { ok: false, error: again.error ?? "resubmit_failed" } } };
+    return {
+      kind: "refuse",
+      answer: { status: 502, body: { ok: false, error: again.error ?? "resubmit_failed", detail: again.detail } },
+    };
   }
   return { kind: "ready", row: again.row };
 }
@@ -588,8 +616,17 @@ export function takeOffVerdict(off: RefileOutcome, takeOff: "replace" | "unfile"
     };
   }
   if (!off.ok || !off.row) {
-    const error = off.error ?? (takeOff === "replace" ? "replace_failed" : "unfile_failed");
-    return { kind: "refuse", answer: { status: 503, body: { ok: false, error } } };
+    return {
+      kind: "refuse",
+      answer: {
+        status: 503,
+        body: {
+          ok: false,
+          error: off.error ?? (takeOff === "replace" ? "replace_failed" : "unfile_failed"),
+          detail: off.detail,
+        },
+      },
+    };
   }
   return { kind: "ready", row: off.row };
 }
@@ -601,16 +638,6 @@ export function filingAnswer(result: RegisterResult, mock: boolean, after: LineD
 }
 
 /* ---------------------------------------------------- registration-status */
-
-/** Where the carriers stand, as syncRegistration reads it. */
-interface RegistrationSync {
-  ok: boolean;
-  smsState: string;
-  brand?: string;
-  campaign?: string;
-  error?: string;
-  told?: boolean;
-}
 
 /**
  * The campaign could not be filed while the carriers still had the brand.
@@ -632,7 +659,7 @@ export function heldCampaignAnswer(r: RegistrationSync, filed: RegisterResult): 
       ...r,
       campaign_filed: filed.ok,
       campaign_sid: filed.state.campaignSid,
-      ...(filed.ok ? {} : { step: filed.step, error: filed.error }),
+      ...(filed.ok ? {} : { step: filed.step, error: filed.error, detail: filed.detail }),
     },
   };
 }

@@ -13,7 +13,8 @@
  * view model also says the one sentence under each chart (`lines`), so the
  * page composes no sentence of its own.
  */
-import { reasonShort } from "../people/people";
+import { reasonShort } from "../people/person-row-facts";
+import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize } from "../shared/words";
 
@@ -312,8 +313,6 @@ function bars(entries: [string, string, number][]): ReportBarVM[] {
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
 }
 
-const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
-
 /**
  * The period before, day for day beside the current one: the n days before them, newest last, and null where the
  * series has no day that far back (a workspace younger than two periods).
@@ -485,7 +484,12 @@ function rhythmLine(week: ReportWeekVM): string | null {
   return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
 }
 
-export function toReportVM(dto: ReportDto): ReportVM {
+/**
+ * What every part of the report is built from, counted once: the period asked for (the series' last `days`) and the
+ * one before it, the current days as points, both periods' totals and the receptionist's share of the answered, the
+ * range in words, and its reply times in order.
+ */
+function periodFactsOf(dto: ReportDto) {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);
@@ -503,122 +507,149 @@ export function toReportVM(dto: ReportDto): ReportVM {
     escalations: d.escalations,
     newPeople: d.new_contacts,
   }));
-
   const tot = {
-    in: sum(current.map((d) => d.messages_in)),
-    ai: sum(current.map((d) => d.answered_ai)),
-    you: sum(current.map((d) => d.answered_you)),
-    none: sum(current.map((d) => d.unanswered)),
-    escalations: sum(current.map((d) => d.escalations)),
-    calls: sum(current.map((d) => d.calls)),
-    callSeconds: sum(current.map((d) => d.call_seconds)),
-    newPeople: sum(current.map((d) => d.new_contacts)),
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts)),
   };
   const prev = {
-    in: sum(previous.map((d) => d.messages_in)),
-    ai: sum(previous.map((d) => d.answered_ai)),
-    you: sum(previous.map((d) => d.answered_you)),
-    none: sum(previous.map((d) => d.unanswered)),
-    escalations: sum(previous.map((d) => d.escalations)),
-    calls: sum(previous.map((d) => d.calls)),
-    newPeople: sum(previous.map((d) => d.new_contacts)),
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts)),
   };
   const noun = `${days} days`;
-  const rangeLabel = REPORT_RANGES.find((r) => r.days === days)?.label ?? noun;
-  // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
-  const priorHadAny = prev.in + prev.calls > 0;
   const answeredTotal = tot.ai + tot.you + tot.none;
-  const aiShare = answeredTotal ? Math.round((tot.ai / answeredTotal) * 100) : null;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const prevShare = prevAnsweredTotal ? Math.round((prev.ai / prevAnsweredTotal) * 100) : null;
-
   const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  const median = quantile(sortedReply, 0.5);
-  const p90 = quantile(sortedReply, 0.9);
-  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
-    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
-    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length] as [string, string, number];
-  });
+  return {
+    dto,
+    days,
+    current,
+    previous,
+    points,
+    tot,
+    prev,
+    noun,
+    rangeLabel: REPORT_RANGES.find((r) => r.days === days)?.label ?? noun,
+    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
+    priorHadAny: prev.in + prev.calls > 0,
+    answeredTotal,
+    aiShare: answeredTotal ? Math.round((tot.ai / answeredTotal) * 100) : null,
+    prevAnsweredTotal,
+    prevShare: prevAnsweredTotal ? Math.round((prev.ai / prevAnsweredTotal) * 100) : null,
+    sortedReply,
+    median: quantile(sortedReply, 0.5),
+    p90: quantile(sortedReply, 0.9),
+  };
+}
 
-  const tiles: ReportTileVM[] = [
-    {
-      id: "messages",
-      label: "Customer messages",
-      value: String(tot.in),
-      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-      delta: deltaOf(tot.in, prev.in, true, noun),
-      spark: points.map((p) => p.in),
-      compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
-    },
-    {
-      id: "answered",
-      label: "Receptionist answered",
-      value: aiShare === null ? "—" : `${aiShare}%`,
-      meta: answeredTotal
-        ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered`
-        : "nothing to answer",
-      // A share compares in POINTS. Against counts, the share could fall from
-      // 100% to 60% while the delta read +20% in green.
-      delta: pointsDelta(aiShare, prevShare, noun),
-      spark: points.map((p) => p.ai),
-      compare: null,
-    },
-    {
-      id: "reply",
-      label: "Median reply time",
-      value: fmtSeconds(median),
-      meta: sortedReply.length
-        ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies`
-        : "no receptionist replies yet",
-      delta: null,
-      spark: [],
-      compare: null,
-    },
-    {
-      id: "needed",
-      label: "Needed you",
-      value: String(tot.escalations),
-      meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-      delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-      spark: points.map((p) => p.escalations),
-      compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
-    },
-    {
-      id: "calls",
-      label: "Calls",
-      value: String(tot.calls),
-      meta: tot.calls
-        ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail`
-        : "no calls",
-      delta: deltaOf(tot.calls, prev.calls, true, noun),
-      spark: points.map((p) => p.calls),
-      compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny),
-    },
-    {
-      id: "people",
-      label: "New people",
-      value: String(tot.newPeople),
-      meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-      delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-      spark: points.map((p) => p.newPeople),
-      compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny),
-    },
-  ];
+/** The facts every part of the report is built from (periodFactsOf). */
+type PeriodFacts = ReturnType<typeof periodFactsOf>;
 
-  const reasons = bars(
-    Object.entries(dto.reasons ?? {})
+/** A tile: a number over the period, what it is, a line under it, and the period before beside it. */
+type ReportTile = (f: PeriodFacts) => ReportTileVM;
+
+const messagesTile: ReportTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
+});
+
+const answeredTile: ReportTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  label: "Receptionist answered",
+  value: aiShare === null ? "—" : `${aiShare}%`,
+  meta: answeredTotal
+    ? `${tot.ai} of ${answeredTotal} · ${tot.you} by you · ${tot.none} unanswered`
+    : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null,
+});
+
+const replyTile: ReportTile = ({ sortedReply, median, p90 }) => ({
+  id: "reply",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  meta: sortedReply.length
+    ? `slowest tenth ${fmtSeconds(p90)} · ${sortedReply.length} replies`
+    : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null,
+});
+
+const neededTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
+});
+
+const callsTile: ReportTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls
+    ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail`
+    : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny),
+});
+
+const peopleTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny),
+});
+
+/** The six tiles, in the order the view model has always listed them. */
+const REPORT_TILES: readonly ReportTile[] = [messagesTile, answeredTile, replyTile, neededTile, callsTile, peopleTile];
+
+/** Why the receptionist handed over, the most frequent first, in the owner's words. */
+const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] =>
+  bars(
+    Object.entries(reasons ?? {})
       .sort((a, b) => b[1] - a[1])
       .map(([r, n]) => [r, capitalize(reasonShort(r)) || r, n] as [string, string, number]),
   );
-  const sentiments = bars(
-    Object.entries(dto.sentiments ?? {})
+
+/** The callers' moods in their own order (good, then neither, then bad), each with its status. */
+const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
+  bars(
+    Object.entries(sentiments ?? {})
       .sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1])
       .map(([s, n]) => [s, s, n] as [string, string, number]),
   ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
 
+/** Messages and calls per weekday, now and the period before, and the one busiest and quietest. */
+function weekShapeOf({ current, previous }: PeriodFacts): ReportWeekVM {
   const weekNow = weekOf(current);
   const weekBefore = weekOf(previous);
-  const week: ReportWeekVM = {
+  return {
     axes: [...REPORT_WEEK_SHORT],
     long: [...REPORT_WEEK_LONG],
     current: weekNow,
@@ -627,86 +658,127 @@ export function toReportVM(dto: ReportDto): ReportVM {
     quietest: onlyIndex(weekNow, (a, b) => a < b),
     unit: current.length > 7 ? "average" : "count",
   };
-  const channels = channelsOf(dto.channels);
+}
+
+/** Who answered the customer messages day by day, the period before beside them, and the receptionist's share. */
+function answeredOf(f: PeriodFacts): ReportVM["answered"] {
+  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
+  return {
+    points,
+    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+    prior: priorOf(current.length, previous, (d) => d.messages_in),
+    share: answeredTotal ? tot.ai / answeredTotal : null,
+    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null,
+  };
+}
+
+/** The receptionist's reply times: how many, the median and the slowest tenth, and how many in each span. */
+function replyTimeOf({ sortedReply, median, p90 }: PeriodFacts): ReportVM["replyTime"] {
+  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
+    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
+    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length] as [string, string, number];
+  });
+  return {
+    count: sortedReply.length,
+    median,
+    p90,
+    medianLabel: fmtSeconds(median),
+    p90Label: fmtSeconds(p90),
+    buckets: bars(bucketCounts),
+  };
+}
+
+/** The calls day by day, the period before beside them, the minutes, voicemail and the callers' moods. */
+function callsOf({ dto, current, previous, points, tot }: PeriodFacts, sentiments: ReportBarVM[]): ReportVM["calls"] {
+  return {
+    points,
+    total: tot.calls,
+    minutes: Math.round(tot.callSeconds / 60),
+    voicemail: dto.voicemail ?? 0,
+    sentiments,
+    max: Math.max(1, ...points.map((p) => p.calls)),
+    prior: priorOf(current.length, previous, (d) => d.calls),
+  };
+}
+
+/** New people day by day, the period before beside them, and each period added up. */
+function peopleOf({ current, previous, points, tot, prev }: PeriodFacts): ReportVM["people"] {
   const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
   const peopleRun = runningTotal(points.map((p) => p.newPeople));
+  return {
+    points,
+    total: tot.newPeople,
+    max: Math.max(1, ...points.map((p) => p.newPeople)),
+    prior: peopleBefore,
+    cumulative: {
+      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null,
+    },
+  };
+}
+
+/** The one sentence under each chart, each adding the next thing (ReportLinesVM). */
+function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[] | null): ReportLinesVM {
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal, sortedReply, median, p90 } = f;
   // The busiest date (the first of a tie): Worth knowing names the busiest weekday, this the one day.
   const busiestDay = tot.in ? points.reduce((b, p) => (p.in > b.in ? p : b)) : null;
-  const first = current[0]?.day;
-  const last = current[current.length - 1]?.day;
   return {
-    days,
-    rangeLabel,
+    hero: answeredTotal
+      ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}`
+      : "No customer wrote in this period.",
+    heroBefore: prevAnsweredTotal
+      ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before`
+      : null,
+    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+    // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
+    reply:
+      sortedReply.length >= 10
+        ? `Nine in ten within ${fmtSeconds(p90)}.`
+        : sortedReply.length
+          ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.`
+          : null,
+    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+    channels: channelsLine(channels, rangeLabel),
+    rhythm: rhythmLine(week),
+  };
+}
+
+/** The Reports page's view model: a builder per part, over the facts counted once. */
+export function toReportVM(dto: ReportDto): ReportVM {
+  const f = periodFactsOf(dto);
+  // Built first, in the order the DTO has always been read: the calls take the moods, the lines the week and channels.
+  const tiles = REPORT_TILES.map((tile) => tile(f));
+  const reasons = reasonBarsOf(dto.reasons);
+  const sentiments = moodBarsOf(dto.sentiments);
+  const week = weekShapeOf(f);
+  const channels = channelsOf(dto.channels);
+  const first = f.current[0]?.day;
+  const last = f.current[f.current.length - 1]?.day;
+  return {
+    days: f.days,
+    rangeLabel: f.rangeLabel,
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
-    empty: tot.in === 0 && tot.calls === 0,
+    empty: f.tot.in === 0 && f.tot.calls === 0,
     tiles,
-    answered: {
-      points,
-      totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
-      max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
-      prior: priorOf(current.length, previous, (d) => d.messages_in),
-      share: answeredTotal ? tot.ai / answeredTotal : null,
-      priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null,
-    },
+    answered: answeredOf(f),
     reasons,
-    replyTime: {
-      count: sortedReply.length,
-      median,
-      p90,
-      medianLabel: fmtSeconds(median),
-      p90Label: fmtSeconds(p90),
-      buckets: bars(bucketCounts),
-    },
-    calls: {
-      points,
-      total: tot.calls,
-      minutes: Math.round(tot.callSeconds / 60),
-      voicemail: dto.voicemail ?? 0,
-      sentiments,
-      max: Math.max(1, ...points.map((p) => p.calls)),
-      prior: priorOf(current.length, previous, (d) => d.calls),
-    },
-    people: {
-      points,
-      total: tot.newPeople,
-      max: Math.max(1, ...points.map((p) => p.newPeople)),
-      prior: peopleBefore,
-      cumulative: {
-        points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
-        prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null,
-      },
-    },
+    replyTime: replyTimeOf(f),
+    calls: callsOf(f, sentiments),
+    people: peopleOf(f),
     speed: dto.replies
       ? speedOf(
           dto.replies,
-          current.map((d) => d.day),
+          f.current.map((d) => d.day),
         )
       : null,
     week,
     hours: hoursOf(dto.hours),
     channels,
-    period: { now: `Last ${rangeLabel}`, before: `The ${rangeLabel} before` },
-    lines: {
-      hero: answeredTotal
-        ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}`
-        : "No customer wrote in this period.",
-      heroBefore: prevAnsweredTotal
-        ? `${Math.round((prev.ai / prevAnsweredTotal) * 100)}% the ${rangeLabel} before`
-        : null,
-      answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-      // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-      reply:
-        sortedReply.length >= 10
-          ? `Nine in ten within ${fmtSeconds(p90)}.`
-          : sortedReply.length
-            ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.`
-            : null,
-      calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-      channels: channelsLine(channels, rangeLabel),
-      rhythm: rhythmLine(week),
-    },
+    period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
+    lines: linesOf(f, week, channels),
     table: {
       columns: [
         "Day",
@@ -718,7 +790,7 @@ export function toReportVM(dto: ReportDto): ReportVM {
         "Needed you",
         "New people",
       ],
-      rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople]),
+      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople]),
     },
   };
 }

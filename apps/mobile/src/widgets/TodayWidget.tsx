@@ -8,7 +8,7 @@ import { HStack, Spacer, Text, VStack } from "@expo/ui/swift-ui";
 import { font, foregroundStyle, padding } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 
-export interface TodayWidgetProps {
+interface TodayWidgetProps {
   headline: string;
   figures: { label: string; value: number }[];
   waiting: number;

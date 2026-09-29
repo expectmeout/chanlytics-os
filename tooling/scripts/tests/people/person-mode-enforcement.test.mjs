@@ -9,10 +9,10 @@
  * workspace's reason, so the Inbox called every message from such a person a
  * "pricing question" and emailed the owner once per message.
  *
- * These pin the order of the WhatsApp handler (the lookup before the first
- * branch that can speak), the gate's reading of Veto, and the reason with its
- * labels, end to end. The voice send's use of the person's mode is run, in
- * retell-fn-door.test.mjs.
+ * These pin the gate's reading of Veto, and the reason with its labels, end to
+ * end. The order of the WhatsApp handler (the lookup before the first branch
+ * that can speak) is run in whatsapp/inbound-executed.test.mjs, and the voice
+ * send's use of the person's mode in retell-fn-door.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,21 +26,13 @@ const { outboundGate } = await import(
   pathToFileURL(path.join(here, "../../../../apps/edge/lib/receptionist/outbound-gate.ts")).href
 );
 
-const wa = readCode("packages/core/src/inbound/answer.ts");
+// The acknowledgement's rule (unreadable.ts) and the person's hold (reply-gates.ts).
+const wa = ["unreadable", "reply-gates"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
 const steps = readCode("packages/core/src/inbound/steps.ts");
 
-test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
-  const lookup = wa.indexOf("personMode = await ports.leads.personReplyMode(");
-  const nonText = wa.indexOf('n.type !== "text" || !n.body');
-  const ack = wa.indexOf("fallbacks!.non_text");
-  assert.ok(lookup > 0 && nonText > 0 && ack > 0, "all three landmarks exist");
-  assert.ok(
-    lookup < nonText,
-    "REGRESSION: the lookup sat below the non-text branch, so a Never person who sent a photo got a canned text",
-  );
-  assert.ok(lookup < ack);
-  assert.equal(wa.split("personMode = await ports.leads.personReplyMode(").length, 2, "exactly one lookup");
-});
+// WhatsApp: the person's mode is looked up once, before the first branch that can speak. It sat below the non-text
+// branch, so a Never person who sent a photo got a canned text: RUN in whatsapp/inbound-executed.test.mjs ("a person
+// set to Never who sends a voice note hears nothing back").
 
 test("WhatsApp: the non-text acknowledgement obeys the mode in force", () => {
   assert.ok(wa.includes('const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");'));

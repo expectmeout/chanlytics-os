@@ -27,7 +27,7 @@ import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
-import { peopleOverride } from "@/legacy-bridge/surface-data";
+import { peopleOverride } from "@/legacy-bridge/surfaces/people";
 import { installPeopleCourier } from "@/legacy-bridge/people-detail";
 import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
 import { setStatus } from "@/legacy-bridge/surface-status";
@@ -83,6 +83,8 @@ w.__ME = {
 installClock();
 w.__chrome = {
   themes: C.THEME_OPTIONS,
+  looks: C.LOOK_OPTIONS,
+  lookOffered: C.LOOK_OFFERED,
   shortcuts: C.SHORTCUTS,
   shortcutGroups: C.shortcutGroups,
   statusLine: C.shellStatusLine,

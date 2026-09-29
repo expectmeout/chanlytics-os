@@ -345,6 +345,9 @@ before(async () => {
   const code = `tenancy-${Date.now().toString(36)}`;
   ctx.partner = await seed("partners", { user_id: ctx.partnerUserId, code });
   await seed("partner_tenants", { tenant_id: A, partner_id: ctx.partner, code_used: code }, null);
+  // An owner's invitation to a partner (0020): read by the owner and the partner it names, written by functions.
+  await seed("partner_invitations", invitation(), null);
+  probes.push(["partner_invitations", "tenant_id", A]);
   await seed("partner_earnings", earning(`evt_tenancy_${key}`), null);
   await seed("billing_card_marks", { tenant_id: A, card_fingerprint: "fp_tenancy" }, null);
   probes.push(["partner_earnings", "partner_id", ctx.partner]);
@@ -356,6 +359,13 @@ before(async () => {
     null,
   );
   probes.push(["partner_reversals_waiting", "stripe_event_id", `evt_${key}`]);
+});
+
+/** An owner's invitation to the partner, open a day. */
+const invitation = () => ({
+  tenant_id: A,
+  partner_id: ctx.partner,
+  expires_at: new Date(Date.now() + 86_400_000).toISOString(),
 });
 
 /** A partner's earning on A: one invoice's share, held. */
@@ -612,6 +622,7 @@ const TENANT_TABLES = {
   // service role writes any of them; the partner themselves included.
   partner_tenants: ["brought", () => ({ tenant_id: A, partner_id: ctx.partner, code_used: "stranger" })],
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
+  partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
   lead_searches_view: [
     "member",
@@ -862,5 +873,40 @@ test(
       }
     }
     assert.deepEqual(offences, [], "the other tables keep their scope");
+  },
+);
+
+test(
+  "a person reads their Ask threads only while they belong to the workspace (00236): an answer keeps what the model read of the workspace's customers, so a person removed reads none of their threads or turns there, and one added back reads them again",
+  { skip },
+  async () => {
+    const leaver = await memberClient("viewer", A);
+    const thread = await seed("ask_threads", { tenant_id: A, user_id: leaver.userId });
+    await seed("ask_messages", {
+      tenant_id: A,
+      thread_id: thread,
+      user_id: leaver.userId,
+      role: "assistant",
+      content: { text: "Robin asked about Saturday.", raw: { blocks: '{"base":[]}' } },
+    });
+    const read = async () => [
+      await seen(leaver.client, "ask_threads", [["id", thread]]),
+      await seen(leaver.client, "ask_messages", [["thread_id", thread]]),
+    ];
+    assert.deepEqual(await read(), [1, 1], "a member reads their own thread and its turn");
+
+    const out = await db.from("memberships").delete().eq("user_id", leaver.userId).eq("tenant_id", A);
+    assert.equal(out.error, null, out.error?.message);
+    const [threads, turns] = await read();
+    assert.ok(
+      nothing(threads) && nothing(turns),
+      `removed from the workspace, they read ${threads} thread(s) and ${turns} turn(s)`,
+    );
+    const kept = await db.from("ask_messages").select("id", { count: "exact", head: true }).eq("thread_id", thread);
+    assert.equal(kept.count, 1, "nothing is deleted: the rows wait for the purge");
+
+    const back = await db.from("memberships").insert({ tenant_id: A, user_id: leaver.userId, role: "viewer" });
+    assert.equal(back.error, null, back.error?.message);
+    assert.deepEqual(await read(), [1, 1], "added back, they read them again");
   },
 );

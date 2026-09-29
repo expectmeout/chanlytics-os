@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode } from "../_source.mjs";
 
-const script = readCode("tooling/scripts/delete-tenant.mjs");
+const script = readCode("tooling/scripts/ops/delete-tenant.mjs");
 
 /** Every table carrying a tenant_id, read out of the migrations. */
 function tablesWithTenantId() {

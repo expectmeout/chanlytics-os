@@ -22,16 +22,30 @@
  * Deliberately NOT time-based on its own. A sweep that guessed "ongoing for
  * more than N minutes means ended" would eventually mark a genuinely long call
  * as finished and file a summary for a conversation still in progress.
+ *
+ * And only the provider's WORD counts. A read it could not answer -- an
+ * outage, a rate limit, a key it refuses -- is not its word on any row: the
+ * row is left as it was and asked about next tick, and a refused key is a 503
+ * from this sweep, which is how sweep_health() hears it. It used to read as
+ * "no record" for every row asked, and three ticks of that marked every
+ * pending recording failed for good while this sweep answered 200.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField } from "../../lib/log.js";
-import { getCall, normalizeCall, callSummaryLine, type NormalizedCall } from "../../lib/packages/channels.js";
+import { logger, errField, type Logger } from "../../lib/log.js";
+import {
+  getCall,
+  normalizeCall,
+  callSummaryLine,
+  type NormalizedCall,
+  type RetellCallRead,
+} from "../../lib/packages/channels.js";
 import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from "../../lib/packages/db.js";
 import {
   copyRecording,
   purgeExpiredRecordings,
+  RECORDING_DEFER_LIMIT_MS,
   RECORDING_MAX_ATTEMPTS,
   SWEEP_COPY_TIMEOUT_MS,
 } from "../../lib/voice/call-recording.js";
@@ -64,12 +78,197 @@ const MAX_RECORDINGS_PER_TICK = 2;
  *  drains within a day. */
 const MAX_PURGE_PER_TICK = 50;
 
+/**
+ * What the provider's answers said about the PROVIDER this tick, kept across
+ * the two legs that ask it. A row it could not answer for is counted as
+ * deferred, never as a try. The tick stops asking once the provider has said
+ * wait (Retry-After), answered a rate limit, not answered at all (each further
+ * ask would cost the whole read bound, inside a sixty-second function), or
+ * refused the key. A 5xx that answered may be one row's own, so the next row
+ * is still asked: a row the provider always 500s on must not starve the rest.
+ */
+interface ProviderTick {
+  /** Why the rest of the tick does not ask, once it does not. */
+  hold: "retry_after" | "rate_limited" | "no_answer" | "key_refused" | null;
+  /** The first refusal of the key: the tick's answer is a 503 for it. */
+  keyRefused: number | null;
+  /** Answers that were not the provider's word on a row; the first one's status and wait. */
+  unavailable: number;
+  unavailableStatus: number | null;
+  retryAfterMs: number | null;
+}
+
+type ProviderTrouble = Extract<RetellCallRead, { kind: "unavailable" | "auth" }>;
+
+/** Record an answer that was about the provider, not the row. */
+function noteProvider(tick: ProviderTick, read: ProviderTrouble): void {
+  if (read.kind === "auth") {
+    tick.keyRefused ??= read.status;
+    tick.hold ??= "key_refused";
+    return;
+  }
+  tick.unavailable += 1;
+  if (tick.unavailable === 1) {
+    tick.unavailableStatus = read.status;
+    tick.retryAfterMs = read.retryAfterMs;
+  }
+  if (read.retryAfterMs !== null) tick.hold ??= "retry_after";
+  else if (read.status === 429) tick.hold ??= "rate_limited";
+  else if (read.status === null) tick.hold ??= "no_answer";
+}
+
+/** What both provider legs of a tick share: the database, the key, the provider's state so far and the log. */
+interface ProviderLeg {
+  db: NonNullable<ReturnType<typeof pg>>;
+  apiKey: string;
+  provider: ProviderTick;
+  L: Logger;
+}
+
+/** A call still marked ongoing that has had time to settle. */
+type StaleCall = { tenant_id: string; retell_call_id: string };
+
+/**
+ * The calls the webhook never said had ended, each put to the provider until
+ * the tick holds: closed, still live, unknown to it, or deferred.
+ */
+async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
+  const { db, apiKey, provider, L } = leg;
+  const counts = { closed: 0, stillLive: 0, unknown: 0, deferred: 0 };
+  for (const row of stale) {
+    if (provider.hold) {
+      counts.deferred++;
+      continue;
+    }
+    try {
+      const read = await getCall({ apiKey }, row.retell_call_id);
+      if (read.kind === "unavailable" || read.kind === "auth") {
+        // Not the provider's word on this call: left as it is, asked again next tick.
+        noteProvider(provider, read);
+        counts.deferred++;
+        continue;
+      }
+      if (read.kind === "not_found") {
+        // The provider has no record of it. Not proof it ended, so the row is
+        // left alone and counted — a rising number here means our call ids and
+        // theirs have diverged, which is a different and worse problem than a
+        // dropped webhook.
+        counts.unknown++;
+        L.warn("calls_sweep_unknown_to_provider", { call: row.retell_call_id, status: read.status });
+        continue;
+      }
+      const n = normalizeCall(read.call);
+      if (n.status === "ongoing") {
+        // A genuinely long call. Re-ingesting still refreshes updated_at, which
+        // is what keeps isLiveCall() honest for calls that outlive the heartbeat
+        // window without producing turn events.
+        counts.stillLive++;
+      } else {
+        counts.closed++;
+      }
+      await ingestCall(db, row.tenant_id, n, read.call);
+    } catch (e) {
+      // One bad row must not abandon the rest of the batch.
+      L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
+    }
+  }
+  return counts;
+}
+
+/**
+ * The recordings that did not finish copying inside the webhook's budget.
+ * Same settle rule: the row's own updated_at moved on the last attempt, so
+ * waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
+ * copy is marked failed (by copyRecording, or below when the provider has
+ * no link to give) and stops being a candidate. A provider that could not
+ * be asked spends none of them: the recording is still at the provider.
+ */
+async function retryRecordings(leg: ProviderLeg) {
+  const { db, apiKey, provider, L } = leg;
+  const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0, deferred: 0 };
+  const { data: pendingRec, error: recErr } = await db
+    .from("calls")
+    .select("id, tenant_id, retell_call_id, recording, ended_at")
+    .in("status", ["ended", "error"])
+    .filter("recording->>fetch_state", "eq", "pending")
+    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
+    .order("updated_at", { ascending: true })
+    .limit(MAX_RECORDINGS_PER_TICK * 2);
+  if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
+  for (const row of pendingRec ?? []) {
+    const rec = (row.recording ?? {}) as { attempts?: number };
+    if ((rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
+    if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
+    recordings.candidates++;
+    // An outage past its limit spends the tries again (RECORDING_DEFER_LIMIT_MS); a hold still touches nothing.
+    const deferralsSpend = row.ended_at !== null && Date.parse(row.ended_at) < Date.now() - RECORDING_DEFER_LIMIT_MS;
+    if (provider.hold) {
+      recordings.deferred++;
+      continue;
+    }
+    // The URL is not kept on the row (it would reach every member's browser
+    // over realtime); the provider hands out a fresh one by call id.
+    const read = await getCall({ apiKey }, row.retell_call_id);
+    if (read.kind === "unavailable" || read.kind === "auth") {
+      // The provider could not answer: not a try against this recording,
+      // which is still at the provider. The row keeps its count. Under a
+      // provider-wide hold it is left untouched; an answered 5xx may be this
+      // one call's for ever, so the row is written as it is -- which alone
+      // moves its updated_at (00007's trigger) and sends it to the back of
+      // the queue, where untouched it stood first every tick and starved the
+      // rest.
+      noteProvider(provider, read);
+      if (provider.hold || read.status === null) {
+        recordings.deferred++;
+        continue;
+      }
+      const attempts = (rec.attempts ?? 0) + (deferralsSpend ? 1 : 0);
+      const exhausted = attempts >= RECORDING_MAX_ATTEMPTS;
+      await setCallRecording(db, row.tenant_id, row.id, {
+        fetch_state: exhausted ? "failed" : "pending",
+        attempts,
+        error: `provider_${read.status}`,
+      });
+      recordings[!deferralsSpend ? "deferred" : exhausted ? "failed" : "retry"]++;
+      continue;
+    }
+    const url = read.kind === "found" ? (read.call.recording_url ?? null) : null;
+    if (!url) {
+      L.warn("calls_sweep_recording_no_url", { call: row.retell_call_id, found: read.kind === "found" });
+      // No link to copy from is a try like any other: counted, so a recording
+      // the provider never hands over -- or a call it has no record of -- ends
+      // "couldn't be saved" after RECORDING_MAX_ATTEMPTS. Skipped and
+      // unwritten, it said "still processing" for ever, and with its
+      // updated_at never moving it stood first in line on every run.
+      const attempt = (rec.attempts ?? 0) + 1;
+      const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
+      await setCallRecording(db, row.tenant_id, row.id, {
+        fetch_state: exhausted ? "failed" : "pending",
+        attempts: attempt,
+        error: read.kind === "found" ? "provider_no_url" : "provider_not_found",
+      });
+      recordings[exhausted ? "failed" : "retry"]++;
+      continue;
+    }
+    const outcome = await copyRecording(db, {
+      tenantId: row.tenant_id,
+      callId: row.id,
+      providerUrl: url,
+      attempts: rec.attempts ?? 0,
+      timeoutMs: SWEEP_COPY_TIMEOUT_MS,
+      deferralsSpend,
+    });
+    recordings[outcome]++;
+  }
+  return recordings;
+}
+
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calls" });
   const db = pg();
   if (!db) {
     L.error("calls_sweep_no_db");
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
 
   const denied = await authorizeCron(request, db, L);
@@ -97,7 +296,7 @@ export async function POST(request: Request): Promise<Response> {
     // Without the provider there is no authority to reconcile against, and
     // guessing is the one thing this sweep exists not to do.
     L.error("calls_sweep_no_retell_key");
-    return json(503, { ok: false, error: "no_provider_credentials" });
+    return refuse(503, "no_provider_credentials");
   }
 
   const { data: stale, error } = await db
@@ -114,91 +313,19 @@ export async function POST(request: Request): Promise<Response> {
     .limit(MAX_PER_TICK);
   if (error) {
     L.error("calls_sweep_query_failed", { error: error.message });
-    return json(500, { ok: false, error: "query_failed" });
+    return refuse(500, "query_failed");
   }
 
-  let closed = 0;
-  let stillLive = 0;
-  let unknown = 0;
-
-  for (const row of stale ?? []) {
-    try {
-      const fresh = await getCall({ apiKey }, row.retell_call_id);
-      if (!fresh) {
-        // The provider has no record of it. Not proof it ended, so the row is
-        // left alone and counted — a rising number here means our call ids and
-        // theirs have diverged, which is a different and worse problem than a
-        // dropped webhook.
-        unknown++;
-        L.warn("calls_sweep_unknown_to_provider", { call: row.retell_call_id });
-        continue;
-      }
-      const n = normalizeCall(fresh);
-      if (n.status === "ongoing") {
-        // A genuinely long call. Re-ingesting still refreshes updated_at, which
-        // is what keeps isLiveCall() honest for calls that outlive the heartbeat
-        // window without producing turn events.
-        stillLive++;
-      } else {
-        closed++;
-      }
-      await ingestCall(db, row.tenant_id, n, fresh);
-    } catch (e) {
-      // One bad row must not abandon the rest of the batch.
-      L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
-    }
-  }
-
-  // ---- recordings that did not finish copying inside the webhook's budget ----
-  // Same settle rule: the row's own updated_at moved on the last attempt, so
-  // waiting five minutes IS the back-off. After RECORDING_MAX_ATTEMPTS the
-  // copy is marked failed (by copyRecording, or below when the provider has
-  // no link to give) and stops being a candidate.
-  const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0 };
-  const { data: pendingRec, error: recErr } = await db
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, recording")
-    .in("status", ["ended", "error"])
-    .filter("recording->>fetch_state", "eq", "pending")
-    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
-    .order("updated_at", { ascending: true })
-    .limit(MAX_RECORDINGS_PER_TICK * 2);
-  if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
-  for (const row of pendingRec ?? []) {
-    const rec = (row.recording ?? {}) as { attempts?: number };
-    if ((rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
-    if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
-    recordings.candidates++;
-    // The URL is not kept on the row (it would reach every member's browser
-    // over realtime); the provider hands out a fresh one by call id.
-    const fresh = await getCall({ apiKey }, row.retell_call_id).catch(() => null);
-    const url = fresh?.recording_url ?? null;
-    if (!url) {
-      L.warn("calls_sweep_recording_no_url", { call: row.retell_call_id });
-      // No link to copy from is a try like any other: counted, so a recording
-      // the provider never hands over ends "couldn't be saved" after
-      // RECORDING_MAX_ATTEMPTS. Skipped and unwritten, it said "still
-      // processing" for ever, and with its updated_at never moving it stood
-      // first in line on every run.
-      const attempt = (rec.attempts ?? 0) + 1;
-      const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
-      await setCallRecording(db, row.tenant_id, row.id, {
-        fetch_state: exhausted ? "failed" : "pending",
-        attempts: attempt,
-        error: "provider_no_url",
-      });
-      recordings[exhausted ? "failed" : "retry"]++;
-      continue;
-    }
-    const outcome = await copyRecording(db, {
-      tenantId: row.tenant_id,
-      callId: row.id,
-      providerUrl: url,
-      attempts: rec.attempts ?? 0,
-      timeoutMs: SWEEP_COPY_TIMEOUT_MS,
-    });
-    recordings[outcome]++;
-  }
+  const provider: ProviderTick = {
+    hold: null,
+    keyRefused: null,
+    unavailable: 0,
+    unavailableStatus: null,
+    retryAfterMs: null,
+  };
+  const leg: ProviderLeg = { db, apiKey, provider, L };
+  const { closed, stillLive, unknown, deferred } = await reconcileStale(leg, stale ?? []);
+  const recordings = await retryRecordings(leg);
 
   // ---- calls that ended without an analysis still get a line in the thread ----
   // The webhook writes the customer-thread note when the summary exists;
@@ -238,20 +365,47 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // The provider's own state, once a tick, never once a row: the rows it could
+  // not answer for are in the counts, and why the tick stopped asking is here.
+  if (provider.unavailable)
+    L.warn("calls_sweep_provider_unavailable", {
+      status: provider.unavailableStatus,
+      retry_after_ms: provider.retryAfterMs,
+      hold: provider.hold,
+      deferred: deferred + recordings.deferred,
+    });
+  if (provider.keyRefused !== null)
+    L.error("calls_sweep_provider_refused_key", {
+      status: provider.keyRefused,
+      deferred: deferred + recordings.deferred,
+    });
   L.info("calls_sweep_done", {
     candidates: stale?.length ?? 0,
     closed,
     still_live: stillLive,
     unknown,
+    deferred,
     recordings: JSON.stringify(recordings),
     notes: JSON.stringify(notes),
     purge: JSON.stringify(purge),
   });
-  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, recordings, notes };
+  const counts = { candidates: stale?.length ?? 0, closed, stillLive, unknown, deferred, recordings, notes };
   // A purge that failed is the privacy page's ninety days not being kept, so
   // once the other legs have had their turn the answer says so: pg_net records
   // it and sweep_health() judges it (00149). The purge goes first, inside the
   // 200 characters of the answer that the platform's mail quotes.
   if (purge.error) return json(500, { ok: false, error: "purge_failed", purge, ...counts });
+  // A key the provider refuses is this deployment's fault, not a row's, and
+  // every read will be refused until it is fixed: the answer says so, as the
+  // missing key's does, sweep_health() reads it (00149), and the health sweep
+  // pages the platform once for it -- not this sweep, and not once per row.
+  if (provider.keyRefused !== null)
+    return json(503, {
+      ok: false,
+      error: "provider_unauthorized",
+      provider_status: provider.keyRefused,
+      ...counts,
+      purge,
+    });
   return json(200, { ok: true, ...counts, purge });
 }

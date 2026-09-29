@@ -10,7 +10,7 @@
  * template the phone agent sends, and a sync that could silence it is not a
  * sync. Labels a person gave a variable are kept when the positions match.
  */
-import { json } from "../../../lib/http.js";
+import { json, refuse } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
@@ -33,9 +33,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!ws.ok) return ws.response;
   if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant" });
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_db" });
+  if (!db) return refuse(503, "no_database");
 
   const { data: ch, error: chErr } = await db
     .from("tenant_channels")
@@ -45,12 +45,12 @@ export async function POST(request: Request): Promise<Response> {
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (chErr) return json(500, { ok: false, error: "channel_read_failed", detail: chErr.message });
-  if (!ch) return json(409, { ok: false, error: "no_channel" });
-  if (!ch.waba_id) return json(409, { ok: false, error: "no_waba" });
+  if (chErr) return refuse(500, "channel_read_failed", chErr.message);
+  if (!ch) return refuse(409, "no_channel");
+  if (!ch.waba_id) return refuse(409, "no_waba");
 
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
+  if (!creds?.accessToken) return refuse(503, "no_token");
 
   const listed = await listTemplates(creds.accessToken, ch.waba_id);
   if (!listed.ok) {
@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
       status: listed.status,
       error: listed.error.slice(0, 200),
     });
-    return json(502, { ok: false, error: "meta_failed", detail: listed.error });
+    return refuse(502, "meta_failed", listed.error);
   }
 
   const { data: existing } = await db
@@ -84,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
       })),
       { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
+    if (error) return refuse(500, "write_failed", error.message);
   }
   if (fresh.length) {
     const { error } = await db.from("templates").upsert(
@@ -96,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
       })),
       { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
+    if (error) return refuse(500, "write_failed", error.message);
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;

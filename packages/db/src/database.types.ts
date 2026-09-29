@@ -324,9 +324,9 @@ export type Database = {
           scheduled_for: string
           started_at: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           updated_at: string
         }
@@ -345,9 +345,9 @@ export type Database = {
           scheduled_for: string
           started_at?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -366,9 +366,9 @@ export type Database = {
           scheduled_for?: string
           started_at?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2803,6 +2803,7 @@ export type Database = {
           tiktok_url: string | null
           version: number
           website_host: string | null
+          website_root: boolean | null
         }
         Insert: {
           about?: string | null
@@ -2855,6 +2856,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Update: {
           about?: string | null
@@ -2907,6 +2909,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Relationships: [
           {
@@ -3422,6 +3425,48 @@ export type Database = {
           },
         ]
       }
+      partner_invitations: {
+        Row: {
+          declined_at: string | null
+          expires_at: string
+          invited_by: string | null
+          partner_id: string
+          sent_at: string
+          tenant_id: string
+        }
+        Insert: {
+          declined_at?: string | null
+          expires_at: string
+          invited_by?: string | null
+          partner_id: string
+          sent_at?: string
+          tenant_id: string
+        }
+        Update: {
+          declined_at?: string | null
+          expires_at?: string
+          invited_by?: string | null
+          partner_id?: string
+          sent_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_invitations_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_payouts: {
         Row: {
           created_at: string
@@ -3507,6 +3552,7 @@ export type Database = {
           handover_email: string | null
           handover_expires_at: string | null
           handover_sent_at: string | null
+          invited_by: string | null
           origin: string
           partner_id: string
           seat_held_at: string | null
@@ -3526,6 +3572,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id: string
           seat_held_at?: string | null
@@ -3545,6 +3592,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id?: string
           seat_held_at?: string | null
@@ -3748,6 +3796,7 @@ export type Database = {
           domain_ids: string[]
           gap_days: number
           gap_minutes: number | null
+          hand: Json | null
           id: string
           include_unconfirmed: boolean
           kind: string
@@ -3762,9 +3811,9 @@ export type Database = {
           run_hour: number
           signed_by: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           trigger: string
           updated_at: string
@@ -3779,6 +3828,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3793,9 +3843,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           trigger: string
           updated_at?: string
@@ -3810,6 +3860,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3824,9 +3875,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           trigger?: string
           updated_at?: string
@@ -4816,9 +4867,19 @@ export type Database = {
       }
     }
     Functions: {
+      ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
+      }
+      calendars_due: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          config: Json
+          due_total: number
+          tenant_id: string
+          timezone: string
+        }[]
       }
       call_status_rank: { Args: { p_status: string }; Returns: number }
       caller_has_permission: {
@@ -5532,6 +5593,33 @@ export type Database = {
         Args: { p_email: string; p_tenant: string }
         Returns: Json
       }
+      partner_invitations_mine: {
+        Args: never
+        Returns: {
+          expires_at: string
+          sent_at: string
+          tenant_id: string
+          workspace: string
+        }[]
+      }
+      partner_invite: {
+        Args: { p_code: string; p_tenant: string }
+        Returns: Json
+      }
+      partner_invite_accept: {
+        Args: { p_tenant: string }
+        Returns: {
+          earns: boolean
+          id: string
+          name: string
+          slug: string
+        }[]
+      }
+      partner_invite_decline: { Args: { p_tenant: string }; Returns: undefined }
+      partner_invite_withdraw: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       partner_letter_written: {
         Args: { p_partner: string; p_through: string }
         Returns: boolean
@@ -5863,11 +5951,26 @@ export type Database = {
           checks: Json
           code: string
           decided_by: string
+          origin: string
           partner_id: string
           standing: string
           standing_at: string
           standing_why: string
           tenant_id: string
+        }[]
+      }
+      playbooks_due: {
+        Args: {
+          p_at: string
+          p_kind: string
+          p_last_hour: number
+          p_limit: number
+          p_tenant_id?: string
+        }
+        Returns: {
+          due_total: number
+          playbook: Json
+          timezone: string
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
@@ -5943,6 +6046,10 @@ export type Database = {
               region: string
             }[]
           }
+      reach_out_booked: {
+        Args: { p_seen: Json; p_tenant_id: string }
+        Returns: number
+      }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
         Returns: Json
@@ -6040,6 +6147,16 @@ export type Database = {
         }[]
       }
       reach_out_given_up: { Args: { p_created_at: string }; Returns: boolean }
+      reach_out_hand_run: {
+        Args: {
+          p_day: string
+          p_items: Json
+          p_run_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       reach_out_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -6295,6 +6412,7 @@ export type Database = {
         Returns: number
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
+      safe_zone: { Args: { p: string }; Returns: string }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
@@ -6488,6 +6606,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
+      workspace_partner: { Args: { p_tenant: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

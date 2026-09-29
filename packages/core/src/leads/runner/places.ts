@@ -113,6 +113,7 @@ export function memberOf(
       lat: loc?.lat ?? null,
       lng: loc?.lng ?? null,
       website_host: c.host,
+      website_root: c.root,
       instagram_url: c.raw.instagram,
       phone_e164: c.phone,
       phone_sources: c.phoneSources,
@@ -143,8 +144,7 @@ export function memberOf(
       claimed: excluded ? null : c.raw.claimed,
       maps_url: excluded ? null : c.raw.mapsUrl,
       rank: excluded ? null : c.raw.rank,
-      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below,
-      // with the copy of it we keep (00161).
+      // The business's own mark (D6) and the copy we keep (00161): read from its home page by markPlaces, below.
       logo_url: null,
       mark_path: null,
     },

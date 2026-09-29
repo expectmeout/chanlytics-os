@@ -39,7 +39,7 @@
  *
  * Enforced since 17 September 2026. It rode the report-only header first,
  * until the nightly, which walks every page signed in, ran clean of
- * violations (e2e/csp.spec.ts reads the console; run 35170328083 was the
+ * violations (e2e/shell/csp.spec.ts reads the console; run 35170328083 was the
  * clean one); then the proxy flipped the name and nothing else. next.config.ts
  * keeps its own enforced `frame-ancestors 'none'` beside this one, so
  * clickjacking never waited on the flip.

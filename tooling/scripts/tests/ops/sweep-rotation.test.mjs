@@ -20,6 +20,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import {
   calendarDue,
   playbooksDue,
+  reachOutsDue,
   markCalendarChecked,
   noteBacklog,
   CALENDAR_PER_TICK,
@@ -161,23 +162,95 @@ test("a failed feed leaves the workspace due, so the next tick retries it", asyn
   assert.ok(!next.rows.some((r) => r.tenant_id === page.rows[0].tenant_id), "the one that succeeded is not");
 });
 
-test("playbooks rotate on last_run_at, which the table already had", async () => {
-  const rows = [
-    { id: "p1", tenant_id: "a", kind: "moment", state: "running", last_run_at: ago(10) },
-    { id: "p2", tenant_id: "b", kind: "moment", state: "running", last_run_at: null },
-    { id: "p3", tenant_id: "c", kind: "moment", state: "running", last_run_at: ago(600) },
-    { id: "p4", tenant_id: "d", kind: "moment", state: "paused", last_run_at: null },
-    // A reach-out step runs through its own verb (Part 3): never on the moments' page.
-    { id: "r1", tenant_id: "e", kind: "reach_out", state: "running", last_run_at: null },
+/**
+ * Fixed-offset zones, so each workspace's wall clock at NOW (18:00Z on the
+ * ninth) is known: UTC-7 reads 11:00 on the ninth, UTC+9 reads 03:00 on the
+ * tenth.
+ */
+const DAY = "Etc/GMT+7";
+const NIGHT = "Etc/GMT-9";
+/** A running daily moment at ten, as its row reads, that has never run. */
+const moment = (id, tenant_id, over = {}) => ({
+  id,
+  tenant_id,
+  kind: "moment",
+  state: "running",
+  run_hour: 10,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: ago(24 * 60),
+  ...over,
+});
+
+test("the playbooks page is only what is due, by each workspace's own clock, least-recently-run first; a reach-out is on its own page", async () => {
+  const tenants = [
+    { id: "a", timezone: DAY },
+    { id: "b", timezone: DAY },
+    { id: "c", timezone: DAY },
+    { id: "d", timezone: DAY },
+    { id: "e", timezone: DAY },
+    { id: "n", timezone: NIGHT },
   ];
-  const db = fakeDb({ playbooks: rows });
-  const page = await playbooksDue(db, PLAYBOOKS_PER_TICK);
+  const rows = [
+    moment("p1", "a", { last_run_for: "2026-09-08", last_run_at: ago(10) }),
+    moment("p2", "b"),
+    moment("p3", "c", { last_run_for: "2026-09-08", last_run_at: ago(600) }),
+    moment("p4", "d", { state: "paused" }),
+    // Ran today by its own clock: not due again.
+    moment("p5", "a", { last_run_for: "2026-09-09", last_run_at: ago(60) }),
+    // Its hour has not come: eleven is before noon.
+    moment("p6", "b", { run_hour: 12 }),
+    // Three in the morning by its own clock, though the date has turned there.
+    moment("p7", "n"),
+    // A reach-out step runs through its own verb (Part 3): never on the moments' page.
+    moment("r1", "e", { kind: "reach_out" }),
+  ];
+  const db = fakeDb({ tenants, playbooks: rows });
+  const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.deepEqual(
-    page.rows.map((p) => p.id),
-    ["p2", "p3", "p1"],
-    "never-run first, then oldest; paused is not due at all",
+    page.rows.map((r) => [r.playbook.id, r.timezone]),
+    [
+      ["p2", DAY],
+      ["p3", DAY],
+      ["p1", DAY],
+    ],
+    "never-run first, then oldest, each with the zone it was judged in; paused, run today, before its hour and asleep are not due at all",
   );
-  assert.equal(page.remaining, 0);
+  assert.equal(page.remaining, 0, "and what is not due is not left behind either");
+  const reach = await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK);
+  assert.deepEqual(
+    reach.rows.map((r) => r.playbook.id),
+    ["r1"],
+    "the reach-out page, judged the same way",
+  );
+  assert.equal(reach.remaining, 0);
+});
+
+test("what the playbooks page leaves behind is due playbooks only: twenty-six due behind a hundred that ran today is one, not seventy-six", async () => {
+  const tenants = [{ id: "a", timezone: DAY }];
+  const rows = [];
+  for (let i = 0; i < 100; i++)
+    rows.push(moment(`ran-${i}`, "a", { last_run_for: "2026-09-09", last_run_at: ago(60 + i) }));
+  // Due, and each ran yesterday later than the one before, so the page's order is known.
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i++)
+    rows.push(
+      moment(`due-${String(i).padStart(2, "0")}`, "a", { last_run_for: "2026-09-08", last_run_at: ago(1500 - i) }),
+    );
+  const db = fakeDb({ tenants, playbooks: rows });
+  const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
+  assert.equal(page.rows.length, PLAYBOOKS_PER_TICK);
+  assert.ok(
+    page.rows.every((r) => r.playbook.id.startsWith("due-")),
+    "the page holds only what is due",
+  );
+  assert.deepEqual(
+    page.rows.map((r) => r.playbook.id).slice(0, 2),
+    ["due-00", "due-01"],
+    "the least recently run first",
+  );
+  assert.equal(page.remaining, 1, "the twenty-sixth due one, and none of the hundred");
+  // A reach-out page over the same table has nothing: no reach-out is running.
+  assert.deepEqual(await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK), { rows: [], remaining: 0 });
 });
 
 test("three consecutive backlogged ticks is a fault; one is a busy hour", async () => {

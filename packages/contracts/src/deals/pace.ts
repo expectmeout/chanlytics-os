@@ -3,7 +3,7 @@
  * read (yesWaits), and the pace from the workspace's own deals (dealPaceFrom), which says when a proposal out is
  * waiting everywhere (deals.ts dealPaceOf, waitingOnProposal). Pure.
  */
-import { isYes, PACE_WINDOW_DAYS, type DealPaceDto } from "./deals";
+import { isYes, PACE_WINDOW_DAYS, type DealPaceDto } from "./deal-waits";
 import { quantile } from "../reports/reports";
 import { DAY_MS, HOUR_MS } from "../shared/time";
 

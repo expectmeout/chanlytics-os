@@ -9,16 +9,17 @@
  *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
  *   validateReachOutChain    its domains, and what its words ask the workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
- *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is lead-search's siteHost
+ *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
  */
 import { z } from "zod";
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
-import { siteHost } from "../leads/lead-search";
+import { siteHost } from "../leads/search/clean";
 import { violatesNoPrices } from "../config/policy";
 import { normalizeEmail } from "../shared/email-address";
+import { HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
 
 export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
@@ -265,6 +266,11 @@ export const ReachOutStepSchema = z.object({
     .nullable(),
   body: z.string().max(REACH_OUT_BODY_MAX * 2),
   after_days: z.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z
+    .object({ kind: z.enum(HAND_KINDS), words: z.string().max(HAND_WORDS_MAX * 2) })
+    .nullable()
+    .optional(),
 });
 
 export const ReachOutChainSchema = z.object({
@@ -286,7 +292,14 @@ export const ReachOutChainSchema = z.object({
 export type ReachOutChainInput = z.infer<typeof ReachOutChainSchema>;
 
 export type ChainProblem =
-  WordsProblem | "first_has_a_delay" | "step_needs_a_delay" | "no_name_to_sign" | "no_booking_link";
+  | WordsProblem
+  | "first_has_a_delay"
+  | "step_needs_a_delay"
+  | "no_name_to_sign"
+  | "no_booking_link"
+  | "hand_not_last"
+  | "hand_words_empty"
+  | "hand_words_long";
 
 export interface ChainIssue {
   /** The step's index, or null for the chain's own. */
@@ -304,11 +317,17 @@ export interface ChainIssue {
 export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink: boolean }): ChainIssue[] {
   const out: ChainIssue[] = [];
   c.steps.forEach((s, i) => {
-    for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
+    if (s.hand) out.push(...handIssues(s.hand, i, c.steps.length));
+    else
+      for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
-  const said = c.steps.map((s, i) => `${i === 0 ? (s.subject ?? "") : ""}\n${s.body}`).join("\n");
+  // Only the emails' words are sent: a call's or a note's are the team's own, and name no slot.
+  const said = c.steps
+    .filter((s) => !s.hand)
+    .map((s, i) => `${i === 0 ? (s.subject ?? "") : ""}\n${s.body}`)
+    .join("\n");
   if (slotCount(said, "your name") > 0 && !c.signed_by?.trim())
     out.push({ step: null, field: "signed_by", problem: "no_name_to_sign" });
   if (slotCount(said, "booking link") > 0 && !has.bookingLink)
@@ -316,8 +335,27 @@ export function validateReachOutChain(c: ReachOutChainInput, has: { bookingLink:
   return out;
 }
 
+/**
+ * A call or a note for the team (Part 5, G20): the chain's last step and never its first, since the chain writes before
+ * it hands anyone over; with words to act on, up to 00228's 280 characters.
+ */
+function handIssues(hand: { words: string }, i: number, steps: number): ChainIssue[] {
+  const out: ChainIssue[] = [];
+  if (i === 0 || i < steps - 1) out.push({ step: i, field: "body", problem: "hand_not_last" });
+  const words = hand.words.trim();
+  if (!words) out.push({ step: i, field: "body", problem: "hand_words_empty" });
+  else if (words.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
+  return out;
+}
+
 export function chainIssueWords(i: ChainIssue): string {
   switch (i.problem) {
+    case "hand_not_last":
+      return "A call or a note ends the chain.";
+    case "hand_words_empty":
+      return "Say what to do when they come up.";
+    case "hand_words_long":
+      return `Keep it under ${HAND_WORDS_MAX} characters.`;
     case "first_has_a_delay":
       return "Your email goes on day one.";
     case "step_needs_a_delay":

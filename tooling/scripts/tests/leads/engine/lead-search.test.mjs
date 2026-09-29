@@ -6,33 +6,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
 import {
-  LeadSearchPlanSchema,
-  planSentence,
-  planVersionOf,
-  estimateRoundUsd,
-  placesToAsk,
-  classify,
-  questionAfterProbe,
-  endingOfRound,
-  cleanEmailCandidates,
-  usPhone,
-  siteHost,
-  stateCode,
   leadMonth,
-  planWords,
-  planWho,
-  planWhere,
-  planArea,
-  planCeiling,
-  planMinutes,
-  planSaid,
-  planLeavingOut,
-  LEAD_COUNT_CHOICES,
   LEAD_ASSUMED_YIELD,
-  LEAD_ROUND_ENDINGS,
-  LEAD_ENDING_WORDS,
-  LEAD_CARDS,
   LEAD_PROBE_PLACES,
   LEAD_MAX_PLACES,
   LEAD_MONTHLY_ALLOWANCE,
@@ -42,9 +19,57 @@ import {
   LEAD_QUESTION_THRESHOLD,
   LEAD_JUDGE_BATCH,
   LEAD_ESTIMATE_MARGIN,
-} from "../../../../../packages/contracts/src/leads/lead-search.ts";
-import * as searchWords from "../../../../../packages/contracts/src/leads/lead-search.ts";
+} from "../../../../../packages/contracts/src/leads/search/caps.ts";
+import { LeadSearchPlanSchema, planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import {
+  planSentence,
+  planWords,
+  planWho,
+  planWhere,
+  planArea,
+  planSaid,
+  planLeavingOut,
+} from "../../../../../packages/contracts/src/leads/search/sentence.ts";
+import {
+  estimateRoundUsd,
+  placesToAsk,
+  planCeiling,
+  planMinutes,
+  LEAD_COUNT_CHOICES,
+  LEAD_CARDS,
+} from "../../../../../packages/contracts/src/leads/search/cards.ts";
+import { endingOfRound, LEAD_ENDING_WORDS } from "../../../../../packages/contracts/src/leads/search/endings.ts";
+import { classify } from "../../../../../packages/contracts/src/leads/search/class.ts";
+import { questionAfterProbe } from "../../../../../packages/contracts/src/leads/search/question.ts";
+import {
+  cleanEmailCandidates,
+  usPhone,
+  siteHost,
+  stateCode,
+} from "../../../../../packages/contracts/src/leads/search/clean.ts";
+import * as searchSets from "../../../../../packages/contracts/src/leads/search/sets.ts";
+import * as searchCaps from "../../../../../packages/contracts/src/leads/search/caps.ts";
+import * as searchPlan from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import * as searchSentence from "../../../../../packages/contracts/src/leads/search/sentence.ts";
+import * as searchCards from "../../../../../packages/contracts/src/leads/search/cards.ts";
+import * as searchEndings from "../../../../../packages/contracts/src/leads/search/endings.ts";
+import * as searchClass from "../../../../../packages/contracts/src/leads/search/class.ts";
+import * as searchQuestion from "../../../../../packages/contracts/src/leads/search/question.ts";
+import * as searchClean from "../../../../../packages/contracts/src/leads/search/clean.ts";
 import * as judgeWords from "../../../../../packages/contracts/src/leads/lead-judge.ts";
+
+/** Every export of the lead search: one module once (lead-search.ts), nine now (leads/search/). */
+const searchWords = {
+  ...searchSets,
+  ...searchCaps,
+  ...searchPlan,
+  ...searchSentence,
+  ...searchCards,
+  ...searchEndings,
+  ...searchClass,
+  ...searchQuestion,
+  ...searchClean,
+};
 
 /** The plan every test starts from: 200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms. */
 const plan = (over = {}) =>

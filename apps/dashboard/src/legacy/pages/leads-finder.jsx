@@ -202,7 +202,9 @@ const leadAnswerPlan = async (words, set) => {
  * __leadSearchAnswer and the route versions it; any other plan the panel
  * opened from a strip's next step goes through __leadSearchMore. Either way
  * the route's own sentence on a refusal (402, 409, 429) is said under the
- * button, in its words, and nothing on the page says it started.
+ * button, in its words, and nothing on the page says it started. Started, the
+ * panel shuts the one way the page shuts it (`set.close`, which lets go of the
+ * round it was opened under too), left at rest: no words, card or plan.
  */
 const leadFinderApprove = async (proposal, plan, set) => {
   set.stage("starting");
@@ -224,7 +226,7 @@ const leadFinderApprove = async (proposal, plan, set) => {
   }
   if (r && r.ok) {
     set.stage("compose");
-    set.open(false);
+    set.close();
     set.words("");
     set.proposal(null);
     set.plan(null);

@@ -512,6 +512,76 @@ test("a redelivered STOP does not open the handoff twice", async () => {
   assert.equal(w.seen.alerts.length, 1);
 });
 
+test("a thumbs-up or a system notice is kept and handled, and nothing is said, escalated, paused or downloaded", async () => {
+  // Nothing was asked of us. A thumbs-up on the receptionist's reply used to be answered "sorry, I can't read that",
+  // then the receptionist went silent on that customer for a day, an escalation opened and the owner was emailed. The
+  // kinds are asked before the unreadable branch (gates.ts, then unreadable.ts), and either order failing shows here:
+  // a thumbs-up carries its emoji as words, so it would be answered, and one without an emoji would be apologised for.
+  const at = String(Math.floor(Date.now() / 1000));
+  for (const m of [
+    {
+      from: FROM,
+      id: "wamid.like",
+      type: "reaction",
+      timestamp: at,
+      reaction: { message_id: "wamid.1", emoji: "\u{1F44D}" },
+    },
+    { from: FROM, id: "wamid.unlike", type: "reaction", timestamp: at, reaction: { message_id: "wamid.1" } },
+    {
+      from: FROM,
+      id: "wamid.system",
+      type: "system",
+      timestamp: at,
+      system: { body: "Dana changed their number", type: "customer_changed_number" },
+    },
+  ]) {
+    const w = world();
+    await w.run(m);
+    assert.equal(w.seen.sent.length, 0, `${m.id}: nothing is said`);
+    assert.equal(w.seen.escalations.length, 0, `${m.id}: nobody is asked`);
+    assert.equal(w.seen.alerts.length, 0, `${m.id}: nobody is told`);
+    assert.equal(w.seen.pauses.length, 0, `${m.id}: the receptionist is not muted`);
+    assert.equal(w.seen.media, 0, `${m.id}: nothing is downloaded`);
+    assert.equal(w.seen.processed, 1, `${m.id}: and it is handled`);
+  }
+});
+
+test("a person set to Never who sends a voice note hears nothing back, and the thread still reaches a person", async () => {
+  // The person's own mode is looked up once, before the first branch that can speak. It sat below the non-text
+  // branch, so a Never person who sent a photo got the canned "I can't read attachments" text from the receptionist
+  // that was told to stay out.
+  const w = world();
+  const lookups = [];
+  await w.run(
+    {
+      from: FROM,
+      id: "wamid.never",
+      type: "audio",
+      timestamp: String(Math.floor(Date.now() / 1000)),
+      audio: { id: "a-never", mime_type: "audio/ogg" },
+    },
+    {
+      leads: {
+        read: async () => ({ name: null }),
+        personReplyMode: async (...args) => {
+          lookups.push(args);
+          return "never";
+        },
+      },
+    },
+  );
+  assert.equal(lookups.length, 1, "exactly one lookup");
+  assert.equal(w.seen.sent.length, 0, "no acknowledgement from the receptionist that was told to stay out");
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["non_text"],
+  );
+  assert.match(w.seen.escalations[0].details, /this person is set to 'never'/);
+  assert.equal(w.seen.alerts.length, 1, "a person is told");
+  assert.equal(w.seen.pauses.length, 0, "nothing was said, so nothing is paused");
+  assert.equal(w.seen.processed, 1);
+});
+
 test("an acknowledgement that did not send neither pauses the thread nor is reported as sent", async () => {
   // The outcome used to be discarded: a refusal or a failure at the wire still
   // paused the receptionist for a day and still told the owner the customer had

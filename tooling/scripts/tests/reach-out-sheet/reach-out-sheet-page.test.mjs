@@ -185,6 +185,43 @@ test("steps: another is a short nudge four days on, up to five, and the last may
   assert.equal(all(s.draw(), (n) => /^ro-step-\d$/.test(n.props?.["data-testid"] || "")).length, 3);
 });
 
+test("a call or a note for you ends the chain: offered, written, saved with its hand, and the door's refusal said (G20)", async () => {
+  setup();
+  const calls = verbs({ save: { ok: false, message: contracts.REACH_OUT_REFUSALS.handLast } });
+  const s = sheet();
+  await settle();
+  let tree = s.draw();
+  assert.equal(textOf(byTestId(tree, "ro-add-call")).trim(), "A call for you");
+  assert.equal(textOf(byTestId(tree, "ro-add-note")).trim(), "A note for you");
+  press(byTestId(tree, "ro-add-call"));
+  tree = s.draw();
+  assert.match(textOf(byTestId(tree, "ro-step-1")), /A call for you/);
+  assert.equal(byTestId(tree, "ro-step-body-1"), null, "no email's words, and no subject");
+  assert.equal(byTestId(tree, "ro-slots-1"), null);
+  assert.equal(byTestId(tree, "ro-add"), null, "nothing after a call");
+  assert.equal(byTestId(tree, "ro-add-note"), null);
+  assert.deepEqual(textOf(byTestId(tree, "ro-body-issues-1")), "Say what to do when they come up.");
+  assert.equal(byTestId(tree, "ro-start").props.disabled, true);
+  typeInto(byTestId(tree, "ro-hand-words-1"), "Ask whether our quote suited them");
+  tree = s.draw();
+  assert.equal(byTestId(tree, "ro-start").props.disabled, false);
+  press(byTestId(tree, "ro-start"));
+  await settle();
+  const [, body] = calls.find((c) => c[0] === "save");
+  assert.equal(contracts.ReachOutChainSchema.safeParse(body).success, true, JSON.stringify(body));
+  assert.equal("hand" in body.steps[0], false);
+  assert.deepEqual(body.steps[1], {
+    subject: null,
+    body: "",
+    after_days: 4,
+    hand: { kind: "call", words: "Ask whether our quote suited them" },
+  });
+  assert.equal(textOf(byTestId(s.draw(), "ro-foot-say")), "A call or a note ends the chain.");
+  // Taken off, the chain may go on with an email again.
+  press(byTestId(s.draw(), "ro-remove"));
+  assert.ok(byTestId(s.draw(), "ro-add"));
+});
+
 test("Start saves exactly the chain's shape, with the unconfirmed included when asked, and says what its first run did (R14)", async () => {
   setup();
   const calls = verbs();

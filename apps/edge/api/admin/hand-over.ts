@@ -21,7 +21,7 @@
  * route AFTER RLS has proved the call belongs to the operator's workspace and
  * the role door has been checked there. Body: { call_id, line }.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameHandOver } from "../../lib/packages/contracts.js";
@@ -35,7 +35,7 @@ const E164 = /^\+[1-9]\d{6,14}$/;
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/hand-over");
   if (!auth.ok) return auth.response;
-  if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
+  if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
   let body: { call_id?: string; line?: string } = {};
   try {
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !E164.test(line)) {
-    return json(400, { ok: false, error: "call_id + line (E.164) required" });
+    return refuse(400, "bad_request", "call_id + line (E.164) required");
   }
 
   const r = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, callId, {

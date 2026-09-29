@@ -123,7 +123,8 @@ test("the runner knocks with a token for the door and the workspace, as the dash
 });
 
 test("every reply leaves a quality signal on its usage event, and the diagnostics read the day back", () => {
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  // The turn's clock (model-turn.ts) and the signal it leaves on the usage event (dispatch.ts).
+  const wa = ["model-turn", "dispatch"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
   assert.ok(wa.includes("const tBrain = Date.now();") && wa.includes("brainMs = Date.now() - tBrain;"));
   assert.ok(
     wa.includes("intent: brainMeta?.intent ?? null,") &&
@@ -147,7 +148,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
   assert.ok(!PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 10 }).success, "below a sensible floor");
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("budget"));
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const wa = readCode("packages/core/src/inbound/reply-gates.ts");
   assert.ok(
     wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
     "the cap is handed to the read, which stops at it",

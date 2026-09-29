@@ -26,6 +26,52 @@ export function wilson(k, n, z = 1.96) {
   return [Math.max(0, (c - m) / d), Math.min(1, (c + m) / d)];
 }
 
+/**
+ * Why the rounds of these turns missed the cache (AskTurnShape.cache_miss, the Phase 6 plan, D2): each reason the API
+ * gave and how many rounds gave it, the most first, then by name. Rounds that named no message, or where nothing
+ * diverged, say nothing and are not counted; a turn from before Phase 6 has no key.
+ */
+export function missTally(shapes) {
+  const n = new Map();
+  for (const s of shapes)
+    for (const m of Array.isArray(s?.cache_miss) ? s.cache_miss : [])
+      if (typeof m === "string") n.set(m, (n.get(m) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, rounds]) => ({ reason, rounds }));
+}
+
+/**
+ * The nightly's lines for Ask's day (the Phase 6 plan, D4): alarms, not the spec's targets (a median cache hit of 80%,
+ * first words in 2 s), which the day does not meet yet. At fewer answered turns than `minTurns` a median says nothing.
+ */
+export const ASK_DAY_LINES = { minTurns: 10, cacheHit: 0.5, firstTextMs: 6_000 };
+
+/**
+ * The day against its lines, in one sentence (the Phase 6 plan, D4): `ok` false when the median cache hit is under its
+ * line or the median first text over its, and then the sentence names the most-given miss reason, where one was said.
+ * A median that could not be taken crosses nothing.
+ */
+export function askDayVerdict({ turns, cacheHit, firstTextMs, misses = [] }, lines = ASK_DAY_LINES) {
+  if (turns < lines.minTurns)
+    return {
+      ok: true,
+      line: `Ask's day: ${turns} answered turns, under the ${lines.minTurns} a median needs; nothing judged.`,
+    };
+  const hit = cacheHit === null ? "no cache hit measured" : `median cache hit ${pct(cacheHit)}`;
+  const text = firstTextMs === null ? "no first text measured" : `median first text ${ms(firstTextMs)}`;
+  const crossed = [
+    ...(cacheHit !== null && cacheHit < lines.cacheHit ? [`${hit}, under ${pct(lines.cacheHit)}`] : []),
+    ...(firstTextMs !== null && firstTextMs > lines.firstTextMs ? [`${text}, over ${ms(lines.firstTextMs)}`] : []),
+  ];
+  if (!crossed.length)
+    return {
+      ok: true,
+      line: `Ask's day holds its lines: ${turns} turns, ${hit} (line ${pct(lines.cacheHit)}), ${text} (line ${ms(lines.firstTextMs)}).`,
+    };
+  const [top] = misses;
+  const why = top ? ` The most-given cache miss: ${top.reason} (${top.rounds} rounds).` : "";
+  return { ok: false, line: `Ask's day crossed a line: ${crossed.join("; ")}, over ${turns} turns.${why}` };
+}
+
 /** A ratio as a whole percent. */
 export const pct = (x) => `${Math.round(x * 100)}%`;
 

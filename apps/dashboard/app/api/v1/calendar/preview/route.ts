@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
-import { previewFeed } from "@/server/calendar/calendar";
+import { previewFeed } from "@/server/calendar/feed-preview";
 
 /**
  * POST /api/v1/calendar/preview — { url }. A calendar feed checked before it

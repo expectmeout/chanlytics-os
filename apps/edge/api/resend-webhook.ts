@@ -20,7 +20,7 @@
  * Email is off on a deployment that names no EMAIL_DOMAIN: 404, the door does
  * not exist there.
  */
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger, errField } from "../lib/log.js";
 import { coldReplyDomains, emailDomain } from "../lib/email/email.js";
@@ -39,13 +39,13 @@ let lastUnroutableRow = 0;
 
 export async function POST(request: Request): Promise<Response> {
   const domain = emailDomain();
-  if (!domain) return json(404, { ok: false, error: "email_off" });
+  if (!domain) return refuse(404, "email_off");
   const L = logger({ door: "resend-webhook", svix_id: request.headers.get("svix-id") });
 
   const rawBody = await request.text();
-  if (rawBody.length > MAX_BODY_BYTES) return json(413, { ok: false, error: "too_large" });
+  if (rawBody.length > MAX_BODY_BYTES) return refuse(413, "too_large");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "database_unavailable" });
+  if (!db) return refuse(503, "no_database");
 
   let verdict;
   try {
@@ -65,12 +65,12 @@ export async function POST(request: Request): Promise<Response> {
   } catch (e) {
     // A mailbox that could not be looked up is not "nobody's": the delivery comes back.
     L.error("resend_webhook_unreadable", { error: errField(e) });
-    return json(503, { ok: false, error: "database_unavailable" });
+    return refuse(503, "no_database");
   }
 
   if (verdict.kind === "refuse") {
     L.warn(verdict.log);
-    return json(verdict.status, { ok: false, error: verdict.status === 401 ? "unauthorized" : "bad_request" });
+    return refuse(verdict.status, verdict.status === 401 ? "unauthorized" : "bad_request");
   }
 
   if (verdict.kind === "receipt") {
@@ -85,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
         message: r.messageId,
         error: errField(e),
       });
-      return json(503, { ok: false, error: "database_unavailable" });
+      return refuse(503, "no_database");
     }
     return json(200, { ok: true });
   }
@@ -115,7 +115,7 @@ export async function POST(request: Request): Promise<Response> {
     }
   } catch (e) {
     L.error("email_intake_not_scheduled", { error: errField(e) });
-    return json(503, { ok: false, error: "database_unavailable" });
+    return refuse(503, "no_database");
   }
   return json(200, { ok: true });
 }

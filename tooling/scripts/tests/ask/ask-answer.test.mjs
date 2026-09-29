@@ -668,6 +668,11 @@ test("thirteen names: the format's kinds are a page and twelve rows, and a run i
   );
   assert.ok(!kinds.includes("run"), "a Broadcasts row is cited as a broadcast; run is its address's word");
   assert.match(at("show", "items", "[]", "source").description, /a run is kind broadcast/);
+  // A source is a row read this turn, or one an earlier answer in this thread named (the Phase 5 plan, D5), as the
+  // rules say: a model that followed "read this turn" alone would read the row again, or write kind none and lose it.
+  const said = at("show", "items", "[]", "source").description;
+  assert.match(said, /^A row or a page read this turn \(.*\), or a row an earlier answer in this thread named, with/);
+  assert.match(said, /kind none when it rests on nothing read or named\.$/);
   for (const part of [
     ["show", "figures", "[]"],
     ["show", "breakdown"],

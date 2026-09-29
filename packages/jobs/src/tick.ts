@@ -59,22 +59,41 @@ export interface TickCounts {
   gaveUp: number;
   /** Threw, and kept to be tried again later (ledger RETRY_WAITS_MS). */
   deferred: number;
+  /**
+   * How late each kind's first claim came, at worst, in milliseconds past its row's due time (decision 0018, step 1).
+   * A later claim of the same row is a retry or a lease that ran out, not a wait in the queue, so it is not counted.
+   */
+  lateMs: Record<string, number>;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** Keep the worst wait among a kind's first claims: now, less the row's due time; a claim before it waited none. */
+function noteLate(lateMs: Record<string, number>, job: LedgerRow, now: number): void {
+  if (job.attempts !== 1) return;
+  const late = Math.max(0, now - Date.parse(job.due_at));
+  if (Number.isNaN(late)) return;
+  lateMs[job.kind] = Math.max(lateMs[job.kind] ?? 0, late);
+}
+
+/** The heartbeat's line is flat, so each kind's worst wait is a field of its own: `late_ms_<kind>`. */
+export function lateFields(lateMs: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(lateMs).map(([kind, ms]) => [`late_ms_${kind}`, ms]));
+}
+
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
+  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {} };
 
-  while (ports.now() - started < opts.claimForMs) {
+  for (let now = ports.now(); now - started < opts.claimForMs; now = ports.now()) {
     // Only the claim may throw out of here. A ledger that cannot be claimed
     // from is the database's problem, and the route answers 503 so that
     // sweep_health() reports it as one.
     const job = await ports.claim(opts.leaseSeconds);
     if (!job) break;
     c.claimed += 1;
+    noteLate(c.lateMs, job, now);
 
     if (verdictFor(job) === "give_up") {
       await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");

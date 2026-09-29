@@ -46,7 +46,7 @@ interface MessagesClient {
   };
 }
 
-let client: MessagesClient | null = null;
+let messagesClient: MessagesClient | null = null;
 let override: MessagesClient | null = null;
 
 /** For tests: the client every call uses until reset (null). */
@@ -57,8 +57,8 @@ export function setModelClient(c: MessagesClient | null): void {
 function anthropic(): MessagesClient {
   if (override) return override;
   // Built on first use: the sweeps that ride with this module must run on a deployment without a key.
-  if (!client) client = new Anthropic({ maxRetries: 0 }) as unknown as MessagesClient;
-  return client;
+  if (!messagesClient) messagesClient = new Anthropic({ maxRetries: 0 }) as unknown as MessagesClient;
+  return messagesClient;
 }
 
 /** The API refused the request's format, not its content. */

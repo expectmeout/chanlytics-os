@@ -25,7 +25,7 @@ interface NativePlan {
   refused: string | null;
 }
 
-const refuse = (why: string): NativePlan => ({ signIn: null, to: NATIVE_FAILED, refused: why });
+const refusedPlan = (why: string): NativePlan => ({ signIn: null, to: NATIVE_FAILED, refused: why });
 
 /**
  * Whether the request says it came from another site. The door signs a person in from a form body with no session
@@ -49,15 +49,15 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
 }
 
 export function nativeSignInPlan(body: unknown): NativePlan {
-  if (!body || typeof body !== "object") return refuse("no body");
+  if (!body || typeof body !== "object") return refusedPlan("no body");
   const b = body as Record<string, unknown>;
   const provider = (NATIVE_PROVIDERS as readonly string[]).includes(String(b.provider))
     ? (b.provider as NativeProvider)
     : null;
-  if (!provider) return refuse("unknown provider");
+  if (!provider) return refusedPlan("unknown provider");
   const token = typeof b.token === "string" ? b.token.trim() : "";
-  if (!token) return refuse("no token");
-  if (token.length > TOKEN_MAX) return refuse("token too long");
+  if (!token) return refusedPlan("no token");
+  if (token.length > TOKEN_MAX) return refusedPlan("token too long");
   const nonce = typeof b.nonce === "string" && b.nonce.trim() ? b.nonce.trim() : undefined;
   return {
     signIn: { provider, token, nonce },

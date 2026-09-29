@@ -1,6 +1,6 @@
 # Notes to the reviewer
 
-**Demo account.** A reviewer workspace with made-up data (`tooling/scripts/e2e-workspace.mjs`), signed in with an
+**Demo account.** A reviewer workspace with made-up data (`tooling/scripts/ops/e2e-workspace.mjs`), signed in with an
 email and password entered in App Store Connect's review information; the same account works with the in-app email
 door. Sign in with Apple and Google also work; either lands in the same workspace when its provider knows the app.
 

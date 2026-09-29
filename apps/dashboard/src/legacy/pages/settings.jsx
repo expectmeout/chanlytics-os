@@ -1880,7 +1880,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "partner" && window.PanePartner && <window.PanePartner flash={flash} />}
-        {active.id === "team" && <TeamSection flash={flash} />}
+        {active.id === "team" && <TeamWithPartner flash={flash} />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <window.PaneIntegrationsReal />)}
@@ -1895,12 +1895,12 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
     </div>
   );
 };
-
+const TeamWithPartner = ({ flash }) => (window.PanePartner ? <window.PanePartner.Team flash={flash} /> : <TeamSection flash={flash} />); // Team, with its partner card (0020)
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the rail above decides who sees it
 window.SET_TAB = SET_TAB; // the shell's crumb, and so the tab's name, names the pane by this same rule
-window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
+window.SetToggle = SetToggle; // consumed by demo/pages/calendar.jsx, the Calendar's seeded twin
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
 window.PaneProfile = PaneProfile; // rendered on its own by settings-doors.test (the account's own deletion, 00190)

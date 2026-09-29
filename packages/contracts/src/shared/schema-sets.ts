@@ -2,7 +2,7 @@
  * The database's closed sets, and every hand-kept copy held to them.
  *
  * SCHEMA_SETS is generated from the CHECK constraints themselves
- * (schema-sets.generated.ts, written by tooling/scripts/gen-schema-sets.mjs).
+ * (schema-sets.generated.ts, written by tooling/scripts/gen/schema-sets.mjs).
  * The lists written by hand stay where they are, because they carry an order, a
  * comment per value, or a narrower meaning. Each is held here to its column:
  * exactly where it mirrors it, as a subset where it is narrower on purpose. When
@@ -49,7 +49,8 @@ import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
-import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "../deals/deals";
+import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
+import type { SELLS_BY } from "../deals/sells-by";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
@@ -73,14 +74,25 @@ import type {
   LEAD_STAGES,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
-} from "../leads/lead-search";
+} from "../leads/search/sets";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
 export type SchemaSet<K extends SchemaSetKey> = (typeof SCHEMA_SETS)[K][number];
 
-/** true when A and B are the same set of literals. */
-export type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+/**
+ * true when A and B are the same set of literals. `any` is no set: it reads as every one, so a side that is `any` is
+ * never exactly anything (`0 extends 1 & T` holds only for `any`).
+ */
+export type Exactly<A, B> = 0 extends 1 & A
+  ? false
+  : 0 extends 1 & B
+    ? false
+    : [A] extends [B]
+      ? [B] extends [A]
+        ? true
+        : false
+      : false;
 /** true when every literal in A is also in B. */
 export type Within<A, B> = [A] extends [B] ? true : false;
 /** Compiles only when T is true, so the failing line names the pair that drifted. */

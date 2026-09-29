@@ -1,11 +1,11 @@
 /**
- * The card-mark backfill (tooling/scripts/partner-card-marks-backfill.mjs, decision 0012): its planning, its reads
+ * The card-mark backfill (tooling/scripts/ops/partner-card-marks-backfill.mjs, decision 0012): its planning, its reads
  * of Stripe over a stand-in, and its writes over a database in memory. The script's main is not run; its parts are,
  * the ones a dry run and an apply share.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planCardMarks, readFingerprints, rejudge, writeCardMarks } from "../../partner-card-marks-backfill.mjs";
+import { planCardMarks, readFingerprints, rejudge, writeCardMarks } from "../../ops/partner-card-marks-backfill.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 const sub = (fingerprint) => ({

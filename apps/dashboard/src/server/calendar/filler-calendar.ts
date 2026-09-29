@@ -2,9 +2,9 @@ import "server-only";
 import { dayPlusInZone } from "@chanlytics/contracts";
 
 /**
- * A calendar of fictional appointments for a workspace that carries tooling/scripts/filler.mjs's people.
+ * A calendar of fictional appointments for a workspace that carries tooling/scripts/ops/filler.mjs's people.
  *
- * The day on Today is read from `tenant_config.calendar.ical_url` (server/calendar/calendar.ts), and the filler
+ * The day on Today is read from `tenant_config.calendar.ical_url` (server/calendar/calendar-week.ts), and the filler
  * cannot write to a real calendar, so a filled workspace points that address at this feed.
  *
  * It is generated, never fetched. The route below serves it so the address is a real one a person can

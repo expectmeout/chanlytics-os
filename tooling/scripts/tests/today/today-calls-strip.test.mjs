@@ -127,7 +127,7 @@ test("an ongoing call is a live row the strip can draw", () => {
 });
 
 test("Today repaints when a call starts or ends, not on every transcript turn", () => {
-  const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/today.ts");
   // The searches ride along since a round that stops to ask is a lead_rounds UPDATE (spec G7); the calls rule is the same.
   assert.ok(surface.includes('refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],'));
   assert.ok(surface.includes('c.row.status !== "ongoing"'), "a turn keeps status ongoing; a start or an end does not");

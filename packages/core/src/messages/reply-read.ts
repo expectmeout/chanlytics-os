@@ -59,6 +59,8 @@ export interface ReplyFacts {
   /** The address the reach-out wrote to, and the lead's website. */
   leadAddress: string | null;
   leadWebsite: string | null;
+  /** Whether the finder saw that website as its host's root (00237); null when it was not kept. */
+  leadWebsiteRoot?: boolean | null;
   /** The chain's signature ({{your name}}), which a draft ends with. */
   signedBy: string | null;
   /** The business's zone. */
@@ -274,6 +276,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       business: facts.business,
       leadAddress: facts.leadAddress,
       leadWebsite: facts.leadWebsite,
+      leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
       reread: n > 0,
       readAt: now,

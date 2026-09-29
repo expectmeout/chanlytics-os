@@ -345,7 +345,7 @@ test("the workspace: a token naming one refuses a body naming another; the token
   const theirs = await knock({ op: "retry", line_id: B_LINE });
   assert.deepEqual(
     await answer(theirs),
-    [404, { ok: false, error: "no such line" }],
+    [404, { ok: false, error: "not_found", detail: "no such line" }],
     "B's line does not exist as far as A can see",
   );
   assert.equal(tables.lines[1].voice_state, "failed", "and it was not touched");
@@ -370,7 +370,10 @@ test("the workspace: a token naming one refuses a body naming another; the token
       "unnamed, a retry came from somebody holding the key",
     );
     const nowhere = await knock({ op: "retry", line_id: B_LINE }, { "x-diag-key": "diag-key-for-this-file" });
-    assert.deepEqual(await answer(nowhere), [400, { ok: false, error: "tenant_id (a workspace id) is required" }]);
+    assert.deepEqual(await answer(nowhere), [
+      400,
+      { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" },
+    ]);
     const nonsense = await knock(
       { op: "retry", tenant_id: "not-a-workspace", line_id: B_LINE },
       { "x-diag-key": "diag-key-for-this-file" },
@@ -382,7 +385,7 @@ test("the workspace: a token naming one refuses a body naming another; the token
     { op: "retry", line_id: LINE },
     { "x-edge-token": token({ workspace: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }) },
   );
-  assert.deepEqual(await answer(ghost), [404, { ok: false, error: "no such workspace" }]);
+  assert.deepEqual(await answer(ghost), [404, { ok: false, error: "not_found", detail: "no such workspace" }]);
 });
 
 test("the writing ops need the receptionist's provider and a database; status and search need neither; an unknown op is named back", async () => {
@@ -410,8 +413,10 @@ test("the writing ops need the receptionist's provider and a database; status an
   assert.equal(db.seen.length, 0);
   const unknown = await knock({ op: "dance" });
   assert.equal(unknown.status, 400);
+  const said = await unknown.json();
+  assert.equal(said.error, "unknown_op");
   assert.match(
-    (await unknown.json()).error,
+    said.detail,
     /^op must be status, search, buy, retry, release, record, register or registration-status$/,
   );
   const noOp = await knock({});
@@ -457,7 +462,7 @@ test("search validates the area code and answers local numbers with the monthly 
     for (const bad of [{}, { area_code: "30" }, { area_code: 1305 }, { area_code: "abc" }, { area_code: 199 }]) {
       const [status, body] = await answer(await knock({ op: "search", ...bad }));
       assert.equal(status, 400, JSON.stringify(bad));
-      assert.equal(body.error, "area_code must be three digits, like 305");
+      assert.deepEqual([body.error, body.detail], ["bad_request", "area_code must be three digits, like 305"]);
     }
     const [status, body] = await answer(await knock({ op: "search", area_code: "305" }));
     assert.equal(status, 200);
@@ -535,7 +540,10 @@ test("buy for a workspace that may spend writes a provisioning row and schedules
   const net = unreachable("the door schedules the saga; it does not run it");
   try {
     const bad = await knock({ op: "buy", number: "3055550100" });
-    assert.deepEqual(await answer(bad), [400, { ok: false, error: "number must be E.164, like +13055550100" }]);
+    assert.deepEqual(await answer(bad), [
+      400,
+      { ok: false, error: "bad_request", detail: "number must be E.164, like +13055550100" },
+    ]);
     assert.equal(tables.lines.length, 0);
 
     const startedAt = Date.now();
@@ -593,7 +601,8 @@ test("buy for a workspace that may spend writes a provisioning row and schedules
   use(broken, {}, { "jobs.insert": { message: "permission denied for table jobs" } });
   const [s4, b4] = await answer(await knock({ op: "buy", number: NUMBER }));
   assert.equal(s4, 503);
-  assert.match(b4.error, /schedule_job: permission denied/);
+  assert.equal(b4.error, "could_not_queue");
+  assert.match(b4.detail, /schedule_job: permission denied/);
   assert.equal(b4.line.voice_state, "provisioning", "the row stands; the lines sweep picks it up past the deadline");
 });
 
@@ -667,18 +676,24 @@ test("retry resumes only the named row of the named workspace at its own step, r
   try {
     assert.deepEqual(await answer(await knock({ op: "retry", line_id: "nope" })), [
       400,
-      { ok: false, error: "line_id is required" },
+      { ok: false, error: "bad_request", detail: "line_id is required" },
     ]);
-    assert.deepEqual(await answer(await knock({ op: "retry" })), [400, { ok: false, error: "line_id is required" }]);
+    assert.deepEqual(await answer(await knock({ op: "retry" })), [
+      400,
+      { ok: false, error: "bad_request", detail: "line_id is required" },
+    ]);
     assert.deepEqual(
       await answer(await knock({ op: "retry", line_id: B_LINE })),
-      [404, { ok: false, error: "no such line" }],
+      [404, { ok: false, error: "not_found", detail: "no such line" }],
       "another workspace's row is not ours to resume",
     );
 
-    // The rule is `lineRetryRefusal`: each refusal names the state a person can act on.
+    // The rule is `lineRetryRefusal`: each refusal names the state a person can act on, in `detail` beside its code.
     const [s1, b1] = await answer(await knock({ op: "retry", line_id: SECOND }));
-    assert.deepEqual([s1, b1.error, b1.line.id], [409, "the line is answering, not failed", SECOND]);
+    assert.deepEqual(
+      [s1, b1.error, b1.detail, b1.line.id],
+      [409, "line_not_retryable", "the line is answering, not failed", SECOND],
+    );
     tables.lines.push(
       lineRow({
         id: "44444444-4444-4444-8444-444444444444",
@@ -689,8 +704,9 @@ test("retry resumes only the named row of the named workspace at its own step, r
     );
     const [s2, b2] = await answer(await knock({ op: "retry", line_id: "44444444-4444-4444-8444-444444444444" }));
     assert.equal(s2, 409);
-    assert.match(b2.error, /still setting up/);
-    assert.match(b2.error, /retried automatically after that/, "so nobody sits refreshing");
+    assert.equal(b2.error, "line_not_retryable");
+    assert.match(b2.detail, /still setting up/);
+    assert.match(b2.detail, /retried automatically after that/, "so nobody sits refreshing");
     tables.lines.push(
       lineRow({
         id: "55555555-5555-4555-8555-555555555555",
@@ -701,8 +717,9 @@ test("retry resumes only the named row of the named workspace at its own step, r
     );
     const [s3, b3] = await answer(await knock({ op: "retry", line_id: "55555555-5555-4555-8555-555555555555" }));
     assert.equal(s3, 409);
+    assert.equal(b3.error, "line_not_retryable");
     assert.match(
-      b3.error,
+      b3.detail,
       /credentials could not be kept/,
       "a retry cannot help until a person restores them, and the button says so",
     );
@@ -793,7 +810,7 @@ test("release gives the number and the trunk back, switches both routing rows of
   try {
     assert.deepEqual(await answer(await knock({ op: "release", line_id: B_LINE })), [
       404,
-      { ok: false, error: "no such line" },
+      { ok: false, error: "not_found", detail: "no such line" },
     ]);
     assert.equal(tables.lines.length, 2, "another workspace's number is not ours to give back");
 
@@ -906,7 +923,8 @@ test("release finds a number the row lost the receipt for and gives it back — 
     await withEnv(TWILIO, async () => {
       const [status, body] = await answer(await knock({ op: "release", line_id: LINE }));
       assert.equal(status, 502);
-      assert.match(body.error, /^releasing at the provider: list owned numbers: internal error \(Twilio 20500\)/);
+      assert.equal(body.error, "provider_refused");
+      assert.match(body.detail, /^releasing at the provider: list owned numbers: internal error \(Twilio 20500\)/);
       assert.deepEqual(body.released, {});
     });
   } finally {
@@ -941,7 +959,12 @@ test("(A2) release takes the number off Retell first, when the saga imported it 
   try {
     assert.deepEqual(await answer(await knock({ op: "release", line_id: LINE })), [
       502,
-      { ok: false, error: "releasing at the provider: Retell delete-phone-number: HTTP 500", released: {} },
+      {
+        ok: false,
+        error: "provider_refused",
+        detail: "releasing at the provider: Retell delete-phone-number: HTTP 500",
+        released: {},
+      },
     ]);
   } finally {
     down.restore();
@@ -978,31 +1001,38 @@ const FORM = {
 test("record validates the row it is about to write and reports the first problem in the owner's words; a good one is kept once per workspace and the ledger says so", async () => {
   const tables = world();
   const db = use(tables);
-  assert.deepEqual(await answer(await knock({ op: "record" })), [400, { ok: false, error: "record is required" }]);
+  assert.deepEqual(await answer(await knock({ op: "record" })), [
+    400,
+    { ok: false, error: "bad_request", detail: "record is required" },
+  ]);
   assert.deepEqual(await answer(await knock({ op: "record", record: "Harbor Moving" })), [
     400,
-    { ok: false, error: "record is required" },
+    { ok: false, error: "bad_request", detail: "record is required" },
   ]);
   assert.deepEqual(await answer(await knock({ op: "record", record: { ...FORM, legal_name: "" } })), [
     400,
-    { ok: false, error: "Legal name is needed." },
+    { ok: false, error: "record_incomplete", detail: "Legal name is needed." },
   ]);
   assert.deepEqual(await answer(await knock({ op: "record", record: { ...FORM, ein: "12345" } })), [
     400,
-    { ok: false, error: "A tax ID is nine digits, like 12-3456789." },
+    { ok: false, error: "record_incomplete", detail: "A tax ID is nine digits, like 12-3456789." },
   ]);
   assert.deepEqual(await answer(await knock({ op: "record", record: { ...FORM, contact_email: "ada" } })), [
     400,
-    { ok: false, error: "That does not look like an email address." },
+    { ok: false, error: "record_incomplete", detail: "That does not look like an email address." },
   ]);
   assert.deepEqual(
     await answer(await knock({ op: "record", record: { ...FORM, legal_name: "", region: "New York" } })),
-    [400, { ok: false, error: "Legal name is needed." }],
+    [400, { ok: false, error: "record_incomplete", detail: "Legal name is needed." }],
     "missing before malformed, in the order the form asks",
   );
   assert.deepEqual(await answer(await knock({ op: "record", record: { ...FORM, country: "MX" } })), [
     400,
-    { ok: false, error: "The carriers register US and Canadian businesses only. Ours is not a door we can open." },
+    {
+      ok: false,
+      error: "record_incomplete",
+      detail: "The carriers register US and Canadian businesses only. Ours is not a door we can open.",
+    },
   ]);
   assert.equal(writes(db, "business_records").length, 0, "nothing written until it validates");
   assert.equal(tables.events.length, 0);
@@ -1069,10 +1099,11 @@ test("record: which registration is said, not inferred — a sole proprietor is 
     await knock({ op: "record", path: "sole_proprietor", record: { ...FORM, contact_phone: NUMBER } }),
   );
   assert.equal(ours, 400);
-  assert.match(why.error, /This is the number Chanlytics answers for you\. The carriers need YOUR handset/);
+  assert.equal(why.error, "sole_proprietor_incomplete");
+  assert.match(why.detail, /This is the number Chanlytics answers for you\. The carriers need YOUR handset/);
   assert.deepEqual(
     await answer(await knock({ op: "record", path: "sole_proprietor", record: { ...FORM, contact_phone: "" } })),
-    [400, { ok: false, error: "Your mobile is needed." }],
+    [400, { ok: false, error: "sole_proprietor_incomplete", detail: "Your mobile is needed." }],
     "in that path's own words",
   );
   // And the standard path's demands are not made of them: no legal form, no tax id.
@@ -1092,7 +1123,7 @@ test("record: which registration is said, not inferred — a sole proprietor is 
   assert.deepEqual([d2, sole.record.path], [200, "sole_proprietor"]);
   assert.deepEqual(
     await answer(await knock({ op: "record", record: { ...FORM, ein: "" }, path: "standard" })),
-    [400, { ok: false, error: "Tax ID (EIN) is needed." }],
+    [400, { ok: false, error: "record_incomplete", detail: "Tax ID (EIN) is needed." }],
     "a caller that says standard is held to it",
   );
 });
@@ -1275,9 +1306,12 @@ test("register: a filing that stands is final, refile or not; a rehearsal and a 
     assert.equal(tables.lines[0].sms_state, "needs_record", "and the row says what it is waiting on");
     assert.deepEqual(await answer(await knock({ op: "register", line_id: B_LINE })), [
       404,
-      { ok: false, error: "no such line" },
+      { ok: false, error: "not_found", detail: "no such line" },
     ]);
-    assert.deepEqual(await answer(await knock({ op: "register" })), [400, { ok: false, error: "line_id is required" }]);
+    assert.deepEqual(await answer(await knock({ op: "register" })), [
+      400,
+      { ok: false, error: "bad_request", detail: "line_id is required" },
+    ]);
   } finally {
     net.restore();
   }
