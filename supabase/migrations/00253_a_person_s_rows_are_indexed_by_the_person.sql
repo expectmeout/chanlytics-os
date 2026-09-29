@@ -1,4 +1,4 @@
--- 00230 · A person's rows are indexed by the person.
+-- 00253 · A person's rows are indexed by the person.
 --
 -- people_list reads each person's channels, thread, escalations and deal by the person alone (00170 :340-366,
 -- :421-430). People, the exports, Reports, the audiences and the playbook sweep read it for everyone in a workspace,

@@ -1,8 +1,8 @@
 /**
- * A person's rows are found by the person (00230), on a real database.
+ * A person's rows are found by the person (00253), on a real database.
  *
  * people_list reads each person's channels, thread, escalations and deal by the person alone (00170 :340-366,
- * :421-430), and until 00230 none of those four tables had an index that starts with the person: each read went
+ * :421-430), and until 00253 none of those four tables had an index that starts with the person: each read went
  * through the whole platform's table once per person, so the list cost its people times every workspace's rows. What
  * this proves is that the reads grow with the workspace and not the platform. A workspace of twenty people is read
  * beside another workspace of a thousand, and read again once that one has three thousand: the blocks read from each
