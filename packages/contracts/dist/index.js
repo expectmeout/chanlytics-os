@@ -8990,13 +8990,15 @@ function describeOpenings(openings, tz, opts) {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   const hasLink = opts.hasBookingLink;
+  const held = hasLink && opts.bookingHeld === true;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
-` + (hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 
 // src/calendar/service-offer.ts
@@ -10483,6 +10485,16 @@ var POLICY_CLASS_MODES = {
   // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
   outreach: ["veto", "ask", "never"]
 };
+function policyModeOffered(cls, mode) {
+  return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
+}
+function policyModeRefusal(cls, mode) {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you \u2014 there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
   if (intent === "pricing" || intent === "services") return "faq";
@@ -11478,9 +11490,9 @@ function abilityRows(i) {
       id: "open_times",
       title: "Say which times are open",
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
-      // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
+      // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
+      // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
@@ -13075,9 +13087,6 @@ function routePrefetchScript() {
   ].join("");
 }
 var isSidebarPref = (v) => v === "open" || v === "rail";
-function workspaceHotkey(index) {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
-}
 function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
@@ -13154,6 +13163,8 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // The record kit's fold, sheet and inline editor (record-fold.jsx recKeys): Business, a person, a deal, a step.
+  { group: "Everywhere", keys: ["\u2318\u21B5"], does: "Save the change you are making" },
   // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
   { group: "Ask", keys: ["\u2191", "\u2193"], does: "Walk what is under the line" },
   { group: "Ask", keys: ["\u21B5"], does: "Ask, or open the row" },
@@ -13171,7 +13182,9 @@ var SHORTCUTS = [
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
-  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" }
+  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" },
+  { group: "Calendar", keys: ["\u2190", "\u2192"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" }
 ];
 function shortcutGroups(list2 = SHORTCUTS) {
   const out = [];
@@ -30420,6 +30433,8 @@ export {
   policyClassOfIntent,
   policyClassOffered,
   policyLinks,
+  policyModeOffered,
+  policyModeRefusal,
   policyRules,
   poolListContext,
   poolRowOf,
@@ -30795,7 +30810,6 @@ export {
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,
-  workspaceHotkey,
   workspacePartnerVM,
   writtenChannelOf,
   writtenOutDetail,
