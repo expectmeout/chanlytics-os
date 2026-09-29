@@ -16,13 +16,13 @@ One qualification, because it changes what is worth centralising. `deliver()` is
 
 A conversation is not one table. It is five, and knowing which one owns which fact explains most of what follows.
 
-| Row             | Owns                                             | The rule that matters                                                                                        |
-| --------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `contacts`      | the person: number, address, consent, erasure    | one per workspace per identity; `contacts_tenant_phone_uq` is **partial**, on `where phone_e164 is not null` |
-| `conversations` | the thread: its state, who holds it, until when  | `unique (tenant_id, contact_id)` — **one thread per person per workspace, for ever, across every channel**   |
-| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` is the "we finished with this" stamp      |
-| `escalations`   | the hold: a thread waiting for a person, and why | `escalations_one_open` — **one open row per thread**; a second reason overwrites the first                   |
-| `jobs`          | the outbox: everything that happens later        | one insert, a lease, a heartbeat; a kind arrives with its handler, its caller and its CHECK together         |
+| Row             | Owns                                             | The rule that matters                                                                                          |
+| --------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `contacts`      | the person: number, address, consent, erasure    | one per workspace per identity; `contacts_tenant_phone_uq` is **partial**, on `where phone_e164 is not null`   |
+| `conversations` | the thread: its state, who holds it, until when  | `unique (tenant_id, contact_id)` — **one thread per person per workspace, for ever, across every channel**     |
+| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` is the "we finished with this" stamp        |
+| `escalations`   | the hold: a thread waiting for a person, and why | `escalations_one_open` — **one open row per thread**; a second reason overwrites the first                     |
+| `jobs`          | the outbox: everything that happens later        | one insert, a lease, a heartbeat; a kind arrives with its handler, its caller, its CHECK and its lane together |
 
 Two ledgers sit beside them: `events` (what happened) and `decisions` (who decided it). A path that writes neither is invisible to Activity and to the owner's audit, and that absence is a finding below.
 

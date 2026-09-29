@@ -82,7 +82,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Rebuild and commit `packages/*/dist`** whenever a package changes. CI fails on drift.
 - **Either deploy order works.** The two apps deploy independently; a shape both must agree on
   is compatible whichever deploys first.
-- **A job kind arrives with its handler, its caller and the `jobs.kind` CHECK**, in one change.
+- **A job kind arrives with its handler, its caller, the `jobs.kind` CHECK and its lane**, in one change.
 - **Migrations are forward-only.** Named for the schema change, re-runnable statements, never
   edited or renamed once applied. Two files on one number fail the build.
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and

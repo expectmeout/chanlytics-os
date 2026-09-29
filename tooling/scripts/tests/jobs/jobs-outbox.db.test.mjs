@@ -75,12 +75,12 @@ const claim = (limit) => db.rpc("claim_due_jobs", { p_limit: limit, p_lease_seco
 /**
  * A claim that came back holding a row this suite made.
  *
- * The ledger is ONE queue and claim_due_jobs takes from all of it: no kind,
- * no workspace, just what is due. Another database suite claiming at the same
- * moment can therefore carry a row of ours off between the insert and the
+ * The ledger is ONE queue and claim_due_jobs takes from all of it, whoever's
+ * work it is (0018 orders it, and excludes none). Another suite claiming at the
+ * same moment can therefore carry a row of ours off between the insert and the
  * call, and that row is then fired on somebody else's lease -- the ledger
- * working, not a fault here. So the row is made again and the claim repeated,
- * a few times at most, and the batch is never read as if it were all ours.
+ * working, not a fault here. So the row is made again and the claim repeated, a
+ * few times at most, and the batch is never read as if it were all ours.
  */
 async function claimHolding(limit, make) {
   for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -140,10 +140,11 @@ test("a claim takes what is due, leaves what is not, and holds it on a lease", {
 });
 
 test("two claims at once never take the same row", { skip }, async () => {
-  // Two hours due, which is older than anything another suite leaves lying in
-  // the queue: claim_due_jobs orders by due_at, so the four slots these two
-  // claims have go to these four rows and not to somebody else's work.
-  const mine = await Promise.all([0, 1, 2, 3].map(() => insertJob({ due_at: ago(7200) })));
+  // Replies, two hours due, which is older than anything another suite leaves
+  // lying in the queue: claim_due_jobs takes the first lane first and the
+  // oldest in it (0018), so the four slots these two claims have go to these
+  // four rows and not to somebody else's work.
+  const mine = await Promise.all([0, 1, 2, 3].map(() => insertJob({ kind: "push_send", due_at: ago(7200) })));
   const [a, b] = await Promise.all([claim(2), claim(2)]);
   assert.equal(a.error, null, a.error?.message);
   assert.equal(b.error, null, b.error?.message);
