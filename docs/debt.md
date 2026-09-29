@@ -97,6 +97,9 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Literal style values: `surfaces/kit/kit.css` new, font 17, radius 5, shadow 5, colour 2 (the interface kit, step 2.1), as `components.css` falls by the same (font 118 → 101, radius 42 → 37, shadow 13 → 8, colour 13 → 11); the total, 1,093, holds | The kit's rules moved from components.css whole, their values with them (the plan's §3.4 and step 2.1): a value changed on its way would not be the move style equality proves. The measure counts each stylesheet, so the kit's first values are a key of their own                                                                                            | The kit reads roles for them: its sizes, radii and shadows take tokens with the look (Phase 5)                               |
 | Workspace route CSS 123.1 → 125.8 KB gzipped (the interface kit, Phase 2: step 2.1's move, and step 2.2's primitives and quiet link button; the pages outside the shell load none of it, and the JS stays in its band)                                | 2.1 moved the kit's rules into kit.css (729.3 KB raw, as before), and 2.2 adds the panel, the face and row, the meter, the sheet and the quiet link button (734.0 KB). Only the shell's entry imports the kit; the build cuts its CSS into chunks of about 125 KB, kit.css a chunk alone (the base measures 123.6 KB). The plan's §6 counts on it               | Route-level splitting (0015's App Router routes), or Phase 4's surfaces deleting their own primitives                        |
 | Inline style props +1: `apps/dashboard/src/surfaces/kit/meter.tsx`, new at 1 (the interface kit, step 2.4)                                                                                                                                            | A meter part's share is data, its flex-grow, and a chart's part carries its series colour: values no class can hold, the one kind of prop this measure's row allows. The kit's Meter writes both in one prop, as SegmentBar writes them (`chart-core.jsx:399`); no page draws it yet                                                                            | SegmentBar and the reach bar take the kit's Meter (Phase 4), and their props leave `chart-core.jsx` and `campaign-bits.jsx`  |
+| Primitives outside the kit +12 (the interface kit, step 5.3): `components.css` `avatar`, `nav-badge`, `sb-team-mark`, `stabs`, `user-chip` +1 each; `mobile.css` `phone-tab`, `phone-tabs` +2 each, `phone-tab-badge`, `pp-toast-stack`, `stabs` +1   | The frame's Glass forms live with its rules (the plan's step 5.3), under `[data-look="glass"]` and matching nothing in Classic: the sidebar's mark, face and counts, the phone's tab bar and its count. Its classes name a primitive by their words and stay the frame's; of the kit's three it names, it places the strip and the toast, and restyles the face | The frame moves on the kit with the shell's exit (decision 0015, step 13), or Classic retires (step 5.7)                     |
+| Primitives outside the kit +2 (the interface kit, the review of steps 5.1 to 5.3): `clients.css` `stabs-people` +2                                                                                                                                    | People's own strip in Glass, set in from the page's edge where the shell sets its strip of views: the review found it against the page's edge at a desk and the window's on a phone. Two selectors, under `[data-look="glass"]` and matching nothing in Classic, place the kit's strip and restyle nothing                                                      | People moves on the kit with the shell's exit (decision 0015, step 13), or Classic retires (step 5.7)                        |
+| Workspace route CSS 125.8 → 130.2 KB gzipped (the interface kit, steps 5.1 to 5.3: the Glass look's tokens, the kit and the frame in Glass; the JS stays in its band)                                                                                 | Glass is one block of values in `tokens.css` and its rules under `[data-look="glass"]` in `kit.css`, `components.css`, `mobile.css`, `ask.css` and `clients.css`: 760.4 KB raw, from 734.0; 130.5 KB gzipped after the review, in the band. Every workspace loads them whichever look it wears: a look is chosen on the device before first paint               | Classic retires (step 5.7, decision 6) and the rules only it reads leave, or route-level splitting (0015)                    |
 
 ## The numbers
 
@@ -116,14 +119,14 @@ as unknown as                       216
 table names outside packages/db     521
 unnamed durations                    69   in 36 files
 literal style values               1093   in 22 stylesheets
-primitives outside the kit         2155   selectors naming 864 classes
+primitives outside the kit         2169   selectors naming 864 classes
 inline style props                  286   in 49 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
 source-text reads in tests          812
 lint warnings                       321   in 62 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      982   the shell included
-workspace route CSS, KB gzipped     126
+workspace route CSS, KB gzipped     130
 ```
 
 <!-- measured:end -->
