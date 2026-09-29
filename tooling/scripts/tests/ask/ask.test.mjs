@@ -225,6 +225,69 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
+test("on the first run the page's own questions lead: what is left to set up and the hours, in either language, and never an offer or a playbook; every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
+  const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true };
+  const chips = (surface, language = "en") =>
+    buildAskSuggestions({ ...quiet, surface, language, leadSearches: ["pilates in denver"] }).map(
+      (s) => `${s.q}${s.fast ? "*" : ""}`,
+    );
+  assert.deepEqual(chips("start"), [
+    "What is left to set up?",
+    "What are our hours this week?",
+    "Who needs me right now?*",
+    "How did the week go?",
+    "What can the receptionist do on its own?",
+    "Remember that ",
+  ]);
+  assert.deepEqual(chips("start", "es").slice(0, 2), [
+    "¿Qué falta por configurar?",
+    "¿Cuál es nuestro horario esta semana?",
+  ]);
+  const first = buildAskSuggestions({ ...quiet, surface: "start", language: "en" })[0];
+  assert.equal(first.fast, false, "the model's, over the steps the server's start provider reads: no quick answer");
+  // The page questions as one table (PAGE_QUESTIONS): each other surface offers what it did before it, word for word.
+  const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can the receptionist do on its own?"];
+  const OFFER = ["Remember that ", "Send the ", "Start a win-back playbook for the quiet clients"];
+  const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
+  const was = {
+    today: ["Brief me on today", "Who wrote today?", ...EVERYONE, "Remember that ", "Close on "],
+    inbox: [
+      "Who wrote today?",
+      "What can the receptionist do on its own?",
+      "Who needs me right now?*",
+      "How did the week go?",
+      "Remember that ",
+      "Hold every reply for my review before it sends",
+    ],
+    people: ["Who wrote today?", ...EVERYONE, ...OFFER],
+    leads: ["Find more like: pilates in denver", ...EVERYONE, "Remember that "],
+    conversations: CALLS,
+    live: CALLS,
+    reports: [
+      "How did the week go?",
+      "Who needs me right now?*",
+      "What can the receptionist do on its own?",
+      "Remember that ",
+    ],
+    settings: [
+      "What can the receptionist do on its own?",
+      "What are our hours this week?",
+      "Who needs me right now?*",
+      "How did the week go?",
+      "Remember that ",
+      "Close on ",
+      "Change Saturday's hours to ",
+      "Invite ",
+    ],
+    pipeline: ["Who wrote today?", ...EVERYONE, ...OFFER],
+    calendar: [...EVERYONE, ...OFFER],
+    campaigns: [...EVERYONE, ...OFFER],
+    other: [...EVERYONE, ...OFFER],
+  };
+  for (const [surface, chipsWere] of Object.entries(was)) assert.deepEqual(chips(surface), chipsWere, surface);
+  assert.deepEqual([...Object.keys(was), "start"].sort(), [...ASK_SURFACES].sort(), "every surface is held here");
+});
+
 test("the surfaces are one list, Leads among them, and every kind a scope may have is a kind a citation names, a run as a broadcast: the route and the prompt read the same names", () => {
   assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
   assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));

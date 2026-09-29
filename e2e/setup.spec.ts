@@ -1,11 +1,19 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { activeWorkspace, apiGet, scoped } from "./workspace";
 
 /**
  * Setup on a real workspace, as the first run draws it (#/start): Setup's own rows, one step to a screen, every row a
  * fact the workspace holds -- a state in words, a sentence, at most one verb -- and what is left after it as one card
  * on Today. The Setup tab left Settings; its old address lands on the first run.
  */
+
+/**
+ * A real turn spends model tokens on the workspace the run signs in to (e2e/ask.spec.ts, the same switch). Without it the
+ * question the first run asks is stopped in the browser before it leaves, and what it carries is read instead.
+ */
+const PAID = process.env.E2E_PAID_MODEL === "1";
+const SETUP_LEFT = "What is left to set up?";
 
 /** Every step the rail lets the owner open: the ones done, and the one the workspace is on. */
 async function stepsReached(page: Page): Promise<string[]> {
@@ -113,6 +121,51 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     const rows = card.locator('[data-testid^="setup-row-"]');
     expect(await rows.count()).toBeGreaterThan(0);
     await expect(rows.first().locator('[data-testid^="setup-later-"]')).toHaveText("Skip");
+  });
+
+  test("the first run asks: ⌘K opens Ask over the step, on the first run's own questions, no key drawn, and what is left to set up goes with the page it is asked on", async ({
+    page,
+  }) => {
+    test.setTimeout(PAID ? 150_000 : 60_000);
+    // Without the switch the turn never leaves the browser: its body is kept and the request refused, so no model runs.
+    const asked: Array<{ text: string; surface: string; context: { surface: string; route: string } | null }> = [];
+    if (!PAID)
+      await page.route(/\/api\/v1\/ask(\?|$)/, async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        asked.push(route.request().postDataJSON());
+        await route.abort();
+      });
+    await page.goto("/#/start");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("first-run")).toBeVisible();
+    await page.keyboard.press("Control+k");
+    const line = page.getByTestId("ask-real");
+    await expect(line).toBeVisible();
+    await expect(page, "the first run stays where it is under the Line").toHaveURL(/#\/start/);
+    await expect(page.getByTestId("first-run")).toBeAttached();
+    expect(await line.innerText(), "no key is drawn").not.toMatch(/[↵⌘]|\besc\b/i);
+    await expect(line.locator(".ask-rows-label", { hasText: "Ask about setting up" })).toBeVisible();
+    await line.getByTestId("ask-input").fill(SETUP_LEFT);
+    await line.getByTestId("ask-input").press("Enter");
+    if (!PAID) {
+      await expect.poll(() => asked.length, { message: "the question is asked, once" }).toBe(1);
+      expect(asked[0].text).toBe(SETUP_LEFT);
+      expect(asked[0].surface, "on the first run's own surface").toBe("start");
+      expect(asked[0].context?.surface, "with the page it is asked on").toBe("start");
+      expect(asked[0].context?.route).toMatch(/^start/);
+      return;
+    }
+    const say = line.getByTestId("ask-say");
+    await expect(say).toBeVisible({ timeout: 120_000 });
+    await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
+    expect((await say.innerText()).trim().length).toBeGreaterThan(0);
+    // The conversation is the run's own: read back and deleted, as ask.spec.ts leaves none behind.
+    const ws = await activeWorkspace(page);
+    const { data } = await (await apiGet(page, "/api/v1/ask/threads")).json();
+    const mine = (data.threads as Array<{ id: string; title: string }>).find((t) => t.title === SETUP_LEFT);
+    expect(mine, "the question is a conversation of the person's own").toBeTruthy();
+    const origin = { headers: { origin: new URL(page.url()).origin } };
+    expect((await page.request.delete(scoped(`/api/v1/ask/threads/${mine!.id}`, ws), origin)).status()).toBe(200);
   });
 
   test("a workspace whose receptionist answers is not sent to the first run on arrival", async ({ page }) => {

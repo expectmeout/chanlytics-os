@@ -1,8 +1,9 @@
 /* global React, Icon */
-// AskBar — the conversational AI surface invoked by ⌘K.
-// v2: persistent threads. Every conversation is saved and resumable, and
-// ⌘K resumes where you left off. The demo's; a workspace has the Line.
-// Answers are grounded in the seed world and link out to real surfaces.
+// AskBar — the palette ⌘K opens, and the seed palette a demo session draws.
+// Outside a demo AskBar is the Line (ask-real.jsx, over window.__ask), on every
+// page and over the first run; everything else in this file is the demo's: its
+// threads are kept in this browser, its answers are canned from the seed world,
+// and its links go to the mockup's pages.
 
 const ASK_SEED_THREADS = [
   {
@@ -355,15 +356,18 @@ const askTopicFor = (q, prev = null) => {
   return prev;
 };
 
-// Global entry point for agent actions anywhere in the app:
-// askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose", thread?: id })
-// `thread` opens that Ask thread as it is: any caller can hand a conversation over this way, and ask-real.jsx takes it.
+// The one door into Ask from anywhere: it opens the palette and hands it `ask:seed`.
+// The Line (ask-real.jsx useArSeedKeys) reads askAbout({ prompt?, mode?: "compose", thread?: id, about?: scope }):
+// a prompt is asked, or with "compose" left in the field to finish; `thread` opens that conversation as it is; `about`
+// is the scope chip it opens with. The seed palette below reads { prompt, mode, title?, answer?, links?, actions?,
+// about? }: a canned answer is the demo's alone, and the Line asks the prompt instead.
 window.askAbout = (detail) => {
   if (window.appAsk) window.appAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
 };
 
-// ⌘K is a palette too: typing matches pages and entities for instant jumps
+// The seed palette's jumps: the demo's pages and seeded people, threads, agents and lists. A workspace's are
+// contracts' askPages (legacy-bridge/ask/palette.ts jumpIndexFrom), which knows nothing seeded.
 const ASK_JUMP_PAGES = [
   { label: "Today", to: "today" }, { label: "Inbox", to: "inbox" }, { label: "Clients", to: "clients" },
   { label: "Leads", to: "clients/leads" }, { label: "Segments", to: "segments" }, { label: "Pipeline", to: "pipeline" },
