@@ -1,6 +1,6 @@
 # 0019 · The database tells each workspace what changed
 
-**Status:** proposed, not built; Ruben's to accept. Written against commit `0c8225d5` (main, 28 September 2026, after
+**Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give; decided, not built. Written against commit `0c8225d5` (main, 28 September 2026, after
 #1242 merged), and every file and line below was read at it. What Realtime does is quoted from Supabase's own guides
 (Postgres Changes, Broadcast, Subscribing to Database Changes, Realtime Authorization, Realtime Concepts, Benchmarks),
 read the same day, and the SQL in Shape was run on PGlite (Postgres 18) with stand-ins for the `realtime` and `auth`
