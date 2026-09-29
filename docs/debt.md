@@ -54,7 +54,7 @@ it is deleted in the same change. The plan that orders the work is
 ## Rises, each with its reason
 
 A number that rises is raised with `UPDATE_BASELINES=raise corepack pnpm test` (dead exports, lint warnings and the
-bundle budget with their script's `--raise`: `check:dead-exports`, `lint`, `check:bundle`, each `-- --raise`) in the
+bundle budget with their script's `--raise`: `check:dead-exports`, `lint`, each `-- --raise`, and `check:bundle -- --raise js=<bytes>`, by the gzipped growth the row argues, never to what was measured) in the
 same change as its row here: what rose and by how much, why nothing that exists would do, and what takes it back down.
 `UPDATE_BASELINES=1` does not bank a rise, or a new offender, and neither does a script's `--update`: it banks only
 what fell, and the build stays red until the rise is raised or undone. The row leaves when its number falls back.
