@@ -333,7 +333,7 @@ async function receptionistDay(): Promise<Section> {
 }
 
 /**
- * The newest migration this database has applied, and how many (00280 migration_head(), over the CLI's ledger, which
+ * The newest migration this database has applied, and how many (migration_head(), over the CLI's ledger, which
  * PostgREST cannot read). Production took migrations from branches, below main's head, and nothing said what it held:
  * a release compares this head with main's (docs/runbook.md, Deploy), and so does
  * tooling/scripts/checks/migration-ledger.mjs, with the whole ledger. A database the function has not reached yet says

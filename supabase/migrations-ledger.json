@@ -282,6 +282,6 @@
     "00263_an_erased_person_s_digest_is_keyed.sql": "faa01645d719e0c56aca50d4d972978162c1bef02cd155c2221e54ede3caf6cb",
     "00264_an_event_says_which_version_of_its_kind_it_is.sql": "0c6e226a44ab7e074ff89f3ab67b606c71db7e8c0e3b4755181a87be06960275",
     "00265_the_database_tells_each_workspace_what_changed.sql": "ea6a806e26239bc4c23a0f737fef26202fd942794743d40070255568dfe87189",
-    "00280_the_database_says_which_migration_it_has.sql": "e84ad80b107135eb04ead52b9095874c2f410461e7b1d8db8d2b6dfbd7ff659c"
+    "00280_the_database_says_which_migration_it_has.sql": "38d7e10f6d5e0840003a28ce19e20911567cb43f063136291588c551e681d99c"
   }
 }

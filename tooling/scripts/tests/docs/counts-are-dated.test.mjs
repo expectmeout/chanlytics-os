@@ -72,7 +72,11 @@ test("the rule finds the counts that went stale, and leaves a dated one, a rule'
   assert.deepEqual(undatedCounts("Measured 29 Sep 2026: 606 packages."), [], "dated");
   assert.deepEqual(undatedCounts("At most 100 characters; 30 token verifications an hour; 30 days."), [], "not counts");
   assert.deepEqual(undatedCounts("```\n412 files\n```\n`128 specs` in code"), [], "code is not prose");
-  assert.deepEqual(undatedCounts("<!-- measured:start -->\n\n982 lines\n\n<!-- measured:end -->"), [], "written by a command");
+  assert.deepEqual(
+    undatedCounts("<!-- measured:start -->\n\n982 lines\n\n<!-- measured:end -->"),
+    [],
+    "written by a command",
+  );
   assert.deepEqual(undatedCounts("One paragraph from 29 Sep 2026.\n\nAnother with 40 routes."), [[3, "40 routes"]]);
 });
 
@@ -82,7 +86,7 @@ for (const page of PAGES) {
     assert.deepEqual(
       found.map(([n, count]) => `${page}:${n}: "${count}"`),
       [],
-      "date the paragraph (\"measured 29 Sep 2026\"), or say it without the number, or generate it",
+      'date the paragraph ("measured 29 Sep 2026"), or say it without the number, or generate it',
     );
   });
 }

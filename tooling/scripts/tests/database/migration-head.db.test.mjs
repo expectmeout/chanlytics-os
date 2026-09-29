@@ -1,5 +1,5 @@
 /**
- * 00280 migration_head(), on the replayed stack: the newest version the CLI's ledger has applied and how many, which
+ * migration_head(), on the replayed stack: the newest version the CLI's ledger has applied and how many, which
  * keyed /api/diag answers, and the service role's alone.
  *
  * The replay applies every file in supabase/migrations, so the head is the folder's highest version and the count is

@@ -246,7 +246,7 @@ test("the environment report is booleans only and carries no value; the memory i
 /* --------------------------------- the clocks ----------------------------- */
 
 test("the migrations: migration_head()'s newest version and count, a database without the function said in its own line, and no database said", async () => {
-  // 00280: what production has applied, so a release can compare it with main's head (docs/runbook.md, Deploy).
+  // migration_head(): what production has applied, so a release can compare it with main's head (docs/runbook.md, Deploy).
   use({}, { migration_head: () => [{ head: "00280", applied: 239 }] });
   assert.deepEqual((await read()).migrations, { head: "00280", applied: 239 });
   use({}, { migration_head: () => [] });

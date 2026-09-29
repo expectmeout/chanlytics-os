@@ -21,7 +21,7 @@ as $$
 $$;
 
 comment on function public.migration_head() is
-  'The newest migration version the CLI''s ledger has applied here, and how many it has applied (00280): keyed /api/diag answers it.';
+  'The newest migration version the CLI''s ledger has applied here, and how many it has applied: keyed /api/diag answers it.';
 
 revoke all on function public.migration_head() from public, anon, authenticated;
 grant execute on function public.migration_head() to service_role;
