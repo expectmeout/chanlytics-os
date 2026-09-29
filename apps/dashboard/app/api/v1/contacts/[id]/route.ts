@@ -13,6 +13,7 @@ import { requireUuid } from "@/server/request-guards";
 import type { RouteContext } from "@/server/with-route";
 import { load, readerContext } from "@/server/readers";
 import { person } from "@/server/readers/person";
+import { log, errField } from "@/server/log";
 
 /**
  * DELETE /api/v1/contacts/:id — honour a deletion request.
@@ -66,7 +67,7 @@ async function redriveErasure(ctx: RouteContext, contact: ErasedContact) {
   const needles: string[] = [];
   const polErr = await dropPersonPolicy(ctx, contact);
   const { error: askErr } = await scrubAskTurns(ctx, contact, needles);
-  if (askErr) console.error("erase_ask_scrub_failed", contact.id, askErr.message);
+  if (askErr) log.error("erase_ask_scrub_failed", { contact: contact.id, error: askErr.message });
   const jobs = await scrubJobsBestEffort(contact, needles);
   return {
     contact_id: contact.id,
@@ -165,7 +166,7 @@ async function blockErasure(contact: ErasedContact): Promise<void> {
       email: contact.email ?? null,
     });
   } catch (e) {
-    console.error("erase_begin_failed", contact.id, e instanceof Error ? e.message : e);
+    log.error("erase_begin_failed", { contact: contact.id, error: errField(e) });
     throw new AppError(
       "internal",
       "Could not mark this person as being erased, so nothing was deleted. Try again.",
@@ -187,7 +188,7 @@ async function blockErasure(contact: ErasedContact): Promise<void> {
 async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys: ErasureKeys): Promise<void> {
   const { error: askErr } = await scrubAskTurns(ctx, contact, keys.needles);
   if (askErr) {
-    console.error("erase_ask_prescrub_failed", contact.id, askErr.message);
+    log.error("erase_ask_prescrub_failed", { contact: contact.id, error: askErr.message });
     throw new AppError(
       "internal",
       "The assistant's memory of this person could not be scrubbed, so nothing was deleted. Try again.",
@@ -197,7 +198,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
   try {
     await scrubErasedJobs(contact.tenant_id, contact.id, keys.identifiers, FINISHED_JOB_STATES);
   } catch (e) {
-    console.error("erase_jobs_prescrub_failed", contact.id, e instanceof Error ? e.message : e);
+    log.error("erase_jobs_prescrub_failed", { contact: contact.id, error: errField(e) });
     throw new AppError(
       "internal",
       "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
@@ -214,7 +215,7 @@ async function removeStoredObjects(contact: ErasedContact, paths: string[]): Pro
     // Step 4 is irreversible and it deletes the only rows that still name these
     // objects. Stop while the request is entirely retryable rather than leaving
     // a recording behind with nothing pointing at it.
-    console.error("erase_storage_failed", id, storage.error);
+    log.error("erase_storage_failed", { contact: id, error: storage.error });
     throw new AppError(
       "internal",
       "The stored recordings and media could not be removed, so the erasure was not " +
@@ -248,16 +249,13 @@ async function forgetAfterRows(ctx: RouteContext, contact: ErasedContact, keys: 
   // already scrubbed with them; this pass catches a turn written since, and a re-driven erasure scrubs
   // by the id alone.
   const { data: scrubbed, error: askErr } = await scrubAskTurns(ctx, contact, keys.needles);
-  if (askErr) console.error("erase_ask_scrub_failed", contact.id, askErr.message);
-  else
-    console.log(
-      JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: contact.id, messages: scrubbed }),
-    );
+  if (askErr) log.error("erase_ask_scrub_failed", { contact: contact.id, error: askErr.message });
+  else log.info("erase_ask_scrubbed", { contact: contact.id, messages: scrubbed });
   // The jobs that carried their number or words. erase_contact cancels what
   // is still scheduled; done, failed and canceled rows kept `to_phone` and
   // `body` in their payload forever.
   const jobsScrubbed = await scrubJobsBestEffort(contact, keys.identifiers);
-  console.log(JSON.stringify({ level: "info", event: "erase_jobs_scrubbed", contact: contact.id, jobs: jobsScrubbed }));
+  log.info("erase_jobs_scrubbed", { contact: contact.id, jobs: jobsScrubbed });
 }
 
 /* ---- 5. anything that landed during the window ----
@@ -286,7 +284,7 @@ async function sweepLateObjects(
       removed: sweep.removed.length,
       error: sweep.error,
     } as Json).catch((e: unknown) => {
-      console.error("erase_sweep_decision_failed", id, e instanceof Error ? e.message : e);
+      log.error("erase_sweep_decision_failed", { contact: id, error: errField(e) });
     });
   }
   return sweep;
@@ -317,7 +315,7 @@ async function dropPersonPolicy(ctx: RouteContext, contact: ErasedContact): Prom
     .eq("tenant_id", contact.tenant_id)
     .eq("subject_type", "contact")
     .eq("subject_id", contact.id);
-  if (polErr) console.error("erase_person_policy_failed", contact.id, polErr.message);
+  if (polErr) log.error("erase_person_policy_failed", { contact: contact.id, error: polErr.message });
   return polErr;
 }
 
@@ -333,7 +331,7 @@ function scrubAskTurns(ctx: RouteContext, contact: ErasedContact, needles: strin
 /** Every job that carried the person, scrubbed; a failure is logged and counts as none, never a failed erasure. */
 function scrubJobsBestEffort(contact: ErasedContact, identifiers: readonly string[]): Promise<number> {
   return scrubErasedJobs(contact.tenant_id, contact.id, identifiers).catch((e: unknown) => {
-    console.error("erase_jobs_scrub_failed", contact.id, e instanceof Error ? e.message : e);
+    log.error("erase_jobs_scrub_failed", { contact: contact.id, error: errField(e) });
     return 0;
   });
 }

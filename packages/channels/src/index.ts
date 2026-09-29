@@ -314,6 +314,7 @@ export {
 } from "./google/google-profile";
 export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
 export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
+export { requestIdOf, REQUEST_ID_HEADER } from "./tokens/request-id";
 export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
 export {
   signUnsubscribeToken,

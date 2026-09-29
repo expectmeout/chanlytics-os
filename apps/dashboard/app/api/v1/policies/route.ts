@@ -194,19 +194,13 @@ export const PUT = write({
       // whether a card was tapped. Best effort, as the settings audit is: a
       // ledger row that failed to write must not fail the change that landed.
       // As the service role: a session may not insert into events, so it never landed.
-      await emitEvent(
-        serviceDb(),
-        member.tenantId,
-        "policy.changed",
-        { type: "workspace", id: member.tenantId },
-        {
-          class: cls,
-          mode,
-          fields: Object.keys(limits),
-          by: ctx.userId,
-          ...(ctx.via ? { via: ctx.via } : {}),
-        },
-      );
+      await emitEvent(serviceDb(), member.tenantId, "policy.changed", "workspace", member.tenantId, {
+        class: cls,
+        mode,
+        fields: Object.keys(limits),
+        by: ctx.userId,
+        ...(ctx.via ? { via: ctx.via } : {}),
+      });
       return { policy: row };
     } catch (e) {
       if (e instanceof AppError) throw e;

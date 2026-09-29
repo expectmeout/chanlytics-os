@@ -24,6 +24,7 @@ import {
   type UnsubscribeView,
   MIN_MS,
 } from "@chanlytics/contracts";
+import { log } from "@/server/log";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
@@ -66,7 +67,7 @@ function sayOnceAMinute(
   const now = Date.now();
   if (now - (saidAt.get(event) ?? 0) < SAID_EVERY_MS) return false;
   saidAt.set(event, now);
-  console[level](event, JSON.stringify(fields));
+  log[level](event, fields);
   return true;
 }
 
@@ -266,10 +267,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     p_evidence: { channel: "email", via: oneClick ? "one_click" : "page" },
   });
   if (error) {
-    console.error(
-      "unsubscribe_not_recorded",
-      JSON.stringify({ tenant: claims.tenantId, message: claims.messageId, error: error.message }),
-    );
+    log.error("unsubscribe_not_recorded", { tenant: claims.tenantId, message: claims.messageId, error: error.message });
     return oneClick
       ? plainText(503, "Not recorded. Try again in a minute.")
       : page(503, { kind: "unavailable", retry: true });

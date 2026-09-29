@@ -56,7 +56,7 @@ export async function recordAskUsage(
 ): Promise<void> {
   const L = logger({ tenant: tenantId });
   try {
-    await emitEvent(db, tenantId, ASK_USAGE_KIND, { type: "user", id: userId }, { ...data });
+    await emitEvent(db, tenantId, ASK_USAGE_KIND, "user", userId, { ...data });
   } catch (e) {
     L.error("ask_usage_write_failed", { error: errField(e) });
   }

@@ -88,17 +88,11 @@ export async function markForwardingVerified(
         route: "admin/setup",
         about: { type: "line", id: row.id },
       });
-      await emitEvent(
-        db,
-        tenantId,
-        "line.forwarding_verified",
-        { type: "line", id: row.id },
-        {
-          from: call.fromE164,
-          call_id: call.callId,
-          proof,
-        },
-      ).catch(() => {});
+      await emitEvent(db, tenantId, "line.forwarding_verified", "line", row.id, {
+        from: call.fromE164,
+        call_id: call.callId,
+        proof,
+      }).catch(() => {});
       L.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }

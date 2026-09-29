@@ -146,22 +146,25 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
 /** Meta's family files as the connection it happened to, at its own version. */
 const WABA_WRITE = { category: "system", version: 1 };
 
-/** What an event is about: a row of some table, or nothing but the workspace. */
-export interface EventSubject {
-  type: string;
-  id: string | null;
-}
-
-/** The row a kind writes: its category and version from the table above, never from a caller. */
-function rowOf<K extends EmittedKind>(tenantId: string, kind: K, subject: EventSubject | null, data: EventData[K]) {
+/**
+ * The row a kind writes: its category and version from the table above, never from a caller. What it is about is a
+ * row of some table (`subjectType`, `subjectId`), or null for nothing but the workspace.
+ */
+function rowOf<K extends EmittedKind>(
+  tenantId: string,
+  kind: K,
+  subjectType: string | null,
+  subjectId: string | null,
+  data: EventData[K],
+) {
   const write = kind in WRITES ? WRITES[kind as keyof TableData] : WABA_WRITE;
   return {
     tenant_id: tenantId,
     kind,
     category: write.category,
     version: write.version,
-    subject_type: subject?.type ?? null,
-    subject_id: subject?.id ?? null,
+    subject_type: subjectType,
+    subject_id: subjectId,
     data: data as Json,
   };
 }
@@ -174,10 +177,11 @@ export async function recordEvent<K extends EmittedKind>(
   db: Db,
   tenantId: string,
   kind: K,
-  subject: EventSubject | null,
+  subjectType: string | null,
+  subjectId: string | null,
   data: EventData[K],
 ): Promise<{ error: string | null }> {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subject, data));
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
   return { error: error?.message ?? null };
 }
 
@@ -186,9 +190,10 @@ export async function emitEvent<K extends EmittedKind>(
   db: Db,
   tenantId: string,
   kind: K,
-  subject: EventSubject | null,
+  subjectType: string | null,
+  subjectId: string | null,
   data: EventData[K],
 ): Promise<void> {
-  const { error } = await recordEvent(db, tenantId, kind, subject, data);
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
   if (error) console.error("emit_event_failed", kind, error);
 }

@@ -8,6 +8,7 @@ import { leadsPage, type LeadsPageAnswer } from "./lead-page";
 import { tenantFacts } from "../tenant";
 import { recordDecision } from "../verbs";
 import type { RouteContext } from "../with-route";
+import { log } from "@/server/log";
 
 /* ------------------------------------------------------------- the export */
 
@@ -72,16 +73,12 @@ export async function exportLeads(
   });
   if (error) throw new Error(`lead_export_mark: ${error.message}`);
   const { name, timezone } = await tenantFacts(ctx.supabase, tenantId);
-  console.log(
-    JSON.stringify({
-      level: "info",
-      event: "export.leads",
-      user: ctx.userId,
-      tenant: tenantId,
-      rows: rows.length,
-      marked: typeof data === "number" ? data : 0,
-    }),
-  );
+  log.info("export.leads", {
+    user: ctx.userId,
+    tenant: tenantId,
+    rows: rows.length,
+    marked: typeof data === "number" ? data : 0,
+  });
   // On the ledger, as the people export is: who took a copy, and when.
   await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "leads", rows: rows.length });
   return attachment(`leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`, leadsCsv(rows), "text/csv");

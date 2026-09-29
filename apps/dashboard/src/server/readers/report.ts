@@ -5,6 +5,7 @@ import { bookingReport } from "../calendar/people-visits";
 import { dealReport } from "../people/deals";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
+import { log } from "@/server/log";
 
 /**
  * GET reports, as the route answers it: the receptionist's numbers day by day for one of the three presets (the route
@@ -47,10 +48,7 @@ export const report: Reader<
         });
       })
       .catch((e: unknown) => {
-        console.error(
-          "booking_report_failed",
-          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
+        log.error("booking_report_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
         return null;
       });
     // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never

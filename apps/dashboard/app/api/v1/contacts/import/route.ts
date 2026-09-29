@@ -2,6 +2,7 @@ import { z } from "zod";
 import { afterPersonRefused, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 const Row = z.object({
   name: z.string().max(200).optional(),
@@ -93,18 +94,15 @@ export const POST = write({
         failed: out.failed.length,
       });
     } catch (e) {
-      console.error(
-        "import_decision_failed",
-        JSON.stringify({
-          tenant: tenantId,
-          import_id: input.import_id,
-          added: out.added,
-          existed: out.existed,
-          skipped: out.skipped.length,
-          failed: out.failed.length,
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
+      log.error("import_decision_failed", {
+        tenant: tenantId,
+        import_id: input.import_id,
+        added: out.added,
+        existed: out.existed,
+        skipped: out.skipped.length,
+        failed: out.failed.length,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
     return out;
   },

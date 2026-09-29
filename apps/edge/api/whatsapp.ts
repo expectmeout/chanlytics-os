@@ -131,7 +131,7 @@ export async function POST(request: Request): Promise<Response> {
             // messages_in would undercount this traffic invisibly and forever.
             unroutable = true;
             L.error("wa_unroutable", { phone_number_id: phoneNumberId });
-            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, {
+            await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
               channel: "whatsapp",
               phone_number_id: phoneNumberId,
             }).catch(() => {});

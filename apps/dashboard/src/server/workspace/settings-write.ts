@@ -37,16 +37,10 @@ export async function recordSettingsChanged(
   const fields = changedConfigFields(before, after);
   if (!fields.length) return;
   // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-  await emitEvent(
-    serviceDb(),
-    tenantId,
-    "settings.changed",
-    { type: "workspace", id: tenantId },
-    {
-      fields,
-      by: ctx.userId,
-      version,
-      ...(ctx.via ? { via: ctx.via } : {}),
-    },
-  );
+  await emitEvent(serviceDb(), tenantId, "settings.changed", "workspace", tenantId, {
+    fields,
+    by: ctx.userId,
+    version,
+    ...(ctx.via ? { via: ctx.via } : {}),
+  });
 }

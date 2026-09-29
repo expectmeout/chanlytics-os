@@ -5,7 +5,7 @@
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
-    "lines": 52,
+    "lines": 49,
     "branches": 34,
     "depth": 2
   },
@@ -580,7 +580,7 @@
     "depth": 4
   },
   "apps/dashboard/src/server/calendar/calendar-week.ts::calendarSources#1": {
-    "lines": 114,
+    "lines": 111,
     "branches": 36,
     "depth": 2
   },
@@ -589,18 +589,13 @@
     "branches": 43,
     "depth": 0
   },
-  "apps/dashboard/src/server/campaigns/playbooks.ts::triggerPools#1": {
-    "lines": 155,
-    "branches": 30,
-    "depth": 2
-  },
   "apps/dashboard/src/server/people/lists.ts::cleanListRule#1": {
     "lines": 44,
     "branches": 31,
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 250,
+    "lines": 247,
     "branches": 50,
     "depth": 1
   },
@@ -660,7 +655,7 @@
     "depth": 0
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 158,
+    "lines": 152,
     "branches": 32,
     "depth": 2
   },
@@ -705,7 +700,7 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 192,
+    "lines": 190,
     "branches": 5,
     "depth": 0
   },

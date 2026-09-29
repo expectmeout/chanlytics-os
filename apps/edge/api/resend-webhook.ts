@@ -92,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {
     lastUnroutableRow = Date.now();
-    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, {
+    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
       channel: "email",
       addresses: verdict.unroutable,
     }).catch(() => {});

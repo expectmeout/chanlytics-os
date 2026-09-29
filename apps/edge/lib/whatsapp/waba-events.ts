@@ -222,13 +222,10 @@ export async function handleWabaChange(
   }
   const L = logger({ tenant: routed.tenantId });
   const described = describeWabaChange(change, routed.number);
-  await emitEvent(
-    db,
-    routed.tenantId,
-    `channel.${change.field}` as WabaEventKind,
-    { type: "channel", id: routed.channelId },
-    { waba_id: wabaId, ...change.value },
-  ).catch((e: unknown) => {
+  await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "channel", routed.channelId, {
+    waba_id: wabaId,
+    ...change.value,
+  }).catch((e: unknown) => {
     L.error("waba_event_write_failed", { error: errField(e) });
   });
   // The channel row remembers the newest rating, so Settings can show it.

@@ -19,6 +19,7 @@ import type { RouteContext } from "@/server/with-route";
 import { lazily, type Lazy } from "@/server/lazy";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
+import { log } from "@/server/log";
 
 /* ---- Everyone's appointments, for the list and the report ---- */
 
@@ -74,10 +75,7 @@ export async function peopleVisits(
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
-    console.error(
-      "calendar_parse_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed)
@@ -107,10 +105,7 @@ export async function withVisits(
   consult_first: boolean;
 }> {
   const pv = await peopleVisits(ctx, tenantId, rows, now, known).catch((e: unknown) => {
-    console.error(
-      "people_visits_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("people_visits_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   });
   if (!pv)

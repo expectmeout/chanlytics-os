@@ -14,8 +14,9 @@
  * no token (apps/edge/lib/admin-auth.ts), so the two projects hold it together
  * or not at all.
  */
-import { signEdgeToken } from "@chanlytics/channels";
+import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels";
 import { MIN_MS } from "@chanlytics/contracts";
+import { requestId } from "./log";
 
 const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
 
@@ -47,12 +48,14 @@ export function edgeRefusalWords(body: Record<string, unknown> | null | undefine
   return typeof body?.error === "string" ? body.error : null;
 }
 
-/** The headers a call to the door at `aud` carries. */
+/** The headers a call to the door at `aud` carries, and the name of the request it is made for (log.ts). */
 export function edgeHeaders(
   aud: string,
   ctx: { workspace?: string | null; user?: string | null } = {},
 ): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
+  const id = requestId();
+  if (id) h[REQUEST_ID_HEADER] = id;
   const secret = process.env.EDGE_CALL_SECRET;
   if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);
   else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;

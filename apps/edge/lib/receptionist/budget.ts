@@ -27,7 +27,7 @@ export async function recordTokens(
   conversationId: string,
   usage: Record<string, unknown>,
 ): Promise<void> {
-  await emitEvent(db, tenantId, "usage.llm_tokens", { type: "conversation", id: conversationId }, usage);
+  await emitEvent(db, tenantId, "usage.llm_tokens", "conversation", conversationId, usage);
 }
 
 /** More rows than any workspace writes in a day; a bound, not a target. */

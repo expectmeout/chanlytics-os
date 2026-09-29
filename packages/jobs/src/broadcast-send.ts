@@ -226,7 +226,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
             .eq("tenant_id", job.tenant_id)
             .eq("state", "sending"),
         );
-        const told = await recordEvent(db, job.tenant_id, "broadcast.sent", { type: "broadcast", id }, tally);
+        const told = await recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally);
         if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
       },
       alert: ctx.alert,

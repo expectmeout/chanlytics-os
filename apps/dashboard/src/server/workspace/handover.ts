@@ -5,6 +5,7 @@ import { AppError } from "@chanlytics/contracts";
 import { deployment } from "../deployment";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
@@ -69,16 +70,10 @@ export async function sendHandoverInvite(
       { workspace: tenantId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
     if (!edgeAnswered(r))
-      console.error(
-        "handover_invite_failed",
-        JSON.stringify({ tenant: tenantId, status: r.status, error: r.body?.error }),
-      );
+      log.error("handover_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
     return edgeAnswered(r);
   } catch (e) {
-    console.error(
-      "handover_invite_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("handover_invite_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return false;
   }
 }

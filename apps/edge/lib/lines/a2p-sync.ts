@@ -191,18 +191,12 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
       route: verdict.route,
       about: { type: "line", id: line.id },
     });
-    await emitEvent(
-      db,
-      line.tenant_id,
-      verdict.event,
-      { type: "line", id: line.id },
-      {
-        e164: line.e164,
-        from: line.sms_state,
-        to: smsState,
-        mock,
-      },
-    ).catch(() => {});
+    await emitEvent(db, line.tenant_id, verdict.event, "line", line.id, {
+      e164: line.e164,
+      from: line.sms_state,
+      to: smsState,
+      mock,
+    }).catch(() => {});
   }
   return {
     ok: true,

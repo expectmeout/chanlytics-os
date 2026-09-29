@@ -20,6 +20,7 @@ import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resol
 import { cancelKindFor, schedule } from "../jobs";
 import { letThreadControlGo, takeThreadControl } from "../conversations/thread-control";
 import { freezeReply } from "../connections/email";
+import { log, errField } from "@/server/log";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -104,7 +105,7 @@ export function escalationPorts(ctx: RouteContext): EscalationPorts {
       ),
     link: async (id, decisionId) => {
       const { error } = await ctx.supabase.from("escalations").update({ decision_id: decisionId }).eq("id", id);
-      if (error) console.error("resolve_link_decision_failed", id, error.message);
+      if (error) log.error("resolve_link_decision_failed", { id, error: error.message });
     },
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
@@ -166,7 +167,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       try {
         await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso });
       } catch (e) {
-        console.error("idempotency_release_failed", tenantId, (e as Error).message);
+        log.error("idempotency_release_failed", { tenant: tenantId, error: errField(e) });
       }
     },
     template: async (tenantId, name, language) => {
@@ -211,7 +212,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
             .select("id"),
         );
       } catch (e) {
-        console.error("reply_claim_failed", id, e instanceof Error ? e.message : String(e));
+        log.error("reply_claim_failed", { id, error: errField(e) });
         return false;
       }
     },

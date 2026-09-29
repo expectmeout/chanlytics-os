@@ -9714,24 +9714,24 @@ var WRITES = {
   "webhook.delivery": { category: "ingest", version: 1 }
 };
 var WABA_WRITE = { category: "system", version: 1 };
-function rowOf(tenantId, kind, subject, data) {
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
   const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
   return {
     tenant_id: tenantId,
     kind,
     category: write.category,
     version: write.version,
-    subject_type: subject?.type ?? null,
-    subject_id: subject?.id ?? null,
+    subject_type: subjectType,
+    subject_id: subjectId,
     data
   };
 }
-async function recordEvent(db, tenantId, kind, subject, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subject, data));
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
   return { error: error?.message ?? null };
 }
-async function emitEvent(db, tenantId, kind, subject, data) {
-  const { error } = await recordEvent(db, tenantId, kind, subject, data);
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
   if (error) console.error("emit_event_failed", kind, error);
 }
 z27.config({ jitless: true });
@@ -12579,7 +12579,7 @@ async function recordCarrierOptOut(db, p) {
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", { type: "contact", id: p.contactId }, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
 }
 async function recordOutbound(db, p) {
@@ -12605,7 +12605,7 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", { type: "message", id: data.id }, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
 }
@@ -12870,7 +12870,7 @@ async function overtakenByHuman(db, d) {
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
-  return emitEvent(db, d.tenantId, kind, { type: "message", id: messageId }, data);
+  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);

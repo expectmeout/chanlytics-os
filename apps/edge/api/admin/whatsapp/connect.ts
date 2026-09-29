@@ -212,20 +212,14 @@ export async function POST(request: Request): Promise<Response> {
     return refuse(500, "credentials_failed");
   }
 
-  await emitEvent(
-    db,
-    tenantId,
-    "channel.connected",
-    { type: "channel", id: row.id },
-    {
-      kind: "whatsapp",
-      phone_number_id: phoneNumberId,
-      waba_id: wabaId,
-      number_e164: e164,
-      verified_name: config.verified_name,
-      by: userId,
-    },
-  ).catch(() => {});
+  await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
+    kind: "whatsapp",
+    phone_number_id: phoneNumberId,
+    waba_id: wabaId,
+    number_e164: e164,
+    verified_name: config.verified_name,
+    by: userId,
+  }).catch(() => {});
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
   return json(200, {
     ok: true,

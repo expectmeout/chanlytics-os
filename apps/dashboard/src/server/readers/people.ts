@@ -20,6 +20,7 @@ import { followUpFacts } from "../campaigns/playbooks";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import { everyone } from "./everyone";
 import * as facts from "./facts";
+import { log } from "@/server/log";
 
 /** GET contacts' answer: one page of People with their appointments, and what the page draws beside the rows. */
 interface PeoplePage {
@@ -72,10 +73,10 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
       buys.then((s) =>
         dealsAreOn(s) && offset === 0 && !q
           ? followUpFacts(ctx, tenantId, rc.now).catch((e: unknown) => {
-              console.error(
-                "follow_up_facts_failed",
-                JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-              );
+              log.error("follow_up_facts_failed", {
+                tenant: tenantId,
+                error: e instanceof Error ? e.message : String(e),
+              });
               return null;
             })
           : null,

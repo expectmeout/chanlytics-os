@@ -999,7 +999,7 @@ test("the ledger writer: an undo that names a decision the database does not hav
       "the actor is the session, never an argument",
     );
     assert.deepEqual(inserted[1].payload, { receptionist_mode: "auto", via: "ask" }, "the card's mark stays");
-    assert.ok(said.some((l) => l.startsWith("decision_undo_of_unknown")));
+    assert.ok(said.some((l) => l.includes('"event":"decision_undo_of_unknown"')));
   } finally {
     console.error = realError;
   }

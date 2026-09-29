@@ -131,19 +131,13 @@ export async function checkListing(
     });
   }
   if (plan.fresh.length || plan.counted) {
-    await emitEvent(
-      db,
-      row.tenant_id,
-      "google.reviews",
-      { type: "listing", id: null },
-      {
-        source: "places",
-        fresh: plan.fresh.length,
-        counted: plan.counted,
-        rating: plan.listing.rating,
-        review_count: plan.listing.review_count,
-      },
-    ).catch(() => {});
+    await emitEvent(db, row.tenant_id, "google.reviews", "listing", null, {
+      source: "places",
+      fresh: plan.fresh.length,
+      counted: plan.counted,
+      rating: plan.listing.rating,
+      review_count: plan.listing.review_count,
+    }).catch(() => {});
   }
   L.info("google_checked", {
     rating: plan.listing.rating,

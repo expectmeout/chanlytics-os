@@ -593,7 +593,7 @@ export async function leadWritten(
   // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
   if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
   const said = { by: "reach_out" as const, send_id: p.sendId };
-  const { error: e3 } = await recordEvent(db, p.tenantId, "lead.emailed", { type: "lead", id: p.leadId }, said);
+  const { error: e3 } = await recordEvent(db, p.tenantId, "lead.emailed", "lead", p.leadId, said);
   if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
   return true;
 }

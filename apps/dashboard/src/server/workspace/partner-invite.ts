@@ -1,6 +1,7 @@
 import "server-only";
 import { deployment } from "../deployment";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
+import { log } from "@/server/log";
 
 /** How long the edge is given to write to the partner before the owner is told it did not go. */
 const PARTNER_MAIL_TIMEOUT_MS = 8000;
@@ -22,9 +23,6 @@ export async function sendPartnerInvite(
     { workspace: tenantId, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
   );
   if (!edgeAnswered(r))
-    console.error(
-      "partner_invite_failed",
-      JSON.stringify({ tenant: tenantId, status: r.status, error: r.body?.error }),
-    );
+    log.error("partner_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
   return edgeAnswered(r);
 }

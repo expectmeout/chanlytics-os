@@ -9,6 +9,7 @@ import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
 import { deployment } from "../deployment";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
+import { log } from "@/server/log";
 
 export const BILLING_COLUMNS =
   "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
@@ -32,7 +33,8 @@ export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
   await Promise.all(
     list.map(async (tenantId) => {
       const r = await edgeBilling({ op: "end", tenant_id: tenantId });
-      if (r.status !== 200) console.error("account_delete_plan_not_ended", tenantId, r.status, JSON.stringify(r.body));
+      if (r.status !== 200)
+        log.error("account_delete_plan_not_ended", { tenant: tenantId, status: r.status, body: r.body });
     }),
   );
 }

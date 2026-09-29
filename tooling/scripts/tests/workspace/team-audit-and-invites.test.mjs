@@ -70,7 +70,7 @@ test("the audit runs on the CALLER's client, so the actor cannot be spoofed", ()
 test("a failed audit row never fails the change that already happened", () => {
   // The role change is committed by the time this runs. Throwing here would
   // report failure for something that succeeded, which is worse than a gap.
-  assert.ok(service.includes('console.error("team_audit_failed"'));
+  assert.ok(service.includes('log.error("team_audit_failed"'));
   assert.ok(!/throw new Error\("team_audit/.test(service));
 });
 

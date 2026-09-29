@@ -6,6 +6,7 @@ import { tenantFacts } from "@/server/tenant";
 import { mediaPublic } from "@/server/dto";
 import { attachment, dateTag, personLabel, safeName, transcriptText } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 const PAGE = 500;
 const MAX_PAGES = 20;
@@ -72,16 +73,12 @@ export const GET = read({
     };
     const now = new Date();
     const text = transcriptText({ contact }, messages, { business: name, tz: timezone, exportedAt: now });
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "export.transcript",
-        user: userId,
-        tenant: member.tenantId,
-        conversation: id,
-        messages: messages.length,
-      }),
-    );
+    log.info("export.transcript", {
+      user: userId,
+      tenant: member.tenantId,
+      conversation: id,
+      messages: messages.length,
+    });
     await recordDecision(ctx, member.tenantId, "conversation", id, "export", {
       what: "conversation",
       messages: messages.length,

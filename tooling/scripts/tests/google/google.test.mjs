@@ -880,8 +880,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     "the listing row keeps its verbs' names",
   );
   assert.ok(
-    /console\.error\(\s*"google_search_failed"/.test(search) &&
-      !/typeof b\.error === "string" \? b\.error :/.test(search),
+    /log\.error\(\s*"google_search_failed"/.test(search) && !/typeof b\.error === "string" \? b\.error :/.test(search),
     "Google's words go to the log, not the owner",
   );
   assert.ok(

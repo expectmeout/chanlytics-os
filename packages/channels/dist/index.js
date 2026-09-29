@@ -6765,6 +6765,17 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
 }
 
+// src/tokens/request-id.ts
+var REQUEST_ID_HEADER = "x-request-id";
+var SHAPE2 = /^[A-Za-z0-9._:-]{8,128}$/;
+function requestIdOf(headers2, opts) {
+  const given = opts.trustCaller ? headers2.get(REQUEST_ID_HEADER)?.trim() : void 0;
+  if (given && SHAPE2.test(given)) return given;
+  const platform = headers2.get("x-vercel-id")?.trim();
+  if (platform && SHAPE2.test(platform)) return platform;
+  return globalThis.crypto.randomUUID();
+}
+
 // src/tokens/unsubscribe-token.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
 var UNSUBSCRIBE_PATH = "/u/";
@@ -7073,6 +7084,7 @@ export {
   PLACE_ID,
   PROFILE_SCOPES,
   PlacesError,
+  REQUEST_ID_HEADER,
   RESEND_API,
   RETELL_ORIGINATION,
   REVIEW_BELL_MAX,
@@ -7214,6 +7226,7 @@ export {
   replyToReview,
   representativeAttributes,
   representativeEndUserRequest,
+  requestIdOf,
   requestLeavesAs,
   resendLimitOf,
   resendRequest,

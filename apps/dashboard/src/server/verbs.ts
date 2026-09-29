@@ -20,6 +20,7 @@ import { listRow, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Jso
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
+import { log } from "@/server/log";
 
 export interface VerbConversation {
   id: string;
@@ -225,7 +226,7 @@ export async function recordDecision(
     // a stale tab, or a header nobody should have sent. The verb has happened,
     // so the row is kept without the link, and the log says which link was
     // refused rather than the verb failing after the fact.
-    console.error("decision_undo_of_unknown", JSON.stringify({ undo_of: ctx.undoOf, verb, subject: subjectType }));
+    log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb, subject: subjectType });
     attempt = await insert(null);
   }
   if (attempt.error || !attempt.data) throw new Error(`decision: ${attempt.error?.message ?? "no row"}`);
@@ -248,8 +249,8 @@ export async function resolveOpenEscalation(
     .eq("conversation_id", conversationId)
     .eq("state", "open")
     .select("id");
-  if (error) console.error("resolve_escalation_failed", conversationId, error.message);
-  else if (!data || data.length === 0) console.log("resolve_escalation_noop", conversationId);
+  if (error) log.error("resolve_escalation_failed", { conversation: conversationId, error: error.message });
+  else if (!data || data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
 }
 
 const PAUSE_MS = 24 * HOUR_MS;
@@ -316,7 +317,7 @@ export async function cancelPendingAiReply(
   if (error) {
     // Not fatal to the operator's own action — but it means a draft may still
     // fire, so it must be visible rather than swallowed.
-    console.error("cancel_pending_ai_reply_failed", conv.id, error.message);
+    log.error("cancel_pending_ai_reply_failed", { conversation: conv.id, error: error.message });
     return 0;
   }
   const ids = (data ?? []).map((m) => m.id);

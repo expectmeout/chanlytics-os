@@ -47,6 +47,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 declare const backOfficeBrand: unique symbol;
 
@@ -165,7 +166,7 @@ export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN):
     .order("created_at", { ascending: true })
     .limit(limit);
   if (error) {
-    console.error("platform_waitlist_unreadable", JSON.stringify({ error: error.message }));
+    log.error("platform_waitlist_unreadable", { error: error.message });
     return { waiting: null, total: null };
   }
   return { waiting: data ?? [], total: count ?? (data ?? []).length };
@@ -301,17 +302,11 @@ export async function platformLineAct(
   tenantId: string,
   lineId: string,
 ): Promise<PlatformActionResult> {
-  const { error: auditErr } = await recordEvent(
-    office.db,
-    tenantId,
-    "platform.acted",
-    { type: "line", id: lineId },
-    {
-      action,
-      by: ctx.userId,
-      by_email: ctx.email ?? null,
-    },
-  );
+  const { error: auditErr } = await recordEvent(office.db, tenantId, "platform.acted", "line", lineId, {
+    action,
+    by: ctx.userId,
+    by_email: ctx.email ?? null,
+  });
   if (auditErr)
     throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
 

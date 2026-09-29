@@ -279,7 +279,7 @@ export function pgSink(
     allowlistSkip: () =>
       on
         ? pgSafe("allowlist_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.allowlist_skip", { type: "message", id: ing!.message_id }, {}),
+            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "message", ing!.message_id, {}),
           )
         : Promise.resolve(),
     /**
@@ -289,7 +289,7 @@ export function pgSink(
     unreachableSender: () =>
       on
         ? pgSafe("unreachable_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.unreachable_sender", { type: "message", id: ing!.message_id }, {}),
+            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "message", ing!.message_id, {}),
           )
         : Promise.resolve(),
     /**
@@ -328,21 +328,15 @@ export function pgSink(
     vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on
         ? pgSafe("veto_fallback_evt", () =>
-            emitEvent(
-              db!,
-              tenantId!,
-              "policy.veto_window_skipped",
-              { type: "conversation", id: ing!.conversation_id },
-              {
-                delay_ms: delayMs,
-                // WHICH hold did not happen. The confidence dial rides this same
-                // window, and labelling its hold a veto window sent owners who
-                // have no veto window configured looking for one.
-                source,
-                // Scheduling is one insert now, so there is one cause left to name.
-                reason: "scheduling_failed",
-              },
-            ),
+            emitEvent(db!, tenantId!, "policy.veto_window_skipped", "conversation", ing!.conversation_id, {
+              delay_ms: delayMs,
+              // WHICH hold did not happen. The confidence dial rides this same
+              // window, and labelling its hold a veto window sent owners who
+              // have no veto window configured looking for one.
+              source,
+              // Scheduling is one insert now, so there is one cause left to name.
+              reason: "scheduling_failed",
+            }),
           )
         : Promise.resolve(),
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */

@@ -260,7 +260,8 @@ export async function applySubscription(
     db,
     row.tenant_id,
     plan.switched === "paused" ? "billing.paused" : plan.switched === "resumed" ? "billing.resumed" : "billing.updated",
-    { type: "subscription", id: null },
+    "subscription",
+    null,
     { source, status: facts.status, subscription: sub.id, price_id: facts.price_id },
   ).catch(() => {});
   L.info("billing_applied", {
@@ -581,7 +582,7 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
   // dotted literal inside an emitEvent to its closing paren, and Stripe's own
   // event names look exactly like ours.
   const why = { source: DELETED_CUSTOMER, status: "none" };
-  await emitEvent(db, row.tenant_id, "billing.updated", { type: "subscription", id: null }, why).catch(() => {});
+  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, why).catch(() => {});
 }
 
 /**

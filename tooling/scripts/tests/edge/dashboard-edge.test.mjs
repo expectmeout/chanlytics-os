@@ -124,3 +124,30 @@ test("every call to the edge is bounded and never throws: the door's answer as i
     assert.deepEqual([gone.status, gone.body.error, gone.body.detail], [503, "edge_unreachable", "fetch failed"]);
   });
 });
+
+test("a request's name: the caller's only where it is trusted to give one, else the platform's, else a fresh one; the dashboard's calls to the edge carry the name of the request they serve", async () => {
+  const { requestIdOf, REQUEST_ID_HEADER } = await import("@chanlytics/channels");
+  const { withRequestId, requestId } = await importSrc("apps/dashboard/src/server/log.ts");
+  const h = (o) => new Headers(o);
+  assert.equal(REQUEST_ID_HEADER, "x-request-id");
+  assert.equal(requestIdOf(h({ "x-request-id": "dash-0123456789" }), { trustCaller: true }), "dash-0123456789");
+  assert.equal(
+    requestIdOf(h({ "x-request-id": "dash-0123456789", "x-vercel-id": "iad1::abcdefgh-1" }), { trustCaller: false }),
+    "iad1::abcdefgh-1",
+    "a browser's header is not taken",
+  );
+  assert.match(requestIdOf(h({ "x-request-id": "<script>" }), { trustCaller: true }), /^[0-9a-f-]{36}$/);
+  assert.match(requestIdOf(h({}), { trustCaller: false }), /^[0-9a-f-]{36}$/);
+
+  assert.equal(requestId(), null, "outside a request, none");
+  await withEnv({ EDGE_CALL_SECRET: SECRET }, () =>
+    withRequestId("iad1::req-0123456789", async () => {
+      await Promise.resolve();
+      assert.equal(requestId(), "iad1::req-0123456789", "held across what the request awaits");
+      assert.equal(edgeHeaders(AUD)["x-request-id"], "iad1::req-0123456789");
+    }),
+  );
+  await withEnv({ EDGE_CALL_SECRET: SECRET }, () => {
+    assert.equal("x-request-id" in edgeHeaders(AUD), false, "no request, no name");
+  });
+});

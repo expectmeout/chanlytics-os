@@ -29,6 +29,7 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
 
 import { callEdge, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 /** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
 const SIGNUP_NOTIFY_TIMEOUT_MS = 4_000;
@@ -113,7 +114,7 @@ export async function signUp(input: SignupInput & { password: string }): Promise
     if (!sendFailureIsOurs(error as { code?: string; status?: number; message?: string })) {
       throw new Error(`signUp: ${error.message}`);
     }
-    console.warn("signup_code_not_sent", JSON.stringify({ ourFault: true, message: error.message.slice(0, 120) }));
+    log.warn("signup_code_not_sent", { ourFault: true, message: error.message.slice(0, 120) });
     return { created: false, userId: null, codeUnsent: true };
   }
   // An obfuscated user -- the answer for an address we already have -- carries
@@ -161,7 +162,7 @@ export async function joinWaitlist(input: { email: string; name?: string; source
   // Best effort, and deliberately not fatal: the durable half -- that they are
   // on the list -- is already true, and telling them otherwise would be the
   // second lie this function has told.
-  if (again) console.error("waitlist_repeat_not_updated", JSON.stringify({ error: again.message }));
+  if (again) log.error("waitlist_repeat_not_updated", { error: again.message });
 }
 
 /**
@@ -176,6 +177,5 @@ export async function notifyPlatformSignup(tenantId: string, email: string): Pro
     { tenant_id: tenantId, email },
     { workspace: tenantId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
   );
-  if (r.status >= 503)
-    console.warn("signup_notify_failed", JSON.stringify({ tenant: tenantId, error: r.body?.detail }));
+  if (r.status >= 503) log.warn("signup_notify_failed", { tenant: tenantId, error: r.body?.detail });
 }

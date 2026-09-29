@@ -1,6 +1,7 @@
 import "server-only";
 import { deployment } from "../deployment";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
+import { log } from "@/server/log";
 
 /** A note to the platform mailbox gives up after this; a failure is logged, not surfaced. */
 const TELL_TIMEOUT_MS = 8000;
@@ -19,10 +20,7 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
     { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
-    console.error(
-      "setup_request_tell_failed",
-      JSON.stringify({ tenant: tenantId, what, status: r.status, error: r.body?.error }),
-    );
+    log.error("setup_request_tell_failed", { tenant: tenantId, what, status: r.status, error: r.body?.error });
   return edgeAnswered(r);
 }
 
@@ -39,9 +37,6 @@ export async function tellOwnerLive(tenantId: string): Promise<boolean> {
     { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
-    console.error(
-      "you_are_live_tell_failed",
-      JSON.stringify({ tenant: tenantId, status: r.status, error: r.body?.error }),
-    );
+    log.error("you_are_live_tell_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
   return edgeAnswered(r);
 }

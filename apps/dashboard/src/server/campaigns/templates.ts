@@ -27,6 +27,7 @@ import { tenantFacts } from "@/server/tenant";
 import { workspaceFacts, type WorkspaceFacts } from "@/server/ask/prompt";
 import { runRound } from "@/server/ask/round";
 import { GatewayRefused } from "@/server/ask/gateway";
+import { log } from "@/server/log";
 
 /**
  * A template drafted with the assistant.
@@ -221,17 +222,14 @@ export async function draftTemplate(
   const d = DraftSchema.safeParse(json);
   if (!d.success) {
     // What actually came back, so a malformed draft is a diagnosis and not a guess.
-    console.error(
-      "draft_malformed",
-      JSON.stringify({
-        tenant_id: tenantId,
-        blocks: blockTypes,
-        stop: stopReason,
-        stream_error: streamError,
-        text: text.slice(0, 400),
-        issues: json ? d.error.issues.slice(0, 3) : "no json",
-      }),
-    );
+    log.error("draft_malformed", {
+      tenant_id: tenantId,
+      blocks: blockTypes,
+      stop: stopReason,
+      stream_error: streamError,
+      text: text.slice(0, 400),
+      issues: json ? d.error.issues.slice(0, 3) : "no json",
+    });
     return {
       ok: false,
       reason: "malformed",
@@ -556,16 +554,13 @@ export async function translateTemplate(
   const json = extractJson(turn.text);
   const out = translatedDraft(input.source, input.language, json);
   if (!out.ok && out.reason === "malformed") {
-    console.error(
-      "translation_malformed",
-      JSON.stringify({
-        tenant_id: tenantId,
-        blocks: turn.blockTypes,
-        stop: turn.stopReason,
-        stream_error: turn.streamError,
-        text: turn.text.slice(0, 400),
-      }),
-    );
+    log.error("translation_malformed", {
+      tenant_id: tenantId,
+      blocks: turn.blockTypes,
+      stop: turn.stopReason,
+      stream_error: turn.streamError,
+      text: turn.text.slice(0, 400),
+    });
   }
   return out;
 }

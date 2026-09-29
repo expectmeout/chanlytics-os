@@ -92,8 +92,7 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   if (effect.suppress) {
     const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
     const stopped = { reason: effect.suppress };
-    if (contactId)
-      await emitEvent(db, r.tenantId, "contact.email_suppressed", { type: "contact", id: contactId }, stopped);
+    if (contactId) await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", contactId, stopped);
     // A reach-out's email that bounced for good: its lead's address is invalid, as the finder's own check would say
     // (C11). After the address stops, so a lead that cannot be marked (the receipt comes again) is already not written to.
     if (effect.suppress === "hard_bounce" && sent?.leadId)

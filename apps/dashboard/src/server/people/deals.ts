@@ -21,6 +21,7 @@ import {
   type PersonRowDto,
   type SellsBy,
 } from "@chanlytics/contracts";
+import { log } from "@/server/log";
 
 /**
  * How this workspace's customers buy (tenants.sells_by, 0008): the answer every deal gate reads through contracts'
@@ -51,10 +52,7 @@ export async function dealPaceRead(
     const rows = await yesesSince(ctx.supabase, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS));
     return dealPaceFrom(rows, now.getTime());
   } catch (e) {
-    console.error(
-      "deal_pace_read_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("deal_pace_read_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

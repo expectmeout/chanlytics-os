@@ -148,7 +148,7 @@ export async function recordCarrierOptOut(
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", { type: "contact", id: p.contactId }, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
 }
 
@@ -216,7 +216,7 @@ export async function recordOutbound(
   await Promise.all([
     db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", p.conversationId),
     status === "sent"
-      ? emitEvent(db, p.tenantId, "message.sent", { type: "message", id: data.id }, { sender: p.sender })
+      ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender })
       : Promise.resolve(),
   ]);
   return data.id;

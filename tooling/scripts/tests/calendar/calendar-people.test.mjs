@@ -29,6 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -143,7 +144,10 @@ async function profileOf(tables = {}, faults = {}) {
   );
   const lines = [];
   const was = console.error;
-  console.error = (event, ...rest) => lines.push({ event, rest });
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    lines.push(line ? { event: line.event, rest: [fieldsOf(line)] } : { event: args[0], rest: args.slice(1) });
+  };
   try {
     const { person } = await personRoute.GET.run(
       new Request(`http://localhost/api/v1/contacts/${MARIA}?workspace=${HARBOR}`),
@@ -645,7 +649,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   assert.equal(lookupDown.person.row.id, MARIA, "the profile stands");
   assert.equal(lookupDown.person.visits, undefined, "without its visits");
   assert.deepEqual(
-    lookupDown.logged("person_visits_failed").map(([json]) => JSON.parse(json)),
+    lookupDown.logged("person_visits_failed").map(([fields]) => fields),
     [{ contact: MARIA, error: "down" }],
   );
   const edge = readCode("apps/edge/lib/calendar/availability.ts");
@@ -839,8 +843,8 @@ test("one refused number costs one person, never everyone behind them", () => {
     "a refusal must not end the batch before the rule has been consulted",
   );
   assert.ok(
-    /console\.error\(\s*"calendar_people_refused"/.test(svc) &&
-      svc.includes("refused, of: rows.length, added: added.length"),
+    /log\.error\(\s*"calendar_people_refused"/.test(svc) &&
+      /refused,\s*of: rows\.length,\s*added: added\.length/.test(svc),
     "and it says once how many people the refusals cost, not once per row",
   );
 });
@@ -873,7 +877,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   assert.ok(
     lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name, email })") &&
       lib.includes('if (iErr.code !== "23505") throw') &&
-      lib.includes('emitEvent(db, tenantId, "contact.added", { type: "contact", id: created.id }'),
+      /emitEvent\(\s*db,\s*tenantId,\s*"contact\.added",\s*"contact",\s*created\.id,/.test(lib),
     "get-or-create with the service role, an event for each person created",
   );
   assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
@@ -1172,7 +1176,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     );
     const lines = [];
     const was = console.error;
-    console.error = (event, ...rest) => lines.push({ event, rest });
+    console.error = (...args) => lines.push({ event: logLineOf(args)?.event ?? args[0], rest: args.slice(1) });
     try {
       const out = await reportsRoute.GET.run(new Request(`http://localhost/api/v1/reports?workspace=${HARBOR}`), {
         supabase,

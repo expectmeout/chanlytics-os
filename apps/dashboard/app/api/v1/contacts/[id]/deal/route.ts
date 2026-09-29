@@ -14,6 +14,7 @@ import {
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 import { currentDealOf } from "@/server/people/deals";
+import { log } from "@/server/log";
 
 const Body = z
   .object({
@@ -99,10 +100,7 @@ export const POST = write({
       // A key the sentences lack, or no deal and no error: an answer this route does not know. Logged raw before
       // the generic sentence, so a new refusal is found in the log rather than by its blandness.
       if (!(r.error && DEAL_REFUSALS[r.error])) {
-        console.error(
-          "deal_door_unknown_answer",
-          JSON.stringify({ contact: contact.id, error: r.error ?? null, deal: !!r.deal }),
-        );
+        log.error("deal_door_unknown_answer", { contact: contact.id, error: r.error ?? null, deal: !!r.deal });
       }
       throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
     }

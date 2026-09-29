@@ -38,6 +38,7 @@ import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
 import { addPeopleSeen } from "./people-seen";
+import { log } from "@/server/log";
 
 /**
  * The calendar as the receptionist reads it, for one span of days.
@@ -231,10 +232,7 @@ export async function calendarSources(
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now, { fresh: !!opts.fresh });
   } catch (e) {
-    console.error(
-      "calendar_parse_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses.
@@ -345,10 +343,10 @@ export async function calendarWeek(
   if (opts.canAct)
     people.push(
       ...(await addPeopleSeen(ctx, tenantId, s.parsed.items, s.serviceNames, people, now).catch((e: unknown) => {
-        console.error(
-          "calendar_people_seen_failed",
-          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
+        log.error("calendar_people_seen_failed", {
+          tenant: tenantId,
+          error: e instanceof Error ? e.message : String(e),
+        });
         return [];
       })),
     );

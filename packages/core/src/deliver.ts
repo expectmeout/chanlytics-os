@@ -499,7 +499,7 @@ function event<K extends MessageKind>(
   messageId: string | null,
   data: EventData[K],
 ): Promise<void> {
-  return emitEvent(db, d.tenantId, kind, { type: "message", id: messageId }, data);
+  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
