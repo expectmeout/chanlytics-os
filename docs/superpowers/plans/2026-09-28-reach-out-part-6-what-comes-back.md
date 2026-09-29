@@ -322,7 +322,9 @@ None open for this part. Still his from before: D14 (a support address), the col
 > - **Deploy order.** 00241 went to production first. Both apps deploy from the merge; for the minutes an older edge
 >   runs, a stopped lead's email already claimed or queued is not refused at the door (it reads no `stopped`), while
 >   its planned and held emails are skipped and no later step reaches it, both in SQL.
-> - **Checks.** The bundle stays inside its 1% band, with little room left.
+> - **Checks.** The workspace route's JavaScript rises past its 1% band: main measured 976.1 KB gzipped, this adds 6.3 KB,
+>   and the budget goes 972.4 → 982.4 KB with its row under "Rises" in `docs/debt.md` (the shell imports every page at
+>   once and contracts is one bundle, so nothing keeps the new pages off the route).
 >   `LeadsScope` and `LeadPeekInfo` rose by one line each and the window publishers by two, each with its row under
 >   "Rises" in `docs/debt.md`.
 

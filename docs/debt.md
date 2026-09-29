@@ -92,6 +92,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | `LeadPeekInfo` +1 line, no branch (Reach out, Part 6)                                                                                                                                          | The peek's reach-out block under the fit: one line, `{on.reachOut}`, the element built with the peek's acts in `LeadPeekActions`, which holds the test, so the function takes no branch                                                                                                                                                                         |
 | Window publishers +2 (Reach out, Part 6): `Object.assign(window, …)` in `reach-out-leads.jsx` and `reach-out-report.jsx`                                                                       | Leads' strip, the Stage line's hook and the peek's block, and Reports' Reach-outs section, are files of their own in `pages/reach-out/`, so neither Leads' pinned functions nor `ReportsSections` grows; the legacy tree shares a component between files only through window                                                                                   |
 | Window global readers (Reach out, Part 6): `__reachOuts` +1, `__replies` +1                                                                                                                    | The strip, the lines and the peek's block read the chains' verbs and words the bridge already publishes, and the peek's undo is the Inbox's own (`__replies.undo`). No new name                                                                                                                                                                                 |
+| Workspace route JS 972.4 → 982.4 KB gzipped (Reach out, Part 6, #1325; the CSS stays in its band)                                                                                              | Main measured 976.1 KB inside the 1% band; Part 6 adds 6.3 KB: Reports' Reach-outs, Leads' strip, Stage line and peek story, a person's reach-out rows, and their view models in contracts. The shell imports every page at once and contracts is one bundle, so no module boundary keeps them off the route                                                    | The shell's exit, one surface at a time (0015), which loads a page's code when it opens                                      |
 
 ## The numbers
 
@@ -117,7 +118,7 @@ wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
 source-text reads in tests          821
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
-workspace route JS, KB gzipped      972   the shell included
+workspace route JS, KB gzipped      982   the shell included
 workspace route CSS, KB gzipped     123
 ```
 
