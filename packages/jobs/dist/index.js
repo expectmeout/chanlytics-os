@@ -1940,6 +1940,75 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema = z13.object({
+  max_replies_day: z13.number().int().min(1).max(200).optional(),
+  pause_hours: z13.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z13.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z13.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z13.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -2188,75 +2257,6 @@ var DECISION_VERBS = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema = z13.object({
-  max_replies_day: z13.number().int().min(1).max(200).optional(),
-  pause_hours: z13.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z13.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z13.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z13.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -9790,6 +9790,75 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   30 * MIN_MS2
 ];
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS2 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema2 = z132.object({
+  max_replies_day: z132.number().int().min(1).max(200).optional(),
+  pause_hours: z132.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z132.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z132.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z132.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS2 = 24 * HOUR_MS2;
 var REPLY_LIMITS2 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -10038,75 +10107,6 @@ var DECISION_VERBS2 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS2 = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema2 = z132.object({
-  max_replies_day: z132.number().int().min(1).max(200).optional(),
-  pause_hours: z132.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z132.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z132.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z132.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS2 = [
   "booking",
   "pricing",
@@ -13728,6 +13728,75 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   30 * MIN_MS3
 ];
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS3 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema3 = z133.object({
+  max_replies_day: z133.number().int().min(1).max(200).optional(),
+  pause_hours: z133.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z133.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z133.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z133.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
 var REPLY_LIMITS3 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -13976,75 +14045,6 @@ var DECISION_VERBS3 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS3 = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema3 = z133.object({
-  max_replies_day: z133.number().int().min(1).max(200).optional(),
-  pause_hours: z133.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z133.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z133.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z133.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -16921,6 +16921,75 @@ function zoneMidnight(tz, key) {
   return localToUtcMs(tz, y, m, d, 0, 0);
 }
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS22 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema22 = z1322.object({
+  max_replies_day: z1322.number().int().min(1).max(200).optional(),
+  pause_hours: z1322.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z1322.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z1322.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z1322.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS22 = 24 * HOUR_MS22;
 var REPLY_LIMITS22 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -17169,75 +17238,6 @@ var DECISION_VERBS22 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS22 = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema22 = z1322.object({
-  max_replies_day: z1322.number().int().min(1).max(200).optional(),
-  pause_hours: z1322.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z1322.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z1322.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z1322.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS22 = [
   "booking",
   "pricing",
@@ -20224,6 +20224,75 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   30 * MIN_MS32
 ];
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS32 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema32 = z1332.object({
+  max_replies_day: z1332.number().int().min(1).max(200).optional(),
+  pause_hours: z1332.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z1332.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z1332.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z1332.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS32 = 24 * HOUR_MS32;
 var REPLY_LIMITS32 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -20472,75 +20541,6 @@ var DECISION_VERBS32 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS32 = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema32 = z1332.object({
-  max_replies_day: z1332.number().int().min(1).max(200).optional(),
-  pause_hours: z1332.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z1332.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z1332.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z1332.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -22326,7 +22326,6 @@ var UNKNOWN_START_GRACE_MS = 10 * MIN_MS22;
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
 var MARK_MAX_BYTES = 512 * 1024;
 var VISION_MAX_BYTES = 4 * 1024 * 1024;
-var PAUSE_MS = 24 * 3600 * 1e3;
 var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
@@ -24176,6 +24175,75 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   30 * MIN_MS4
 ];
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var POLICY_CLASS_WORDS4 = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema4 = z134.object({
+  max_replies_day: z134.number().int().min(1).max(200).optional(),
+  pause_hours: z134.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z134.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z134.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z134.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var WA_WINDOW_MS4 = 24 * HOUR_MS4;
 var REPLY_LIMITS4 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -24424,75 +24492,6 @@ var DECISION_VERBS4 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var POLICY_CLASS_WORDS4 = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema4 = z134.object({
-  max_replies_day: z134.number().int().min(1).max(200).optional(),
-  pause_hours: z134.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z134.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z134.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z134.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",

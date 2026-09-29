@@ -32,7 +32,7 @@
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import crypto from "node:crypto";
-import { phoneTail } from "../lib/packages/contracts.js";
+import { phoneTail, pauseMsOf } from "../lib/packages/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/whatsapp/waba-events.js";
 import { json, refuse, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
@@ -43,7 +43,6 @@ import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
-import { PAUSE_MS } from "../lib/packages/core.js";
 import { env } from "../lib/env.js";
 import { logger, errField } from "../lib/log.js";
 
@@ -202,8 +201,7 @@ export async function POST(request: Request): Promise<Response> {
             // paused for a hard-coded day whatever the owner had chosen. One
             // read per echo batch, never per echo.
             const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
-            const echoLimits = echoRt?.policy["reply"]?.limits ?? {};
-            const echoPauseMs = echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
+            const echoPauseMs = pauseMsOf(echoRt?.policy["reply"]?.limits);
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {

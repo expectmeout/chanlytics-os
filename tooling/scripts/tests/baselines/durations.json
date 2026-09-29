@@ -8,9 +8,7 @@
   "apps/dashboard/src/server/ask/openings.ts": 4,
   "apps/dashboard/src/server/ask/tools/act/thread-verb.ts": 1,
   "apps/dashboard/src/server/rate-limit.ts": 4,
-  "apps/dashboard/src/server/verbs.ts": 1,
   "apps/edge/api/cron/calls.ts": 3,
-  "apps/edge/api/whatsapp.ts": 1,
   "apps/edge/lib/ops/page-operator.ts": 1,
   "apps/edge/lib/ops/sweep-rotation.ts": 1,
   "apps/edge/lib/reach-out/check.ts": 7,
@@ -30,9 +28,8 @@
   "packages/contracts/src/config/workspace-config/policy-classes.ts": 1,
   "packages/contracts/src/email/sending-domains.ts": 1,
   "packages/core/src/deliver.ts": 1,
-  "packages/core/src/inbound/context.ts": 2,
   "packages/core/src/inbound/reply-gates.ts": 1,
-  "packages/core/src/inbound/steps.ts": 3,
+  "packages/core/src/inbound/steps.ts": 2,
   "packages/core/src/messages/broadcast.ts": 1,
   "packages/jobs/src/handlers.ts": 1
 }
