@@ -151,10 +151,8 @@ var MODEL_PRICES = {
 function defang(text2) {
   return text2.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
-function fenced(tag, text2) {
-  return `<${tag}>
-${defang(text2)}
-</${tag}>`;
+function fencedInline(tag, text2) {
+  return `<${tag}>${defang(text2)}</${tag}>`;
 }
 var PROFILE_NAME_MAX = 60;
 function promptSafeName(name) {
@@ -4784,7 +4782,7 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
   const name = promptSafeName(lead.name);
-  bits.push(name ? `Name on record: ${fenced("profile_name", name)}` : "No name on record.");
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {

@@ -161,6 +161,9 @@ function fenced(tag, text) {
 ${defang(text)}
 </${tag}>`;
 }
+function fencedInline(tag, text) {
+  return `<${tag}>${defang(text)}</${tag}>`;
+}
 var PROFILE_NAME_MAX = 60;
 function promptSafeName(name) {
   if (typeof name !== "string") return null;
@@ -30416,6 +30419,7 @@ export {
   feedSourceLabel,
   feedUrlOk,
   fenced,
+  fencedInline,
   fetchPublic,
   filterOpenings,
   filterTimeline,

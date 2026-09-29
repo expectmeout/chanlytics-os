@@ -40,6 +40,11 @@ export function fenced(tag: FenceTag, text: string): string {
   return `<${tag}>\n${defang(text)}\n</${tag}>`;
 }
 
+/** A short value of theirs fenced on one line, `<tag>value</tag>`, unable to close the tag: a name inside a sentence. */
+export function fencedInline(tag: FenceTag, text: string): string {
+  return `<${tag}>${defang(text)}</${tag}>`;
+}
+
 /** The most of a profile name a prompt is shown: a name, not a paragraph. */
 export const PROFILE_NAME_MAX = 60;
 
