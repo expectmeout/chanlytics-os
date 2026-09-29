@@ -129,9 +129,14 @@ export async function refusedAtTheDoor(POST, route, setPg) {
     assert.deepEqual(asked(db), ["get_cron_sweep_key"]);
   }
 
+  // No database at all: nothing handed in AND nothing configured. pg() builds a real client whenever the URL and the
+  // service key are set (a shell with a .env loaded, the nightly's `pnpm test`), so the step unsets them itself rather
+  // than trusting each file to have done it first.
   setPg(null);
   assert.deepEqual(
-    await answer(await knock(POST, route)),
+    await withEnv({ SUPABASE_URL: undefined, SUPABASE_SERVICE_ROLE_KEY: undefined }, async () =>
+      answer(await knock(POST, route)),
+    ),
     [503, { ok: false, error: "no_database" }],
     "no database: refused before the key is even asked for",
   );

@@ -649,3 +649,100 @@ export function durationsIn(sf) {
   visit(sf);
   return out;
 }
+
+/** A call of `readFileSync`, bare or as a property (`fs.readFileSync`). */
+const isReadFileSync = (n) =>
+  ts.isCallExpression(n) &&
+  ((ts.isIdentifier(n.expression) && n.expression.text === "readFileSync") ||
+    (ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === "readFileSync"));
+
+/** Whether a subtree holds a node `test` answers true for. */
+const holdsNode = (node, test) => {
+  let hit = false;
+  const visit = (n) => {
+    if (hit) return;
+    if (test(n)) hit = true;
+    else ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return hit;
+};
+
+/** The file a string in an argument names, when it names a source file (`.ts`, `.jsx`, `.css`, `.sql`, …). */
+const SOURCE_PATH = /\.(ts|tsx|js|jsx|mjs|cjs|css|sql)$/;
+const namesSource = (arg) =>
+  holdsNode(
+    arg,
+    (n) =>
+      ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && SOURCE_PATH.test(n.text)) ||
+      (ts.isTemplateTail(n) && SOURCE_PATH.test(n.text)),
+  );
+
+/** The names a scope node declares directly: its statements' functions and variables, a function's parameters. */
+function declaredIn(scope, name) {
+  const found = [];
+  const bindsName = (b) =>
+    ts.isIdentifier(b)
+      ? b.text === name
+      : (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b)) &&
+        b.elements.some((e) => !ts.isOmittedExpression(e) && bindsName(e.name));
+  const statements = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : [];
+  for (const s of statements) {
+    if (ts.isFunctionDeclaration(s) && s.name?.text === name) found.push(s);
+    if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations) if (bindsName(d.name)) found.push(d);
+  }
+  if (isFunction(scope)) for (const p of scope.parameters ?? []) if (bindsName(p.name)) found.push(p);
+  if (
+    (ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) &&
+    scope.initializer &&
+    ts.isVariableDeclarationList(scope.initializer)
+  )
+    for (const d of scope.initializer.declarations) if (bindsName(d.name)) found.push(d);
+  if (ts.isCatchClause(scope) && scope.variableDeclaration && bindsName(scope.variableDeclaration.name))
+    found.push(scope.variableDeclaration);
+  return found[0] ?? null;
+}
+
+/** The declaration an identifier at `node` reads: the nearest scope, walking out, that declares its name. */
+function bindingOf(node, name) {
+  for (let s = node.parent; s; s = s.parent) {
+    const d = declaredIn(s, name);
+    if (d) return d;
+  }
+  return null;
+}
+
+/**
+ * Source read as text in one test file through a helper of the file's own, which `readCode(` and `readRaw(` do not
+ * name: each call of a local function whose body calls `readFileSync` (`const read = (p) => fs.readFileSync(path.join(ROOT,
+ * p), "utf8")`, then `read("x.ts")`) with a source file's path (`.ts`, `.jsx`, `.css`, `.sql`, …) in its argument. A
+ * helper is judged by what its name is bound to where it is called, so an inner `const read = async (tenants) => …`
+ * that shadows one is not a read, and a helper that loads data (a `.json` fixture) is not source.
+ */
+export function sourceReads(sf) {
+  const helpers = new Set();
+  const visit = (n) => {
+    const fn =
+      ts.isFunctionDeclaration(n) && n.name
+        ? n
+        : ts.isVariableDeclaration(n) &&
+            ts.isIdentifier(n.name) &&
+            n.initializer &&
+            (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+          ? n.initializer
+          : null;
+    if (fn && fn.body && holdsNode(fn.body, isReadFileSync)) helpers.add(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  let count = 0;
+  const calls = (n) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.arguments.length && namesSource(n.arguments[0])) {
+      const d = bindingOf(n, n.expression.text);
+      if (d && helpers.has(d)) count++;
+    }
+    ts.forEachChild(n, calls);
+  };
+  calls(sf);
+  return count;
+}
