@@ -17,6 +17,9 @@
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
+ *   kit      -- no workspace of its own: the nightly's record, whose page is the kit's gallery
+ *              (e2e-harness/kit-gallery.mjs) instead of the mockup, for e2e/kit.spec.ts and for a person reviewing
+ *              the kit. Never served in production (decision 7).
  *
  * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
  */
@@ -37,7 +40,7 @@ export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
 /** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
 export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
-export const SCENARIOS = ["nightly", "salon", "pipeline"];
+export const SCENARIOS = ["nightly", "salon", "pipeline", "kit"];
 
 /** What the platform knows about a channel, as tenant_channels rows reach `resolveFacts` (contracts KnownFacts). */
 const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, status });
@@ -479,7 +482,9 @@ export function scenario(name, nowMs = Date.now()) {
         ? salon(name, nowMs)
         : name === "pipeline"
           ? pipeline(name, nowMs)
-          : null;
+          : name === "kit"
+            ? { ...nightly(name), gallery: true }
+            : null;
   if (!record) throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
   return { ...record, notifications: bellNotes(nowMs) };
 }

@@ -217,8 +217,8 @@ const LOAD_TIMEOUT_MS = 60_000;
 const LIMIT = 25;
 const RULE_SHOWN = 160;
 
-/** Stops what moves, before the page draws: animations, transitions and the caret. */
-const STILL =
+/** Stops what moves, before the page draws: animations, transitions and the caret. The kit's gallery spec adds it too. */
+export const STILL =
   "*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }";
 
 /** The planted fault self-test uses: one token, one step. */

@@ -1,13 +1,14 @@
 /**
  * The server a signed-in spec is run against, with no deployment, no database and no Supabase.
  *
- *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon]     (from the repo root)
+ *   node tooling/scripts/e2e-harness/server.mjs [port] [nightly|salon|pipeline|kit]     (from the repo root)
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
  *   - the standalone mockup (apps/dashboard/src/legacy), read from disk on every request through serve-legacy.mjs's
  *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
- *     mutation run possible;
+ *     mutation run possible; for the `kit` record, the kit's gallery in its place (kit-gallery.mjs), on the same
+ *     stylesheets;
  *   - the `/api/v1` reads the spec makes itself, answered from the same record the page was built from, in the
  *     app's own envelope (contracts `ok`/`err`).
  *
@@ -21,6 +22,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dealsAreOn, err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
+import { galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
 
@@ -175,12 +177,19 @@ export function documentWithFixture() {
 }
 
 /**
+ * The page a record's harness serves at `/` and at its workspace's address: the kit's gallery for the `kit` record,
+ * which runs none of the mockup's scripts, and the mockup with its fixture for every other.
+ */
+export const pageOf = (record) => (record.gallery ? galleryDocument() : documentWithFixture());
+
+/**
  * Start the harness. Port 0 takes a free one, which is what the runner does. Resolves once it is listening, with the
  * record it is serving and the way to stop it.
  */
 export async function startHarness({ name = "nightly", port = 0, now = Date.now() } = {}) {
   const record = scenario(name, now);
-  const fixture = await buildFixture(record);
+  // The gallery runs none of the mockup's scripts, so the kit record builds no fixture.
+  const fixture = record.gallery ? null : await buildFixture(record);
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
@@ -194,7 +203,7 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, json.status, TYPES[".json"], JSON.stringify(json.body));
         return;
       }
-      if (p === "/_hx/fixture.js") {
+      if (p === "/_hx/fixture.js" && fixture) {
         send(res, 200, TYPES[".js"], fixture);
         return;
       }
@@ -219,7 +228,7 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         return;
       }
       if (p === "/" || p === "/Chanlytics.html") {
-        send(res, 200, TYPES[".html"], documentWithFixture());
+        send(res, 200, TYPES[".html"], pageOf(record));
         return;
       }
       serveStatic(res, LEGACY, p);
@@ -240,5 +249,7 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const started = await startHarness({ port: Number(process.argv[2] || 0), name: process.argv[3] || "nightly" });
-  console.log(`the ${started.record.name} record on ${started.url}/#/admin/workspace`);
+  console.log(
+    `the ${started.record.name} record on ${started.url}/${started.record.gallery ? "" : "#/admin/workspace"}`,
+  );
 }

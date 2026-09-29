@@ -42,6 +42,8 @@ test("the reasons the suite's own gates give are the deliberate ones; a want of 
     "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it",
     "set E2E_SIGNUP_PROBE=1 with the service role to run the probe",
     "set E2E_SIGNUP_EMAIL to a real inbox, with {stamp} for a fresh address each run, to run the probe",
+    // e2e/kit.spec.ts: production has no gallery, so the nightly skips it by design.
+    "the kit's gallery is the local harness's alone: set E2E_SCENARIO=kit, as `corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit` does",
   ])
     assert.equal(DELIBERATE.test(why), true, why);
   for (const why of [

@@ -4,6 +4,7 @@
  *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
  *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
  *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon --grep "fits a phone"
+ *   corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit
  *
  * It starts the harness on a FREE port (never a fixed one: a developer machine has its own servers, and a port
  * already taken would fail as something far stranger), sets the four environment variables e2e/session.ts needs so
@@ -62,6 +63,8 @@ const run = spawn(
     env: {
       ...process.env,
       E2E_BASE_URL: harness.url,
+      // Which record the harness shows: a spec that only one record draws (e2e/kit.spec.ts) skips on the others.
+      E2E_SCENARIO: name,
       // signIn() reads these four; the harness answers the two auth calls it makes with them, and checks neither.
       NEXT_PUBLIC_SUPABASE_URL: harness.url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "harness-anon",
