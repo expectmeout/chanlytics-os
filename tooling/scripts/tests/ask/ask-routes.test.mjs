@@ -1495,29 +1495,41 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
 });
 
 test("the database in memory keeps a column named jsonb as jsonb keeps it: what is written comes back with every object's keys, at every depth, shortest first, then by their bytes -- a call's input and a card's reordered -- and a string as it went; a column not named keeps the writer's order", async () => {
-  const world = { t: [] };
-  const db = fakeDb(world, {}, {}, { jsonb: ["t.content"] });
+  // ask_messages.content, named; the same row written where it is not named keeps the writer's order.
+  const turn = (content) => ({ id: "b", tenant_id: A, thread_id: "th-1", user_id: "u-1", role: "assistant", content });
+  const world = { ask_messages: [] };
+  const db = fakeDb(world, {}, {}, { jsonb: ["ask_messages.content"] });
   const input = {
     action: "search",
     words: "parking",
     card: [{ action: "invite", email: "a@example.com", role: "viewer" }],
   };
-  await db.from("t").insert({ id: "b", content: input, other: input });
-  const [kept] = world.t;
+  await db.from("ask_messages").insert(turn(input));
+  const [kept] = world.ask_messages;
   assert.deepEqual(Object.keys(kept.content), ["card", "words", "action"]);
   assert.deepEqual(Object.keys(kept.content.card[0]), ["role", "email", "action"]);
   assert.deepEqual(kept.content, input, "the same values");
-  assert.deepEqual(Object.keys(kept.other), ["action", "words", "card"], "a column not named: the writer's order");
+  const plain = { ask_messages: [] };
+  await fakeDb(plain).from("ask_messages").insert(turn(input));
+  assert.deepEqual(
+    Object.keys(plain.ask_messages[0].content),
+    ["action", "words", "card"],
+    "a column not named: the writer's order",
+  );
   await db
-    .from("t")
+    .from("ask_messages")
     .update({ content: { action: "search", words: "parking" } })
     .eq("id", "b");
-  assert.equal(JSON.stringify(world.t[0].content), '{"words":"parking","action":"search"}', "an update the same");
+  assert.equal(
+    JSON.stringify(world.ask_messages[0].content),
+    '{"words":"parking","action":"search"}',
+    "an update the same",
+  );
   await db
-    .from("t")
+    .from("ask_messages")
     .update({ content: { a: JSON.stringify(input) } })
     .eq("id", "b");
-  assert.equal(world.t[0].content.a, JSON.stringify(input), "a string comes back as it went");
+  assert.equal(world.ask_messages[0].content.a, JSON.stringify(input), "a string comes back as it went");
 });
 
 /**
@@ -1642,9 +1654,20 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
   assert.deepEqual(write.values.content.raw, raw, "written back whole");
 });
 
-test("the database in memory answers a select that names a JSON path as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key; a select with no path still answers whole rows, as it always has here; a spelling it does not model is refused by name", async () => {
-  const db = fakeDb({ t: [{ id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" }] });
-  const one = (columns) => db.from("t").select(columns).eq("id", "a").maybeSingle();
+test("the database in memory answers a select as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key, ->> as text; a column or an embed the table does not have is refused", async () => {
+  const db = fakeDb({
+    ask_messages: [
+      {
+        id: "a",
+        tenant_id: A,
+        thread_id: "th-1",
+        user_id: "u-1",
+        role: "user",
+        content: { x: 1, y: { z: [2] }, n: null },
+      },
+    ],
+  });
+  const one = (columns) => db.from("ask_messages").select(columns).eq("id", "a").maybeSingle();
   assert.deepEqual((await one("id, v:content->x, y:content->y, n:content->n, gone:content->w")).data, {
     id: "a",
     v: 1,
@@ -1653,7 +1676,13 @@ test("the database in memory answers a select that names a JSON path as PostgRES
     gone: null,
   });
   assert.deepEqual((await one("id, content->x")).data, { id: "a", x: 1 }, "a path with no alias is named by its key");
-  assert.deepEqual((await one("id")).data, { id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" });
-  for (const columns of ["id, x:content->>x", "id, z:content->y->z", "id, contacts(name), x:content->x"])
-    await assert.rejects(one(columns), /fakeDb: .* is not modelled/, columns);
+  assert.deepEqual((await one("id, x:content->>x")).data, { id: "a", x: "1" }, "->> answers text");
+  assert.deepEqual(
+    (await one("id, z:content->y->z")).data,
+    { id: "a", z: [2] },
+    "a path goes as deep as it is written",
+  );
+  assert.deepEqual((await one("id")).data, { id: "a" }, "a select with no path answers the columns it names, too");
+  assert.equal((await one("id, words")).error.code, "42703");
+  assert.equal((await one("id, contacts(id)")).error.code, "PGRST200");
 });

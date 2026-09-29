@@ -597,8 +597,13 @@ test("POST broadcasts/[id]/recheck puts a run's unanswered holds back in one cal
   assert.deepEqual(asked, [{ p_broadcast_id: RUN }]);
 });
 
-test("a reach-out run's block: today and later from the checked only, the still-checking counted apart, the held with their dates, the first email as it reads, the domains from its sends (R21, R22)", async () => {
+test("a reach-out run's block: today and later from the checked only, the still-checking counted apart, the held with their dates, the first email as it reads, the domains from its sends (R21, R22)", async ({
+  mock,
+}) => {
   const DOM = "88888888-8888-4888-8888-888888888888";
+  // Noon on a Tuesday in Chicago, the workspace's zone, where "today" is counted. On the wall clock, a send two minutes
+  // on was tomorrow's in the two minutes before midnight there, and this failed.
+  mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-15T17:00:00Z") });
   const now = Date.now();
   const iso = (ms) => new Date(ms).toISOString();
   const lead = (name) => ({

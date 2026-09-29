@@ -123,8 +123,9 @@ export const PARTNER_WORDS = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
+  // In UTC, as every day the partner's pages say (dayWords below): the browser's zone said a day later east of UTC+12.
   since: (at: string) =>
-    `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+    `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account…",

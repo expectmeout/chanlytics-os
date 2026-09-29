@@ -1444,6 +1444,7 @@ declare function planBilling(before: {
     status: BillingStatus;
     tenant_status: string;
 }, sub: SubscriptionFacts, nowMs: number): BillingPlan;
+/** "Sep 21": a Stripe instant's day, in UTC. */
 declare function dayWords(iso: string | null | undefined): string;
 /** "13 days left, until Sep 21" · "ends today" · "" */
 /**

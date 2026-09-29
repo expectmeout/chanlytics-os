@@ -32,10 +32,11 @@ const DAY_WORDS: Array<[RegExp, string]> = [
   [/\b(sun|sunday|domingo)\b/i, "sun"],
 ];
 
+/** The day `atMs` falls on in `tz`; with no zone, or one Intl cannot use, the day in UTC -- never the machine's. */
 function dayKey(atMs: number, tz: string | null | undefined): string {
   try {
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz || undefined,
+      timeZone: tz || "UTC",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",

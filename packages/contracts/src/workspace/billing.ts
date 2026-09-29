@@ -290,7 +290,13 @@ export function planBilling(
   return { row, tenantStatus, switched, bell };
 }
 
-const DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+/*
+ * Stripe's instants said as a day in UTC, on every machine: the edge's bell and the owner's line-release letter run in
+ * UTC, and the pane and Setup said the same instant in the browser's zone, a day later east of UTC+12. Nothing here
+ * carries the workspace's zone; UTC is the day the edge has always said.
+ */
+const DATE_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+/** "Sep 21": a Stripe instant's day, in UTC. */
 export function dayWords(iso: string | null | undefined): string {
   if (!iso) return "";
   const ms = Date.parse(iso);
