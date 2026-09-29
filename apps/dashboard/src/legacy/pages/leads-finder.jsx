@@ -446,7 +446,7 @@ const LeadPlanPanel = ({
               Send my answer
             </button>
           ) : null}
-          <button type="button" className="lf-close" aria-label="Close" title="Close (esc)" data-testid="plan-close" onClick={onClose}><Icon name="x" size={12} /></button>
+          <button type="button" className="lf-close" aria-label="Close" title="Close" data-testid="plan-close" onClick={onClose}><Icon name="x" size={12} /></button>
           {thinking ? <span className="lf-sweep" aria-hidden="true" /> : null}
         </div>
       ) : null}
