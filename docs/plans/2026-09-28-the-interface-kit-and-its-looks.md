@@ -294,11 +294,14 @@ a surface's own stylesheet   layout only
 
 - **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale
   (`--blur-0` is `blur(0)`, never `none`: the build drops `backdrop-filter: none` written beside its prefixed twin,
-  #929) and a saturation step for glass.
+  #929) and a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought
+  with the face, its first reader.
 - **Tier 2, roles.** New: what a thing is for, set by a look.
   - Surfaces: `--surface-page` (the backdrop), `--surface-pane` (a content panel: a list, a peek, a composer),
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
-    a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim`.
+    a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim` (the page
+    faded behind a desk's side sheet), and `--surface-scrim-modal` (the ink's wash behind what takes a phone's screen,
+    a sheet from its bottom edge), which step 2.2 brought with the sheet, its first reader.
   - Each surface's `-fill`, `-blur`, `-edge` (hairline or rim), `-depth` (shadow) and `-radius`.
   - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--control-radius-sm` (a small control's, step 1.4),
     `--chip-h`, `--chip-radius`, `--selected-fill` (the picked segment).
@@ -351,8 +354,10 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 ### 3.3 The stylesheets: order, boundaries, one breakpoint
 
 - **Order.** `tokens.css` (scales, roles, modes, looks), then `kit.css`, then `components.css` (the frame's own chrome
-  until the frame moves), then one sheet per surface, then `mobile.css` and `ask.css`, as today. Both entry files
-  import the kit: `legacy-bridge/legacy.css` and `app/globals.css`, so sign-in draws the same button.
+  and the page sections that still share it, until each moves), then one sheet per surface, then `mobile.css` and
+  `ask.css`, as today. The shell's entry, `legacy-bridge/legacy.css`, imports the kit; `app/globals.css`, the entry of
+  the pages outside the shell, imports it in the change that first draws a kit class on one of them. None does yet,
+  so none of them waits on the kit's CSS to paint.
 - **No cascade layers in this program.** The kit's selectors are single classes, and a page that needs something
   different asks the kit for a variant. Layers would re-rank 19,700 lines of existing rules at once. Revisit when the
   page sheets hold layout only.
@@ -389,6 +394,7 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 | Kit component                                              | Replaces                                                                                                        |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Button: primary, secondary, quiet, danger · sm, md · icon | the `.btn` family; 82 button classes; eleven close and back buttons                                             |
+| Link button: words that act · danger                       | `.cl-bucket-link` (86 sites in 26 files), which Confirm's No and EmptyState's and FailedRead's acts draw        |
 | Switch                                                     | `.rec-switch`, `.set-switch`, `.tbn-alert-switch`                                                               |
 | Segmented: tabs, a view switch, a stage                    | nine segmented controls; `.stabs` and `SurfaceTabs`, re-typed twice                                              |
 | Pill, chip, count, mark (the one-badge system)             | about 100 page selectors named chip, pill, tag, badge or count; six state pills outside `StatePill`             |
@@ -406,14 +412,14 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 | Charts                                                     | the charts kit, moved under `kit/charts/` unchanged                                                             |
 
 **The gallery.** One page that draws every kit component in every variant, in both modes and both looks. It is served
-by the e2e harness (`tooling/scripts/e2e-harness/`, a `kit` scenario) and never in production; `e2e/kit.spec.ts`
+by the e2e harness (`tooling/scripts/e2e-harness/`, a `kit` scenario) and never in production; `e2e/kit/kit.spec.ts`
 opens it and checks that each entry reads its tokens. It is the page a review screenshots and the first place a new
 variant appears (decision 7).
 
 ### 3.5 The proofs
 
 - **Style equality, for every step that must look the same.** A recorder drives the e2e harness (its `salon`,
-  `pipeline` and `nightly` scenarios): each route at 1440 by 900 and 390 by 844, in both modes, walking every element
+  `pipeline` and `nightly` scenarios, and from step 2.3 the `kit` scenario's gallery): each route at 1440 by 900 and 390 by 844, in both modes, walking every element
   and recording its box and a fixed list of computed properties (colour, background, border, radius, shadow, filter,
   backdrop filter, font, line height, letter spacing, opacity). Before equals after, byte for byte. A planted fault
   (one token moved one step) must differ. It is written once as `tooling/scripts/checks/style-equality.mjs` because
@@ -518,31 +524,65 @@ _Proof:_ the probes; style equality. _Done when:_ a TSX component can be written
 
 ### Phase 2 · The kit, complete and identical (nothing a member can see)
 
+Phase 2 ships as one pull request, 2.1 to 2.4 together, each step a commit or a few in it: on 28 September Ruben asked
+for one push per big batch, since every push runs Actions and two Vercel builds. The steps below keep their order and
+their proofs.
+
 **2.1 The kit-grade CSS moves into the kit.** From `components.css`: buttons (:427-483), the input (:485-514), the
 badge shapes (:541-644), the live dot, faces (:669-702), empty states (:1845-1872), the menu (:1762-1821), confirm, the
 field error, the toast (:1886-1929), the tooltip (:2019-2031), the tab strip (:2033-2068). From `record.css`: fields,
-the switch, the toggle group, the combobox, the sheet, the fold, the row, chips. Each class joins `classes.json`.
-_Proof:_ style equality. _Done when:_ `components.css` holds the frame and nothing a page draws.
+the switch, the toggle group, the combobox, the sheet, the fold, the row, chips. Each class joins `classes.json`. The
+kit leaves `app/globals.css`, which 1.7 had import it too: no page outside the shell draws a kit class (§3.3).
+_Proof:_ style equality. _Done when:_ `components.css` holds no kit rule but at a width the kit does not take yet (the
+tab strip's 720px, the record kit's 760px, which Phase 4 takes to 900px), and names a kit class otherwise only beside a
+page's, in a rule the two share (the press, the role gate, how things come and go, reduced motion). What it keeps is
+the frame and the page sections that still share it, among them Campaigns, Agent Studio, the thread's attachments, the
+message preview, the day agenda, the KPI and stat strips, `.cl-bucket-link`, `.card`, `.glyph`, `.tbl`,
+`.section-head`, `.agent-rail`, `.soon`, `.dec`, `.rp-share-link`, "why it said that" and `.ix-steer`, which leave
+with their surfaces in Phase 4.
 
 **2.2 The missing primitives, in CSS.** Each reproduces the most-used existing variant exactly, so a page that adopts
 it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented control (from `.rec-seg`), the panel's
 three surfaces (from the most common card rule), the row (from the phone row's tokens), the sheet (the record sheet
 on a desk, the phone sheet under 900px), the meter (from `SegmentBar`), the face (the phone row's 32px face), the
-composer chassis (head, rows, foot, from the record sheet). No page uses them yet. _Proof:_ the gallery; style
-equality on the pages. _Done when:_ every component of §3.4 exists once in CSS.
+composer chassis (head, rows, foot, from the record sheet); and beside the panel the quiet link button (`.link-btn` and
+its danger form, from `.cl-bucket-link`), which this list did not name and 2.2 took (§8, decision 14). No page uses
+them yet. It comes after 2.3, whose gallery is its proof, and waits on the gallery rather than on 2.1: it adds rules
+and moves none. Planned as four pull requests of a day each, where every other step is one: the panel; the face with
+the list row; the meter; the sheet. They went out in Phase 2's one pull request, as its commits (above). The switch,
+the segmented control and the composer chassis are the record kit's rules, which 2.1 moves, so 2.2 writes none of
+them. _Proof:_ the gallery; style equality on the pages. _Done when:_ every component of §3.4 has its rule in
+`kit.css`, the kit's, to which a page moves in Phase 4. Until then four stand beside the house's rule each
+reproduces, and one of each pair leaves at the Phase 4 step that moves its pages: `.rec-sheet` for `.sheet` (with
+PhoneSheet's `.sb-sheet`, outside the kit) and `.rec-card-tip`'s surface for the panel's pop, at the People step
+(0015 step 5), where the record kit moves; `.confirm-block`'s surface for the panel's inset, at the Inbox step (0015
+step 3), where Confirm moves (the tip card and Confirm's block keep only their own column, width and entrance); and
+`.avatar` for `.face`, with a solid tone, at the Settings step (0015 step 11) and the frame's (step 13), where its
+three sites are.
 
-**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit.spec.ts` (§3.4). _Proof:_ the spec. _Done when:_ every
-class in `classes.json` has an entry, which the spec checks.
+**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
+and needs only 1.7; 2.1 can run beside it, and has a page that draws every class it moves once it lands. _Proof:_ the
+spec. _Done when:_ every class in `classes.json` has an entry, which the spec checks, and a node test holds in CI.
 
 **2.4 The React components for the new primitives.** Typed, rendering the kit's classes, tested on the stub React.
 Where a component already exists in JSX (`StatePill`, `MoreMenu`, `EmptyState`, the record kit), its TSX is written
-when its first surface moves (Phase 3), as a move, so it is never written twice. _Proof:_ the tests. _Done when:_ a
-moved surface can import every primitive.
+when its first surface moves (Phase 3), as a move, so it is never written twice. Built: `Button` and `LinkButton`
+(each a link where it has an address, `press.tsx`), `Panel`, `Face`, `ListRow` (a link too) and `Meter`, each with
+its props' type, named in the kit's index, and its type test; and
+`tooling/scripts/tests/styles/kit-components.test.mjs`, which holds every entry of their gallery families to what they
+draw, element for element: the tag, the classes and the attributes a stylesheet or a screen reader reads. So an entry
+or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet waits
+on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`): its behaviour
+(focus held inside, Escape, the page behind still) is what that decision settles, so its component is written with
+it; until then `kit.css` draws `.sheet`, and the gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can
+import every primitive, the Sheet's once that decision is taken.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
 Not re-planned. 0015's order, with the shared components that move into the kit with each surface, the first time a
-moving surface draws them:
+moving surface draws them. Before the first of them moves in, the kit takes a folder for each family (`kit/button/`
+with its component, its props and its type test; the index names them from there): it held 16 modules after step 2.4,
+and a directory holds at most 20 (the tree-shape measure, `docs/debt.md`).
 
 | 0015 step | Surface                                    | Moves into the kit with it (where it is the first to draw them)                                                  |
 | --------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
@@ -631,8 +671,8 @@ retires.
 (pills via `.pill`, the badge shapes) with one pointer.
 
 **6.4 The docs.** `docs/architecture.md` gains "The interface" (tokens, kit, surfaces, the looks);
-`docs/glossary.md` the words look, mode, token, role, kit, variant and gallery; `docs/runbook.md` "See the kit" and
-"Add a look".
+`docs/glossary.md` the words look, mode, token, role, kit, variant and gallery; `docs/runbook.md` "Add a look" (its
+"See the kit" came with the gallery, step 2.3).
 
 **6.5 A skill for agents,** `.claude/skills/chanlytics-interface/SKILL.md`, which Claude Code loads when a task
 touches the dashboard's interface: the seven rules; where the tokens, the kit and the gallery are; how to add a
@@ -657,8 +697,8 @@ alternatives.
 | 1.6  | The look setting                      | no               | boot tests, style equality      | 1.4                                 |
 | 1.7  | The kit's home                        | no               | lint probes, style equality     | #1205: 0015 decided                 |
 | 2.1  | Kit-grade CSS into the kit            | no               | style equality                  | 1.7                                 |
-| 2.2  | The missing primitives                | no               | gallery, style equality         | 2.1                                 |
-| 2.3  | The gallery                           | no               | e2e spec                        | 2.2                                 |
+| 2.2  | The missing primitives (four)         | no               | gallery, style equality         | 2.3                                 |
+| 2.3  | The gallery, before 2.2               | no               | e2e spec                        | 1.7                                 |
 | 2.4  | React components, new primitives      | no               | tests                           | 2.2                                 |
 | 3.x  | 0015's thirteen steps                 | no               | equal by value                  | 0015's own holds                    |
 | 4.x  | Each surface on the kit (twelve)      | harmonies only   | style equality, listed diffs    | that surface's move                 |
@@ -675,9 +715,10 @@ alternatives.
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
 
-About 45 pull requests besides 0015's own: 7 in Phase 1, 4 in Phase 2, 12 in Phase 4, about 17 in Phase 5, 5 in
-Phase 6. Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before
-the surfaces are done, since they are not offered to members until step 5.5.
+About 42 pull requests besides 0015's own: 7 in Phase 1, 1 in Phase 2 (its steps together, on Ruben's instruction of
+28 September, where they were planned as 7 with 2.2 as four), 12 in Phase 4, about 17 in Phase 5, 5 in Phase 6.
+Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before the
+surfaces are done, since they are not offered to members until step 5.5.
 
 ---
 
@@ -687,7 +728,7 @@ the surfaces are done, since they are not offered to members until step 5.5.
   from step 1.7.
 - **Style equality** (§3.5) on every step a member must not see, with a planted fault shown to differ.
 - **The gallery spec,** from step 2.3: every class in `classes.json` drawn, each reading its tokens in both modes and
-  both looks.
+  both looks; `tests/styles/kit-gallery.test.mjs` holds the classes in CI, where no browser spec runs.
 - **The look's boot:** `theme-boot.test.mjs` extended; the chrome pins updated in the same change; the e2e sidebar spec.
 - **Moves:** 0015's equal-by-value proof, unchanged.
 - **The bundle budget:** the kit's first steps may raise the CSS by a little, as a Rises row; each Phase 4 step
@@ -740,6 +781,9 @@ the road not taken beside it.
     request shows each difference. Not temporary kit variants.
 12. **Ask on the phone in Glass:** the ✦ disc settled on 25 September, drawn in the glass circle the canvases show.
 13. **The canvases:** kept with Ruben, outside the repository. Not committed under `docs/design/`.
+14. **The quiet link button:** a primitive of the kit, `.link-btn` and its danger form, the kit's name for the house's
+    quiet link button (People's `.cl-bucket-link`), taken on 28 September with the panel (step 2.2). Not
+    `.btn-link`, which would read as a modifier of the button, whose height, padding, border and ground it has none of.
 
 ---
 

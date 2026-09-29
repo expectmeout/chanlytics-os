@@ -14,9 +14,2510 @@
      as (width > 900px). A query that names no width (reduced motion, reduced transparency) is not a breakpoint.
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
-   Loaded right after tokens.css, before every other stylesheet: by the app's two entry files (legacy-bridge/legacy.css
-   for the shell, app/globals.css for the pages outside it), and by the standalone document (legacy/Chanlytics.html,
-   at the one path outside its tree that tooling/scripts/serve-legacy.mjs serves).
+   Loaded right after tokens.css, before every other stylesheet those entries import: by the shell's entry file
+   (legacy-bridge/legacy.css) and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree
+   that tooling/scripts/serve-legacy.mjs serves). In the built app the root layout's app/globals.css comes first, the
+   tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
+   them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
+   (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.
 
-   No rules yet, so nothing a member sees has changed: step 2.1 moves the house's primitives here from components.css
-   and record.css, under the names classes.json lists. */
+   The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
+   in the order they stood, so nothing a member sees changed. They still write some values as numbers
+   (baselines/style-values.json counts them), which fall as the kit takes its roles. What of theirs stayed behind says
+   why where it stands: a width this sheet does not take yet (the record kit's 760px phone, 761px desk and 1140px
+   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.legacy-on), and a busy Save's
+   pointer and the record kit's reduced motion, which must still come after a rule of those sheets. */
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h-md);
+  padding: 0 11px;
+  border-radius: var(--control-radius);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  background: var(--secondary-fill);
+  border: 1px solid var(--line);
+  /* Named, not `all`: a button's size or padding changing class must not animate, and every row of a list carries several. */
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--line-strong);
+}
+.btn:active {
+  background: var(--bg-active);
+}
+.btn .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-muted);
+}
+/* A link that is a button is not underlined: Broadcasts' Download QR and Print a desk sign, the shell's, People's
+   and the thread's. Settings had this rule for itself alone. */
+a.btn {
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--primary-fill);
+  color: var(--primary-ink);
+  border-color: var(--primary-fill);
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+.btn-primary .icon {
+  color: var(--primary-ink);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--quiet-ink);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+
+/* The destructive act, filled: Confirm's Yes for anything that destroys or
+   cannot be undone. A touch darker than the tone so its white words hold
+   contrast in both themes. `.btn.danger` is the quiet form, for the control
+   that ARMS the question (Delete…, Stop) -- red words, no fill until hovered. */
+.btn-danger {
+  background: oklch(from var(--danger) calc(l - 0.06) c h);
+  color: var(--danger-fg);
+  border-color: transparent;
+}
+.btn-danger:hover {
+  background: oklch(from var(--danger) calc(l - 0.12) c h);
+  border-color: transparent;
+}
+.btn-danger .icon {
+  color: var(--danger-fg);
+}
+.btn-danger:disabled:hover {
+  background: oklch(from var(--danger) calc(l - 0.06) c h);
+  border-color: transparent;
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: transparent;
+}
+
+.btn-sm {
+  height: var(--control-h-sm);
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: var(--control-radius-sm);
+}
+.btn-icon {
+  width: var(--control-h-md);
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.btn-icon.btn-sm {
+  width: var(--control-h-sm);
+}
+
+/* ---------- Search / Input ---------- */
+.input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--control-h-md);
+  padding: 0 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.input:focus-within {
+  border-color: var(--line-strong);
+}
+.input input {
+  border: none;
+  outline: none;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+}
+.input input::placeholder {
+  color: var(--ink-faint);
+}
+.input .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-dim);
+}
+.input .kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--bg-sunken);
+}
+
+/* ---------- Badges: one shape per job ----------
+   docs/superpowers/specs/2026-09-23-one-badge-system-design.md. Five shapes, one size each; no page keeps its own.
+     pill   a state (StatePill; the tone is contracts' tone.ts). A ground means "look here": warn, info, danger and
+            the live accent are filled. A state at rest (ok, plain) is its 6px dot and its word.
+     chip   a name: a list, a person, a role, a service, a source. A hairline and no fill, never a tone.
+     tally  a number riding on a tab, a nav row, a filter or an icon. Grey for a total, amber for people who need you.
+     mark   what kind of row this is. Neutral always: the row's pill or its words say the tone.
+   Words take the tone's -ink, never the raw tone: 4.5:1 or better, on a tint too (tokens.css, #749). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--chip-h);
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border: 0;
+  border-radius: var(--chip-radius);
+  background: none;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+/* At rest: the dot says the tone and the word says the state. An icon inside a pill is its own marker. */
+.pill::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.pill-ok::before {
+  background: var(--ok);
+}
+.pill:has(> .icon)::before {
+  content: none;
+}
+/* Asks to be seen: the tone's ground and its ink, and no dot. A dot inside a filled pill means live, and a live pill
+   carries its own (StatePill's .live-dot). */
+.pill-warn,
+.pill-info,
+.pill-danger,
+.pill-accent {
+  gap: 5px;
+  padding: 0 8px;
+}
+.pill-warn::before,
+.pill-info::before,
+.pill-danger::before,
+.pill-accent::before {
+  content: none;
+}
+.pill-warn {
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+}
+.pill-info {
+  color: var(--info-ink);
+  background: var(--info-soft);
+}
+.pill-danger {
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}
+.pill-accent {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+/* A dot drawn inside a pill by hand says the pill's own dot twice. */
+.pill .dot {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: var(--chip-h);
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--chip-radius);
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+button.chip,
+a.chip {
+  cursor: pointer;
+}
+button.chip:hover,
+a.chip:hover,
+.chip:has(> button:hover) {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+button.chip:focus-visible,
+a.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* A chip that opens its name and can be taken off: the name is one button, the × another. */
+.chip > button {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.chip > button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+.chip:has(> .chip-x) {
+  padding-right: 3px;
+}
+/* The × is a control's glyph, so it clears 3:1 (--ink-dim); round when focused too. */
+.chip > .chip-x {
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: var(--ink-dim);
+}
+.chip > .chip-x:hover {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+.chip > .chip-x:focus-visible {
+  border-radius: 50%;
+}
+/* A chip whose name can outrun its column (a list's name, a rule's words) wraps rather than running past the edge. */
+.chip-wrap {
+  height: auto;
+  min-height: var(--chip-h);
+  padding-block: 2px;
+  line-height: 14px;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.tally {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.tally-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+/* On an icon (the bell, the phone's Inbox tab): a ring of the page lifts it off the glyph, and the amber ground turns
+   opaque so the glyph does not show through it. */
+.tally-icon {
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.tally-icon.tally-warn {
+  background: color-mix(in oklab, var(--warn) 22%, var(--bg-raised));
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+}
+
+/* ---------- Live indicator (the signature accent moment) ---------- */
+.live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.live-dot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  opacity: 0.35;
+  animation: pulse-ring 1.6s var(--ease-out) infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.45;
+  }
+  80% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* ---------- Avatar ---------- */
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  display: inline-grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--bg);
+  background: var(--ink-muted);
+  flex-shrink: 0;
+}
+.avatar-sm {
+  width: 20px;
+  height: 20px;
+  font-size: 9.5px;
+}
+.avatar-lg {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+.avatar-xl {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+/* The house's one entrance (components.css, MICRO-MOTION): a record row's value arrives on it after a save, and the
+   pages' lists stagger on it. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* A button that cannot be pressed: dimmed, and its hover changes nothing. */
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn:disabled:hover {
+  background: var(--secondary-fill);
+  border-color: var(--line);
+}
+.btn-primary:disabled:hover {
+  background: var(--primary-fill);
+  border-color: var(--primary-fill);
+}
+.btn-ghost:disabled:hover {
+  background: transparent;
+  color: var(--quiet-ink);
+}
+
+/* ---------- MoreMenu (shared 3-dot popover) ---------- */
+.more-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+}
+/* The one action menu (MoreMenu), wherever a … opens one: room to read each item, a label that never breaks, the
+   icons in one column, and a shadow that lifts it off the page rather than a box drawn round it. It was 194px wide at
+   12.5px, so "Receptionist for this person…" broke onto two lines, under an eyebrow in capitals. */
+.more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  min-width: 232px;
+  max-width: 292px;
+  padding: 6px;
+  background: var(--surface-pop-fill);
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.08),
+    0 18px 44px -12px oklch(0 0 0 / 0.36);
+  transform-origin: top right;
+  animation: more-in 150ms var(--ease-out);
+}
+.more-menu.align-right {
+  right: 0;
+}
+.more-menu.align-left {
+  left: 0;
+  transform-origin: top left;
+}
+@keyframes more-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .more-menu {
+    animation: none;
+  }
+}
+.more-header {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  padding: 6px 10px 4px;
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  transition: background 100ms;
+}
+.more-item:hover {
+  background: var(--bg-hover);
+}
+.more-item:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
+}
+.more-item .icon {
+  width: 16px;
+  height: 16px;
+}
+/* One of a set (MoreMenu `checked`): the tick beside the one chosen and none beside the rest, the words in one column.
+   The Columns menu's rule (clients.css .pl-cols), for any menu. */
+.more-item[aria-checked="false"] .icon {
+  visibility: hidden;
+}
+.more-item .icon {
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+.more-item:hover .icon {
+  color: var(--ink);
+}
+.more-item-label {
+  flex: 1;
+  min-width: 0;
+}
+/* A menu item's second line is what the item will do ("Only places not already in your leads count"), so it is read,
+   and --ink-faint is 2.1 to 2.7:1 in both themes. */
+.more-item-meta {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+}
+.more-item.danger {
+  color: var(--danger);
+}
+.more-item.danger .icon {
+  color: var(--danger);
+}
+.more-item.danger:hover {
+  background: var(--danger-soft);
+}
+/* A short word at the item's end -- what it will do ("until tomorrow 10:00"), a count: one line, set to the right,
+   as readable as the meta line. */
+.more-item-hint {
+  margin-left: auto;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.more-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px;
+}
+/* A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit): placed against the window, so a pane that
+   scrolls cannot cut it off and it is as wide as every other menu. Drawn unseen until placed, so it never flashes at
+   the window's corner, and it grows from the corner it hangs by. */
+.more-wrap > .more-menu.escape {
+  position: fixed;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  left: 0;
+}
+.more-wrap > .more-menu.escape:not(.placed) {
+  visibility: hidden;
+  animation: none;
+}
+.more-wrap > .more-menu.escape.up {
+  transform-origin: bottom left;
+}
+.more-wrap > .more-menu.escape.align-right.up {
+  transform-origin: bottom right;
+}
+
+/* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
+   A line where the control that armed it was, or a panel under the row when
+   `block`: the question in ink, what happens in dim, then the Yes as a real
+   button (red when it destroys) and a quiet No. */
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: normal;
+  color: var(--ink-muted);
+}
+.confirm-q {
+  color: var(--ink);
+  font-weight: 500;
+}
+.confirm-detail {
+  color: var(--ink-dim);
+  margin-left: 4px;
+}
+.confirm-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.confirm-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  max-width: 440px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+}
+.confirm-block .confirm-words {
+  display: block;
+}
+.confirm-block .confirm-detail {
+  display: block;
+  margin: 2px 0 0;
+}
+.confirm-typed {
+  width: 100%;
+  max-width: 280px;
+  height: 28px;
+  padding: 0 9px;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.confirm-typed:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.confirm-typed::placeholder {
+  color: var(--ink-faint);
+}
+.confirm-error {
+  color: var(--danger);
+  font-size: 11.5px;
+}
+
+/* ---- FieldError — one sentence under the box it belongs to (data-bits.jsx).
+   Six forms coloured their own hint red inline; this is the one red a field
+   error wears, with its glyph, wrapping rather than clipping. */
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.field-error > .icon {
+  flex: none;
+  margin-top: 2px;
+}
+.field-error-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- EmptyState and FailedRead — the one "nothing here" and the one
+   "couldn't read" (data-bits.jsx). Three kinds: a page centres itself in a
+   pane, a card sits in a card or a rail, a line is one sentence in a table
+   or a list. A failed read is the same shape with the alert glyph and a
+   Retry. ---- */
+.empty {
+  display: flex;
+  gap: 12px;
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.empty-words {
+  min-width: 0;
+}
+.empty-title {
+  color: var(--ink);
+  font-weight: 500;
+}
+.empty-body {
+  color: var(--ink-dim);
+  max-width: 46ch;
+}
+.empty-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.empty-glyph {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+}
+.empty-page {
+  flex: 1;
+  min-height: 40vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+}
+.empty-page .empty-glyph {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.empty-page .empty-title {
+  font-size: var(--text-lg);
+}
+.empty-page .empty-body {
+  margin: 0 auto;
+  max-width: 320px;
+}
+.empty-page .empty-acts {
+  justify-content: center;
+  margin-top: 8px;
+}
+.empty-card {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+}
+.empty-card .empty-glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+}
+.empty-card .empty-title {
+  font-size: 13px;
+}
+.empty-line {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 12px 0;
+}
+.empty-line .empty-words {
+  display: inline;
+}
+.empty-line .empty-title {
+  display: inline;
+  margin-right: 4px;
+}
+.empty-line .empty-body {
+  display: inline;
+}
+.empty-line .empty-acts {
+  display: inline-flex;
+}
+.empty-center {
+  justify-content: center;
+  text-align: center;
+  padding: 28px 16px;
+}
+.empty-ok .empty-glyph {
+  color: var(--ok);
+}
+.empty-failed .empty-glyph {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: transparent;
+}
+.empty-failed.empty-line .empty-glyph {
+  background: transparent;
+}
+
+/* Menus float above their backdrop and never extend past reach */
+.more-menu {
+  z-index: 250;
+  max-height: min(340px, 72vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ---------- Toast (usePPToast) — the one flash, in four tones ----------
+   Moved here from people.css, where the shell's only flash contract had lived
+   because People flashed first. The tone sets the icon's colour, and a
+   hairline on the left for a warning or a failure; newest nearest the bottom;
+   above every menu and sheet, since a toast may confirm what one of them did. */
+.pp-toast-stack {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 18px;
+  z-index: 450;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.pp-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  background: var(--surface-pop-fill);
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  animation: pp-toast-in var(--duration-base) var(--ease-out);
+}
+@keyframes pp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-toast {
+    animation: none;
+  }
+}
+.pp-toast > .icon {
+  flex-shrink: 0;
+  color: var(--ok);
+}
+.pp-toast-info > .icon {
+  color: var(--info);
+}
+.pp-toast-warn > .icon {
+  color: var(--warn);
+}
+.pp-toast-danger > .icon {
+  color: var(--danger);
+}
+.pp-toast-warn {
+  border-left: 3px solid var(--warn);
+}
+.pp-toast-danger {
+  border-left: 3px solid var(--danger);
+}
+.pp-toast-msg b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.pp-toast-link {
+  color: var(--info);
+  font-weight: 500;
+  transition: color 100ms;
+}
+.pp-toast-link:hover {
+  color: var(--ink);
+}
+.pp-toast-cta {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  transition: opacity 100ms;
+}
+.pp-toast-cta:hover {
+  opacity: 0.85;
+}
+.pp-toast-x {
+  color: var(--ink-dim);
+  display: inline-flex;
+  padding: 2px;
+}
+.pp-toast-x:hover {
+  color: var(--ink);
+}
+
+/* Role-gated controls (window.gate) keep a working control's look under the pointer and the press: they are dimmed and
+   say why (components.css, [data-gated]), and take no hover or press state of their own. */
+.btn[data-gated]:hover,
+.btn[data-gated]:active {
+  background: var(--bg-raised);
+  border-color: var(--line);
+}
+.btn-primary[data-gated]:hover,
+.btn-primary[data-gated]:active {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.btn-ghost[data-gated]:hover,
+.btn-ghost[data-gated]:active {
+  background: transparent;
+  color: var(--ink-muted);
+}
+.more-item[data-gated]:hover {
+  background: transparent;
+}
+
+/* ---------- Tooltip surface — every [data-tip] renders through .ui-tip ---------- */
+.ui-tip {
+  position: fixed;
+  z-index: 3000;
+  max-width: 280px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-weight: 450;
+  letter-spacing: 0.005em;
+  padding: 6px 10px;
+  border-radius: 7px;
+  box-shadow: 0 8px 24px -6px oklch(from var(--ink) l c h / 0.35);
+  opacity: 0;
+  transform: translateY(3px) scale(0.98);
+  transition:
+    opacity 0.15s var(--ease-out),
+    transform 0.15s var(--ease-out);
+  pointer-events: none;
+  white-space: normal;
+  text-wrap: pretty;
+}
+.ui-tip.show {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-tip {
+    transition: none;
+  }
+}
+
+/* ---------- SurfaceTabs — merged surfaces are views, not places ---------- */
+/* One strip for every surface's views: the Inbox's, Campaigns', and People's scopes on a phone (clients.css). A tab is
+   34px with its words in the middle, 4px from the next, one weight whichever is picked (a bolder word is a wider one,
+   and the tabs beside it moved on every switch); where you are is the ink and the accent's underline. A page sets only
+   the strip's sides. The Inbox's and People's were 2px apart with their words a pixel high, and Campaigns' underlined
+   in ink: one control, two looks (Ruben, 25 Sep).
+   The strip's rule is drawn inside it (an inset shadow), and the picked tab's 2px underline lies over it there. A border
+   under the strip, with the tab 1px over it, lay outside what a strip that scrolls across can show (a phone's): the
+   Inbox's and Campaigns' underlines drew 1px of their 2 and the strip scrolled 1px up and down under a thumb, where
+   People's clipped instead. */
+.stabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 18px 0;
+  background: var(--surface-page-fill);
+  box-shadow: inset 0 -1px 0 var(--line);
+  flex: none;
+  position: relative;
+}
+.stabs-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+  border-bottom: 2px solid transparent;
+  transition: color 110ms;
+}
+.stabs-tab:hover {
+  color: var(--ink);
+}
+.stabs-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+/* A thumb carrying the page (surface-tabs.jsx stripPager): one underline, between the tab picked and the one the page
+   is going to; the picked tab's own is clear meanwhile. */
+.stabs[data-glide]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--glide-w, 0px);
+  height: 2px;
+  background: var(--accent);
+  transform: translateX(var(--glide-x, 0px));
+  pointer-events: none;
+}
+.stabs[data-glide="ease"]::after {
+  transition:
+    transform 180ms var(--ease-out),
+    width 180ms var(--ease-out);
+}
+.stabs[data-glide] .stabs-tab {
+  transition: color var(--duration-base) var(--ease-out);
+}
+.stabs[data-glide] .stabs-tab.active {
+  border-bottom-color: transparent;
+}
+
+@media (max-width: 900px) {
+  .stabs {
+    padding: 4px 12px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+
+/* How an overlay comes and goes (components.css, "HOW THINGS COME AND GO"): a dialog rises a few pixels as it fades
+   up, a side sheet slides in from its edge, a phone's sheet rises from the bottom, and the wash behind it fades; each
+   leaves the same way, faster. Only translate, scale and opacity move, never transform. The kit owns this motion: the
+   frame's overlays and the pages' play it from here until they move, as do the kit's rules left in components.css
+   (the record kit's sheets at 760px and 761px, Confirm's panel). Only such rules play modal-in and modal-out (a
+   dialog), sheet-rise and sheet-drop (the record sheet under 761px) and nudge-in (Confirm, a receipt, a message). */
+@keyframes wash-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wash-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.985;
+  }
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.99;
+  }
+}
+@keyframes side-in {
+  from {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+@keyframes side-out {
+  to {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+@keyframes sheet-rise {
+  from {
+    translate: 0 100%;
+  }
+}
+@keyframes sheet-drop {
+  to {
+    translate: 0 100%;
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+  }
+}
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    translate: 0 28px;
+  }
+}
+@keyframes nudge-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+/* The record sheet slides in from its edge, and out by a still copy. Telling the kit's sheets apart keeps this at one
+   class (:where), so the reduced-motion block of the overlays (components.css), later and equal, wins. */
+.rec-sheet:where(:not(.rec-fold-sheet)) {
+  animation: side-in 260ms var(--ease-out);
+}
+
+/* What answers a press in place: the question that stands where the button was, and a figure's receipt. */
+.confirm {
+  animation: wash-in 160ms var(--ease-out);
+}
+
+.rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] {
+  animation: side-out 180ms var(--ease-in) forwards;
+}
+
+/* Tabs answer a press and ease into their state: the section tabs, and the phone's tab bar (components.css). */
+.stabs-tab {
+  transition:
+    color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+.stabs-tab:active {
+  transform: translateY(0.5px) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stabs[data-glide="ease"]::after,
+  .stabs[data-glide] .stabs-tab {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   THE RECORD KIT — a row, a field, a fold, an inline editor, a sheet.
+   Shaped like the charts kit: its own classes (record.css keeps
+   what it cannot hand over yet, and says why), and
+   no page knows anything but these names. Nothing here knows which
+   page it is on: the page brings its words, and the few the kit
+   has (Save, Cancel, Close, Keep mine) are defaults it replaces.
+   Values are the canvas's (Record, Edit-Fold, Edit-Sheet, Kit,
+   Record-Phone), on the house tokens. Words someone reads are
+   --ink-dim at the faintest, which reads on every surface it sits
+   on; --ink-faint is for icons, borders and placeholders.
+   ============================================================ */
+
+/* ---------- The card a page's rows sit in ---------- */
+/* Two surfaces, and three radii (23 Sep): a card and a sheet are the raised ground with a hairline, --radius-lg; a
+   field, a press and a line's wash take --radius-sm; a switch and a dot are round. A card carried a shadow, and five
+   radii were in use. */
+/* Named once, on the two things rows sit in, the card and a sheet's body: --rec-gutter is its side padding, which an
+   open fold reaches through to its edge; --rec-key is the label column every row and fold head keeps, and the indent
+   a fold's fields start at. */
+.rec-card {
+  --rec-gutter: 18px;
+  --rec-key: 168px;
+  isolation: isolate;
+  padding: 18px var(--rec-gutter) 6px;
+  background: var(--surface-pane-fill);
+  border: 1px solid var(--surface-pane-edge);
+  border-radius: var(--surface-pane-radius);
+}
+.rec-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+/* Two classes deep, so a page's own heading reset (settings.css flattens every .settings h2) cannot undo it. */
+.rec-card-head .rec-card-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.rec-card-sub {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* ---------- A row: label, value, where it came from, one act ---------- */
+/* 44px at the least, the height its inline editor keeps (below), so a row that becomes its editor moves nothing under
+   it; and the whole row is its act's press (record-row.jsx recRowPress), so the pointer says so. */
+.rec-row {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  min-height: 44px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.rec-row[data-act="true"] {
+  cursor: pointer;
+}
+.rec-row-top {
+  align-items: flex-start;
+}
+.rec-row-key {
+  flex: 0 0 var(--rec-key);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-row-val {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--ink);
+}
+.rec-row-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rec-row-empty {
+  color: var(--ink-dim);
+}
+/* Where a value did not come from the owner, said as a muted word beside it: no border, no ground, no second colour.
+   It was the house pill, which at a phone's width wrapped onto a line of its own under every value on the card — and
+   most of those lines said "you set this", which the kit no longer draws at all (record-row.jsx). A disagreement is
+   the one that takes an ink of its own, since a person has to settle it. */
+.rec-src {
+  flex: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.rec-src[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+/* The save settle (spec §9, item 4): a row drawn again by its editor's save (data-settled, the page's word) lets its
+   value arrive on the house's own rise-in, once, as the fold folds away under it and the toast rises. The label holds
+   still; a row drawn with its page, or after a Cancel, is simply there. */
+.rec-row[data-settled="true"] .rec-row-val {
+  animation: rise-in var(--duration-base) var(--ease-out) backwards;
+}
+/* A sentence under the value takes a line of its own. */
+.rec-row-hint {
+  flex: 1 1 100%;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* Drawn at rest, quietly: the dim ink, and the ink itself as the row is approached or its act holds focus. Only its
+   colour moves, never its weight, so the words keep their width and nothing beside them shifts. It was latent (opacity
+   0 until the row was hovered), which read as a page with nothing to press. */
+.rec-row-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.rec-row:hover .rec-row-act,
+.rec-row:focus-within .rec-row-act {
+  color: var(--ink);
+}
+/* The chevron is the phone's; a desktop reads the act's words, and an act that goes to another page its arrow beside
+   them. */
+.rec-row-chev {
+  display: none;
+}
+.rec-row-act-icon {
+  display: inline-flex;
+}
+/* The hover wash reaches 12px past the row on each side and stops at the hairlines. A box-shadow spread reached as far
+   up and down, over the next row's rule. It sits under the row's words in the card's stacking context (the card and
+   a sheet's body isolate; the row does not): a row that isolated itself painted every row below it over a menu
+   opened from it, and let a press on the menu through to them. */
+.rec-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 -12px;
+  z-index: -1;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.rec-row:hover::before {
+  background: var(--bg-hover);
+}
+/* Something wrong or missing is on the row at full strength, hover or not: the warn wash, the key in the warn ink,
+   and the act drawn. The :hover twin outranks every hover rule below (a touch screen's, a phone's), so none of them
+   takes the wash away. */
+.rec-row[data-state="warn"]::before,
+.rec-row[data-state="warn"]:hover::before {
+  background: var(--warn-soft);
+}
+.rec-row[data-state="warn"] .rec-row-key {
+  color: var(--warn-ink);
+}
+/* The wash is a surface of its own: --ink-dim reads 4.3:1 on it in dark, so a wrong row's dim words take the muted ink. */
+.rec-row[data-state="warn"] :is(.rec-row-empty, .rec-row-hint, .rec-row-act) {
+  color: var(--ink-muted);
+}
+.rec-row-wrong {
+  flex: 1 1 100%;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+/* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
+   the press that takes it. */
+.rec-row-dispute {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.rec-row-dispute-other {
+  flex: 1 1 14em;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.rec-row-dispute-value {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.rec-row-dispute-acts {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* A row of chips (a row's children) reads as one line of words (23 Sep): the names, comma-separated, after the value,
+   and "+N more" as the last word in the dim ink; a chip's measure is not drawn at rest, since the sheet says it. It was
+   a wrap of bordered chips, three deep at a phone's width, on rows that state one fact. The chip keeps its class (the
+   kit's tests and the badge system's rule, .chip above); only its look is a word's here. */
+/* A basis of nothing, so the list stays on the value's line and takes what is left of it, wrapping as words do: with
+   a basis of its own width the row's wrap put the whole list on a line of its own. */
+.rec-chips {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.rec-row-value ~ .rec-chips::before {
+  content: "· ";
+  color: var(--ink-dim);
+}
+.rec-chips .rec-chip {
+  display: inline;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.rec-chips .rec-chip + .rec-chip:not([data-more="true"])::before {
+  content: ", ";
+}
+.rec-chips .rec-chip[data-more="true"] {
+  color: var(--ink-dim);
+}
+.rec-chips .rec-chip[data-more="true"]::before {
+  content: " ";
+}
+.rec-chip-meta {
+  display: none;
+}
+
+/* ---------- A fold: a set of fields, opened under its row ---------- */
+/* The fold reaches both edges of the card, so its head and its fields line up with the rows above and below it, and
+   its ground is the card's: nothing marks it but its fields. It carried the accent as a left edge and a sunken tint
+   (before that a gradient, which smeared); the coral is for keyboard focus and a destructive confirm alone (23 Sep),
+   and an open editor is the one thing on the page with boxes in it, which is mark enough. */
+.rec-fold {
+  margin-inline: calc(-1 * var(--rec-gutter));
+  padding-inline: var(--rec-gutter);
+  border-top: 1px solid var(--line);
+}
+.rec-fold-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 11px 0 4px;
+}
+.rec-fold-label {
+  flex: 0 0 var(--rec-key);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.rec-fold-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-fold-close {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.rec-fold-close:hover {
+  color: var(--ink);
+}
+/* Closed, a fold is hidden whole (the `hidden` attribute): no head, no Close, nothing in the tab order or read out,
+   and the row it opens from is what shows. It opens on the grid's rows, never max-height: whether it was drawn open
+   or kept and then opened, it appears folded and unfolds. */
+.rec-fold[hidden] {
+  display: none;
+}
+.rec-fold-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+.rec-fold-body > * {
+  overflow: hidden;
+}
+@starting-style {
+  .rec-fold-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+/* And it folds away as it closes (spec §9, item 1: --ease-in-out closing), the mirror of its opening: the head gives
+   way to the row at once, as the row gave way to it, and the fields fold up under the row on the same rows and
+   opacity. Nothing is kept by the page or the registry to do it: the fold is `hidden` the moment it closes, so focus
+   goes back to the row's act and the one-open rule lets the next fold in exactly when they did; the stylesheet alone
+   holds its box on screen for the fold's duration (display, allow-discrete) while it folds, then lets it go. For those
+   200ms what folds away takes no press. */
+.rec-fold {
+  transition: display var(--duration-base) allow-discrete;
+}
+.rec-fold[hidden] {
+  pointer-events: none;
+}
+.rec-fold[hidden] .rec-fold-head {
+  display: none;
+}
+.rec-fold[hidden] .rec-fold-body {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition-timing-function: var(--ease-in-out);
+}
+/* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
+   `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
+   ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
+   width, and what saving writes and the foot keep the indent. */
+.rec-fold-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px 0 calc(var(--rec-key) + 4px);
+  margin-inline: -4px;
+}
+.rec-fold[data-wide="true"] .rec-fold-inner {
+  padding-left: 4px;
+}
+.rec-fold[data-wide="true"] .rec-says {
+  margin-inline-start: var(--rec-key);
+}
+.rec-fold[data-wide="true"] .rec-foot {
+  padding-inline-start: var(--rec-key);
+}
+.rec-fold .rec-foot {
+  padding: 2px 0 16px;
+}
+
+/* ---------- What the fold and the inline editor share ---------- */
+/* What saving writes, in the composer's own words: a sentence of the page's first where the change reaches past its
+   lines, then the lines it adds and the lines it takes away, each under its eyebrow. An inline editor's row sets each
+   eyebrow beside its lines on a desktop, as the canvas's Edit-Inline does; a fold, and every phone, stacks them. */
+/* Lines under a hairline, not a box: it was a tinted block with its eyebrow in small capitals, the one loud thing in
+   every editor (23 Sep). The eyebrow is a dim word in the page's own case, and the lines stand under it. */
+.rec-says {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.rec-says-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.rec-says-part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rec-says-eyebrow {
+  flex: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+/* The lines the receptionist will be told, in the page's own face. A <pre> for the newlines it keeps, not for a
+   typeface: these are sentences about a business, and a second face on a card of sentences is the first thing an
+   owner notices about the page. */
+.rec-says pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The line the draft has just changed (RecordSays marks it; the page works out which), washed in the kit's one
+   on-and-ok tint and let go to nothing over 400ms, once (spec §9, item 3): the eye goes to the clause that moved and
+   the rest of the block holds still. No keyframe: the line is a new element whenever its words change (keyed by
+   them), so a transition from where it starts plays as it arrives, and a line that stays never plays again. Only its
+   ground moves, never its box: an inline span with no padding, so nothing re-lays out, and the wash follows a
+   wrapped line onto the next. */
+.rec-says-line[data-changed="true"] {
+  border-radius: var(--radius-sm);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-color calc(2 * var(--duration-base)) var(--ease-out);
+}
+@starting-style {
+  .rec-says-line[data-changed="true"] {
+    background-color: var(--ok-soft);
+  }
+}
+.rec-says[data-inline="true"] .rec-says-part {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 9px;
+}
+.rec-says[data-inline="true"] .rec-says-eyebrow {
+  margin-top: 0;
+}
+.rec-says[data-inline="true"] pre {
+  line-height: var(--leading-normal);
+}
+/* Save and Cancel, and beside them the page's line or the keys that do the same. Save while it saves: busy, still a
+   button focus rests on (record-fold.jsx), and the pointer says so. */
+.rec-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.rec-foot-note {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-foot-keys {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* A fold's row, drawn behind its sheet (record-fold.jsx `behind`): its box lays out as nothing, so the row stands in
+   its card exactly where it stood. */
+.rec-fold-behind {
+  display: contents;
+}
+/* A fold drawn as a sheet, at any width (record-fold.jsx `frame`): the sheet's body carries the gutter, so its fields
+   start at the sheet's edge, not past a label column the sheet has no rows to keep; and they keep the fold's 4px either
+   side for a focused box's ring. */
+.rec-fold-sheet .rec-fold-inner {
+  padding: 16px 4px 20px;
+}
+
+/* ---------- An inline editor: one value, edited in the row that states it ---------- */
+/* The row itself becomes the field (spec §5), and keeps the row's line: the label stays in the label column, the box
+   takes the value's place, and ✓ and ✕ sit where the act was. A one-line row and its editor are both 44px (the row's
+   min-height; here 6px either side of the 32px box), so a value becoming its field moves nothing under it. What
+   there is to say under the box -- a disagreement, what it will say, an ask -- takes a second line of the grid, drawn
+   only when there is something (record-fold.jsx). Closed, it is hidden whole, as a closed fold is. */
+/* The grid names one row; the second exists only while something is drawn in it (an implicit row), so with nothing to
+   say there is no second row and no gap before it: a named empty row kept its gap, and the editor was 11px taller
+   than its row. */
+.rec-inline {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: var(--rec-key) minmax(0, 1fr) auto;
+  grid-template-areas: "key field acts";
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.rec-inline[hidden] {
+  display: none;
+}
+.rec-inline-key {
+  grid-area: key;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-inline-body {
+  grid-area: field;
+  min-width: 0;
+}
+.rec-inline-more {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+/* The page's field carries no label of its own over the box (the row's label names it): the label RecordField leaves
+   empty is not laid out, so its 5px gap is not either, and the box sits on the row's line. */
+.rec-inline .rec-field-label:empty {
+  display: none;
+}
+/* The two presses, in the act's column: a glyph each, 28px square, the dim ink for Cancel and the ink for Save, the
+   hover ground as the row's act takes. Each reaches 44px for a finger from an ::after, as a fold's Close does (below),
+   so the row stays 44px tall on a touch screen too. Busy, Save says so and takes no press (record-fold.jsx). */
+.rec-inline-acts {
+  grid-area: acts;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.rec-inline-act {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.rec-inline-act::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+.rec-inline-act[data-act="save"] {
+  color: var(--ink);
+}
+.rec-inline-act:hover,
+.rec-inline-act:focus-visible {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+.rec-inline-act[aria-disabled="true"] {
+  color: var(--ink-faint);
+  background: none;
+}
+.rec-inline-act[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* The value becomes its field (spec §9, item 2): the label holds its place on the row's line, and what stood beside it
+   gives way to the box in a 120ms cross-fade, as the editor appears (a transition from @starting-style, no keyframe).
+   The box's focus ring is drawn inside what fades, so it is not seen on the first frame, and arrives with the second;
+   the caret is put at the end of the value as focus lands (record-fold.jsx recFocusIn). A fold's head does the same
+   where the value was, its hint, while its fields unfold under it. */
+.rec-inline-body,
+.rec-fold-hint {
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+@starting-style {
+  .rec-inline:not([hidden]) .rec-inline-body,
+  .rec-fold:not([hidden]) .rec-fold-hint {
+    opacity: 0;
+  }
+}
+
+/* ---------- A sheet: a list you scroll, beside the page ---------- */
+/* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
+   and a sheet's Save is at its foot, where the tab bar is. The shortcuts sheet's layer (components.css), under the
+   toasts (450), so a toast, the house's undo, is seen over a sheet. What a sheet needs is reachable inside it, where
+   Tab stays, and a toast may echo it (record-sheet.jsx). */
+.rec-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  max-width: none;
+  background: var(--surface-scrim);
+}
+.rec-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 401;
+  width: min(540px, 92vw);
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+}
+/* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
+.rec-sheet:focus {
+  outline: none;
+}
+.rec-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.rec-sheet-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+/* Two classes deep, for the reason the card's title is. */
+.rec-sheet-head .rec-sheet-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.rec-sheet-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-sheet-close {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.rec-sheet-close:hover {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+/* The tools wrap: a sentence beside a search (a full list's cap) squeezed the search to nothing at 320px. */
+.rec-sheet-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.rec-sheet-body {
+  --rec-gutter: 22px;
+  --rec-key: 168px;
+  isolation: isolate;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--rec-gutter);
+}
+/* A sentence for a screen reader only, such as a live region's (the services sheet's search count): on the page, and not seen. */
+.rec-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rec-sheet-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+/* The house's toasts (.pp-toast-stack above: fixed, centred, 18px off the bottom, over the sheet's layer)
+   while a sheet is open. Centred on the window, a toast sat over the sheet's Save, bottom-left in its foot, at any width
+   under about 1,290px, and the Undo in it is the one a person reaches for straight after a remove. So where the page
+   left of the sheet has room for a toast, the stack is centred there and kept to it; where it has not, and on a phone,
+   where the sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. The height is the
+   foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
+   for a few seconds, and one over Save hides the one press that finishes. */
+/* A sheet on its way out (data-leaving, below) is not a sheet a toast has to clear: the toast a save raises would
+   otherwise start over where the sheet's foot was and drop as the sheet went. */
+:root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack {
+  bottom: calc(184px + env(safe-area-inset-bottom));
+}
+
+/* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
+.rec-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rec-field > label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rec-field-label {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.rec-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--control-radius-sm);
+  background: var(--bg-raised);
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.rec-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent);
+}
+.rec-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+/* While its fold's or its row's save is out (the gesture says aria-busy) its boxes take no typing, and look it: the
+   sunken ground, the muted ink, the pointer that says wait. A box keeps its focus and its ring, which a disabled one
+   would have let go of. The page's own controls inside a saving gesture can say the same from the same attribute. A
+   sheet says it the same way (RecordSheet's busy). */
+:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) {
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+}
+:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) {
+  cursor: progress;
+}
+textarea.rec-input {
+  height: auto;
+  min-height: 64px;
+  padding: 8px 10px;
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+/* A box with its unit: the ring and the red edge are the group's, since the group is what the eye reads as the box. */
+.rec-input-group {
+  display: flex;
+  align-items: stretch;
+  min-height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--control-radius-sm);
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+.rec-input-group:focus-within {
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent);
+}
+.rec-input-group[data-invalid="true"] {
+  border-color: var(--danger);
+}
+.rec-input-group .rec-input {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.rec-input-group .rec-input:focus-visible {
+  box-shadow: none;
+}
+.rec-input-unit {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-left: 1px solid var(--line);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.rec-hint {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* ---------- A box in a row of a list ---------- */
+/* Its sentence sits under it, in its own column of the row. The small variant is the box at the width of a time or a
+   number (a page sets the width; the kit sets the rest): 28px, tighter, the small type. */
+.rec-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.rec-box[data-size="sm"] .rec-input {
+  height: 28px;
+  padding: 0 6px;
+  font-size: var(--text-sm);
+}
+.rec-box[data-size="sm"] .rec-input-group {
+  min-height: 28px;
+}
+
+/* ---------- A switch ---------- */
+/* Ink, not green: a switch is a control, and green is the state dot's (23 Sep). On, the track is the ink and the knob
+   the raised ground, so the knob reads on it in either theme; off, the hairline's strong grey with the knob token. No
+   shadow on the knob: nothing else on the record casts one. */
+.rec-switch {
+  flex: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.rec-switch[aria-checked="true"] {
+  background: var(--ink);
+}
+.rec-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--knob);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.rec-switch[aria-checked="true"] .rec-knob {
+  transform: translateX(12px);
+  background: var(--bg-raised);
+}
+
+/* ---------- A choice of a few: a radiogroup drawn as a segmented control ---------- */
+/* Its own width in any container: a column of fields would otherwise stretch it across the fold. */
+.rec-seg {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--control-radius-sm);
+  background: var(--surface-inset-fill);
+}
+.rec-seg-btn {
+  height: var(--control-h-sm);
+  padding: 0 12px;
+  border-radius: var(--control-radius-sm);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.rec-seg-btn:hover {
+  color: var(--ink);
+}
+.rec-seg-btn[aria-checked="true"] {
+  background: var(--selected-fill);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* With a sentence under each option (data-hints): the same track and the same raised choice, each option a card of its
+   label and what choosing it means, side by side where two fit and one above the other where they do not. */
+.rec-seg[data-hints="true"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  width: 100%;
+}
+.rec-seg[data-hints="true"] .rec-seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  height: auto;
+  padding: 8px 12px;
+  text-align: start;
+}
+.rec-seg-hint {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+}
+
+/* ---------- A combobox: a box over a list that narrows as you type ---------- */
+/* The list is part of the box and pushes what is under it, as a fold pushes the rows under it: nothing is covered,
+   and no fold's own clip cuts it off. */
+.rec-combo {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--control-radius-sm);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.rec-combo:focus-within {
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent);
+}
+.rec-combo-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.rec-combo-glass {
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+.rec-combo-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.rec-combo-input:focus-visible {
+  outline: none;
+}
+.rec-combo-input::placeholder {
+  color: var(--ink-dim);
+}
+.rec-combo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+.rec-combo-opt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.rec-combo-opt:hover,
+.rec-combo-opt[aria-selected="true"] {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.rec-combo-opt[data-chosen="true"] {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.rec-combo-meta {
+  flex: none;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+/* ---------- Two tiers of tip ---------- */
+/* Nothing to press in it: a mark whose words the app's one tooltip (.ui-tip) draws on hover, on focus and on a tap.
+   Something to press in it: the white card with a shadow. */
+.rec-tip {
+  flex: none;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  color: var(--ink-dim);
+  cursor: help;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.rec-tip:hover,
+.rec-tip:focus-visible {
+  color: var(--ink);
+  background: var(--bg-hover);
+}
+.rec-tip svg {
+  display: block;
+}
+.rec-card-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 236px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  background: var(--surface-pop-fill);
+  box-shadow: var(--surface-pop-depth);
+}
+.rec-card-tip-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.rec-card-tip-body {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.rec-card-tip-act {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+.rec-card-tip-act:hover {
+  text-decoration-color: currentColor;
+}
+
+.rec-fold-close::after,
+.rec-card-tip-act::after {
+  content: "";
+  position: absolute;
+  inset: -14px -8px;
+}
+
+/* Nothing hovers under a finger: no keys are said, and no wash lingers on the row a finger last touched. Told by the
+   input, not the width, because a touch screen wider than a phone has no hover either. */
+@media (hover: none), (pointer: coarse) {
+  .rec-foot-keys {
+    display: none;
+  }
+  .rec-row:hover::before {
+    background: none;
+  }
+}
+
+/* ---------- Panel: a pane of content, an inset inside one, what pops over the page ----------
+   Step 2.2. The surface is a role (tokens.css, the surfaces): the pane is the most-drawn card's (.fl-card,
+   fleet.css:170), the inset Confirm's block's (.confirm-block, above), the pop the record kit's tip card's
+   (.rec-card-tip, above). The padding is a size: the pane's own; a small one for an inset or a pop; none for a panel of
+   rows edge to edge, which it clips (.card, components.css:437). Where a panel stands, how wide it is and whether it
+   may shrink in a grid are the page's: a pop is placed by what opens it. */
+.panel {
+  background: var(--surface-pane-fill);
+  border: 1px solid var(--surface-pane-edge);
+  border-radius: var(--surface-pane-radius);
+  padding: 14px var(--space-4);
+}
+.panel-inset {
+  background: var(--surface-inset-fill);
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--surface-inset-radius);
+}
+.panel-pop {
+  background: var(--surface-pop-fill);
+  border-color: var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth);
+}
+.panel-sm {
+  padding: 10px var(--space-3);
+}
+.panel-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ---------- The quiet link button: words that act, with no ground ----------
+   Step 2.2. Confirm's No, EmptyState's and FailedRead's acts on a line, and the pages' (.cl-bucket-link,
+   components.css:1882-1893, People's name for it). Its danger form is red at rest and the ink when hovered: the hover
+   outranks it here by specificity, where the source relies on coming later. Not a .btn modifier: it has no height,
+   padding, border or ground of a button's. */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  font-size: var(--text-xs);
+  color: var(--quiet-ink);
+  cursor: pointer;
+}
+.link-btn-danger {
+  color: var(--danger);
+}
+.link-btn:hover {
+  color: var(--ink);
+}
+
+/* ---------- Face: a person, a lead, a conversation, as initials in a circle ----------
+   Step 2.2. The phone row's face (inbox.css:276 .ix-thread-avatar, at the row's --row-face, clients.css:2466, 2480):
+   the sunken ground, a hairline, the initials small and muted. A glyph stands for someone known by a number or an
+   address (clients.css:2051); a picture covers the initials, which show again when it fails to load (clients.css:2481,
+   the component hides a picture that fails). A face is decoration: the row's name says who. It never shrinks, as its
+   source does not (clients.css:2466): a box that clips what it holds has no least width of its own, so in a flex row
+   beside a long name it gave way to its border. */
+.face {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--row-face);
+  height: var(--row-face);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-circle);
+  background: var(--bg-sunken);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
+}
+.face-glyph {
+  color: var(--ink-faint);
+}
+.face-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* ---------- List row: a face, the lines, what trails ----------
+   Step 2.2. People's row on a phone (clients.css:2465-2477), which the Inbox's, Conversations', Live's and a lead's rows
+   copy part for part through the row tokens (tokens.css, a list row on a phone): the face beside up to three lines;
+   the name, and what trails it, on the first; what was said on the second; the facts on the third; and a line of its
+   own under them where a page has one more thing to say. The lines after the first take the grid's next rows, so they
+   come in this order. What each list puts on the lines is the page's. */
+.list-row {
+  display: grid;
+  grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
+  column-gap: var(--row-gap);
+  row-gap: var(--row-line-gap);
+  align-items: center;
+  padding: var(--row-pad-y) var(--row-pad-x);
+}
+/* A row with a page of its own is a link (the shell's routeDoor): it keeps the row's colours and takes no underline,
+   as a.btn does, so a line that sets no colour of its own is not drawn in the link's. */
+a.list-row {
+  color: inherit;
+  text-decoration: none;
+}
+.list-row-face {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+.list-row:not(:has(> .list-row-said)) > .list-row-face {
+  grid-row: 1 / span 2;
+}
+.list-row-name {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--row-name-line);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-row-end {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+.list-row-said {
+  grid-column: 2 / 4;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--row-said-line);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-row-said::first-letter {
+  text-transform: uppercase;
+}
+.list-row-facts {
+  grid-column: 2 / 4;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--row-gap);
+  font-size: var(--row-facts);
+  line-height: var(--row-facts-line);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.list-row-note {
+  grid-column: 2 / 4;
+  min-width: 0;
+  display: flex;
+  font-size: var(--row-facts);
+  line-height: var(--row-facts-line);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ---------- Meter: a whole in its parts ----------
+   Step 2.2. The charts kit's SegmentBar (charts.css:150-155): the parts in a row with 2px of ground between them, the
+   ends rounded; at 8px, as three of its four sites draw it, 10px large, 4px small (the reach bar's,
+   components.css:2016, and the confidence and setup meters'). A part's share is its flex-grow, and its colour a tone
+   (the reach bar's, components.css:2004-2006) or the series colour a chart gives it. A part of nothing is not drawn.
+   The words about a meter, a title and a legend, are the page's or the chart's. */
+.meter {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+.meter-lg {
+  height: 10px;
+}
+.meter-sm {
+  height: 4px;
+}
+.meter-part {
+  display: block;
+  min-width: 3px;
+}
+.meter-part:first-child {
+  border-radius: var(--radius-xs) 0 0 var(--radius-xs);
+}
+.meter-part:last-child {
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+.meter-part:only-child {
+  border-radius: var(--radius-xs);
+}
+.meter-ok {
+  background: var(--ok);
+}
+.meter-warn {
+  background: var(--warn);
+}
+.meter-rest {
+  flex: 1 1 auto;
+  background: var(--line-strong);
+}
+
+/* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
+   Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
+   components.css:3040-3053): the window's height at its right edge, the page faded behind it. Under 900px, People's
+   phone sheet (components.css:1863-1870, mobile.css:170, clients.css:2406-2407, components.css:3073-3078): from the
+   bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 82% of the screen, a handle
+   over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
+   while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
+   keyframes (above), and holds still under reduced motion. The wash is a backdrop by name, as every wash of the house
+   is: the overlay code finds the one behind a sheet by that word (data-bits.jsx, washBehind), to fade it as the sheet
+   is pulled down and to play its leaving. */
+.sheet-backdrop {
+  --sheet-wash-out: 160ms;
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  max-width: none;
+  background: var(--surface-scrim);
+  animation: wash-in var(--duration-base) var(--ease-out);
+}
+.sheet-backdrop[data-leaving="true"] {
+  animation: wash-out var(--sheet-wash-out) var(--ease-in) forwards;
+}
+.sheet {
+  --sheet-in: 260ms;
+  --sheet-out: 180ms;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 401;
+  display: flex;
+  flex-direction: column;
+  width: min(540px, 92vw);
+  max-width: none;
+  background: var(--surface-pop-fill);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--surface-pop-depth);
+  animation: side-in var(--sheet-in) var(--ease-out);
+}
+.sheet:focus {
+  outline: none;
+}
+.sheet[data-leaving="true"] {
+  animation: side-out var(--sheet-out) var(--ease-in) forwards;
+}
+.sheet-handle {
+  display: none;
+}
+/* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
+   record.css:23-26). */
+:root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+  bottom: calc(184px + env(safe-area-inset-bottom));
+}
+@media (width > 900px) {
+  :root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+    bottom: 18px;
+    left: calc((100vw - min(540px, 92vw)) / 2);
+  }
+  :root:has(.sheet:not([data-leaving])) .pp-toast {
+    max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px));
+  }
+}
+@media (max-width: 900px) {
+  .sheet-backdrop {
+    background: var(--surface-scrim-modal);
+  }
+  .sheet {
+    top: auto;
+    left: 0;
+    bottom: var(--kb, 0px);
+    width: auto;
+    max-height: calc(82vh - var(--kb, 0px));
+    max-height: calc(82dvh - var(--kb, 0px));
+    overflow: auto;
+    overscroll-behavior-y: none;
+    border: 1px solid var(--surface-pop-edge);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+    animation-name: sheet-in;
+  }
+  .sheet[data-leaving="true"] {
+    animation-name: sheet-out;
+  }
+  .sheet-handle {
+    display: block;
+    flex: none;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 4px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-backdrop {
+    animation: none;
+  }
+  .sheet[data-leaving],
+  .sheet-backdrop[data-leaving] {
+    display: none;
+  }
+}

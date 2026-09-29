@@ -46,5 +46,6 @@
   "apps/dashboard/src/legacy/pages/platform.jsx": 1,
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-sheet.jsx": 2,
   "apps/dashboard/src/legacy/pages/settings.jsx": 9,
-  "apps/dashboard/src/legacy/pages/templates-real.jsx": 1
+  "apps/dashboard/src/legacy/pages/templates-real.jsx": 1,
+  "apps/dashboard/src/surfaces/kit/meter.tsx": 1
 }
