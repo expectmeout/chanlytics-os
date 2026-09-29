@@ -16,7 +16,16 @@
  * CI runs it on every pull request (.github/workflows/ci.yml), the title and its `created_at` passed through the
  * environment, never inside the shell's text. `titleProblems` is the rule and `exemptByDate` its first day;
  * tests/history/pr-title.test.mjs holds both, over the titles main has merged and either side of the day.
+ *
+ * The title is not what lands: the squash subject is whatever the merger types, and #1329's title landed as a
+ * 114-character subject (the scorecard's I2:1 and B2:4). So a push to main checks what landed, each commit of the push:
+ * its subject keeps the title rule once GitHub's " (#1234)" is taken off, it carries that number, and it is not a merge
+ * commit (#1243 landed one over the required linear history). A break opens a warning issue: it cannot be undone on
+ * main, so the rule is said where the next merger will see it. `landedProblems` is that rule.
+ *
+ *   node tooling/scripts/checks/pr-title.mjs --landed <before> <after>     # as CI runs it on a push to main
  */
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -51,7 +60,53 @@ export function exemptByDate(createdAt) {
   return Number.isFinite(at) && at < Date.parse(TITLE_RULE_FROM);
 }
 
+/** A subject as GitHub squashes it: the title, then " (#1234)". */
+const SQUASHED = /^(.*) \(#(\d+)\)$/;
+
+/**
+ * What breaks the rule in a commit that landed on main, each as a sentence: its subject (the title rule, less the
+ * " (#1234)" GitHub adds, which it must carry) and its shape (one parent: a squash, never a merge commit).
+ */
+export function landedProblems({ subject, parents }) {
+  const problems = [];
+  if (parents > 1)
+    problems.push("It is a merge commit: main's history is linear, one squash per pull request (Squash and merge).");
+  const m = SQUASHED.exec(String(subject ?? "").trimEnd());
+  if (!m) problems.push('The subject carries no " (#1234)": git log loses the pull request it came from.');
+  for (const p of titleProblems(m ? m[1] : subject)) problems.push(p.replace(/^The title/, "The subject"));
+  return problems;
+}
+
+/** Each commit a push to main landed, first parent first: its sha, subject and parent count. */
+function landedCommits(before, after) {
+  const range = /^0*$/.test(before ?? "") ? ["-1", after] : [`${before}..${after}`];
+  const out = execFileSync("git", ["log", "--first-parent", "--format=%H%x09%P%x09%s", ...range], { encoding: "utf8" });
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, parents, ...subject] = line.split("\t");
+      return { sha, parents: parents.split(" ").filter(Boolean).length, subject: subject.join("\t") };
+    });
+}
+
+function landed(before, after) {
+  const broken = landedCommits(before, after)
+    .map((c) => ({ ...c, problems: landedProblems(c) }))
+    .filter((c) => c.problems.length);
+  if (!broken.length) {
+    console.log("landed: every subject keeps the title rule");
+    return;
+  }
+  for (const c of broken) {
+    console.log(`${c.sha.slice(0, 9)} ${JSON.stringify(c.subject)}`);
+    for (const p of c.problems) console.log(`  - ${p}`);
+  }
+  process.exit(1);
+}
+
 function main() {
+  if (process.argv[2] === "--landed") return landed(process.argv[3], process.argv[4]);
   const title = process.argv[2] ?? process.env.PR_TITLE ?? "";
   const createdAt = process.env.PR_CREATED_AT ?? "";
   const problems = titleProblems(title);

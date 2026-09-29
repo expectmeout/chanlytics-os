@@ -6,10 +6,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { TITLE_MAX, TITLE_RULE_FROM, exemptByDate, titleProblems } from "../../checks/pr-title.mjs";
+import { TITLE_MAX, TITLE_RULE_FROM, exemptByDate, landedProblems, titleProblems } from "../../checks/pr-title.mjs";
 
 const keeps = (title) => titleProblems(title).length === 0;
 
@@ -94,4 +96,72 @@ test("run as CI runs it: the title and its opening time from the environment, a 
   assert.match(before.stdout, /not held: The title is 101 characters/, "it still says what it would refuse");
   assert.equal(run("a".repeat(TITLE_MAX + 1), AFTER).status, 1, "opened on the day, held");
   assert.equal(run("a".repeat(TITLE_MAX + 1), "").status, 1, "a local run, with no opening time, is held");
+});
+
+test("what landed on main is held too: the subject less its (#N), the number itself, and one parent", () => {
+  const squash = (title, parents = 1) => landedProblems({ subject: title, parents });
+  assert.deepEqual(squash("The wire says snake_case (#1311)"), []);
+  assert.deepEqual(squash(`${"a".repeat(TITLE_MAX)} (#1329)`), [], "the number GitHub adds is not the title's");
+  // #1329: a 91-character title that landed as a 114-character subject.
+  assert.deepEqual(
+    squash(
+      "Reach out 7: bring your own list, a file checked first or leads chosen on Leads, as a search a reach-out writes to (#1329)",
+    ),
+    [
+      "The subject is 114 characters, over 100: keep the sentence that says what is now true, and move what moved to the body.",
+    ],
+  );
+  assert.deepEqual(squash("One TypeScript, named once"), [
+    'The subject carries no " (#1234)": git log loses the pull request it came from.',
+  ]);
+  // #1243 landed as a merge commit over the required linear history.
+  assert.deepEqual(squash("Merge pull request #1243 from expectmeout/claude/youthful-mendel-k12e7p", 2), [
+    "It is a merge commit: main's history is linear, one squash per pull request (Squash and merge).",
+    'The subject carries no " (#1234)": git log loses the pull request it came from.',
+  ]);
+  assert.deepEqual(squash("The wire says snake_case. (#1311)"), [
+    "The subject ends with a period: it is a subject line, not a paragraph.",
+  ]);
+});
+
+test("run on a push to main, it reads each commit the push landed from git and exits 1 on one that breaks the rule", () => {
+  // A history made here, since CI's checkout holds one commit: two squashes that keep the rule, one whose subject
+  // lost its number, and a merge commit, each read as the push-to-main job reads a push.
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "landed-"));
+  const git = (...args) =>
+    execFileSync("git", ["-c", "user.name=ci", "-c", "user.email=ci@example.com", ...args], {
+      cwd: repo,
+      encoding: "utf8",
+    }).trim();
+  const commit = (subject) => {
+    git("commit", "--allow-empty", "-q", "-m", subject);
+    return git("rev-parse", "HEAD");
+  };
+  try {
+    git("init", "-q", "-b", "main");
+    const first = commit("The first thing is true (#1)");
+    const second = commit("The second thing is true (#2)");
+    const numberless = commit("The third thing is true");
+    git("checkout", "-q", "-b", "side", second);
+    commit("A branch's own commit");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "-m", "Merge pull request #4 from side", "side");
+    const merged = git("rev-parse", "HEAD");
+    const script = path.join(ROOT, "tooling/scripts/checks/pr-title.mjs");
+    const landed = (before, after) =>
+      spawnSync(process.execPath, [script, "--landed", before, after], { cwd: repo, encoding: "utf8" });
+
+    const kept = landed(first, second);
+    assert.equal(kept.status, 0, kept.stdout + kept.stderr);
+    assert.equal(landed("0".repeat(40), second).status, 0, "a push with nothing before it reads its head alone");
+    const lost = landed(second, numberless);
+    assert.equal(lost.status, 1);
+    assert.match(lost.stdout, /"The third thing is true"\n {2}- The subject carries no/);
+    const merge = landed(numberless, merged);
+    assert.equal(merge.status, 1);
+    assert.match(merge.stdout, /It is a merge commit/);
+    assert.doesNotMatch(merge.stdout, /A branch's own commit/, "the first parent's line: what main landed");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
 });
