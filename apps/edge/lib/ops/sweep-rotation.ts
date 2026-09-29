@@ -20,7 +20,7 @@
  * hours from their hour, a due one waited behind twenty-five of those, and the
  * count of what was left behind counted them too — so past twenty-five running
  * playbooks the sweep called itself backlogged every hour of the day. Since
- * 00196 the database judges due-ness (playbooks_due, calendars_due, through
+ * 00245 the database judges due-ness (playbooks_due, calendars_due, through
  * packages/db), each page is only what is due, and `remaining` is exactly the
  * due rows beyond it.
  *
@@ -60,7 +60,7 @@ export const BACKLOG_TICKS_BEFORE_ALARM = 3;
 export type { DueCalendar, DuePage, DuePlaybook };
 
 /**
- * The workspaces whose calendar is due, never-read first (00196 calendars_due).
+ * The workspaces whose calendar is due, never-read first (00245 calendars_due).
  *
  * `minAgeMs` keeps a tenant from being read twice in one hour when the cap is
  * larger than the queue: without it a small deployment would re-read the same
@@ -95,7 +95,7 @@ export async function markCalendarChecked(db: Db, tenantId: string, now: Date): 
 }
 
 /**
- * The running moments due at `now`, by each workspace's own clock, least-recently-run first (00196 playbooks_due).
+ * The running moments due at `now`, by each workspace's own clock, least-recently-run first (00245 playbooks_due).
  * Each comes with the zone it was judged in, so the run keeps to the same clock.
  */
 export async function playbooksDue(db: Db, now: Date, limit: number): Promise<DuePage<DuePlaybook>> {

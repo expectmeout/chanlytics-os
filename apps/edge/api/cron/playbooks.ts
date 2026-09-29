@@ -9,58 +9,67 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
-import { playbooksDue, reachOutsDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/sweep-rotation.js";
+import { logger, type Logger } from "../../lib/log.js";
+import {
+  playbooksDue,
+  reachOutsDue,
+  noteBacklog,
+  PLAYBOOKS_PER_TICK,
+  type DuePage,
+  type DuePlaybook,
+} from "../../lib/ops/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
-import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
-import { stampReachOutStep, tenantZoneOf } from "../../lib/packages/db.js";
+import { stampPlaybooksTried, stampReachOutStep } from "../../lib/packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
 export const REACH_OUT_YIELD_AT_MS = 40_000;
 
-export async function POST(request: Request): Promise<Response> {
-  const started = Date.now();
-  const L = logger({ sweep: "playbooks" });
-  const db = pg();
-  if (!db) return refuse(503, "no_database");
-  const denied = await authorizeCron(request, db, L);
-  if (denied) return denied;
+type SweepCounts = Record<"tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining", number>;
 
-  const now = new Date();
-  // A BOUNDED, ROTATING page, least-recently-run first. This read every running
-  // playbook and iterated, serially, inside a sixty-second function -- and it
-  // SENDS, so running out of tick past a few hundred workspaces meant the ones
-  // at the end of an unchanging order never ran at all. last_run_at has been on
-  // this table since 00048; it simply was not used to order anything.
-  let page;
-  try {
-    page = await playbooksDue(db, PLAYBOOKS_PER_TICK);
-  } catch (e) {
-    L.error("playbooks_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return json(500, { ok: false });
+/** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
+interface Tick {
+  db: NonNullable<ReturnType<typeof pg>>;
+  now: Date;
+  L: Logger;
+  out: SweepCounts;
+  started: number;
+}
+
+/**
+ * The moments on the page, a workspace at a time. The page's word is the database's (00245 playbooks_due, which
+ * leaves a paused workspace out); the run keeps the same rule (runDueNow) at the moment it runs, as "Run now" does. A
+ * due moment that could not run -- its workspace paused since the page was read, its context unreadable -- keeps its
+ * day open, so the next hour tries it again, but moves to the back of the page: it never holds a place a moment that
+ * can run is waiting for.
+ */
+async function runMoments({ db, now, L, out }: Tick, page: DuePage<DuePlaybook>) {
+  // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
+  const byTenant = new Map<string, { tz: string; rows: PlaybookRow[] }>();
+  for (const { playbook, timezone } of page.rows) {
+    const t = byTenant.get(playbook.tenant_id) ?? { tz: timezone, rows: [] };
+    t.rows.push(playbook as PlaybookRow);
+    byTenant.set(playbook.tenant_id, t);
   }
-  const byTenant = new Map<string, PlaybookRow[]>();
-  for (const p of page.rows as PlaybookRow[]) byTenant.set(p.tenant_id, [...(byTenant.get(p.tenant_id) ?? []), p]);
-
-  const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0, remaining: page.remaining };
-  for (const [tenantId, rows] of byTenant) {
-    const { data: tenant } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-    const tz = tenant?.timezone || "America/New_York";
+  // A stamp that fails leaves the moment where it was: the next tick tries it first again, and nothing is lost.
+  const tried = (tenantId: string, rows: PlaybookRow[]) =>
+    stampPlaybooksTried(db, tenantId, { ids: rows.map((p) => p.id), at: now }).catch(() => undefined);
+  for (const [tenantId, { tz, rows }] of byTenant) {
     const due = rows.filter((p) => runDueNow(p as unknown as PlaybookDto, tz, now));
     if (due.length === 0) continue;
     out.tenants += 1;
     out.due += due.length;
     const ctx = await loadTenantRunContext(db, tenantId, now);
-    if ("error" in ctx && ctx.error === "paused") {
-      L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
-      out.off += due.length;
-      continue;
-    }
     if ("error" in ctx) {
-      L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
-      out.failed += due.length;
+      if (ctx.error === "paused") {
+        L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
+        out.off += due.length;
+      } else {
+        L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
+        out.failed += due.length;
+      }
+      await tried(tenantId, due);
       continue;
     }
     const runFor = localDate(tz, now);
@@ -70,26 +79,20 @@ export async function POST(request: Request): Promise<Response> {
       out[r.outcome] += 1;
     }
   }
-  // Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb. A step that ran is stamped
-  // for the day. One that could not (its workspace paused, its chain broken, a read or a write that failed) keeps its
-  // day open, so the next hour tries it again, but moves to the back of the page: it never holds a place a step that
-  // can run is waiting for.
-  const reach = await reachOutsDue(db, PLAYBOOKS_PER_TICK).catch((e: unknown) => {
-    L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return { rows: [], remaining: 0 };
-  });
-  out.remaining += reach.remaining;
-  const zones = new Map<string, string>();
-  const steps: ReachOutRow[] = reach.rows;
-  for (const [i, row] of steps.entries()) {
+}
+
+/**
+ * Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb, in the zone the page judged
+ * it in. A step that ran is stamped for the day. One that could not (its workspace paused, its chain broken, a read or
+ * a write that failed) keeps its day open, so the next hour tries it again, but moves to the back of the page: it never
+ * holds a place a step that can run is waiting for.
+ */
+async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DuePlaybook>) {
+  for (const [i, { playbook: row, timezone: tz }] of reach.rows.entries()) {
     if (Date.now() - started > REACH_OUT_YIELD_AT_MS) {
-      L.info("reach_outs_yielded", { left: steps.length - i });
+      L.info("reach_outs_yielded", { left: reach.rows.length - i });
       break;
     }
-    if (!zones.has(row.tenant_id)) {
-      zones.set(row.tenant_id, (await tenantZoneOf(db, row.tenant_id)) || "America/New_York");
-    }
-    const tz = zones.get(row.tenant_id) ?? "America/New_York";
     if (!runDueNow(row as unknown as PlaybookDto, tz, now)) continue;
     out.due += 1;
     try {
@@ -102,22 +105,60 @@ export async function POST(request: Request): Promise<Response> {
       await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
     }
   }
-  // `remaining` counts RUNNING playbooks past the page, and due-ness is judged
-  // here, in the tenant's own zone, AFTER paging — so this over-reports: a
-  // deployment with twenty-six daily playbooks says five were left behind
-  // every hour, including the twenty-three hours when none of them was due,
-  // and from the third tick calls itself broken.
-  //
-  // A NOISY ALARM IS KEPT OVER A SILENT ONE. Gating it on the page being all
-  // due (`out.due >= PLAYBOOKS_PER_TICK`) was tried and is worse: a playbook
-  // whose hour has not arrived still carries yesterday's `last_run_at`, so it
-  // sorts to the front and holds a slot while never being due, one such row
-  // makes the page not-all-due, and `note_sweep_backlog` then RESETS the
-  // counter — which makes the alarm unreachable in any deployment with mixed
-  // run hours, exactly where starvation is real. The fix is a due-aware page:
-  // `playbooksDue` can exclude what already ran today (`last_run_for`), but
-  // "not yet at its hour" is per-tenant-timezone and needs the query to know
-  // the zone. Until then the sweep is loud rather than deaf.
+}
+
+export async function POST(request: Request): Promise<Response> {
+  const started = Date.now();
+  const L = logger({ sweep: "playbooks" });
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const denied = await authorizeCron(request, db, L);
+  if (denied) return denied;
+
+  const now = new Date();
+  // A BOUNDED, ROTATING page OF WHAT IS DUE, least-recently-run first, judged
+  // in the database by each workspace's own clock (00245 playbooks_due). This
+  // once read every running playbook and iterated, serially, inside a
+  // sixty-second function -- and it SENDS, so running out of tick past a few
+  // hundred workspaces meant the ones at the end of an unchanging order never
+  // ran at all. Then it read a page of running playbooks and judged due-ness
+  // after, so a due one waited behind a page of ones that had run today, were
+  // hours from their hour or belonged to a paused workspace -- twenty-five of
+  // a paused workspace's held the page for every workspace on the platform --
+  // and what it said it could not reach counted those too. Now the page holds
+  // only what is due, and `remaining` only what is due beyond it.
+  let page: DuePage<DuePlaybook>;
+  try {
+    page = await playbooksDue(db, now, PLAYBOOKS_PER_TICK);
+  } catch (e) {
+    L.error("playbooks_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return json(500, { ok: false });
+  }
+  const out: SweepCounts = {
+    tenants: 0,
+    due: 0,
+    sent: 0,
+    held: 0,
+    empty: 0,
+    off: 0,
+    failed: 0,
+    remaining: page.remaining,
+  };
+  const tick: Tick = { db, now, L, out, started };
+  await runMoments(tick, page);
+
+  const reach = await reachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DuePlaybook> => {
+    L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return { rows: [], remaining: 0 };
+  });
+  out.remaining += reach.remaining;
+  await runReachOuts(tick, reach);
+
+  // `remaining` counts what was DUE and beyond the two pages, judged in the
+  // database in each workspace's own zone (00245): a playbook that ran today,
+  // one whose hour has not come and a paused workspace's are not in it. So
+  // three ticks in a row with a remainder is a queue of due work the sweep is
+  // not draining, and nothing else -- the alarm it raises can be believed.
   const backlog = await noteBacklog(db, "playbooks", page.remaining + reach.remaining);
   L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
   // Three consecutive ticks with playbooks left unread is a campaign nobody

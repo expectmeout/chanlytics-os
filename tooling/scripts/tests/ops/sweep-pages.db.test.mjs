@@ -1,5 +1,5 @@
 /**
- * The sweeps' pages on a real database (00196). playbooks_due judges due-ness by each workspace's own clock -- at or
+ * The sweeps' pages on a real database (00245). playbooks_due judges due-ness by each workspace's own clock -- at or
  * past its hour there, not past the last hour the caller names, and not yet run for that clock's day, whatever UTC's
  * date says -- never run first, then the least recently run, bounded, every row carrying the count of all that were
  * due; a reach-out step is on its own page, judged the same way. calendars_due takes a feed's address never read or
@@ -319,6 +319,38 @@ test(
       }),
     );
     ok(await db.rpc("calendars_due", { p_before: iso(Date.now()), p_limit: 1 }));
+  },
+);
+
+test(
+  "a paused workspace's playbooks are not due while it is paused, and not counted (one clause for both pages, which differ only by kind) -- so its twenty-six never hold the page another workspace's are waiting for -- and are due again, their day still open, once it resumes",
+  { skip },
+  async () => {
+    const AT = "2026-09-26T16:30:00.000Z"; // half past eleven in the morning in Chicago
+    const paused = await workspace("paused", "America/Chicago");
+    const sound = await workspace("sound", "America/Chicago");
+    ok(await db.from("tenants").update({ status: "paused" }).eq("id", paused.id));
+    const held = [];
+    for (let i = 0; i < 26; i += 1)
+      held.push(await moment(paused, `Paused ${i}`, { last_run_at: iso(Date.parse(AT) - 30 * D) }));
+    const runs = await moment(sound, "Ran yesterday", {
+      last_run_for: "2026-09-25",
+      last_run_at: iso(Date.parse(AT) - D),
+    });
+
+    assert.deepEqual(await page(paused, AT), [], "none of the paused workspace's moments is due");
+    // Every workspace at once, as the sweep asks: of these two workspaces the sound one's moment is on the page, and
+    // the paused twenty-six are neither ahead of it nor counted behind it.
+    const all = ok(await db.rpc("playbooks_due", { p_kind: "moment", p_at: AT, p_last_hour: 20, p_limit: 1000 }));
+    const mine = all.filter((r) => [paused.id, sound.id].includes(r.playbook.tenant_id));
+    assert.deepEqual(ids(mine), [runs], "the sound workspace's moment is due; no paused one is");
+
+    ok(await db.from("tenants").update({ status: "active" }).eq("id", paused.id));
+    assert.deepEqual(
+      ids(await page(paused, AT)).sort(),
+      [...held].sort(),
+      "resumed, all twenty-six are due: nothing closed their day while it was paused",
+    );
   },
 );
 

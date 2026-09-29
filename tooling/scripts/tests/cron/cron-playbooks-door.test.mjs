@@ -169,6 +169,20 @@ function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
   setPg(db);
   return { db, tables, backlog, tick: () => knock(POST, "playbooks") };
 }
+/**
+ * The page as the database read it a moment before a workspace paused: every workspace judged as though active, over
+ * the case's own tables, by the fake's own page (its second argument).
+ */
+const readBeforeThePause = (args, derived) => {
+  const was = latest.tables.tenants.map((t) => t.status);
+  for (const t of latest.tables.tenants) t.status = "active";
+  try {
+    return derived(args);
+  } finally {
+    latest.tables.tenants.forEach((t, i) => (t.status = was[i]));
+  }
+};
+
 /** A workspace on the clock `tz`, with a number that may send, a template Meta approved, and the win-back class set to `mode`. */
 function workspace(tables, id, tz, mode, status = "active") {
   tables.tenants.push({ id, name: `Workspace ${id.slice(0, 8)}`, timezone: tz, status });
@@ -326,8 +340,35 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
 
 /* -------------------------------------------------------------- paused */
 
-test("a paused workspace is counted off and said once, quietly: nothing is made, nothing is scheduled, the playbook is not marked as run, one info line names it", async () => {
+test("a paused workspace's moments are not on the page at all: nothing is made, scheduled, said or stamped, and the day stays open for the hour it resumes", async () => {
   const w = world({ people: { [P]: [person("c1")] } });
+  workspace(w.tables, P, OPEN, "auto", "paused");
+  w.tables.playbooks.push(playbook(P, "pb-p"));
+  const before = { ...w.tables.playbooks[0] };
+
+  const said = hear();
+  let status, body;
+  try {
+    [status, body] = await answer(await w.tick());
+  } finally {
+    said.restore();
+  }
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts(), "not due while paused: not run, not counted off, not left behind");
+  nothingMade(w);
+  assert.deepEqual(w.tables.playbooks[0], before, "not marked as run, not moved: untouched");
+  assert.ok(!w.db.seen.some((s) => s.rpc === "people_list"), "the workspace is not even read");
+  assert.ok(!said.lines.some((l) => l.tenant_id === P), "and nothing is said about it");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
+
+  // The hour billing resumes, it is due again: its day was never closed.
+  w.tables.tenants.find((t) => t.id === P).status = "active";
+  const [, resumed] = await answer(await w.tick());
+  assert.deepEqual(resumed, counts({ tenants: 1, due: 1, sent: 1 }));
+});
+
+test("a workspace paused after the page was read is counted off and said once, quietly: nothing is made or scheduled, the day stays open, and the moment moves to the back of the page", async () => {
+  const w = world({ people: { [P]: [person("c1")] }, rpcs: { playbooks_due: readBeforeThePause } });
   workspace(w.tables, P, OPEN, "auto", "paused");
   w.tables.playbooks.push(playbook(P, "pb-p"));
 
@@ -339,10 +380,12 @@ test("a paused workspace is counted off and said once, quietly: nothing is made,
     said.restore();
   }
   assert.equal(status, 200);
-  assert.deepEqual(body, counts({ tenants: 1, due: 1, off: 1 }), "due, and counted off");
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, off: 1 }), "due on the page, and counted off");
   nothingMade(w);
   assert.deepEqual(w.tables.events, [], "no run recorded: there was none");
-  assert.equal(w.tables.playbooks[0].last_run_for, null, "not marked as run, so it runs the day billing resumes");
+  const [pb] = w.tables.playbooks;
+  assert.equal(pb.last_run_for, null, "not marked as run, so it runs the day billing resumes");
+  assert.ok(Date.parse(pb.last_run_at) > Date.now() - 60_000, "but it goes to the back of the page");
 
   const about = said.lines.filter((l) => l.event === "playbooks_skip_paused");
   assert.equal(about.length, 1, "said once");
@@ -493,7 +536,7 @@ test("a playbook that already ran today, or is not yet at its hour, is neither r
 
 test("a zone nobody knows does not take the tick down: the workspace with it is judged in UTC, and the others run on their own clocks as ever", async () => {
   // tenants.timezone is owner-settable text; a name Postgres does not know would fail the page for every workspace,
-  // every tick, so the page judges such a row in UTC (00196 safe_zone), as the edge itself falls back to UTC.
+  // every tick, so the page judges such a row in UTC (00245 safe_zone), as the edge itself falls back to UTC.
   const now = new Date();
   const utcHour = localHour("UTC", now);
   // Set for the hour it is in UTC right now, within the sending hours: due there when UTC's clock is inside them.
@@ -518,38 +561,28 @@ test("a zone nobody knows does not take the tick down: the workspace with it is 
   assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
 });
 
-test("a due moment that could not run (its workspace paused) keeps its day open and moves to the back of the page, so a paused workspace's twenty-five never starve the two due behind them", async () => {
+test("twenty-six running moments in a paused workspace hold no place in the page: the two due in a sound workspace run in the first tick, nothing is left behind, and the alarm stays quiet", async () => {
+  // The re-score of 28 September: twenty-five of one paused workspace's moments (every stopped Stripe subscription
+  // pauses one), not run since the pause, sorted first every hour and no other workspace's playbook ran, anywhere.
   const w = world({ people: { [A]: [person("c1")], [P]: [person("c2")] } });
   workspace(w.tables, P, OPEN, "auto", "paused");
   workspace(w.tables, A, OPEN, "auto");
   const today = localDate(OPEN, new Date());
   const yesterday = localDate(OPEN, new Date(Date.now() - D));
-  // The paused workspace's twenty-five, never run: they sort first.
-  for (let i = 0; i < PLAYBOOKS_PER_TICK; i++)
-    w.tables.playbooks.push(playbook(P, `pb-p-${String(i).padStart(2, "0")}`));
+  // The paused workspace's, last run before the pause: they would sort first.
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i++)
+    w.tables.playbooks.push(
+      playbook(P, `pb-p-${String(i).padStart(2, "0")}`, { last_run_at: iso(30 * D), last_run_for: "2026-08-28" }),
+    );
   // The sound workspace's two, run yesterday: they sort after.
   w.tables.playbooks.push(playbook(A, "pb-a1", { last_run_for: yesterday, last_run_at: iso(D) }));
   w.tables.playbooks.push(playbook(A, "pb-a2", { last_run_for: yesterday, last_run_at: iso(D - H) }));
+  const paused = () => w.tables.playbooks.filter((p) => p.tenant_id === P).map((p) => [p.last_run_for, p.last_run_at]);
+  const before = paused();
 
-  const [, first] = await answer(await w.tick());
-  assert.deepEqual(
-    first,
-    counts({ tenants: 1, due: PLAYBOOKS_PER_TICK, off: PLAYBOOKS_PER_TICK, remaining: 2 }),
-    "the first tick: the paused twenty-five fill the page and are counted off; the two wait",
-  );
-  const paused = w.tables.playbooks.filter((p) => p.tenant_id === P);
-  assert.ok(
-    paused.every((p) => p.last_run_for === null && Date.parse(p.last_run_at) > Date.now() - 60_000),
-    "each keeps its day open (it runs the day billing resumes) and moves to the back of the page",
-  );
-  nothingMade(w);
-
-  const [, second] = await answer(await w.tick());
-  assert.deepEqual(
-    second,
-    counts({ tenants: 2, due: PLAYBOOKS_PER_TICK, sent: 2, off: PLAYBOOKS_PER_TICK - 2, remaining: 2 }),
-    "the second tick: the two run, ahead of the paused ones, which are still due and still counted",
-  );
+  const [status, first] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(first, counts({ tenants: 1, due: 2, sent: 2 }), "the first tick: the two run");
   assert.deepEqual(
     w.tables.playbooks
       .filter((p) => p.last_run_for === today)
@@ -557,7 +590,8 @@ test("a due moment that could not run (its workspace paused) keeps its day open 
       .sort(),
     ["pb-a1", "pb-a2"],
   );
-  assert.equal(w.tables.broadcasts.length, 2);
+  assert.deepEqual(paused(), before, "the paused ones untouched: no stamp, their day still open");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }], "and nothing counted as left behind");
 });
 
 /* ------------------------------------------------------- cannot be read */
@@ -759,7 +793,8 @@ test("a moment and a reach-out in one workspace each run through their own verb:
 });
 
 test("a reach-out that cannot run moves to the back of the page and keeps its day open; the steps behind it run, and the alarm counts both pages", async () => {
-  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  // Its workspace paused after the page was read: the step is on the page, and its run finds the pause.
+  const w = world({ rpcs: { ...coldRpcs([coldLead("l1")]), playbooks_due: readBeforeThePause } });
   // A paused workspace's step, never run: it sorts first.
   coldWorkspace(w.tables, A, OPEN);
   w.tables.tenants[0].status = "paused";
@@ -775,15 +810,31 @@ test("a reach-out that cannot run moves to the back of the page and keeps its da
   assert.ok(Date.parse(paused.last_run_at) > Date.now() - 60_000, "but it goes to the back of the page");
 });
 
-test("what the reach-out page could not reach is noted with the moments': starved reach-outs can raise the alarm", async () => {
-  const w = world({ rpcs: coldRpcs([]) });
-  // A paused workspace, so each step on the page is counted off in a moment and the twenty-sixth is what is left.
+test("a paused workspace's reach-out steps hold no place in the reach-out page either: twenty-six of them, and the one due in a sound workspace runs and nothing is left behind", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
   coldWorkspace(w.tables, A, OPEN);
   w.tables.tenants[0].status = "paused";
   for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i += 1)
-    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso(i * H) }));
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: null }));
+  const B = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  coldWorkspace(w.tables, B, OPEN);
+  w.tables.playbooks.push(reachOut(B, "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", { last_run_at: iso(D) }));
   const [, body] = await answer(await w.tick());
-  assert.deepEqual([body.off, body.remaining], [PLAYBOOKS_PER_TICK, 1]);
+  assert.deepEqual([body.due, body.off, body.held, body.remaining], [1, 0, 1, 0]);
+  assert.deepEqual(
+    w.backlog.map((b) => b.p_remaining),
+    [0],
+  );
+});
+
+test("what the reach-out page could not reach is noted with the moments': starved reach-outs can raise the alarm", async () => {
+  const w = world({ rpcs: coldRpcs([]) });
+  // Twenty-six due steps with no leads to plan: the page takes twenty-five, and the twenty-sixth is what is left.
+  coldWorkspace(w.tables, A, OPEN);
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i += 1)
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso((i + 1) * H) }));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual([body.due, body.remaining], [PLAYBOOKS_PER_TICK, 1]);
   assert.deepEqual(
     w.backlog.map((b) => b.p_remaining),
     [1],

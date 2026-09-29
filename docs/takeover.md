@@ -33,14 +33,14 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            187   of which over 200 lines: 47
+functions over the limit            186   of which over 200 lines: 47
 files over 800 lines                 13
 directories over 20 modules           5
 window globals                      200   names
 window publishers                   446   sites in 164 files
 copies                               52   of 14 names
 as unknown as                       221
-table names outside packages/db     532
+table names outside packages/db     527
 unnamed durations                    76   in 37 files
 literal style values               1093   in 21 stylesheets
 primitives outside the kit         2569   selectors naming 964 classes

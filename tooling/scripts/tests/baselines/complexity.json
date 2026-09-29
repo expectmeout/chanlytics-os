@@ -644,11 +644,6 @@
     "branches": 41,
     "depth": 1
   },
-  "apps/edge/api/cron/calendar.ts::POST#1": {
-    "lines": 81,
-    "branches": 32,
-    "depth": 3
-  },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,
     "branches": 35,
