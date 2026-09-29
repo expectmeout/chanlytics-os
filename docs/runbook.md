@@ -259,13 +259,15 @@ every request, so what is recorded is the working tree as it stands.
 
 `record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with
 a coarse pointer, dark and light: the salon's pages, a seeded person and every Settings pane; the pipeline's People,
-Pipeline, Leads and person's page; the nightly's empty Business pane. Then five scenes, each a route and a press or two:
-a menu open, a Confirm, a toast, a record sheet and a tooltip. Motion is stopped before a page draws, and its clock
+Pipeline, Leads and person's page; the nightly's empty Business pane. Then eleven scenes, each a route and a press or two
+(a click, a hover, a focus or a key): a menu open, a Confirm, a toast, the person's fold open in place, the menu's danger
+item under the pointer, a button focused by a key, a record sheet, a combobox's list open in a fold, a segmented control
+with its picked segment, a switch that is on, and a tooltip. Motion is stopped before a page draws, and its clock
 stands still at one moment and moves only as the recorder steps it, ten simulated seconds a route, so a timer's work
 is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
 `::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages drew. It
 refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
-page threw, or a request that never ended. A full recording takes about eleven minutes.
+page threw, or a request that never ended. A full recording takes ten to fifteen minutes.
 
 `compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
 browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out
@@ -277,7 +279,7 @@ pull request names them with how they were checked, says what was compared, and 
 
 What it cannot prove, so a pull request does not claim it:
 
-- a state no scene reaches: hover and focus but the tooltip's, a menu, sheet or toast other than the five, anything
+- a state no scene reaches: hover and focus but the scenes', a menu, sheet, fold or toast other than theirs, anything
   after typing;
 - a route it does not record, and the real surfaces the mockup stubs: Today, the Inbox, the Calendar and Live draw the
   seeded page, and Leads waits and then says it could not be read;

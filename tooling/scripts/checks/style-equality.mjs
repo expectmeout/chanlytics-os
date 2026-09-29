@@ -14,7 +14,8 @@
  *
  * `record` starts the e2e harness (tooling/scripts/e2e-harness/server.mjs) for each of its records at one fixed
  * moment, and opens each route of PAGES and each scene of SCENES (a route and a press or two, for what is drawn only
- * after one: a menu, a confirm, a toast, a sheet, a tooltip) at a desk width and at a phone's with a coarse pointer,
+ * after one: a menu, a confirm, a toast, a sheet, a fold, a combobox's list, a control in its hovered, focused, picked
+ * or on state, a tooltip) at a desk width and at a phone's with a coarse pointer,
  * in the dark theme and the light one. Every animation and transition is stopped before the page draws, and the
  * page's clock stands still: it moves only when the recorder steps it, the same simulated seconds on every route, so
  * what a timer draws is in every recording or in none. Then it writes every element's edges and every computed
@@ -69,8 +70,13 @@ export const PAGES = {
 
 /**
  * What is drawn only after a press, each recorded as a page of its own: the record and route it opens, its presses
- * (`click`, `hover` or `focus` on the first element a selector finds), and what must then be on screen. A record's
- * scenes run after its routes, in this order: the tooltip's node stays in the page once made, so it goes last.
+ * (`click`, `hover` or `focus` on the first element a selector finds, or `key`, the key named third pressed there),
+ * and what must then be on screen. A record's scenes run after its routes, in this order: the tooltip's node stays in
+ * the page once made, so it goes last.
+ *
+ * Most of the kit is drawn only in a state: the record kit's fold in place on a desk (the person's page) and as a
+ * sheet (Settings › Business, and every fold on a phone), a combobox's list, a segmented control with its picked
+ * segment, a switch that is on, a menu's danger item under the pointer, and a button focused as a keyboard focuses it.
  */
 export const SCENES = {
   "a menu": {
@@ -97,11 +103,54 @@ export const SCENES = {
     ],
     sees: ".pp-toast",
   },
+  "a fold in place": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["click", '[data-testid="rec-row-act-person-receptionist"]']],
+    sees: '[data-testid="rec-fold-person-receptionist"]',
+  },
+  "a danger item under the pointer": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [
+      ["click", '[data-testid="person-more"]'],
+      ["hover", ".more-menu .more-item.danger"],
+    ],
+    sees: ".more-menu .more-item.danger",
+  },
+  // Focused by a key, as a keyboard focuses it: once the pointer has pressed anything, `focus` alone is not :focus-visible.
+  "a focused button": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["key", '[data-testid="person-open-thread"]', "Shift"]],
+    sees: '[data-testid="person-open-thread"]:focus-visible',
+  },
   "a record sheet": {
     record: "salon",
     route: "admin",
     steps: [["click", '[data-testid="rec-row-act-services"]']],
     sees: ".rec-sheet",
+  },
+  "a combobox open in a fold": {
+    record: "salon",
+    route: "admin",
+    steps: [
+      ["click", '[data-testid="rec-row-act-languages"]'],
+      ["key", '[data-testid="rec-fold-languages"] .rec-combo-input', "ArrowDown"],
+    ],
+    sees: '[data-testid="rec-fold-languages"] .rec-combo-list',
+  },
+  "a segmented control": {
+    record: "salon",
+    route: "admin",
+    steps: [["click", '[data-testid="rec-row-act-phone_display"]']],
+    sees: '[data-testid="rec-inline-phone_display"] .rec-seg-btn[aria-checked="true"]',
+  },
+  "a switch that is on": {
+    record: "salon",
+    route: "admin",
+    steps: [["click", '[data-testid="rec-row-act-guardrails"]']],
+    sees: '[data-testid="rec-fold-guardrails"] .rec-switch[aria-checked="true"]',
   },
   "a tooltip": { record: "salon", route: "today", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
 };
@@ -369,11 +418,18 @@ async function refuseUndrawn(page, what, theme, errors) {
 /** Opens a route in the page that is already open: the shell follows its hash. */
 const go = (page, route) => page.evaluate((r) => (location.hash = `#/${r}`), route);
 
-/** One press of a scene, on the first element its selector finds. */
-async function press(page, [act, selector], what) {
+/** One press of a scene, on the first element its selector finds: a `key` press names its key third. */
+async function press(page, [act, selector, key], what) {
   const target = page.locator(selector).first();
-  const acts = { click: () => target.click(), hover: () => target.hover(), focus: () => target.focus() };
-  if (!acts[act]) throw new Error(`${what}: a scene presses by click, hover or focus, not ${act}`);
+  const acts = {
+    click: () => target.click(),
+    hover: () => target.hover(),
+    focus: () => target.focus(),
+    key: () => target.press(key),
+  };
+  if (!acts[act] || (act === "key") !== (key !== undefined)) {
+    throw new Error(`${what}: a scene presses by click, hover, focus or key (with its key), not ${act} ${key ?? ""}`);
+  }
   try {
     await acts[act]();
   } catch (e) {
