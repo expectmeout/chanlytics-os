@@ -1,7 +1,9 @@
 # 0019 · The database tells each workspace what changed
 
-**Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give. Steps 1 and 2 built (00265),
-in one pull request, where they differ from this note as Built says; step 3 comes a day after step 2 is deployed.
+**Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give. Built: steps 1 and 2 (00265,
+#1333) and step 3 (00322, written the day step 2 deployed and landed on 5 October 2026), where they differ from this
+note as Built says; step 4, a replay on a rejoin, only if wanted. One thing step 3 leaves owed: "Allow public access"
+turned off in Realtime's settings.
 Written against commit `0c8225d5` (main, 28 September 2026, after
 #1242 merged), and every file and line below was read at it. What Realtime does is quoted from Supabase's own guides
 (Postgres Changes, Broadcast, Subscribing to Database Changes, Realtime Authorization, Realtime Concepts, Benchmarks),
@@ -301,3 +303,16 @@ and the tab's side in `packages/db/src/realtime.ts`. Where it differs from Shape
   call's turn costs about 0.4 ms more. Against the local Realtime, a member's tab joined its workspace's topic, a
   stranger's join was refused, and every change reached the member's tab as its table, its event and a call's
   statuses, within half a second.
+
+### Step 3 (written 29 September 2026, landed 5 October as 00322)
+
+`supabase/migrations/00322_the_tables_leave_postgres_changes.sql` takes every public table out of
+`supabase_realtime`: the 24 the live feed hears and `decisions` and `mailboxes`, which nothing heard (26 in production
+on 5 October; 23 and the two when this was written, as 00266). It walks the publication rather than a list, so it
+re-runs, and it leaves Realtime's own publication of `realtime.messages`, which carries the notices, alone.
+`tooling/scripts/tests/database/realtime-publication.db.test.mjs` now holds that nothing is published: a table the live
+feed hears gets its trigger, never a place in the publication. Until this landed the test asked the opposite, so 00321
+put `broadcasts` in the publication beside its triggers; the walk takes it out with the rest. On the local replay of
+29 September, with the migration applied, a member's tab still heard every change within half a second and a
+stranger's join was still refused. Then "Allow public access" is turned off in Realtime's settings: the one channel the
+apps open is private (`packages/db/src/realtime.ts`).

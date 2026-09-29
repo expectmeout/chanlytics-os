@@ -323,6 +323,7 @@
     "00318_an_invoice_keeps_what_it_moved.sql": "9b139a64716c2d6197b97a761b38b0c38e4598c379a51a6609ab6abc816fdc42",
     "00319_a_message_keeps_what_it_cost_to_send.sql": "2eefe1efaa0727e6ea520443f115b25a5181e4e5abdd95a1e7e7cb2c3cdf504c",
     "00320_a_reply_and_where_they_last_wrote_are_a_person_s_own_words.sql": "857bed89a2fba1ed524dff69d997591ae2ec762ec712a4e2295a4a849c6b777e",
-    "00321_a_run_made_or_moved_is_told_to_its_workspace.sql": "10ea22653db74d1d66481b2fe5c69e44dcb621e6233e1bf766ba34944b72760a"
+    "00321_a_run_made_or_moved_is_told_to_its_workspace.sql": "10ea22653db74d1d66481b2fe5c69e44dcb621e6233e1bf766ba34944b72760a",
+    "00322_the_tables_leave_postgres_changes.sql": "107355ef56089968062c2d235c0fc6eadc091bb081bbaca725d1feef67707fea"
   }
 }

@@ -1,9 +1,9 @@
 # 0015 · The shell leaves, one surface at a time
 
-**Status:** Accepted by Ruben, 28 Sep 2026; decided, not built. Ruben left the open questions to be settled by
-analysis (27 September); the answers close the note, and he accepted it with one amendment, which follows them. The
-address, the first step, waits until no open pull request holds a page that reads its own `#/`
-address (the fourth answer). Written against commit `519724e9c` (main, 27 September 2026, after the organization
+**Status:** Accepted by Ruben, 28 Sep 2026. Built: steps 1 to 11 of the order, the address and every surface but Ask
+(each has its _Built_ section below, the last of them Settings' frame on 4 October 2026); step 12 (Ask) and step 13
+(the frame, then the tree) to come. Ruben left the open questions to be settled by analysis (27 September); the
+answers close the note, and he accepted it with one amendment, which follows them. Written against commit `519724e9c` (main, 27 September 2026, after the organization
 program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
 (§2, 40 · Technical debt: "an exit path written for the largest item") and the register names in its shell rows
