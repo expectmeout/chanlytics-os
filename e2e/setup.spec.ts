@@ -146,9 +146,15 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     expect(await line.innerText(), "no key is drawn").not.toMatch(/[↵⌘]|\besc\b/i);
     await expect(line.locator(".ask-rows-label", { hasText: "Ask about setting up" })).toBeVisible();
     await page.screenshot({ path: "test-results/ask-first-run.png" });
+    // The turn's own answer, whose first line names the conversation it made (the paid run deletes it after).
+    const turn = PAID
+      ? page.waitForResponse((r) => /\/api\/v1\/ask(\?|$)/.test(r.url()) && r.request().method() === "POST", {
+          timeout: 120_000,
+        })
+      : null;
     await line.getByTestId("ask-input").fill(SETUP_LEFT);
     await line.getByTestId("ask-input").press("Enter");
-    if (!PAID) {
+    if (!turn) {
       await expect.poll(() => asked.length, { message: "the question is asked, once" }).toBe(1);
       expect(asked[0].text).toBe(SETUP_LEFT);
       expect(asked[0].surface, "on the first run's own surface").toBe("start");
@@ -156,17 +162,24 @@ test.describe("Setup on a real workspace, a step at a time", () => {
       expect(asked[0].context?.route).toMatch(/^start/);
       return;
     }
-    const say = line.getByTestId("ask-say");
-    await expect(say).toBeVisible({ timeout: 120_000 });
-    await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
-    expect((await say.innerText()).trim().length).toBeGreaterThan(0);
-    // The conversation is the run's own: read back and deleted, as ask.spec.ts leaves none behind.
-    const ws = await activeWorkspace(page);
-    const { data } = await (await apiGet(page, "/api/v1/ask/threads")).json();
-    const mine = (data.threads as Array<{ id: string; title: string }>).find((t) => t.title === SETUP_LEFT);
-    expect(mine, "the question is a conversation of the person's own").toBeTruthy();
-    const origin = { headers: { origin: new URL(page.url()).origin } };
-    expect((await page.request.delete(scoped(`/api/v1/ask/threads/${mine!.id}`, ws), origin)).status()).toBe(200);
+    const first = JSON.parse((await (await turn).text()).split("\n")[0]) as { t: string; id: string };
+    expect(first.t, "the stream opens with its conversation").toBe("thread");
+    try {
+      const say = line.getByTestId("ask-say");
+      await expect(say).toBeVisible({ timeout: 120_000 });
+      await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 120_000 });
+      expect((await say.innerText()).trim().length).toBeGreaterThan(0);
+      const { data } = await (await apiGet(page, "/api/v1/ask/threads")).json();
+      expect(
+        (data.threads as Array<{ id: string }>).some((t) => t.id === first.id),
+        "the question is a conversation of the person's own",
+      ).toBe(true);
+    } finally {
+      // The conversation is the run's own, deleted as ask.spec.ts leaves none behind, whatever the answer did.
+      const ws = await activeWorkspace(page);
+      const origin = { headers: { origin: new URL(page.url()).origin } };
+      await page.request.delete(scoped(`/api/v1/ask/threads/${first.id}`, ws), origin);
+    }
   });
 
   test("a workspace whose receptionist answers is not sent to the first run on arrival", async ({ page }) => {

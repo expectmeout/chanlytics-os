@@ -40,7 +40,7 @@ this plan, the code, the tests, the spec's "Phase 7, landed" and the program's n
 | #   | Decision | Why |
 | --- | -------- | --- |
 | D1  | **The palette on the first run.** `firstRunScreen` (app-shell.jsx) draws `<AskBar open onClose>` on the `fr-shell` root beside `FirstRun`, from the shell's own `askOpen`. The shell's ⌘K already listens on every route (its keys hook runs before the two full-screen returns), so ⌘K, `window.appAsk` and `askAbout` open it there. The Line reads the route as it does everywhere: `surfaceFor("start")` is `start`, the context provider sends the step as the view, the warm and the server's `start` provider (Phase 2) do the rest. | The spec's sentence; the turn needs nothing new. |
-| D2  | **No door is drawn on the first run.** No button, no hint, no ✦. | The first run sets the chrome aside by its own design (first-run spec, PR 1), and ⌘K's glyph is drawn nowhere but the `?` sheet (Ruben, 23 Sep). The spec asks for the palette mounted, not a door; a phone reaches Ask from the ✦ once it leaves the first run. A drawn door is a change to the first run's design, Ruben's to ask for. |
+| D2  | **No door is drawn on the first run.** No button, no hint, no ✦. | The first run sets the chrome aside by its own design (first-run spec, PR 1), and ⌘K's glyph is drawn nowhere but the `?` sheet (Ruben, 23 Sep). The spec asks for the palette mounted, not a door; a phone reaches Ask from the ✦ once it leaves the first run. The cost, said plainly: on the first run Ask is a keyboard's, an owner who has not met ⌘K sees no sign of it (the `?` sheet is not drawn there either), and a phone or a tablet without a keyboard cannot open it there. A ✦ on the first run, or the `?` sheet drawn there, is a change to the first run's design, Ruben's call. |
 | D3  | **The start surface's own questions.** "What is left to set up?" (the page's question) and "What are our hours this week?" (the facts the first run checks) lead its chips, in English and Spanish; the Line's heading there is "Ask about setting up". `CHIPS_OF.start` (other's chips: an offer to a list, a win-back playbook) goes. The first question is the model's, answered from the context the server's `start` provider already builds (the step, Setup's readiness sentence, "N of M set up", the next step), never a quick answer. | §5.9 names the question. A quick answer would be a second reading of Setup's rows beside `setupSteps`, and a new fast path is a new mechanism. |
 | D4  | **The page's questions are one table.** `buildAskSuggestions`' per-page `switch` becomes `PAGE_QUESTIONS` (surface → the keys of its questions); Conversations' and Live's call question keeps its own line (its quickness depends on the day). Same order, same words, same result for every surface but `start`. | D3 adds a surface; a table adds none of the branches the complexity ratchet holds (`buildAskSuggestions` 49 today), and banks a fall. |
 | D5  | **⌘K jumps where a workspace has the page.** Contracts `askPages({ dealsOn, platformAdmin })`: `ASK_PAGES` (every workspace's), the Pipeline (`clients/pipeline`, after Leads, answering to "deals" too) where deals are on, and the back office (`admin/platform`) for Chanlytics staff. The bridge's `jumpIndexFrom` reads `__PEOPLE.dealsOn` (the bit People's scope strip draws the Pipeline by, people.jsx `plScopes`) and `__ME.platform_admin` (the bit Settings' rail draws the back office by, settings.jsx `isPlatformAdmin`). | Where deals are off the Pipeline's address draws People; to anyone but staff the back office's address draws Profile. A jump to either would promise a page that is not there. |
@@ -63,10 +63,10 @@ this plan, the code, the tests, the spec's "Phase 7, landed" and the program's n
   Phase 7"); the server's provider reads Setup's steps (server/ask/context/pages.ts:175-189: the view, the readiness
   sentence, "N of M set up", the next step). `AskReal` draws nothing without `window.__ask` (ask-real.jsx:999).
 - **The start surface borrows other's chips.** `CHIPS_OF.start = "other"` (contracts ask-suggestions.ts:14-19), so its
-  home offers "Send an offer to a list" and "Start a win-back playbook" (:215-216); the Line's heading map has no
+  home offers "Send an offer to a list" and "Start a win-back playbook" (:216-217); the Line's heading map has no
   `start` (ask-text.jsx:27-39, :108-120: "Ask about this page"). `buildAskSuggestions` is at 85 lines and 49 branches
   (baselines/complexity.json:722).
-- **The jump index.** `ASK_PAGES` (contracts ask-jump.ts:27-71): 23 entries, every workspace's; "Receptionist
+- **The jump index.** `ASK_PAGES` (contracts ask-jump.ts:27-71): 22 entries, every workspace's; "Receptionist
   memory" lands on `admin/workspace` (:64-70). `jumpIndexFrom` (palette.ts:123-145) spreads it and adds threads,
   people and calls. `PaletteGlobals` reads `__PEOPLE.dealsOn` (:60) and `__ME.role` (:64).
 - **No jump for four real pages.** The Pipeline is People's third scope where deals are on (people.jsx:1134-1138,
@@ -107,8 +107,10 @@ this plan, the code, the tests, the spec's "Phase 7, landed" and the program's n
 | `apps/dashboard/src/legacy/Chanlytics.html` | `?v=` of each legacy file changed, one past main's |
 | `tooling/scripts/e2e-harness/fixture-src.ts` | D11 |
 | `e2e/setup.spec.ts` | D10 |
-| `tooling/scripts/tests/ask/ask-jumps.test.mjs` (new) | the jump index against every real surface |
-| `tooling/scripts/tests/ask/ask-palette.test.mjs`, `ask/ask.test.mjs`, `shell/surfaces/shell-status.test.mjs`, `e2e/e2e-harness.test.mjs` | the mount, the start Line, the chips, the harness |
+| `tooling/scripts/tests/ask/ask.test.mjs` | the jump index against every real surface; the chips |
+| `tooling/scripts/tests/ask/ask-palette.test.mjs`, `shell/surfaces/shell-status.test.mjs`, `e2e/e2e-harness.test.mjs` | the start Line, the mount, the harness |
+| `tooling/scripts/tests/baselines/complexity.json` | `buildAskSuggestions` banked at its fall |
+| `e2e/today/today.spec.ts`, `e2e/ask.spec.ts`, `tooling/scripts/e2e-harness/server.mjs` | the guards and a comment that said the harness has no Ask client, or moves only People's record |
 | `docs/superpowers/specs/2026-09-25-ask-rewired-design.md`, `docs/system-prd.md` | "Phase 7, landed", the status line, the next item; S-18.1 and Setting up's row |
 
 ## 3. Steps, each with its tests
@@ -122,7 +124,8 @@ this plan, the code, the tests, the spec's "Phase 7, landed" and the program's n
 - [ ] **3.2 The start surface's questions (D3, D4).** *Test* (ask.test.mjs): `buildAskSuggestions` on `start`, English
       and Spanish, leads with the two questions and offers neither the offer nor the playbook; every other surface's
       chips are what they were (a table of today's answers for each surface, taken on main before the change).
-- [ ] **3.3 The jumps (D5–D8).** *Test* (ask-jumps.test.mjs, new): the jump index lists every real surface —
+- [ ] **3.3 The jumps (D5–D8).** *Test* (ask.test.mjs; `tooling/scripts/tests/ask` holds twenty modules, the
+      directory limit, so no new file): the jump index lists every real surface —
       every route the registry calls real, and People's scopes, reached by a named jump that lands where that page is
       drawn (a moved address at its new one; Memory on Business; Lists on People); every jump lands on a real surface
       and on a page a citation may name; the Pipeline only where deals are on, after Leads; the back office only for
@@ -159,4 +162,22 @@ this plan, the code, the tests, the spec's "Phase 7, landed" and the program's n
   over a context that exists; the jump list is the one list with two entries that wait on a bit.
 - **Either deploy order.** Browser and contracts only; no route, no wire, no migration.
 - **Nothing drawn that says a key.** No door, no hint; the e2e and the Line's test both hold "no key is drawn".
-- **What is left for Ruben.** A drawn door on the first run (D2), if he wants one.
+- **What is left for Ruben.** A way into Ask on the first run for someone without a keyboard or who has not met ⌘K
+  (D2): a ✦ there, or the `?` sheet drawn there.
+- **A remount, benign.** `AskBar` stands at one place under `.fr-shell` and another under `.app-root`, so moving
+  between the first run and any other page mounts the Line afresh. The Line closes itself before it goes anywhere, and
+  the tab's memory brings back the draft and the open conversation; a turn still streaming when the route changes
+  loses its live stream, and its thread keeps the answer.
+
+## 6. As built (29 Sep 2026, after the one combined review)
+
+- **The review found** the new test file took `tooling/scripts/tests/ask` past its twenty modules (the tests joined
+  `ask.test.mjs`), the complexity fall unbanked (banked: `buildAskSuggestions` 85 lines and 49 branches to 59 and 45),
+  three e2e guards and a harness comment that said the harness installs no Ask client (reworded: a page with no Ask
+  client), D2's cost unsaid (said in D2, the spec and the pull request), the paid e2e branch finding its conversation by
+  title (it takes the id from the stream's first line, and deletes it in a `finally`), and two slips in §1 (22 entries;
+  :216-217). Fixed, with no second review.
+- **The harness** now stands every record at its workspace's address in a browser (People's record already did), so
+  the Line's reads name the workspace; without it the client's `choose_workspace` refusal sent the page home. Three
+  tests of `e2e/settings/settings-business.spec.ts` hang on the harness waiting for `document.getAnimations()` to
+  finish; they hang the same with main's browser files and fixture put back, so they are not this change's.

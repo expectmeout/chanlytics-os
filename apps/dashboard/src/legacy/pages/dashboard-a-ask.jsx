@@ -1,9 +1,10 @@
 /* global React, Icon */
 // AskBar — the palette ⌘K opens, and the seed palette a demo session draws.
 // Outside a demo AskBar is the Line (ask-real.jsx, over window.__ask), on every
-// page and over the first run; everything else in this file is the demo's: its
-// threads are kept in this browser, its answers are canned from the seed world,
-// and its links go to the mockup's pages.
+// page and over the first run. Everything else in this file but askAbout (the
+// one door into Ask from anywhere, below) is the demo's: its threads are kept in
+// this browser, its answers are canned from the seed world, and its links go to
+// the mockup's pages.
 
 const ASK_SEED_THREADS = [
   {

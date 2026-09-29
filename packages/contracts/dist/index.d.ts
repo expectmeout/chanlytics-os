@@ -10292,7 +10292,7 @@ interface JumpEntry {
 }
 /**
  * The pages every real workspace has. Nothing here is seeded or demo-only, and every real page is here or in askPages
- * (ask-jumps.test.mjs holds it against the shell's registry): the list once stopped at the pages that were real before
+ * (ask.test.mjs holds it against the shell's registry): the list once stopped at the pages that were real before
  * the Calendar, Lists, Campaigns, Setup, Billing and Activity shipped, so ⌘K "calendar" offered only to ask about it
  * (the wiring audit's N18).
  */

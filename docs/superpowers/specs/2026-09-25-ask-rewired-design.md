@@ -903,18 +903,21 @@ migration. **Proof:** the e2e first-run spec asks a question; the jump index tes
 
 **Phase 7, landed** (29 Sep 2026; plan `2026-09-29-ask-rewired-7-first-run-and-last-doors.md`, one pull request with
 the code, its tests and this paragraph, merged on green). The shell draws the palette it draws everywhere else beside
-the first run, so ⌘K (and `askAbout`) opens the Line over the step on the `start` surface; no door is drawn there, as
-the first run draws no chrome and no key is drawn outside the `?` sheet (a door is Ruben's call). The start surface
+the first run, so ⌘K (and `askAbout`) opens the Line over the step on the `start` surface. No door is drawn there, as
+the first run draws no chrome and no key is drawn outside the `?` sheet, so on the first run Ask is a keyboard's: an
+owner who has not met ⌘K sees no sign of it (the `?` sheet is not drawn there either), and a phone or a tablet without
+a keyboard cannot open it there. A ✦ on the first run, or the `?` sheet drawn there, is Ruben's call. The start surface
 has questions of its own, "What is left to set up?" first, answered by the model from the context the server's `start`
 provider already built in Phase 2 (the step, Setup's readiness, "N of M set up", the next step), never a second reading
 of Setup's rows; the offer and the playbook it borrowed from other's chips are gone, and the page questions are one
-table (`buildAskSuggestions` 49 branches down, every other surface's chips word for word). ⌘K's pages are contracts'
-`askPages`: every workspace's, the Pipeline after Leads where People says deals are on, and the back office for
-Chanlytics staff, each read from the bit its own door is drawn by; Memory's jump still lands on Business (#417) and
-answers to "AI memory", the unlisted pane's name. What landed beyond the plan's sentence: the jump index test found
-Settings › Partner (0012, in every rail since 27 Sep) with no jump, and it has one; the local e2e harness now draws
-the first run and the Line, and stands every record at its workspace's address so the Line's reads name it. The retired
-`#/pipeline` still lands on People, as the Pipeline's own test pins. No migration, no route, no model change.
+table (`buildAskSuggestions` from 85 lines and 49 branches to 59 and 45, every other surface's chips word for word).
+⌘K's pages are contracts' `askPages`: every workspace's, the Pipeline after Leads where People says deals are on, and
+the back office for Chanlytics staff, each read from the bit its own door is drawn by; Memory's jump still lands on
+Business (#417) and answers to "AI memory", the unlisted pane's name. What landed beyond the plan's sentence: the jump
+index test found Settings › Partner (0012, in every rail since 27 Sep) with no jump, and it has one; the local e2e
+harness now draws the first run and the Line, and stands every record at its workspace's address so the Line's reads
+name it. The retired `#/pipeline` still lands on People, as the Pipeline's own test pins. No migration, no route, no
+model change.
 
 **Next · Part B, answer blocks.** The program's next phase is Part B of the Ask-on-a-phone spec
 (`docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md` §7), handed to this program by Ruben on 28 Sep:
