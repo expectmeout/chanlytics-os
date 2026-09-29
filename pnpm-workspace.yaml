@@ -9,5 +9,27 @@ packages:
 catalog:
   typescript: 6.0.3
 
-# `pnpm add` writes "catalog:": it refuses a version outside the catalog, and adds a new dependency to it.
-catalogMode: strict
+# Manual, pnpm's default: a dependency joins the catalog when a person writes it there. Under `strict`, an update of a
+# dependency outside the catalog writes it into the lockfile's catalogs (pnpm 10 and 11 alike, measured 29 Sep 2026),
+# which pnpm-workspace.yaml then disagrees with, so every Dependabot update failed CI's --frozen-lockfile.
+# typescript-is-declared-once.test.mjs holds the one TypeScript by its names instead.
+catalogMode: manual
+
+# Every setting pnpm reads is here, not in package.json's "pnpm" field or .npmrc: Dependabot's updater runs pnpm 11,
+# which reads neither, and the lockfile it wrote then disagreed with CI's (tests/repo/settings/pnpm-settings.test.mjs).
+#
+# Vercel's vanilla-function bundler (nft) doesn't follow pnpm symlinks into the lambda: hoist third-party deps to real
+# dirs, and inject workspace packages as hard copies (their committed dist/ ships at install time).
+nodeLinker: hoisted
+injectWorkspacePackages: true
+
+# A transitive version with an advisory, lifted to the first fixed one. uuid and decode-uri-component come with the
+# phone app (Expo's config plugins, expo-router's query-string); decode-uri-component 0.5 is ESM only, so
+# patches/query-string@7.1.3.patch reads its default export (tests/mobile/overridden-packages.test.mjs).
+overrides:
+  decode-uri-component@<0.5.0: ^0.5.0
+  esbuild@<0.28.1: ^0.28.2
+  postcss@<8.5.23: ^8.5.28
+  uuid@<11.1.1: ^11.1.1
+patchedDependencies:
+  query-string@7.1.3: patches/query-string@7.1.3.patch

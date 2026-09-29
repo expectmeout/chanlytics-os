@@ -46,8 +46,10 @@ sheet by sheet, `docs/decisions/` for what is decided and not yet built,
 | `packages/*`          | `contracts` (types, zod schemas, enums, view models, the prompt composer), `core` (the use cases as verbs over ports, and the one send door), `db` (Supabase repositories and generated types), `channels` (Meta, Retell, Twilio, Resend, Google, Apify adapters), `jobs` (the ledger, the tick, the handlers). | bundled into both apps                |
 | `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                                                                                                                                                                            | Supabase project                      |
 
-Counts change weekly, so this file carries none. `find apps/edge/api -name
-'*.ts' | wc -l` and `ls supabase/migrations | wc -l` answer the two most-asked.
+Counts change weekly, so this file carries none but history's, each with its
+date (`tooling/scripts/tests/docs/counts-are-dated.test.mjs` holds that).
+`find apps/edge/api -name '*.ts' | wc -l` and `ls supabase/migrations | wc -l`
+answer the two most-asked; `docs/debt.md` has the rest, regenerated.
 
 The two apps deploy **independently**. A change that requires both to agree
 must be shipped so that either order works — a dashboard-first deploy writing a
@@ -202,8 +204,8 @@ corepack pnpm e2e:install             # once, fetches Chromium
 corepack pnpm e2e                     # runs against production by default
 ```
 
-Twenty-two of the 141 need no credentials and pin the auth gate. The rest sign
-in, and need four variables:
+A few need no credentials and pin the auth gate; `pnpm e2e` without the
+variables runs those alone. The rest sign in, and need four variables:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL       NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -214,12 +216,12 @@ Without them those specs **skip**, with the reason printed. `E2E_BASE_URL`
 points the run somewhere other than production.
 
 A skip is not a pass, and an exit code cannot tell them apart — which is how
-the nightly reported success four mornings running while executing 24 of 128
-specs. So a run that is MEANT to be signed in says so with
+the nightly reported success four mornings running in September 2026 while
+executing 24 of its 128 specs (#249, 8 Sep). So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its 112 integration tests,
-which live in 26 files and skip as a block without credentials.
+`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its integration suites,
+which skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.
 

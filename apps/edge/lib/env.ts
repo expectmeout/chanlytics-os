@@ -247,4 +247,8 @@ export const env = {
   get VERCEL_ENV() {
     return trimmedEnv(process.env.VERCEL_ENV);
   },
+  /** The commit this deployment was built from: GET /api/version answers it, as the dashboard's does. */
+  get VERCEL_GIT_COMMIT_SHA() {
+    return trimmedEnv(process.env.VERCEL_GIT_COMMIT_SHA);
+  },
 };

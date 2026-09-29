@@ -8,6 +8,7 @@
     "test:db": "node --conditions=react-server --import tsx --test \"tooling/scripts/tests/**/*.db.test.mjs\" \"tooling/scripts/tests/**/*.integration.test.mjs\"",
     "gen:schema-sets": "node tooling/scripts/gen/schema-sets.mjs",
     "gen:db-types": "node tooling/scripts/gen/db-types.mjs",
+    "gen:api-reference": "node --conditions=react-server --import tsx tooling/scripts/gen/api-reference.mjs",
     "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
     "check:dist": "node tooling/scripts/checks/dist.mjs",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",
@@ -41,11 +42,5 @@
     "tsx": "^4.23.13",
     "typescript": "catalog:",
     "typescript-eslint": "^8.70.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "postcss@<8.5.23": "^8.5.28",
-      "esbuild@<0.28.1": "^0.28.2"
-    }
   }
 }
