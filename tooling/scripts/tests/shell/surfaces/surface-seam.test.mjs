@@ -146,8 +146,8 @@ test("nothing outside the runner calls activateOverride directly", () => {
 
 /* ------- three states the operator's screen could show falsely ----------- */
 {
+  // The third, a failed boot over cached real data said as degraded, runs the runner in surface-boot.test.mjs.
   const { readCode } = await import("../../_source.mjs");
-  const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
   // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
   const seam = [
     "apps/dashboard/src/legacy-bridge/surface-data.ts",
@@ -157,18 +157,6 @@ test("nothing outside the runner calls activateOverride directly", () => {
     .join("\n");
   const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
-
-  test("a failed boot over CACHED real data is degraded, not seeded", () => {
-    // The cache restores real rows before React mounts. If both boot attempts
-    // then fail, recording "seeded" is the one thing that is not true:
-    // yesterday's real conversations are on screen under a status meaning "no
-    // real data", so the pill shows neither live nor stale. refresh() has
-    // always used this rule; boot did not.
-    const fn = runner.slice(runner.indexOf("const boot = async"));
-    const body = fn.slice(0, fn.indexOf("\n  };"));
-    assert.match(body, /isSurfaceReady\(o\.key\)/, "boot must ask whether real data is already showing");
-    assert.match(body, /"degraded"/);
-  });
 
   test("a successful write forgets every in-flight read", () => {
     // The collapser shares a pending request for two seconds. A verb commits

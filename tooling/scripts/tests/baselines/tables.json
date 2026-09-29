@@ -4,7 +4,7 @@
   "apps/dashboard/app/api/v1/calls/[id]/hand-over/route.ts": 1,
   "apps/dashboard/app/api/v1/capabilities/[kind]/route.ts": 2,
   "apps/dashboard/app/api/v1/consent/qr/route.ts": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": 5,
+  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": 4,
   "apps/dashboard/app/api/v1/conversations/[id]/export/route.ts": 2,
   "apps/dashboard/app/api/v1/escalations/[id]/resolve/route.ts": 1,
   "apps/dashboard/app/api/v1/export/route.ts": 4,
