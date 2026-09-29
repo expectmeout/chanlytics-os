@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
+import fs, { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { ROOT } from "../../_source.mjs";
@@ -101,4 +101,25 @@ test("maplibre-gl gets its own pull request, beside its vendored worker", () => 
   assert.match(read(".github/dependabot.yml"), /exclude-patterns: \["maplibre-gl"\]/);
   const dashboard = JSON.parse(read("apps/dashboard/package.json"));
   assert.ok("maplibre-gl" in dashboard.dependencies, "the package the rule is about is still a dependency");
+});
+
+test("the secret scan allows the migration ledger by path, that one file and no other", () => {
+  // The ledger holds "<migration filename>": "<sha256>". A checksum is high in entropy and a filename can say "keyed",
+  // so gitleaks' generic-api-key rule fired on it (#1344); nothing in it is a secret, and the next migration named with
+  // key, secret or token would trip it again, so the allowance is by path, not by value.
+  const toml = read(".gitleaks.toml");
+  const paths = [...toml.matchAll(/^paths = \[(.+)\]$/gm)].flatMap((m) =>
+    [...m[1].matchAll(/'''(.+?)'''/g)].map((p) => p[1]),
+  );
+  assert.deepEqual(paths, ["^supabase/migrations-ledger\\.json$"]);
+  const allowed = new RegExp(paths[0]);
+  assert.ok(allowed.test("supabase/migrations-ledger.json"));
+  for (const other of [
+    "supabase/migrations/00263_an_erased_person_s_digest_is_keyed.sql",
+    "supabase/migrations-ledger.json.bak",
+    "docs/migrations-ledger.json",
+    "apps/edge/lib/env.ts",
+  ])
+    assert.ok(!allowed.test(other), `${other} is still scanned`);
+  assert.ok(existsSync(path.join(ROOT, "supabase/migrations-ledger.json")), "the file the path names exists");
 });
