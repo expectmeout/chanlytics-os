@@ -16,6 +16,7 @@
  * Diagnostic-key only: the dashboard is the sole caller, as for steer.
  */
 import { json, refuse } from "../../../lib/http.js";
+import { readBody } from "../../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/packages/db.js";
@@ -45,12 +46,13 @@ export async function POST(request: Request): Promise<Response> {
   const appSecret = env.META_APP_SECRET;
   if (!appId || !appSecret) return refuse(503, "no_app_credentials");
 
-  let body: { tenant_id?: string; user_id?: string; code?: string; phone_number_id?: string; waba_id?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{
+    tenant_id?: string;
+    user_id?: string;
+    code?: string;
+    phone_number_id?: string;
+    waba_id?: string;
+  }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;

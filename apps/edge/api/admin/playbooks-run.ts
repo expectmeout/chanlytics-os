@@ -14,6 +14,7 @@
  * the run it planned. A later step of a chain runs on its day only (409).
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
@@ -29,17 +30,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
-  const body = (await request.json().catch(() => null)) as {
+  const body = await readBody<{
     tenant_id?: unknown;
     playbook_id?: unknown;
     user_id?: unknown;
-  } | null;
-  const ws = workspaceFor(auth, body?.tenant_id);
+  }>(request);
+  const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
-  if (body) body.tenant_id = ws.tenantId ?? undefined;
-  const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
-  const playbookId = typeof body?.playbook_id === "string" ? body.playbook_id : "";
-  const userId = typeof body?.user_id === "string" ? body.user_id : "";
+  body.tenant_id = ws.tenantId ?? undefined;
+  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
+  const playbookId = typeof body.playbook_id === "string" ? body.playbook_id : "";
+  const userId = typeof body.user_id === "string" ? body.user_id : "";
   if (!UUID.test(tenantId) || !UUID.test(playbookId) || !UUID.test(userId)) return refuse(400, "bad_request");
   const db = pg();
   if (!db) return refuse(503, "no_database");

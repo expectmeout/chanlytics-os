@@ -37,9 +37,14 @@ export const errorMessage = (e: unknown): string => (e instanceof Error ? e.mess
  * 400.
  */
 export async function readBody<T extends object>(request: Request): Promise<Partial<T>> {
+  return bodyOf<T>(await request.text());
+}
+
+/** The same reading of a body a door has already read as text (the model gateway measures it first). */
+export function bodyOf<T extends object>(text: string): Partial<T> {
   try {
-    const body = JSON.parse(await request.text());
-    return typeof body === "object" && body !== null && !Array.isArray(body) ? body : {};
+    const body: unknown = JSON.parse(text);
+    return typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Partial<T>) : {};
   } catch {
     return {};
   }
