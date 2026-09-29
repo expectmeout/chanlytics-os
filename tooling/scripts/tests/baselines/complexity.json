@@ -15,8 +15,8 @@
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
-    "lines": 109,
-    "branches": 45,
+    "lines": 90,
+    "branches": 40,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/segments/[id]/route.ts::handle#1": {
@@ -101,7 +101,7 @@
   },
   "apps/dashboard/src/legacy/components/record-fold.jsx::RecordInline#1": {
     "lines": 80,
-    "branches": 37,
+    "branches": 36,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/record-row.jsx::RecordRow#1": {
@@ -115,7 +115,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 210,
+    "lines": 209,
     "branches": 35,
     "depth": 0
   },
@@ -135,7 +135,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
-    "lines": 374,
+    "lines": 373,
     "branches": 40,
     "depth": 0
   },
@@ -365,7 +365,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ApprovalCard#1": {
-    "lines": 167,
+    "lines": 162,
     "branches": 23,
     "depth": 0
   },
@@ -430,7 +430,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
-    "lines": 327,
+    "lines": 326,
     "branches": 62,
     "depth": 0
   },
@@ -459,13 +459,8 @@
     "branches": 29,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/pages/people-table.jsx::PeopleTable#1": {
-    "lines": 57,
-    "branches": 31,
-    "depth": 0
-  },
   "apps/dashboard/src/legacy/pages/people.jsx::ClientsASeed#1": {
-    "lines": 320,
+    "lines": 319,
     "branches": 27,
     "depth": 0
   },
@@ -500,7 +495,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/pipeline-scope.jsx::PipelineScope#1": {
-    "lines": 463,
+    "lines": 462,
     "branches": 64,
     "depth": 0
   },
@@ -635,7 +630,7 @@
     "depth": 4
   },
   "apps/edge/api/retell-fn.ts::POST#1": {
-    "lines": 279,
+    "lines": 269,
     "branches": 40,
     "depth": 3
   },
@@ -715,8 +710,8 @@
     "depth": 0
   },
   "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
-    "lines": 85,
-    "branches": 49,
+    "lines": 59,
+    "branches": 45,
     "depth": 3
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {

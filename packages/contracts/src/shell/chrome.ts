@@ -225,11 +225,6 @@ export function routePrefetchScript(): string {
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
-/** ⌘1 … ⌘9 for the first nine workspaces; none beyond. */
-export function workspaceHotkey(index: number): string | null {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `⌘${index + 1}` : null;
-}
-
 /** Whether a key press belongs to a field the person is typing in. */
 export function isTypingTarget(tagName: string | null | undefined, contentEditable: boolean): boolean {
   const t = (tagName ?? "").toUpperCase();
@@ -372,7 +367,9 @@ export interface Shortcut {
 /**
  * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
  * were listed for every list (the wiring audit's N17): "/" searches only People, and J/K walk only People's rows and
- * the Inbox's. People's rows are the keys its table's foot names.
+ * the Inbox's. The sheet is the one place a key is drawn (Ruben, 23 Sep 2026): no button, tip, foot or legend names
+ * one, so a key the app answers to is here or nowhere. The Calendar's, and ⌘↵ in the record kit's editors, were said
+ * only where they worked until then.
  */
 export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘K"], does: "Ask Chanlytics" },
@@ -380,6 +377,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘1", "⌘9"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // The record kit's fold, sheet and inline editor (record-fold.jsx recKeys): Business, a person, a deal, a step.
+  { group: "Everywhere", keys: ["⌘↵"], does: "Save the change you are making" },
   // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
   { group: "Ask", keys: ["↑", "↓"], does: "Walk what is under the line" },
   { group: "Ask", keys: ["↵"], does: "Ask, or open the row" },
@@ -398,6 +397,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
   { group: "Inbox", keys: ["⌘↵"], does: "Send" },
+  { group: "Calendar", keys: ["←", "→"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" },
 ];
 
 /** The sheet's groups, in order, each with its shortcuts. */

@@ -26,6 +26,7 @@ import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import {
   dealsAreOn,
+  FIRST_RUN_HELPERS,
   hoursLines,
   pipelineOf,
   resolveFacts,
@@ -595,4 +596,31 @@ test("in a browser, the pipeline record's page has every global the People pages
   // The list only shrinks: a name published AND excused is an excuse nobody will delete.
   const stale = [...PEOPLE_NOT_PUBLISHED.keys()].filter((n) => published.has(n) || !read.has(n)).sort();
   assert.deepEqual(stale, [], `no longer true of: ${stale.join(", ")}`);
+});
+
+/* ------------------------------------------- the first run and Ask ------------------------------------------- */
+
+test("every record publishes the first run's helpers, from contracts; Ask's client only in a browser, where the first run is its own surface (Ask Rewired, Phase 7)", async () => {
+  for (const name of SCENARIOS) {
+    const w = await publishedGlobals(name);
+    assert.deepEqual(
+      Object.keys(w.__firstRun).sort(),
+      Object.keys(FIRST_RUN_HELPERS).sort(),
+      `${name}: setup.ts's own`,
+    );
+    assert.deepEqual(plain(w.__firstRun.words), plain(FIRST_RUN_HELPERS.words), `${name}: its words, from contracts`);
+    assert.equal(w.__ask, undefined, `${name}: outside a browser there is nothing for the Line to ask with`);
+  }
+  const record = scenario("nightly", NOW);
+  const { w } = browserWindow(record, "#/start");
+  vm.runInNewContext(await buildFixture(record), vm.createContext(w));
+  assert.equal(
+    w.location.pathname,
+    `/w/${WORKSPACE.slug}/`,
+    "every record stands at its workspace's address, so Ask's reads name it",
+  );
+  assert.equal(typeof w.__ask?.send, "function", "in a browser the Line has the bridge's client (ask.ts installAsk)");
+  assert.equal(w.__ask.surfaceFor("start", null), "start", "the first run is a page Ask knows it is on");
+  const context = plain(w.__ask.context({ page: "start", param: "phone" }, "What is left to set up?"));
+  assert.deepEqual([context.surface, context.route, context.view], ["start", "start/phone", "phone"]);
 });
