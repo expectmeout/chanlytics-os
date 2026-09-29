@@ -34,17 +34,13 @@ export const errorMessage = (e: unknown): string => (e instanceof Error ? e.mess
  * The body as sent when it is a JSON object; anything else -- not JSON, or JSON that is not an object (null, an array,
  * a number, a string, a boolean) -- is an empty body, validated by the door like any other. A door reads `body.op` and
  * writes the workspace back onto the body, and both threw on null or a primitive: a 500 where its validation answers
- * 400.
+ * 400. `source` is the request, or its body when a door has already read it as text (the model gateway measures it
+ * first).
  */
-export async function readBody<T extends object>(request: Request): Promise<Partial<T>> {
-  return bodyOf<T>(await request.text());
-}
-
-/** The same reading of a body a door has already read as text (the model gateway measures it first). */
-export function bodyOf<T extends object>(text: string): Partial<T> {
+export async function readBody<T extends object>(source: Request | string): Promise<Partial<T>> {
   try {
-    const body: unknown = JSON.parse(text);
-    return typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Partial<T>) : {};
+    const body: unknown = JSON.parse(typeof source === "string" ? source : await source.text());
+    return typeof body === "object" && body !== null && !Array.isArray(body) ? body : {};
   } catch {
     return {};
   }

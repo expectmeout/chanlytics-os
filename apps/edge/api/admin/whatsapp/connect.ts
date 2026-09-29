@@ -36,6 +36,14 @@ import {
 import { env } from "../../../lib/env.js";
 import { logger } from "../../../lib/log.js";
 
+interface ConnectBody {
+  tenant_id?: string;
+  user_id?: string;
+  code?: string;
+  phone_number_id?: string;
+  waba_id?: string;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
@@ -46,13 +54,7 @@ export async function POST(request: Request): Promise<Response> {
   const appSecret = env.META_APP_SECRET;
   if (!appId || !appSecret) return refuse(503, "no_app_credentials");
 
-  const body = await readBody<{
-    tenant_id?: string;
-    user_id?: string;
-    code?: string;
-    phone_number_id?: string;
-    waba_id?: string;
-  }>(request);
+  const body = await readBody<ConnectBody>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;

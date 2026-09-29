@@ -2316,6 +2316,9 @@ var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 var REVIEW_NEWS_MS = 36 * HOUR_MS;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function receptionistOn(status) {
+  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
   return status === "active";
@@ -4791,6 +4794,16 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
   );
   if (error) throw new Error(error.message);
 }
+async function workspaceAnswersOnItsOwn(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
+  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status));
+}
 
 // src/paged.ts
 var MAX_ROWS = 1e3;
@@ -5719,6 +5732,7 @@ export {
   withdrawEmail,
   withdrawPartnerInvite,
   workspaceAbout,
+  workspaceAnswersOnItsOwn,
   workspaceMaySpend,
   workspaceNameAndConfig,
   writtenEmail,

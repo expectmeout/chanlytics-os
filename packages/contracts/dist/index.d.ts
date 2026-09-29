@@ -21955,8 +21955,7 @@ type EdgeErrorCode = (typeof EDGE_ERROR_CODES)[number];
  * edge door answers one, so they are not EDGE_ERROR_CODES; they are named here so the dashboard reads every code an
  * answer can carry from one union.
  */
-declare const EDGE_CALL_CODES: readonly ["edge_timeout", "edge_unreachable", "no_edge_credential", "preview"];
-type EdgeCallCode = (typeof EDGE_CALL_CODES)[number];
+type EdgeCallCode = "edge_timeout" | "edge_unreachable" | "no_edge_credential" | "preview";
 /** What an edge answer's `error` can be, as the dashboard reads it: a door's code, or the call's own. */
 type EdgeAnswerCode = EdgeErrorCode | EdgeCallCode;
 /**

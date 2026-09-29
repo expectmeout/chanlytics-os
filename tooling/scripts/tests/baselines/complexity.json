@@ -11,7 +11,7 @@
   },
   "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::handle#1": {
     "lines": 57,
-    "branches": 32,
+    "branches": 31,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
@@ -595,34 +595,29 @@
     "depth": 1
   },
   "apps/edge/api/admin/eval.ts::POST#1": {
-    "lines": 100,
-    "branches": 36,
+    "lines": 95,
+    "branches": 35,
     "depth": 2
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 83,
-    "branches": 33,
+    "lines": 78,
+    "branches": 32,
     "depth": 3
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 175,
-    "branches": 46,
+    "lines": 170,
+    "branches": 45,
     "depth": 1
   },
   "apps/edge/api/admin/voice-converge.ts::POST#1": {
-    "lines": 96,
-    "branches": 34,
+    "lines": 91,
+    "branches": 33,
     "depth": 4
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
-    "lines": 192,
-    "branches": 47,
+    "lines": 187,
+    "branches": 46,
     "depth": 3
-  },
-  "apps/edge/api/admin/whatsapp/templates-create.ts::POST#1": {
-    "lines": 95,
-    "branches": 41,
-    "depth": 1
   },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,

@@ -2051,6 +2051,7 @@ import { z as z6 } from "zod";
 
 // src/config/unknown-keys.ts
 var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var isList = (v) => Array.isArray(v);
 function keysLeftOut(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
     return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
@@ -2073,7 +2074,7 @@ function sameJson(a, b) {
   return Object.is(a, b);
 }
 function withKeysLeftOut(sent, raw, kept) {
-  if (Array.isArray(sent) && Array.isArray(raw) && Array.isArray(kept)) {
+  if (isList(sent) && isList(raw) && isList(kept)) {
     const taken = /* @__PURE__ */ new Set();
     return sent.map((el) => {
       const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));

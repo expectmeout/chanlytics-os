@@ -9,7 +9,7 @@ const LIVE_CALL_TIMEOUT_MS = 15_000;
 /** Why a live call was not reached: the edge's code, with the provider's status when the door gave one ("provider 404"). */
 type LiveCallOutcome = { ok: true } | { ok: false; reason: EdgeReason | `${EdgeAnswerCode} ${number}` };
 
-function refusalOf(r: EdgeAnswer): LiveCallOutcome {
+function unreached(r: EdgeAnswer): LiveCallOutcome {
   const status = typeof r.body?.status === "number" ? r.body.status : null;
   const reason = edgeReasonOf(r);
   return { ok: false, reason: status && r.body?.error ? `${r.body.error} ${status}` : reason };
@@ -29,7 +29,7 @@ export async function whisperLiveCall(retellCallId: string, text: string, trigge
     { timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  return refusalOf(r);
+  return unreached(r);
 }
 
 /**
@@ -42,7 +42,7 @@ export async function stopLiveCall(retellCallId: string): Promise<LiveCallOutcom
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge("/api/admin/stop-call", { call_id: retellCallId }, { timeoutMs: LIVE_CALL_TIMEOUT_MS });
   if (edgeAnswered(r)) return { ok: true };
-  return refusalOf(r);
+  return unreached(r);
 }
 
 /**
@@ -58,5 +58,5 @@ export async function handOverLiveCall(retellCallId: string, line: string): Prom
     { timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  return refusalOf(r);
+  return unreached(r);
 }

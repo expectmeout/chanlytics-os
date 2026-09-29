@@ -12,7 +12,7 @@
  * steer and whisper.
  */
 import { json, refuse } from "../../lib/http.js";
-import { bodyOf } from "../../lib/admin-door.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { ASK_TOKENS_DAY, MIN_MS, type EdgeRefusal } from "../../lib/packages/contracts.js";
@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const raw = await request.text();
   if (raw.length > GATEWAY_MAX_BODY) return refuse(413, "too_large");
-  const body = bodyOf<{ tenant_id?: string; user_id?: string; purpose?: string; request?: unknown }>(raw);
+  const body = await readBody<{ tenant_id?: string; user_id?: string; purpose?: string; request?: unknown }>(raw);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;

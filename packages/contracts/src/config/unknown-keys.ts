@@ -11,6 +11,9 @@ import type { z } from "zod";
 const isJsonObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** An array whose elements are read as what they are, unknown: Array.isArray alone narrows to any[]. */
+const isList = (v: unknown): v is unknown[] => Array.isArray(v);
+
 /** Where `raw` holds a key the parse left out, each as the path to it. A key whose value is undefined carries nothing. */
 export function keysLeftOut(
   raw: unknown,
@@ -48,7 +51,7 @@ function sameJson(a: unknown, b: unknown): boolean {
  * it, wherever it now sits; an element the page changed is the page's, since which stored element it was is a guess.
  */
 export function withKeysLeftOut(sent: unknown, raw: unknown, kept: unknown): unknown {
-  if (Array.isArray(sent) && Array.isArray(raw) && Array.isArray(kept)) {
+  if (isList(sent) && isList(raw) && isList(kept)) {
     const taken = new Set<number>();
     return sent.map((el) => {
       const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
