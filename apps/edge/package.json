@@ -6,13 +6,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.125.0",
+    "@anthropic-ai/sdk": "^0.128.0",
     "@chanlytics/channels": "workspace:*",
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
-    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/supabase-js": "^2.117.2",
     "stripe": "22.6.2"
   },
   "devDependencies": {
