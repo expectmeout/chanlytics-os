@@ -1,11 +1,11 @@
 /**
- * What the one subscription listens to is what the database publishes.
+ * No table is published to Postgres Changes (decision 0019, step 3, 00266).
  *
- * packages/db realtime.ts names the tables whose changes repaint a surface, and a surface's refreshOnTables may name
- * only those (a-list-has-a-life.test.mjs holds that half). The other half is the catalog's: a table the client
- * watches but the database never put in `supabase_realtime` sends nothing, and the surface waits for a reload with
- * no error anywhere. lead_searches was one, from 00140 until 00212; this reads the publication itself, on the
- * database `supabase start` builds from the migrations, through the CLI, the way privileges.db.test.mjs does.
+ * The tabs hear each workspace's notices on its private topic (00265): a statement trigger on each table the live feed
+ * watches (packages/db realtime.ts, WATCHED), held to that list by each-workspace-is-told-what-changed.db.test.mjs. A
+ * table put back in `supabase_realtime` would have Realtime read each of its changes from the write-ahead log and weigh
+ * it against subscriptions no tab holds: the cost 0019 took away. This reads the publication itself, on the database
+ * `supabase start` builds from the migrations, through the CLI, the way privileges.db.test.mjs does.
  *
  * Runs against the local stack only. SUPABASE_CLI names the binary when `supabase` is not on PATH.
  */
@@ -53,16 +53,15 @@ const published = () =>
   ).map((r) => r.tablename);
 
 test(
-  "every table the one subscription watches is in supabase_realtime, lead_searches among them (00212)",
+  "no table is published to Postgres Changes: the live feed is each workspace's notices (00265, 00266)",
   { skip },
   async () => {
     const { watchedTables } = await import(pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href);
-    const live = published();
-    assert.ok(live.includes("lead_searches"), "a search's own row reaches the Leads page live (00212)");
+    assert.ok(watchedTables().includes("lead_searches"), "the live feed still hears its tables, by their triggers");
     assert.deepEqual(
-      watchedTables().filter((t) => !live.includes(t)),
+      published(),
       [],
-      "a watched table the database does not publish sends nothing, and its surface waits for a reload",
+      "a table the live feed hears gets its trigger (00265's list and WATCHED), never a place in supabase_realtime",
     );
   },
 );
