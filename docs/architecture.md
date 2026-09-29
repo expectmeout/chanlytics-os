@@ -357,9 +357,14 @@ shell reaches the kit through its classes, since
 the tokens. A surface in TSX cannot import the house's JSX components over
 the kit's classes (`StatePill`, `Confirm`, the record kit's fields): the
 first surface that needs one moves it into the kit as TSX, drawing what it
-drew (the plan's Phase 3). A sheet, a menu or a picker waits instead on
-Ruben's decision whether the kit builds its interactive components on Base
-UI. The lint's messages name the kit's Field, Switch, Select, Sheet and
+drew (the plan's Phase 3). A component with behaviour of its own (a sheet,
+a menu, a picker, a tooltip, a toast, a switch, tabs, a field) is built in
+the kit on Base UI's unstyled parts (`@base-ui/react`, one pinned version,
+each part imported alone), which bring focus, Escape, the keyboard and the
+page held still behind a sheet, while the kit's classes draw them (the
+plan's decision 15 and step 2.5). A surface swaps the house's for it at its
+kit step, as a listed difference, and deletes the hand-written behaviour
+there. The lint's messages name the kit's Field, Switch, Select, Sheet and
 Confirm, which arrive by one of these two roads.
 
 **The gallery** draws every class of the registry in every state its rules

@@ -283,8 +283,12 @@ a surface's own stylesheet   layout only
   and a chart kit already in shadcn's shape.
 - **The legacy pages cannot import a component** until 0015 moves them. A CSS class reaches them today.
 - **What shadcn gives is what §3 builds:** owned components, semantic variables and variants. Radix's accessible
-  primitives are the strongest argument for it; the kit keeps the house's own focus, escape and keyboard rules
-  (`RecordSheet`'s focus return, `MoreMenu`'s escape, `trapTab`), which are already tested.
+  primitives are the strongest argument for it. This bullet first answered that the kit keeps the house's own focus,
+  escape and keyboard rules (`RecordSheet`'s focus return, `MoreMenu`'s escape, `trapTab`), which are already tested.
+  On 29 September Ruben took the other road for behaviour alone (decision 15): the kit's interactive components are
+  built on Base UI (`@base-ui/react`), a library of unstyled accessible parts, and each hand-written behaviour is
+  deleted as its Base UI version lands. The rest of this answer stands: Base UI draws no CSS, so its parts wear the
+  kit's classes, and no page's class changes.
 
 ---
 
@@ -385,6 +389,11 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 - **The React side.** One module per component: typed props, `variant`, `size` and `tone` as unions, `className`
   accepted for layout only, refs forwarded, and a door is a link (the `routeDoor` rule: a thing with a page of its own
   is an `<a>`). A component renders the kit's classes, so a legacy page and a moved page draw the same markup.
+- **Behaviour.** A component with behaviour of its own (the menu and the popover, the sheet and the dialog, the select
+  and the combobox, the tooltip, the toast, the switch, the tabs and the segmented control, the field) is built on
+  Base UI's unstyled part (decision 15, step 2.5). Base UI holds focus, Escape, the keyboard, the page behind and what
+  a screen reader is told; the kit's classes draw it. One exact version is pinned, and each component imports its own
+  part (`@base-ui/react/dialog`), never the package's index.
 - **How the legacy shell reaches it.** Through the classes, today. A React component reaches a legacy page only when
   0015 moves it with its first surface; then `legacy-bridge/seed-globals.ts` publishes it under its old name, and the
   site moves from the JSX file to the bridge, so the publishers count does not rise (0015, "What is shared moves
@@ -573,11 +582,25 @@ when its first surface moves (Phase 3), as a move, so it is never written twice.
 its props' type, named in the kit's index, and its type test; and
 `tooling/scripts/tests/styles/kit-components.test.mjs`, which holds every entry of their gallery families to what they
 draw, element for element: the tag, the classes and the attributes a stylesheet or a screen reader reads. So an entry
-or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet waits
-on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`): its behaviour
-(focus held inside, Escape, the page behind still) is what that decision settles, so its component is written with
-it; until then `kit.css` draws `.sheet`, and the gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can
-import every primitive, the Sheet's once that decision is taken.
+or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet
+waited on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`), since its
+behaviour (focus held inside, Escape, the page behind still) is what that decision settles. He took it on 29
+September (decision 15), so the Sheet is 2.5's, with every component that has behaviour of its own. _Proof:_ the
+tests. _Done when:_ a moved surface can import every primitive that has no behaviour of its own.
+
+**2.5 The interactive components, on Base UI.** Decision 15, as one pull request of its own after Phase 2's: the menu
+and the popover, the sheet and the dialog (a side pane on a desk, full screen on a phone), the select and the
+combobox, the tooltip, the toast, the switch, the tabs and the segmented control, and the field. Each is Base UI's
+part wearing the kit's classes, typed as 2.4's are, named in the kit's index, with its type test, and drawn in the
+gallery in its states. Base UI's exact version is pinned in the dashboard's `package.json`, and each component imports
+its own part. The kit first takes a folder per family, as Phase 3 says it will, since these components would take it
+past the 20 modules a directory may hold. No page draws one yet: each replaces house JSX (`RecordSheet`,
+`PhoneSheet`, `MoreMenu`, `RecordCombobox`, `DsSelect`, `CmPicker`, `usePPToast`, `RecordTip`, `SetToggle`,
+`SurfaceTabs`) at its surface's Phase 4 step, which deletes the hand-written behaviour in the same change. _Proof:_
+the tests, the gallery spec, and each component's behaviour driven in a browser: Escape closes a sheet, a menu or a
+popover and returns focus to what opened it, Tab stays inside a modal sheet, the page behind it does not scroll, a
+menu's arrows move and its typeahead finds, a switch and a tab answer Space and the arrows. _Done when:_ a moved
+surface can import every primitive of §3.4.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
@@ -602,6 +625,11 @@ and a directory holds at most 20 (the tree-shape measure, `docs/debt.md`).
 | 12        | Ask                                        | the Ask face                                                                                                       |
 | 13        | The frame, then the tree                   | `Icon`, the tooltip, `SurfaceTabs`, the gestures, role gating; the sidebar and top bar stay the frame's            |
 
+Decision 15 changes no move. A component with behaviour of its own (`MoreMenu`, `usePPToast`, `PhoneSheet`, the deal
+and step sheets, `CmPicker`, `SetToggle`, the tooltip, `SurfaceTabs`) moves as written and draws what it drew. Each
+surface's Phase 4 step swaps it for 2.5's Base UI component, and the house's is deleted with the last page that draws
+it.
+
 ### Phase 4 · Every surface on the kit (nothing a member can see, but for the listed harmonies)
 
 One pull request per surface, in 0015's order, after its move (decision 10). In it:
@@ -613,8 +641,13 @@ One pull request per surface, in 0015's order, after its move (decision 10). In 
 - Classic draws what it drew. Where a page's own primitive differed from the kit's (a 26px chip beside the kit's 20px,
   a 9.5px uppercase tag), the page takes the kit's and the pull request shows each difference, before and after
   (decision 11).
+- a house component with behaviour of its own (a sheet, a menu, a picker, a tooltip, a toast, a switch, tabs) is
+  swapped for the kit's Base UI one. The swap is a listed difference, not a byte-equal move: Base UI writes its own
+  attributes and focus handling, so the pull request lists what the markup and the keyboard do differently, and it
+  deletes the surface's hand-written behaviour in the same change. The first Base UI component a surface draws raises
+  the workspace route's JS budget in that change, with the reason (decision 15).
 
-_Proof:_ style equality, with the harmonies listed. _Done when:_ page stylesheets hold layout only, and the two style
+_Proof:_ style equality, with the harmonies and the Base UI swaps listed. _Done when:_ page stylesheets hold layout only, and the two style
 measures are empty outside the kit, or each entry left is argued in the register.
 
 ### Phase 5 · The look (what a member sees: the buttons)
@@ -708,6 +741,7 @@ alternatives.
 | 2.2  | The missing primitives (four)         | no               | gallery, style equality         | 2.3                                 |
 | 2.3  | The gallery, before 2.2               | no               | e2e spec                        | 1.7                                 |
 | 2.4  | React components, new primitives      | no               | tests                           | 2.2                                 |
+| 2.5  | Interactive components, on Base UI    | no               | tests, gallery, keyboard        | 2.4; decision 15                    |
 | 3.x  | 0015's thirteen steps                 | no               | equal by value                  | 0015's own holds                    |
 | 4.x  | Each surface on the kit (twelve)      | harmonies only   | style equality, listed diffs    | that surface's move                 |
 | 5.1  | Glass tokens                          | no (not offered) | gallery shots                   | 2.3                                 |
@@ -723,8 +757,9 @@ alternatives.
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
 
-About 42 pull requests besides 0015's own: 7 in Phase 1, 1 in Phase 2 (its steps together, on Ruben's instruction of
-28 September, where they were planned as 7 with 2.2 as four), 12 in Phase 4, about 17 in Phase 5, 5 in Phase 6.
+About 43 pull requests were planned besides 0015's own: 7 in Phase 1, 8 in Phase 2 (2.2 as four), 12 in Phase 4,
+about 17 in Phase 5, 5 in Phase 6. Since Ruben's instruction of 28 September they ship in big batches, one push each:
+2.1 to 2.4 as one (#1331), Phase 6 with steps 5.1 to 5.3 as one, and 2.5 as one.
 Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before the
 surfaces are done, since they are not offered to members until step 5.5.
 
@@ -740,7 +775,8 @@ surfaces are done, since they are not offered to members until step 5.5.
 - **The look's boot:** `theme-boot.test.mjs` extended; the chrome pins updated in the same change; the e2e sidebar spec.
 - **Moves:** 0015's equal-by-value proof, unchanged.
 - **The bundle budget:** the kit's first steps may raise the CSS by a little, as a Rises row; each Phase 4 step
-  deletes page CSS, so the budget falls from there.
+  deletes page CSS, so the budget falls from there. The JS rises with Base UI alone: the change in which a surface
+  first draws one of its components raises the JS budget, with the reason, component by component (decision 15).
 - **Accessibility:** the one-badge spec's contrast rules (tone words in the `-ink` tokens, 4.5:1) checked on glass
   fills in the gallery; #1230's lint.
 - **The phone:** the blur's cost measured on the phone app on a mid-range phone before step 5.5.
@@ -793,6 +829,13 @@ the road not taken beside it.
 14. **The quiet link button:** a primitive of the kit, `.link-btn` and its danger form, the kit's name for the house's
     quiet link button (People's `.cl-bucket-link`), taken on 28 September with the panel (step 2.2). Not
     `.btn-link`, which would read as a modifier of the button, whose height, padding, border and ground it has none of.
+15. **The kit's behaviour:** Base UI (`@base-ui/react`) for every component with behaviour of its own (step 2.5),
+    taken by Ruben on 29 September with four conditions. Each hand-written behaviour is deleted as its Base UI version
+    lands, never kept beside it on a page. One exact version is pinned, and each component imports its own part. The
+    workspace route's JS budget is raised in the same change as each component that reaches it, with the reason.
+    Phase 4's swaps of them are listed differences, not byte-equal moves. The CSS plan does not change, since Base UI
+    draws nothing, and a component reaches a surface only after 0015 moves it, so Phase 3 does not change either. Not
+    the house's own focus, escape and keyboard code, kept and extended (§2.3's first answer).
 
 ---
 

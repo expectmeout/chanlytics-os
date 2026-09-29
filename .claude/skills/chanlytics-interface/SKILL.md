@@ -58,7 +58,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
    takes `href` and is drawn as a link, and `className` carries layout alone. A surface cannot import the house's JSX,
    and the lint names a Field, Switch, Select, Sheet and Confirm the kit does not have yet. The first surface that
    needs one moves the house's JSX into the kit as TSX, drawing what it drew (the plan's Phase 3 table). A sheet, a
-   menu or a picker waits on Ruben instead (below).
+   menu, a picker or anything else with behaviour of its own is built on Base UI instead (below).
 3. Place it from the page's own stylesheet with display, grid, flex, gap, position, size and overflow, through a class
    of the page's own that names no kit class and holds no primitive's word: `.cal-copy` is not counted, where
    `.cal-copy-btn` and `.cal-tools > .btn` both are. Which variant it draws at which width (a glyph alone on a phone)
@@ -189,10 +189,21 @@ kit, step 2).
 | confirmation, flash | `Confirm` (`.confirm*`), `usePPToast` (`.pp-toast*`) |
 | glyph | `Icon` (`apps/dashboard/src/legacy/components/icons.jsx`) |
 
-## Waiting on Ruben
+## Behaviour: Base UI
 
-Whether the kit builds its interactive components (a sheet, a menu, a picker) on Base UI (`@base-ui/react`) is Ruben's
-decision, and not yet taken. Until it is, none of them is written as the kit's TSX: `kit.css` draws `.sheet` and the
-gallery holds it, and a legacy page's sheet, menu and picker are `RecordSheet`, `MoreMenu` and `RecordCombobox`. A
-surface that needs one, or any component with behaviour of its own (focus held inside, Escape, the page behind held
-still), asks before writing it.
+The kit builds every component with behaviour of its own (a sheet or dialog, a menu or popover, a select or combobox,
+a tooltip, a toast, a switch, tabs and the segmented control, a field) on Base UI (`@base-ui/react`): Ruben's decision
+of 29 September, the plan's decision 15 and step 2.5. Base UI brings the behaviour (focus held inside, Escape, the
+keyboard, the page behind held still, what a screen reader is told), and the kit's classes draw its parts, since Base
+UI draws nothing.
+
+- Write none of that behaviour by hand in new code: no focus trap, Escape listener, outside-click handler or scroll
+  lock of your own. Import the kit's component; if the kit lacks it, it is built in the kit, on Base UI.
+- One exact version is pinned, and each component imports its own part (`@base-ui/react/dialog`), never the package's
+  index.
+- A legacy page keeps the house's component (`RecordSheet`, `MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
+  until its surface's Phase 4 step swaps it for the kit's. The swap is a listed difference, not a byte-equal move. It
+  deletes the surface's hand-written behaviour in the same change, and the first Base UI component a surface draws
+  raises the workspace route's JS budget there, with the reason.
+- Until step 2.5 lands, the kit holds none of them: `kit.css` draws `.sheet`, the menu and the tooltip, and the
+  gallery holds them.
