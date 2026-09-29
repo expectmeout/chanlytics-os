@@ -5,15 +5,15 @@
  * come with step 2.5, built on Base UI (the plan's decision 15).
  */
 export { cx, variants } from "./variants";
-export { Button } from "./button";
-export type { ButtonProps } from "./button";
-export { Face } from "./face";
-export type { FaceProps } from "./face";
-export { LinkButton } from "./link-button";
-export type { LinkButtonProps } from "./link-button";
-export { ListRow } from "./list-row";
-export type { ListRowProps } from "./list-row";
-export { Meter } from "./meter";
-export type { MeterProps } from "./meter";
-export { Panel } from "./panel";
-export type { PanelProps } from "./panel";
+export { Button } from "./button/button";
+export type { ButtonProps } from "./button/button";
+export { Face } from "./face/face";
+export type { FaceProps } from "./face/face";
+export { LinkButton } from "./link-button/link-button";
+export type { LinkButtonProps } from "./link-button/link-button";
+export { ListRow } from "./list-row/list-row";
+export type { ListRowProps } from "./list-row/list-row";
+export { Meter } from "./meter/meter";
+export type { MeterProps } from "./meter/meter";
+export { Panel } from "./panel/panel";
+export type { PanelProps } from "./panel/panel";

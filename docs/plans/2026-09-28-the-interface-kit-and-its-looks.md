@@ -268,7 +268,7 @@ tags and "Needs you" in the accent (Appendix A, item 8).
 ```text
 tokens.css                   scales · roles · modes · looks          a look is edited here
 src/surfaces/kit/kit.css     the primitives, reading roles only      a component is styled here
-src/surfaces/kit/*.tsx       the React components, for TSX pages     a component's markup lives here
+src/surfaces/kit/*/*.tsx     the React components, for TSX pages     a component's markup lives here, a folder each
 legacy pages                 the kit's class names, until they move
 a surface's own stylesheet   layout only
 ```
@@ -699,7 +699,7 @@ banks its last entry.
   composes them and never declares its own; a new need is a variant in the kit, with its gallery entry. **A value is
   a token.** A colour, type size, radius, shadow, blur or duration is read from `tokens.css`; a page stylesheet
   declares layout only.
-- The canonical-example table: a component (`apps/dashboard/src/surfaces/kit/button.tsx` with `kit.css`), a colour,
+- The canonical-example table: a component (`apps/dashboard/src/surfaces/kit/button/button.tsx` with `kit.css`), a colour,
   size or effect (a role in `tokens.css`), a look (a `[data-look]` block in `tokens.css`), a page's styles (layout
   only, beside its surface). `docs-paths.test.mjs` then holds these paths.
 - "Where new code goes": something a page draws takes its primitives from the kit, and its layout lives with its

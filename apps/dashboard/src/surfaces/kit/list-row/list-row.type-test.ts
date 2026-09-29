@@ -12,8 +12,8 @@
  */
 import type { ComponentProps, ReactElement, ReactNode, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { ListRowProps } from "./index";
-import { ListRow } from "./index";
+import type { ListRowProps } from "../index";
+import { ListRow } from "../index";
 
 /** What a page knows only as it runs. */
 type AsItRuns = { glyph: ReactElement | undefined; href: string | undefined };

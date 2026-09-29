@@ -8,7 +8,7 @@
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef, ReactElement, SyntheticEvent } from "react";
-import { cx, variants } from "./variants";
+import { cx, variants } from "../variants";
 
 const faceClasses = variants({ base: "face", variants: { holds: { initials: "", glyph: "face-glyph" } } });
 

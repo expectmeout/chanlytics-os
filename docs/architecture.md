@@ -318,7 +318,7 @@ as each surface moves onto the kit (the plan's Phase 4).
 ```text
 apps/dashboard/src/legacy/styles/tokens.css   the scales, each theme's colours, the roles, the looks
 apps/dashboard/src/surfaces/kit/kit.css       the kit's own rules, reading the tokens
-apps/dashboard/src/surfaces/kit/*.tsx         its components, for a surface written in TSX
+apps/dashboard/src/surfaces/kit/*/*.tsx       its components, a folder each, for a surface written in TSX
 a page's own stylesheet                       its layout; until Phase 4, its own primitives and values too
 ```
 

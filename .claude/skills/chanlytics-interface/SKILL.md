@@ -43,7 +43,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | The tokens | `apps/dashboard/src/legacy/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
-| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`: a module each in `apps/dashboard/src/surfaces/kit/`, a type test beside each, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts` |
+| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`: a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `StatePill`, `MoreMenu`, `Confirm`, `EmptyState`, `FailedRead`, `FieldError` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`; `SurfaceTabs`; the record kit (`apps/dashboard/src/legacy/components/record-*.jsx`); `Icon`. JSX, which a surface cannot import (Draw with the kit, step 2) |
 | The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
@@ -78,7 +78,7 @@ colour or blur; no class that draws a primitive, and no selector naming a kit cl
 2. **The name** in `classes.json`: a class that draws goes under `classes`; a state written as a word of its own
    (`.active`) under `modifiers`.
 3. **The component**, where the family has one: the value in its `variants()` map and its props' type, and in the pin
-   its type test holds on that union (`button.type-test.ts`).
+   its type test holds on that union (`button/button.type-test.ts`).
 4. **The gallery entry**, in the family in `kit-gallery.mjs`: the markup the component renders, with every state its
    rules name as a class or an attribute (disabled, a role's gate, `.active`); the spec forces the presses itself. A
    variant that reproduces a page's own rule takes a `twin`: a `source` entry drawing the page's class, which the spec
@@ -93,9 +93,10 @@ Done when all of them are green: the type test compiles, and the spec draws ever
 token it reads moves what it feeds.
 
 A new primitive takes the same steps under a short name in the house's style that no stylesheet uses yet, as a family
-of its own in the gallery, with its component and type test beside the others. The kit's folder held 16 modules on 29
-September, of the 20 a folder may hold (the tree-shape measure): before a change passes 20, each family takes a folder
-of its own (`kit/button/`), the index naming it from there (the plan's Phase 3).
+of its own in the gallery, with its component and type test in a folder of its own beside the others (`kit/button/`),
+which the index names it from. The kit's root holds only what its families share: the index, the stylesheet, the
+registry, `variants.ts` and `press.tsx`, so no folder of it comes near the 20 modules a folder may hold (the
+tree-shape measure).
 
 ## Add a value
 

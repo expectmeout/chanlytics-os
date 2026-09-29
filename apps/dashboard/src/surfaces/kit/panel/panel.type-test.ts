@@ -11,8 +11,8 @@
  */
 import type { ComponentProps, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { PanelProps } from "./index";
-import { Panel } from "./index";
+import type { PanelProps } from "../index";
+import { Panel } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _panelTakes(
