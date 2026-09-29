@@ -162,15 +162,18 @@ const EDGE_MAY_NOT_IMPORT = [
  * A surface draws its controls with the kit's components (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
  * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, whether it is
  * written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement("button")`, and the JSX
- * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead. The kit draws each raw element
- * once, in its component.
+ * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead, by the folder it is in. The kit
+ * draws each raw element once, in its component; Confirm is the house's until its first surface moves it into the kit.
  */
 const KIT_TAKES = {
-  button: "Take the kit's Button, not a raw <button>; a button that opens a page is a link, as a door is.",
-  input: "Take the kit's Field, or the kit's Switch for a checkbox, not a raw <input>.",
-  select: "Take the kit's Select, not a raw <select>.",
-  textarea: "Take the kit's Field, not a raw <textarea>.",
-  dialog: "Take the kit's Sheet, or the kit's Confirm for a confirmation, not a raw <dialog>.",
+  button:
+    "Take the kit's Button (kit/button/), not a raw <button>; a button that opens a page is a link, as a door is.",
+  input: "Take the kit's Field (kit/field/), or the kit's Switch (kit/switch/) for a checkbox, not a raw <input>.",
+  select:
+    "Take the kit's Select (kit/select/), or its Combobox (kit/combobox/) for a list to type into, not a raw <select>.",
+  textarea: "Take the kit's Field (kit/field/) with its `rows`, not a raw <textarea>.",
+  dialog:
+    "Take the kit's Sheet (kit/sheet/), or the kit's Confirm for a confirmation (the house's until it moves), not a raw <dialog>.",
 };
 /** The calls that make an element from its name: React's own, and the JSX runtime's. */
 const MAKES_AN_ELEMENT = "/^(createElement|jsx|jsxs|jsxDEV)$/";

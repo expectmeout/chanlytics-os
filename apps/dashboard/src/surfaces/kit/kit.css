@@ -615,6 +615,21 @@ a.chip:focus-visible {
 .more-wrap > .more-menu.escape.align-right.up {
   transform-origin: bottom right;
 }
+/* The kit's menu (surfaces/kit/menu/menu.tsx, on Base UI's): Base UI places it against the window, in a portal on the
+   document's body, on a positioner of its own (.pop-place), which the kit's popover, select and combobox stand on
+   too: over the sheets (401) and under the toasts (450), as the house's picker (.lp-pop) is. The menu stands in flow
+   on it, where the house's hangs itself from its .more-wrap. */
+.pop-place {
+  z-index: 420;
+}
+.pop-place > .more-menu {
+  position: static;
+}
+/* An item that opens a page of its own is a link (the kit's Menu, "a door is a link"): no underline, as a link that
+   is a button has none. */
+a.more-item {
+  text-decoration: none;
+}
 
 /* ---- Confirm — the one armed question (data-bits.jsx Confirm) ----
    A line where the control that armed it was, or a panel under the row when
@@ -983,6 +998,14 @@ a.chip:focus-visible {
   .ui-tip {
     transition: none;
   }
+}
+/* The kit's tooltip (surfaces/kit/tooltip/tooltip.tsx, on Base UI's): placed by Base UI on a positioner of its own
+   (.tip-place), over everything as the house's tip is, and the tip in flow on it, where the house's is fixed. */
+.tip-place {
+  z-index: 3000;
+}
+.tip-place > .ui-tip {
+  position: static;
 }
 
 /* ---------- SurfaceTabs — merged surfaces are views, not places ---------- */
@@ -2112,10 +2135,17 @@ textarea.rec-input {
   color: var(--ink-muted);
   cursor: pointer;
 }
+/* The option walked to: the record kit's says aria-selected, and the kit's select and combobox (Base UI's) say
+   data-highlighted, keeping aria-selected for the one chosen (data-selected), which is not washed for being chosen.
+   The select's option takes focus as it is walked to, so the wash is its ring. */
 .rec-combo-opt:hover,
-.rec-combo-opt[aria-selected="true"] {
+.rec-combo-opt[aria-selected="true"]:not([data-selected]),
+.rec-combo-opt[data-highlighted] {
   background: var(--bg-hover);
   color: var(--ink);
+}
+.rec-combo-opt[data-highlighted] {
+  outline: none;
 }
 .rec-combo-opt[data-chosen="true"] {
   font-weight: var(--weight-medium);
@@ -2126,6 +2156,25 @@ textarea.rec-input {
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
+}
+/* The kit's select and combobox (surfaces/kit/select/, combobox/; Base UI's): the list pops over the page on the
+   panel's pop (.panel-pop), at least as wide as its box (Base UI's --anchor-width), where the record kit's is part of
+   its box and pushes what is under it; so it has no rule at its top of its own. */
+.rec-combo-pop {
+  min-width: var(--anchor-width, auto);
+}
+.rec-combo-pop > .rec-combo-list {
+  border-top: 0;
+}
+/* The select's box is a button that says the one chosen, with its chevron at its end, where a native select draws
+   its own. */
+.rec-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: start;
+  cursor: pointer;
 }
 
 /* ---------- Two tiers of tip ---------- */
