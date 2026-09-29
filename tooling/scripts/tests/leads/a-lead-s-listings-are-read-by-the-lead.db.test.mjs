@@ -1,7 +1,7 @@
 /**
- * A lead's listings are found by the lead (00233), on a real database.
+ * A lead's listings are found by the lead (00256), on a real database.
  *
- * lead_places keeps the duplicate listings folded into a lead, and until 00233 nothing indexed it by the lead: the
+ * lead_places keeps the duplicate listings folded into a lead, and until 00256 nothing indexed it by the lead: the
  * Leads page counts each row's listings (leads_page, 00212 :76), the peek counts one lead's (packages/db leads.ts), and
  * lead_blank deletes them when retention or erasure blanks a lead (00161), each through every workspace's listings.
  * What this proves is that those reads grow with the lead and not the platform. A workspace of twenty leads is read

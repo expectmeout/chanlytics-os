@@ -1,4 +1,4 @@
--- 00233 · A lead's listings are indexed by the lead.
+-- 00256 · A lead's listings are indexed by the lead.
 --
 -- lead_places keeps the duplicate listings folded into a lead (00140 :249-258), and four things find them by the lead
 -- alone: the Leads page counts each row's (leads_page, 00212 :76), the peek counts one lead's (packages/db leads.ts),
