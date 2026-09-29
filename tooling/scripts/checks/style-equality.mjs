@@ -360,28 +360,32 @@ function sheetName(url) {
   return u.pathname.replace(/^\/w\/[^/]+\//, "").replace(/^\//, "");
 }
 
+/** What a page draws with, whose request refuses the page when it does not come in, by the browser's word for it. */
+const DRAWN_WITH = new Set(["stylesheet", "font"]);
+
 /**
- * Why a request refuses the page it was made for, or null. A stylesheet that did not load, or answered other than 2xx,
- * leaves the page drawn without its rules, and a recording of it is a recording of some other tree: step 2.1 met it,
- * when kit.css failed in one context and the run recorded 16,818 differences instead of refusing. `type` is the
- * browser's word for what was asked (Playwright's `resourceType()`), and a request for anything but a stylesheet is
+ * Why a request refuses the page it was made for, or null. A stylesheet or a font that did not load, or answered with
+ * an error (4xx or 5xx), leaves the page drawn without its rules or in a fallback face, and a recording of it is a
+ * recording of some other page: step 2.1 met it, when kit.css failed in one context and the run recorded 16,818
+ * differences instead of refusing. A redirect is on its way to an answer, which is judged in its turn, so it passes.
+ * `type` is the browser's word for what was asked (Playwright's `resourceType()`), and a request for anything else is
  * not judged here; `failure` is why one never answered, `status` what one answered.
  */
-export function sheetRefusal({ url, type, status = null, failure = null }) {
-  if (type !== "stylesheet") return null;
-  const sheet = sheetName(url) ?? url;
-  if (failure !== null) return `the stylesheet ${sheet} did not load (${failure})`;
-  return status >= 200 && status < 300 ? null : `the stylesheet ${sheet} answered ${status}`;
+export function loadRefusal({ url, type, status = null, failure = null }) {
+  if (!DRAWN_WITH.has(type)) return null;
+  const what = `the ${type} ${sheetName(url) ?? url}`;
+  if (failure !== null) return `${what} did not load (${failure})`;
+  return status >= 400 ? `${what} answered ${status}` : null;
 }
 
-/** Refuses the page, through `errors`, for each stylesheet that did not load or answered other than 2xx. */
-function watchSheets(page, errors) {
+/** Refuses the page, through `errors`, for each stylesheet or font that did not load or answered with an error. */
+function watchLoads(page, errors) {
   const refuse = (why) => why && errors.push(why);
   page.on("response", (r) =>
-    refuse(sheetRefusal({ url: r.url(), type: r.request().resourceType(), status: r.status() })),
+    refuse(loadRefusal({ url: r.url(), type: r.request().resourceType(), status: r.status() })),
   );
   page.on("requestfailed", (r) =>
-    refuse(sheetRefusal({ url: r.url(), type: r.resourceType(), failure: r.failure()?.errorText ?? "no answer" })),
+    refuse(loadRefusal({ url: r.url(), type: r.resourceType(), failure: r.failure()?.errorText ?? "no answer" })),
   );
 }
 
@@ -431,7 +435,7 @@ async function settle(page, quiet, what, seconds = SETTLE_SECONDS) {
 
 /**
  * Throws unless the page drew what it opened: a root, no "No surface at …" card, the theme asked for, and nothing in
- * `errors`, where an error the page threw and a stylesheet that did not come in are each written as a sentence.
+ * `errors`, where an error the page threw and a stylesheet or a font that did not come in are each a sentence.
  */
 async function refuseUndrawn(page, what, theme, errors) {
   if (errors.length) throw new Error(`${what}: ${errors[0]}`);
@@ -496,7 +500,7 @@ async function recordContext(browser, job) {
     page.setDefaultTimeout(PRESS_TIMEOUT_MS);
     const errors = [];
     page.on("pageerror", (e) => errors.push(`the page threw: ${e.message}`));
-    watchSheets(page, errors);
+    watchLoads(page, errors);
     const quiet = watchNetwork(page);
     await page.clock.install({ time: FIXED_NOW - CLOCK_LEAD_MS });
     await page.clock.pauseAt(FIXED_NOW);

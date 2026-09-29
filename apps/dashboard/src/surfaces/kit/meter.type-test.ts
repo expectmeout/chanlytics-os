@@ -1,8 +1,8 @@
 /**
  * What the kit's Meter takes, proved where the compiler reads it (meter.tsx): its parts, each a share with a tone or a
- * series colour, the rest of the whole or none, its three heights, and the words it says to a screen reader. A height
- * or a tone the map lacks, a part with both colours or neither, a part with no share, a meter with no words, and a
- * role of the page's stop compiling.
+ * series colour, the rest of the whole or none, its three heights, each written so or chosen as the page runs, and the
+ * words it says to a screen reader. A height or a tone the map lacks, a part with both colours or neither, a part with
+ * no share, a meter with no words, and a role of the page's stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
  * under `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -11,15 +11,15 @@
  */
 import type { ComponentProps, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
+import type { MeterProps } from "./index";
 import { Meter } from "./index";
 
-type Takes = ComponentProps<typeof Meter>;
-
 /** Never called: the compiler reads it, and nothing runs it. */
-function _meterTakes(meter: RefObject<HTMLDivElement | null>): void {
+function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boolean; size: MeterProps["size"] }): void {
   type _Its = [
-    Holds<Exactly<Takes["size"], "sm" | "md" | "lg" | undefined>>,
-    Holds<Exactly<Takes["parts"][number]["tone"], "ok" | "warn" | undefined>>,
+    Holds<Exactly<ComponentProps<typeof Meter>, MeterProps>>,
+    Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
+    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "warn" | undefined>>,
   ];
   Meter({ parts: [{ share: 12, color: "var(--color-whatsapp)" }], "aria-label": "12 WhatsApp" });
   Meter({
@@ -32,6 +32,8 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>): void {
     "aria-label": "12 will get it, 3 held back",
     ref: meter,
   });
+  // Chosen as the page runs: a part's tone, and the height.
+  Meter({ parts: [{ share: 3, tone: now.held ? "warn" : "ok" }], size: now.size, "aria-label": "3 so far" });
 
   // @ts-expect-error 8px, large and small: the kit draws three heights
   Meter({ parts: [], size: "xl", "aria-label": "Nothing yet" });

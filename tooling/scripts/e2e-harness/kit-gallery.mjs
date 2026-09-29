@@ -10,7 +10,9 @@
  * stylesheet shows on the next load. No React, no Babel, no fixture: each entry is the markup a kit component renders,
  * written out. Where the component is written in TSX (the Button, the link button, the panel, the face, the list row
  * and the meter, apps/dashboard/src/surfaces/kit/), styles/kit-components.test.mjs holds each entry of its family to
- * what it draws, so an entry or a component changed alone is red.
+ * what it draws, element for element: the tag, the classes, and the attributes a stylesheet or a screen reader reads
+ * (a type, disabled, hidden, an address, a role, aria-hidden, aria-label, aria-disabled, the gate's mark, a picture's
+ * alt, a style's declarations). So an entry or a component changed alone in any of those is red.
  *
  * An entry is `{ id, html }` and, where it needs them:
  *   twin    the id of a source entry that draws what this one must compute equal to (the spec's check 4);
@@ -1042,7 +1044,9 @@ export const FAMILIES = [
     family: "Link button",
     about:
       "kit.css's quiet link button (step 2.2): words that act with no ground, as Confirm's No and a line's acts draw " +
-      "them, and its danger form. Each beside the rule it reproduces (.cl-bucket-link), which the spec holds it equal to.",
+      "them, its danger form, and words that open a page, a link that keeps the browser's underline in the words' " +
+      "colour, as the house's quiet links draw one. Each beside the rule it reproduces (.cl-bucket-link), which the " +
+      "spec holds it equal to.",
     entries: [
       {
         id: "link-btn",
@@ -1063,6 +1067,16 @@ export const FAMILIES = [
         id: "src-cl-bucket-link-danger",
         source: "styles/components.css:1892",
         html: `<button type="button" class="cl-bucket-link danger">Delete the list</button>`,
+      },
+      {
+        id: "link-btn-door",
+        html: `<a class="link-btn" href="#kit">Open the listing${icon("arrow-right", 10)}</a>`,
+        twin: "src-cl-bucket-link-door",
+      },
+      {
+        id: "src-cl-bucket-link-door",
+        source: "styles/components.css:1882",
+        html: `<a class="cl-bucket-link" href="#kit">Open the listing${icon("arrow-right", 10)}</a>`,
       },
     ],
   },

@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareRecordings, EDGE_TOLERANCE, rulesOf, sheetRefusal } from "../../checks/style-equality.mjs";
+import { compareRecordings, EDGE_TOLERANCE, loadRefusal, rulesOf } from "../../checks/style-equality.mjs";
 
 const PROPERTIES = ["color", "border-top-left-radius"];
 const META = {
@@ -185,31 +185,41 @@ test("a stylesheet's rules: each named with the group rules around it, comments 
   );
 });
 
-test("a stylesheet that did not load, or answered other than 2xx, refuses its page; one that loaded, or any other request, does not", () => {
+test("a stylesheet or a font that did not load, or answered with an error, refuses its page; a redirect, one that loaded, or any other request does not", () => {
   const kit = "http://localhost:3210/w/studio/surfaces/kit/kit.css?v=3";
-  assert.equal(sheetRefusal({ url: kit, type: "stylesheet", status: 200 }), null);
-  assert.equal(sheetRefusal({ url: kit, type: "stylesheet", status: 204 }), null, "any 2xx is an answer");
+  assert.equal(loadRefusal({ url: kit, type: "stylesheet", status: 200 }), null);
+  assert.equal(loadRefusal({ url: kit, type: "stylesheet", status: 204 }), null, "any 2xx is an answer");
+  assert.equal(loadRefusal({ url: kit, type: "stylesheet", status: 301 }), null, "a redirect is on its way to one");
+  assert.equal(loadRefusal({ url: kit, type: "stylesheet", status: 304 }), null, "and so is what the cache holds");
   // What step 2.1 met: the page drew without the kit, and the run recorded the difference instead of refusing.
   assert.equal(
-    sheetRefusal({ url: kit, type: "stylesheet", failure: "net::ERR_ABORTED" }),
+    loadRefusal({ url: kit, type: "stylesheet", failure: "net::ERR_ABORTED" }),
     "the stylesheet surfaces/kit/kit.css did not load (net::ERR_ABORTED)",
   );
   assert.equal(
-    sheetRefusal({ url: kit, type: "stylesheet", status: 404 }),
+    loadRefusal({ url: kit, type: "stylesheet", status: 404 }),
     "the stylesheet surfaces/kit/kit.css answered 404",
   );
   assert.equal(
-    sheetRefusal({ url: "http://localhost:3210/styles/tokens.css", type: "stylesheet", status: 500 }),
+    loadRefusal({ url: "http://localhost:3210/styles/tokens.css", type: "stylesheet", status: 500 }),
     "the stylesheet styles/tokens.css answered 500",
     "a page opened at the root names its stylesheets from there",
   );
   // Another host's stylesheet (the fonts) is named by its address: without it, every line of text is laid out anew.
   const fonts = "https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=swap";
-  assert.equal(sheetRefusal({ url: fonts, type: "stylesheet", status: 503 }), `the stylesheet ${fonts} answered 503`);
-  // A script's failure is the page's to throw over, and a read's is the page's to say; neither is judged here.
-  assert.equal(sheetRefusal({ url: "http://localhost:3210/_hx/fixture.js", type: "script", status: 404 }), null);
+  assert.equal(loadRefusal({ url: fonts, type: "stylesheet", status: 503 }), `the stylesheet ${fonts} answered 503`);
+  // A face's file that did not come in: the page draws its text in a fallback face, laid out otherwise.
+  const face = "https://fonts.gstatic.com/s/geist/v1/geist-latin.woff2";
+  assert.equal(loadRefusal({ url: face, type: "font", status: 200 }), null);
   assert.equal(
-    sheetRefusal({ url: "http://localhost:3210/api/v1/me", type: "fetch", failure: "net::ERR_FAILED" }),
+    loadRefusal({ url: face, type: "font", failure: "net::ERR_FAILED" }),
+    `the font ${face} did not load (net::ERR_FAILED)`,
+  );
+  assert.equal(loadRefusal({ url: face, type: "font", status: 404 }), `the font ${face} answered 404`);
+  // A script's failure is the page's to throw over, and a read's is the page's to say; neither is judged here.
+  assert.equal(loadRefusal({ url: "http://localhost:3210/_hx/fixture.js", type: "script", status: 404 }), null);
+  assert.equal(
+    loadRefusal({ url: "http://localhost:3210/api/v1/me", type: "fetch", failure: "net::ERR_FAILED" }),
     null,
   );
 });

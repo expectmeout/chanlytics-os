@@ -26,7 +26,8 @@ const meterPartClasses = variants({
 /** One part: its share of the whole, and its colour, a tone or a chart's series colour (`var(--color-<key>)`). */
 type MeterPart = { share: number } & ({ tone: "ok" | "warn"; color?: undefined } | { color: string; tone?: undefined });
 
-type MeterProps = Omit<ComponentPropsWithRef<"div">, "children" | "role" | "aria-label"> & {
+/** A meter: its parts, the rest of the whole or none, its height, and what it says to a screen reader. */
+export type MeterProps = Omit<ComponentPropsWithRef<"div">, "children" | "role" | "aria-label"> & {
   /** The parts, in order. */
   parts: readonly MeterPart[];
   /** The rest of the whole, after the parts, in the strong hairline's colour. */

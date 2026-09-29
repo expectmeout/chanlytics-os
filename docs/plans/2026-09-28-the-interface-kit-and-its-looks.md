@@ -566,19 +566,23 @@ spec. _Done when:_ every class in `classes.json` has an entry, which the spec ch
 
 **2.4 The React components for the new primitives.** Typed, rendering the kit's classes, tested on the stub React.
 Where a component already exists in JSX (`StatePill`, `MoreMenu`, `EmptyState`, the record kit), its TSX is written
-when its first surface moves (Phase 3), as a move, so it is never written twice. Built: `Button` (its door a link),
-`LinkButton`, `Panel`, `Face`, `ListRow` and `Meter`, each with its type test, and
-`tooling/scripts/tests/styles/kit-components.test.mjs` holds every entry of their gallery families to what they draw,
-so the gallery and the components cannot part. The Sheet waits on Ruben's decision whether the kit builds its
-interactive components on Base UI (`@base-ui/react`): its behaviour (focus held inside, Escape, the page behind still)
-is what that decision settles, so its component is written with it; until then `kit.css` draws `.sheet`, and the
-gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can import every primitive, the Sheet's once that
-decision is taken.
+when its first surface moves (Phase 3), as a move, so it is never written twice. Built: `Button` and `LinkButton`
+(each a link where it has an address, `press.tsx`), `Panel`, `Face`, `ListRow` (a link too) and `Meter`, each with
+its props' type, named in the kit's index, and its type test; and
+`tooling/scripts/tests/styles/kit-components.test.mjs`, which holds every entry of their gallery families to what they
+draw, element for element: the tag, the classes and the attributes a stylesheet or a screen reader reads. So an entry
+or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet waits
+on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`): its behaviour
+(focus held inside, Escape, the page behind still) is what that decision settles, so its component is written with
+it; until then `kit.css` draws `.sheet`, and the gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can
+import every primitive, the Sheet's once that decision is taken.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
 Not re-planned. 0015's order, with the shared components that move into the kit with each surface, the first time a
-moving surface draws them:
+moving surface draws them. Before the first of them moves in, the kit takes a folder for each family (`kit/button/`
+with its component, its props and its type test; the index names them from there): it held 16 modules after step 2.4,
+and a directory holds at most 20 (the tree-shape measure, `docs/debt.md`).
 
 | 0015 step | Surface                                    | Moves into the kit with it (where it is the first to draw them)                                                  |
 | --------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |

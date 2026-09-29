@@ -299,8 +299,8 @@ page draws, and its clock stands still at one moment and moves only as the recor
 route, so a timer's work is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
 `::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages drew. It
 refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
-page threw, a stylesheet that did not load or answered other than 2xx (a page drawn without its rules is another tree),
-or a request that never ended. A full recording takes ten to fifteen minutes.
+page threw, a stylesheet or a font that did not load or answered with an error, 4xx or 5xx (a page drawn without its
+rules or in a fallback face is another page), or a request that never ended. A full recording takes ten to fifteen minutes.
 
 `compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
 browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out

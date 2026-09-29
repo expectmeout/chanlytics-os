@@ -1,9 +1,9 @@
 /**
  * The kit's panel (kit.css, "Panel"): a pane of content, an inset inside one, or what pops over the page; with the
- * pane's own padding (md), a small one (sm), or none, for rows edge to edge, which it clips (flush). It is drawn on a
- * <div>, or on a <section> where what it holds is one. Where it stands, how wide it is and whether it may shrink in a
- * grid are the page's, through `className`, which comes last; a pop is placed by what opens it. The ref reaches the
- * element.
+ * pane's own padding (md), a small one (sm), or none, for rows edge to edge, which it clips (flush). It is drawn on the
+ * element its content is: a <div> unless that is a section, an article or an aside, or a list or an item of one.
+ * Where it stands, how wide it is and whether it may shrink in a grid are the page's, through `className`, which comes
+ * last; a pop is placed by what opens it. The ref reaches the element.
  *
  * It draws what the gallery's Panel family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
@@ -20,29 +20,27 @@ const panelClasses = variants({
   defaults: { variant: "pane", size: "md" },
 });
 
-type PanelLook = { variant?: "pane" | "inset" | "pop"; size?: "md" | "sm" | "flush" };
+/** The elements a panel is drawn on. */
+type PanelTag = "div" | "section" | "article" | "aside" | "ul" | "ol" | "li";
 
-/** The element it is drawn on, and so what its ref holds: a div, unless it is a section. */
-type PanelElement =
-  ({ as?: "div" } & ComponentPropsWithRef<"div">) | ({ as: "section" } & ComponentPropsWithRef<"section">);
-
-type PanelProps = PanelLook & PanelElement;
+/**
+ * A panel: its surface, its padding, and the element it is drawn on, with that element's attributes as any block
+ * takes them; its ref holds the element as an HTMLElement, whichever it is.
+ */
+export type PanelProps = {
+  variant?: "pane" | "inset" | "pop";
+  size?: "md" | "sm" | "flush";
+  as?: PanelTag;
+} & ComponentPropsWithRef<"section">;
 
 /** A panel, on the element `as` names. */
-export function Panel({ variant, size, className, children, ...element }: PanelProps) {
-  const classes = cx(panelClasses({ variant, size }), className);
-  if (element.as === "section") {
-    const { as: _section, ...section } = element;
-    return (
-      <section {...section} className={classes}>
-        {children}
-      </section>
-    );
-  }
-  const { as: _div, ...div } = element;
+export function Panel({ as: tag = "div", variant, size, className, children, ...element }: PanelProps) {
+  // Every tag here takes a block's attributes and an HTMLElement's ref, which is what PanelProps asks for; drawn with
+  // the union itself, JSX would ask for the attributes and the ref of each tag at once.
+  const Tag = tag as "section";
   return (
-    <div {...div} className={classes}>
+    <Tag {...element} className={cx(panelClasses({ variant, size }), className)}>
       {children}
-    </div>
+    </Tag>
   );
 }
