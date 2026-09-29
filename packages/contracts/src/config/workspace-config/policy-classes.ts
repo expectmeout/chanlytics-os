@@ -71,8 +71,8 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
 
 /** The four modes. 'veto' is honoured where there is something to hold: a
  *  reply waits in the hold window as a draft, a playbook run waits thirty
- *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
- *  treats an unexpected mode as 'ask' (fail safe). */
+ *  minutes; POLICY_CLASS_MODES says which classes offer it (policyModeOffered).
+ *  The runtime treats an unexpected mode as 'ask' (fail safe). */
 export const POLICY_MODES = ["auto", "veto", "ask", "never"] as const;
 export type PolicyMode = (typeof POLICY_MODES)[number];
 
@@ -133,6 +133,26 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
   outreach: ["veto", "ask", "never"],
 };
+
+/**
+ * Whether a class may be set to a mode: the one rule the Autonomy pane draws its dots by and the policies route refuses
+ * by (POLICY_CLASS_MODES). An unknown class or mode is not offered.
+ */
+export function policyModeOffered(cls: string, mode: string): boolean {
+  return (
+    (POLICY_CLASSES as readonly string[]).includes(cls) &&
+    (POLICY_CLASS_MODES[cls as PolicyClass] as readonly string[]).includes(mode)
+  );
+}
+
+/** Why a class cannot be set to a mode, in the words the route says; null where it can. */
+export function policyModeRefusal(cls: PolicyClass, mode: PolicyMode): string | null {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you — there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
 
 /** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
 export function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null {
