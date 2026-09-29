@@ -1,9 +1,10 @@
 import "server-only";
 import { deployment } from "../deployment";
+import { MIN_MS } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered } from "../edge";
 
-/** A run now plans its sends and may start them: the edge's work for one playbook, bounded at half a minute. */
-const RUN_TIMEOUT_MS = 30_000;
+/** A run now plans its sends and may start them: the edge's work for one playbook, as long as its door may take. */
+const RUN_TIMEOUT_MS = MIN_MS;
 
 /* ---- Playbooks: one run now, the same implementation the hourly sweep uses ---- */
 

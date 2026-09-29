@@ -986,7 +986,7 @@ var NEVER_LEFT = /* @__PURE__ */ new Set([
 ]);
 function outcomeOfStatus(status) {
   if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429 || status === 503) return "retryable";
+  if (status === 408 || status === 429) return "retryable";
   if (status >= 500) return "unknown";
   return "refused";
 }
@@ -1020,7 +1020,7 @@ function note(provider, a, now) {
 async function once(provider, url, call2, deps, tries) {
   const now = deps.now();
   const b = breakers.get(provider);
-  if (b && b.openUntil > now) {
+  if (b && b.openUntil > now && call2.breaker !== "count") {
     const held = {
       outcome: "retryable",
       status: 0,
@@ -1078,7 +1078,7 @@ async function providerFetch(provider, url, call2, deps = {}) {
   for (let n = 1; ; n++) {
     const a = await once(provider, url, call2, d, n);
     const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
-    if (!again || n >= max || a.error === "breaker_open") return a;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
     if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
     const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
     const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
@@ -3938,7 +3938,9 @@ async function postGraph(cfg, payload) {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: SEND_TIMEOUT_MS
+    timeoutMs: SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count"
   });
   if (a.status === 0)
     return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
@@ -4085,7 +4087,8 @@ async function resendRequest(cfg, method, path, opts = {}) {
       ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
     },
     ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2,
+    breaker: opts.breaker ?? "hold"
   });
   return {
     status: a.status,
@@ -4110,7 +4113,12 @@ function paceAskedMs(h) {
 }
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
-  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  const a = await resendRequest(cfg, "POST", "/emails", {
+    body,
+    timeoutMs,
+    idempotencyKey: idempotency_key,
+    breaker: "count"
+  });
   if (a.status >= 200 && a.status < 300) {
     const id = a.json?.id;
     return {
@@ -13023,16 +13031,17 @@ async function deliver(ports, d) {
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedRefusal(d.channel, sent)
+    ...namedFailure(d.channel, sent)
   };
 }
-function namedRefusal(channel, sent) {
+function namedFailure(channel, sent) {
   if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true } : {};
   if (channel === "email") {
     const limit = resendLimitOf(sent);
-    return limit ? { limit } : {};
+    return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -13390,8 +13399,8 @@ async function sendQueued(ports, cmd) {
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e) {
-    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e, true);
-    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e, e.errorBody === "breaker_open");
+    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
+    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
     else throw e;
     return;
   }
@@ -13401,7 +13410,7 @@ async function sendQueued(ports, cmd) {
 function resumesOf(p) {
   return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
 }
-async function resendLater(ports, cmd, channel, e, page) {
+async function resendLater(ports, cmd, channel, e) {
   const p = cmd.payload;
   const resumes = resumesOf(p);
   const wait = SEND_RETRY_WAITS_MS[resumes];
@@ -13412,10 +13421,10 @@ async function resendLater(ports, cmd, channel, e, page) {
       { cause: e }
     );
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
-  if (!page) return;
+  if (!unbound) return;
   await ports.page?.(
-    unbound ? `wire_unavailable:${channel}` : `provider_down:${channel}`,
-    unbound ? `${channel}: a workspace's credentials could not be read` : `${channel}: the provider is not answering`,
+    `wire_unavailable:${channel}`,
+    `${channel}: a workspace's credentials could not be read`,
     `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS2)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
   )?.catch(() => void 0);
 }
@@ -13464,9 +13473,10 @@ function causeOf(out, channel) {
   const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   return out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
-    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // Status 0 is no answer at all: no answer in time or a connection dropped after it left (it may have
+    // gone), a connection that never opened, or the email wire refusing a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+    out.status === 0 && out.mayHaveGone ? "the provider did not answer, so it may have gone; check the thread before sending it again" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
 }
 

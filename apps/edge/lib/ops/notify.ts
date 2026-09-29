@@ -103,6 +103,8 @@ export async function post(from: string, to: string[], subject: string, text: st
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to, subject, text }),
     timeoutMs: NOTIFY_TIMEOUT_MS,
+    // The alarm is always tried: an outage the breaker learned is exactly when it must go.
+    breaker: "count",
   });
   if (r.status === 0) {
     L.error("notify_failed", { subject: redactNumbers(subject), error: r.error ?? "no answer" });

@@ -21722,16 +21722,17 @@ async function deliver(ports, d) {
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedRefusal(d.channel, sent)
+    ...namedFailure(d.channel, sent)
   };
 }
-function namedRefusal(channel, sent) {
+function namedFailure(channel, sent) {
   if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true } : {};
   if (channel === "email") {
     const limit = resendLimitOf(sent);
-    return limit ? { limit } : {};
+    return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -21789,8 +21790,8 @@ async function sendQueued(ports, cmd) {
       holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e2) {
-    if (isWireUnavailableError(e2)) await resendLater(ports, cmd, channel, e2, true);
-    else if (isNotTakenError(e2)) await resendLater(ports, cmd, channel, e2, e2.errorBody === "breaker_open");
+    if (isWireUnavailableError(e2)) await resendLater(ports, cmd, channel, e2);
+    else if (isNotTakenError(e2)) await resendLater(ports, cmd, channel, e2);
     else throw e2;
     return;
   }
@@ -21800,7 +21801,7 @@ async function sendQueued(ports, cmd) {
 function resumesOf(p) {
   return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
 }
-async function resendLater(ports, cmd, channel, e2, page) {
+async function resendLater(ports, cmd, channel, e2) {
   const p = cmd.payload;
   const resumes = resumesOf(p);
   const wait = SEND_RETRY_WAITS_MS[resumes];
@@ -21811,10 +21812,10 @@ async function resendLater(ports, cmd, channel, e2, page) {
       { cause: e2 }
     );
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
-  if (!page) return;
+  if (!unbound) return;
   await ports.page?.(
-    unbound ? `wire_unavailable:${channel}` : `provider_down:${channel}`,
-    unbound ? `${channel}: a workspace's credentials could not be read` : `${channel}: the provider is not answering`,
+    `wire_unavailable:${channel}`,
+    `${channel}: a workspace's credentials could not be read`,
     `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e2.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS22)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
   )?.catch(() => void 0);
 }
@@ -21863,9 +21864,10 @@ function causeOf(out, channel) {
   const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   return out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
-    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // Status 0 is no answer at all: no answer in time or a connection dropped after it left (it may have
+    // gone), a connection that never opened, or the email wire refusing a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+    out.status === 0 && out.mayHaveGone ? "the provider did not answer, so it may have gone; check the thread before sending it again" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
 }
 async function provisionLine(ports, cmd) {

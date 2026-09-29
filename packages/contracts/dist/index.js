@@ -13065,8 +13065,12 @@ function routePrefetchScript() {
     'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
-    `var t=window.AbortSignal&&AbortSignal.timeout?AbortSignal.timeout(${PREFETCH_TIMEOUT_MS}):undefined;`,
-    'for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=fetch(u[i],{credentials:"same-origin",signal:t});',
+    "var M=window.AbortController;",
+    "var g=function(x){",
+    `var a=M?new M():null,k=a?setTimeout(function(){a.abort()},${PREFETCH_TIMEOUT_MS}):0;`,
+    'var q=fetch(x,{credentials:"same-origin",signal:a?a.signal:undefined});',
+    "return a?q.then(function(r){clearTimeout(k);return r},function(e){clearTimeout(k);throw e}):q};",
+    "for(var i=0;i<u.length;i++)if(!f[u[i]])f[u[i]]=g(u[i]);",
     "}}catch(e){}"
   ].join("");
 }

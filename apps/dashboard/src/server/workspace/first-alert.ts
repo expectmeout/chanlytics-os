@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTenantConfig, putTenantConfig, type Database } from "@chanlytics/db";
 import { withFirstAlertAddress } from "@chanlytics/contracts";
-import { log, errField } from "@/server/log";
+import { log } from "@/server/log";
 
 /**
  * Give a workspace just made its creator's address as its first alert address
@@ -26,7 +26,7 @@ export async function giveFirstAlertAddress(
     if (!put.ok) log.error("first_alert_address_not_saved", { reason: put.reason });
     return put.ok;
   } catch (e) {
-    log.error("first_alert_address_not_saved", { error: errField(e) });
+    log.error("first_alert_address_not_saved", { error: e });
     return false;
   }
 }

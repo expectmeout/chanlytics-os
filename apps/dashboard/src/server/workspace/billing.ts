@@ -103,4 +103,6 @@ export const BILLING_SAID: Record<string, string> = {
   not_paused: "The subscription is not paused.",
   not_trialing: "There is no free trial to end: the plan has already started.",
   stripe_refused: "Stripe did not accept the request.",
+  edge_timeout: "Billing did not answer in time. Try again in a moment.",
+  edge_unreachable: "Billing could not be reached just now. Try again in a moment.",
 };

@@ -20,7 +20,7 @@ import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resol
 import { cancelKindFor, schedule } from "../jobs";
 import { letThreadControlGo, takeThreadControl } from "../conversations/thread-control";
 import { freezeReply } from "../connections/email";
-import { log, errField } from "@/server/log";
+import { log } from "@/server/log";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -167,7 +167,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       try {
         await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso });
       } catch (e) {
-        log.error("idempotency_release_failed", { tenant: tenantId, error: errField(e) });
+        log.error("idempotency_release_failed", { tenant: tenantId, error: e });
       }
     },
     template: async (tenantId, name, language) => {
@@ -212,7 +212,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
             .select("id"),
         );
       } catch (e) {
-        log.error("reply_claim_failed", { id, error: errField(e) });
+        log.error("reply_claim_failed", { id, error: e });
         return false;
       }
     },

@@ -63,7 +63,8 @@ test("an answer is read once and said as one of four outcomes; every call carrie
     429: "retryable",
     500: "unknown",
     502: "unknown",
-    503: "retryable",
+    // A gateway's 503 proves nothing about the service behind it: the send may have gone.
+    503: "unknown",
     504: "unknown",
   });
   const text = await providerFetch(
@@ -93,12 +94,17 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
   assert.deepEqual([a.outcome, a.tries, busy.calls.length, c1.waits], ["ok", 2, 2, [1_000]]);
 
   // Maybe taken: a send is never asked again blind; a read is.
-  const send = provider(timeout(), 200);
+  const send = provider(new Error("socket hang up"), 200);
   const s = await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, tries: 3 }, { ...send, ...clock() });
   assert.deepEqual([s.outcome, send.calls.length], ["unknown", 1]);
-  const read = provider(timeout(), 200);
+  const read = provider(new Error("socket hang up"), 200);
   const r = await providerFetch("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...read, ...clock() });
   assert.deepEqual([r.outcome, read.calls.length], ["ok", 2]);
+
+  // A try that used its whole bound is not tried again, not even a read: the time left is the caller's.
+  const hung = provider(timeout(), 200);
+  const h = await providerFetch("meta", "u", { timeoutMs: 1, tries: 3, idempotent: true }, { ...hung, ...clock() });
+  assert.deepEqual([h.outcome, h.error, hung.calls.length], ["unknown", "timeout", 1]);
 
   // A refusal is the provider's answer: never asked again.
   const no = provider(422, 200);
@@ -110,7 +116,7 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
 
   // Waits double when the provider names none.
   const c2 = clock();
-  const down = provider(503, 503, 200);
+  const down = provider(429, 429, 200);
   await providerFetch("google", "u", { timeoutMs: 1, tries: 3 }, { ...down, ...c2 });
   assert.deepEqual(c2.waits, [250, 500]);
 });
@@ -121,7 +127,7 @@ test("a wait longer than a call may take, or past its deadline, hands the answer
   assert.deepEqual([a.outcome, a.retryAfterMs, long.calls.length], ["retryable", 30_000, 1]);
 
   const c = clock();
-  const slow = provider(503, 200);
+  const slow = provider(429, 200);
   const b = await providerFetch("apify", "u", { timeoutMs: 5_000, tries: 3, deadlineMs: 4_000 }, { ...slow, ...c });
   assert.deepEqual([b.outcome, slow.calls.length, c.waits], ["retryable", 1, []], "no room for another try");
 });
@@ -150,4 +156,26 @@ test("the breaker: five faults in a row hold a provider's calls, answered retrya
   const limited = provider(429);
   for (let i = 0; i < 6; i++) await providerFetch("expo", "u", { timeoutMs: 1 }, { ...limited, ...c });
   assert.equal(breakerOf("expo", c.now()).open, false);
+});
+
+test("a call that puts words in front of a person is never held by the breaker: it is always made, and only counted", async () => {
+  const c = clock();
+  const dead = provider(500);
+  for (let i = 0; i < 5; i++) await providerFetch("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
+  assert.equal(breakerOf("meta", c.now()).open, true);
+
+  // A read is held; a reply is sent all the same, and its answer is the provider's own.
+  const read = await providerFetch("meta", "u", { timeoutMs: 1 }, { ...dead, ...c });
+  assert.equal(read.error, "breaker_open");
+  const back = provider(200);
+  const reply = await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...back, ...c });
+  assert.deepEqual([reply.outcome, back.calls.length], ["ok", 1], "the reply went");
+  assert.deepEqual(breakerOf("meta", c.now()), { open: false, failures: 0 }, "and its answer closed the breaker");
+
+  // Its faults count as any call's do: five failed sends open the breaker for the reads.
+  const failing = provider(502);
+  for (let i = 0; i < 5; i++)
+    await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...failing, ...c });
+  assert.equal(failing.calls.length, 5, "every send was made");
+  assert.equal(breakerOf("meta", c.now()).open, true);
 });

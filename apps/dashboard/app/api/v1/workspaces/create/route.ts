@@ -12,7 +12,7 @@ import {
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
 import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
-import { log, errField } from "@/server/log";
+import { log } from "@/server/log";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -152,7 +152,7 @@ export const POST = write({
         const { error: clearErr } = await ctx.supabase.auth.updateUser({ data: { [PENDING_WORKSPACE_KEY]: null } });
         if (clearErr) log.error("pending_workspace_clear_failed", { error: clearErr.message });
       } catch (e) {
-        log.error("pending_workspace_clear_failed", { error: errField(e) });
+        log.error("pending_workspace_clear_failed", { error: e });
       }
     }
 

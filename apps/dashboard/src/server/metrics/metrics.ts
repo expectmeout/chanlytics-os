@@ -11,7 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailWires, type MetricsSummaryDto } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import { emailSetupFor } from "../connections/email";
-import { log, errField } from "@/server/log";
+import { log } from "@/server/log";
 
 /** Null when the function answered nothing, or answered its own error; each caller refuses in its own words. */
 export async function metricsSummaryFor(
@@ -27,7 +27,7 @@ export async function metricsSummaryFor(
     // its own state (callsRead is the same shape), never a blank Today and
     // never a count that is short by one.
     emailSetupFor(supabase, tenantId).catch((e: unknown) => {
-      log.error("today_email_line_read_failed", { error: errField(e) });
+      log.error("today_email_line_read_failed", { error: e });
       return null;
     }),
   ]);

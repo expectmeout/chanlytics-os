@@ -1,10 +1,11 @@
 import "server-only";
+import { MIN_MS } from "@chanlytics/contracts";
 import { claimControl, releaseControl } from "@chanlytics/db";
 import { deployment } from "../deployment";
 import { callEdge, edgeAnswered } from "../edge";
 
-/** A draft rewritten by the model at the edge: its call is bounded there, this a little over it. */
-const STEER_TIMEOUT_MS = 45_000;
+/** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */
+const STEER_TIMEOUT_MS = MIN_MS;
 import { serviceDb } from "../service-db";
 
 /**

@@ -13274,7 +13274,7 @@ declare const PREFETCH_SLOT = "__prefetched";
  * the two reads every workspace page opens on -- who is looking (GET workspaces) and, on a person's page, the person
  * -- spelled exactly as the client spells them (client/api.ts urlFor: the path, then ?workspace=<slug>), and parks
  * the promises on the window for the client to take once, in place of its own fetch. Off a workspace page nothing
- * is read. A refusal here is the client's to hear, as it would have been, and a read that does not answer in
+ * is read. A refusal here is the client's to hear, as it would have been, and a read whose headers do not come in
  * PREFETCH_TIMEOUT_MS gives way to the client's own.
  */
 declare function routePrefetchScript(): string;

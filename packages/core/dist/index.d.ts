@@ -252,6 +252,8 @@ type Delivered = {
      * so the caller may try this person again later; a failure without it may have been taken all the same.
      */
     throttled?: true;
+    /** The provider may have taken it all the same (provider-fetch outcome unknown): nobody sends it again blind. */
+    mayHaveGone?: true;
 };
 interface DeliverPorts {
     db: Db;
@@ -880,8 +882,9 @@ interface BroadcastBatchCommand {
  * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
  *
  * The same waits hold a send the provider provably did not take (retry by outcome: its "not now", a connection that
- * never opened, its breaker open; NotTakenError), which used to fail at once, flag the thread and tell the owner over
- * a minute's throttle. Its last try is not held: a provider still saying no then is told as any failure is.
+ * never opened; NotTakenError), which used to fail at once, flag the thread and tell the owner over a minute's
+ * throttle. Nobody is paged for it: a throttle is one minute's problem. Its last try is not held: a provider still
+ * saying no then is told as any failure is.
  */
 declare const SEND_RETRY_WAITS_MS: readonly number[];
 /**

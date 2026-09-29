@@ -21,7 +21,7 @@ var NEVER_LEFT = /* @__PURE__ */ new Set([
 ]);
 function outcomeOfStatus(status) {
   if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429 || status === 503) return "retryable";
+  if (status === 408 || status === 429) return "retryable";
   if (status >= 500) return "unknown";
   return "refused";
 }
@@ -55,7 +55,7 @@ function note(provider, a, now) {
 async function once(provider, url, call2, deps, tries) {
   const now = deps.now();
   const b = breakers.get(provider);
-  if (b && b.openUntil > now) {
+  if (b && b.openUntil > now && call2.breaker !== "count") {
     const held = {
       outcome: "retryable",
       status: 0,
@@ -113,7 +113,7 @@ async function providerFetch(provider, url, call2, deps = {}) {
   for (let n = 1; ; n++) {
     const a = await once(provider, url, call2, d, n);
     const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
-    if (!again || n >= max || a.error === "breaker_open") return a;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
     if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
     const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
     const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
@@ -3288,7 +3288,9 @@ async function postGraph(cfg, payload) {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: SEND_TIMEOUT_MS
+    timeoutMs: SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count"
   });
   if (a.status === 0)
     return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
@@ -3332,7 +3334,8 @@ async function fetchMediaBytes(cfg, providerMediaId) {
     const metaRes = await providerFetch("meta", `${GRAPH}/${providerMediaId}`, {
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
       timeoutMs: MEDIA_META_TIMEOUT_MS,
-      idempotent: true
+      idempotent: true,
+      tries: 2
     });
     if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);
     if (metaRes.outcome !== "ok") return null;
@@ -4142,11 +4145,16 @@ function twilioRequest(acct, method, url, o = {}) {
     },
     body: o.form,
     timeoutMs: o.timeoutMs ?? TWILIO_TIMEOUT_MS,
+    breaker: o.breaker ?? "hold",
     ...method === "GET" ? { idempotent: true, tries: 2 } : {}
   });
 }
 var fetchTwilio = async (acct, method, url, form2) => {
-  const a = await twilioRequest(acct, method, url, form2 ? { form: new URLSearchParams(form2).toString() } : {});
+  const text = method === "POST" && url.endsWith("/Messages.json");
+  const a = await twilioRequest(acct, method, url, {
+    ...form2 ? { form: new URLSearchParams(form2).toString() } : {},
+    ...text ? { breaker: "count" } : {}
+  });
   const body = a.status === 0 ? { error: a.error ?? "no answer" } : answerObject(a) ?? (a.json === null && a.text ? { text: a.text.slice(0, 300) } : null);
   return { status: a.status, body, outcome: a.outcome };
 };
@@ -5336,7 +5344,8 @@ async function resendRequest(cfg, method, path, opts = {}) {
       ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
     },
     ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2,
+    breaker: opts.breaker ?? "hold"
   });
   return {
     status: a.status,
@@ -5361,7 +5370,12 @@ function paceAskedMs(h) {
 }
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
-  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  const a = await resendRequest(cfg, "POST", "/emails", {
+    body,
+    timeoutMs,
+    idempotencyKey: idempotency_key,
+    breaker: "count"
+  });
   if (a.status >= 200 && a.status < 300) {
     const id = a.json?.id;
     return {

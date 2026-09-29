@@ -19,8 +19,9 @@ export type { SendQueuedCommand } from "./ports";
  * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
  *
  * The same waits hold a send the provider provably did not take (retry by outcome: its "not now", a connection that
- * never opened, its breaker open; NotTakenError), which used to fail at once, flag the thread and tell the owner over
- * a minute's throttle. Its last try is not held: a provider still saying no then is told as any failure is.
+ * never opened; NotTakenError), which used to fail at once, flag the thread and tell the owner over a minute's
+ * throttle. Nobody is paged for it: a throttle is one minute's problem. Its last try is not held: a provider still
+ * saying no then is told as any failure is.
  */
 export const SEND_RETRY_WAITS_MS: readonly number[] = [MIN_MS, 3 * MIN_MS, 10 * MIN_MS, 30 * MIN_MS];
 
@@ -94,10 +95,10 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     // credentials" -- the number may well be connected -- so nothing is flagged and nobody is told to reconnect it.
     // Nothing left and the row is still queued, so the same send is handed to a fresh job a while on, a bounded
     // number of times; the platform is paged, because a credentials store that does not answer is its condition.
-    // A send the provider did not take is handed on the same way, paged only when its breaker is open (the provider
-    // down for everyone). Any other throw is the door's own, and stays as loud as it was.
-    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e, true);
-    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e, e.errorBody === "breaker_open");
+    // A send the provider did not take is handed on the same way, and pages nobody. Any other throw is the door's
+    // own, and stays as loud as it was.
+    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
+    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
     else throw e;
     return;
   }
@@ -113,14 +114,13 @@ function resumesOf(p: SendQueuedCommand["payload"]): number {
 /**
  * A reply whose wire could not be BOUND (deliver WireUnavailableError), or that the provider did not take
  * (NotTakenError), handed to a fresh job a while on, a bounded number of times (SEND_RETRY_WAITS_MS); past the last
- * wait it fails loudly by name. `page`: whether the platform hears of it.
+ * wait it fails loudly by name. A wire that could not be bound pages the platform; a send not taken does not.
  */
 async function resendLater(
   ports: SendQueuedPorts,
   cmd: SendQueuedCommand,
   channel: Channel,
   e: WireUnavailableError | NotTakenError,
-  page: boolean,
 ): Promise<void> {
   const p = cmd.payload;
   const resumes = resumesOf(p);
@@ -134,11 +134,11 @@ async function resendLater(
   // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must
   // not turn a reply that is waiting into one that failed.
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
-  if (!page) return;
+  if (!unbound) return;
   await ports
     .page?.(
-      unbound ? `wire_unavailable:${channel}` : `provider_down:${channel}`,
-      unbound ? `${channel}: a workspace's credentials could not be read` : `${channel}: the provider is not answering`,
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
       `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
     )
     ?.catch(() => undefined);
@@ -246,9 +246,12 @@ function causeOf(out: FailedSend["out"], channel: Channel): string {
             ? "the mail provider asked us to slow down"
             : limit === "in_flight"
               ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
-              : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+              : // Status 0 is no answer at all: no answer in time or a connection dropped after it left (it may have
+                // gone), a connection that never opened, or the email wire refusing a request it will not send
                 // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-                out.status === 0
-                ? "it never reached the provider"
-                : `HTTP ${out.status}`;
+                out.status === 0 && out.mayHaveGone
+                ? "the provider did not answer, so it may have gone; check the thread before sending it again"
+                : out.status === 0
+                  ? "it never reached the provider"
+                  : `HTTP ${out.status}`;
 }

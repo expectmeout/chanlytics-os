@@ -17,7 +17,7 @@ import { importSrc } from "../../_source.mjs";
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 
 /** The head's script, run over a page at `pathname` + `hash`: what it fetched, and the window it left. */
-const headRuns = ({ pathname, hash, window: given = {}, fetch: fetchWith = null }) => {
+const headRuns = ({ pathname, hash, window: given = {}, fetch: fetchWith = null, globals = {} }) => {
   const calls = [];
   const win = given;
   const ctx = {
@@ -32,6 +32,7 @@ const headRuns = ({ pathname, hash, window: given = {}, fetch: fetchWith = null 
     encodeURIComponent,
     decodeURIComponent,
     RegExp,
+    ...globals,
   };
   vm.runInNewContext(routePrefetchScript(), ctx);
   return { calls, win };
@@ -78,6 +79,42 @@ test("run twice, the head starts nothing twice; a fetch that throws leaves the p
       },
     }),
   );
+});
+
+test("a read the head started is bounded until its headers come, never after: a hung one gives way, an answered one's body is never cut off", async () => {
+  const timers = new Map();
+  let next = 1;
+  const globals = {
+    setTimeout: (fn, ms) => {
+      timers.set(next, { fn, ms });
+      return next++;
+    },
+    clearTimeout: (k) => timers.delete(k),
+  };
+  const signals = {};
+  const { win } = headRuns({
+    pathname: "/w/acme",
+    hash: `#/clients/${ID}`,
+    window: { AbortController },
+    globals,
+    fetch: (url, init) => {
+      signals[url] = init.signal;
+      // Who is looking answers at once; the person never does.
+      return url.startsWith("/api/v1/workspaces") ? Promise.resolve({ url }) : new Promise(() => {});
+    },
+  });
+  const who = "/api/v1/workspaces?workspace=acme";
+  const person = `/api/v1/contacts/${ID}?workspace=acme`;
+  assert.equal(timers.size, 2, "one bound per read");
+  assert.ok(
+    [...timers.values()].every((t) => t.ms === 15_000),
+    "as long as the client's own read would wait",
+  );
+  assert.deepEqual(await win[PREFETCH_SLOT][who], { url: who }, "the client takes the answer itself");
+  assert.equal(timers.size, 1, "an answered read's bound ends with its headers");
+  for (const t of timers.values()) t.fn();
+  assert.equal(signals[person].aborted, true, "the hung read gives way to the client's own");
+  assert.equal(signals[who].aborted, false, "the answered read's body is never cut off");
 });
 
 /* ------------------------------ the client takes it ------------------------------ */

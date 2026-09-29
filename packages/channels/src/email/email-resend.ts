@@ -80,7 +80,7 @@ export async function resendRequest(
   cfg: ResendConfig,
   method: "GET" | "POST" | "DELETE" | "PATCH",
   path: string,
-  opts: { body?: unknown; timeoutMs?: number; idempotencyKey?: string } = {},
+  opts: { body?: unknown; timeoutMs?: number; idempotencyKey?: string; breaker?: "hold" | "count" } = {},
 ): Promise<ResendAnswer> {
   const a = await providerFetch("resend", `${RESEND_API}${path}`, {
     method,
@@ -91,6 +91,7 @@ export async function resendRequest(
     },
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS,
+    breaker: opts.breaker ?? "hold",
   });
   return {
     status: a.status,
@@ -134,7 +135,13 @@ async function postEmail(
   timeoutMs: number,
 ): Promise<{ result: SendResult; waitMs: number | null; paceMs: number | null; timedOut: boolean }> {
   const { idempotency_key, ...body } = request;
-  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  // An email to a person is always posted: another call's timeouts never fail it (provider-fetch's breaker).
+  const a = await resendRequest(cfg, "POST", "/emails", {
+    body,
+    timeoutMs,
+    idempotencyKey: idempotency_key,
+    breaker: "count",
+  });
   if (a.status >= 200 && a.status < 300) {
     const id = (a.json as { id?: unknown } | null)?.id;
     // Accepted with no id is still accepted: the words are with the provider,

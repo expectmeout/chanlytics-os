@@ -75,11 +75,11 @@ const EDGE_CALL_TIMEOUT_MS = 20_000;
 export const edgeAnswered = (a: EdgeAnswer): boolean => a.status >= 200 && a.status < 300;
 
 /**
- * One call to an edge door: the token for that door (`aud`, its path), a JSON body, and a bound on the wait. Every call
- * the dashboard makes to the edge goes through here, so none waits for ever: nine did, and one hung connection held a
- * member's request until the platform killed it. Never throws: a door that did not answer in time is a 504
- * (`edge_timeout`), one that could not be reached a 503 (`edge_unreachable`), with the network's words in `detail`,
- * read by the caller like any other refusal.
+ * One call to an edge door: the token for that door (`aud`, its path), a JSON body, and a bound on the wait. Every
+ * JSON call the dashboard makes to the edge goes through here (Ask's streamed gateway aside, ask/gateway.ts), so none
+ * waits for ever: nine did, and one hung connection held a member's request until the platform killed it. Never
+ * throws: a door that did not answer in time, or could not be reached, is a 503 as it always was, named
+ * `edge_timeout` or `edge_unreachable`, with the network's words in `detail`, read by the caller like any refusal.
  */
 export async function callEdge(
   aud: string,
@@ -112,7 +112,7 @@ export async function callEdge(
   } catch (e) {
     const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
     return {
-      status: timedOut ? 504 : 503,
+      status: 503,
       body: {
         ok: false,
         error: timedOut ? "edge_timeout" : "edge_unreachable",

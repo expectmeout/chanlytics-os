@@ -5,7 +5,8 @@ import "server-only";
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
 import { changedConfigFields } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { recordEvent } from "@chanlytics/db";
+import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
 import { serviceDb } from "@/server/service-db";
 
@@ -37,10 +38,12 @@ export async function recordSettingsChanged(
   const fields = changedConfigFields(before, after);
   if (!fields.length) return;
   // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-  await emitEvent(serviceDb(), tenantId, "settings.changed", "workspace", tenantId, {
+  const { error } = await recordEvent(serviceDb(), tenantId, "settings.changed", "workspace", tenantId, {
     fields,
     by: ctx.userId,
     version,
     ...(ctx.via ? { via: ctx.via } : {}),
   });
+  // Under its own name, as it always was: the name is what alerting greps for.
+  if (error) log.error("settings_event_failed", { error });
 }

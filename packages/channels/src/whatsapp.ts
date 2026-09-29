@@ -276,6 +276,8 @@ async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     timeoutMs: SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count",
   });
   if (a.status === 0)
     return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
@@ -369,6 +371,7 @@ export async function fetchMediaBytes(
       headers: { Authorization: `Bearer ${cfg.accessToken}` },
       timeoutMs: MEDIA_META_TIMEOUT_MS,
       idempotent: true,
+      tries: 2,
     });
     // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
     if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);

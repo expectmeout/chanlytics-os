@@ -190,6 +190,8 @@ export type Delivered =
        * so the caller may try this person again later; a failure without it may have been taken all the same.
        */
       throttled?: true;
+      /** The provider may have taken it all the same (provider-fetch outcome unknown): nobody sends it again blind. */
+      mayHaveGone?: true;
     };
 
 export interface DeliverPorts {
@@ -488,10 +490,10 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   return spoke ? spoke.id : null;
 }
 
-/** The same writer every other event goes through: a failed insert is logged there, never dropped. */
 /** The message kinds the send door writes. */
 type MessageKind = "message.send_blocked" | "message.send_raced_cancel" | "message.sent" | "message.send_failed";
 
+/** The same writer every other event goes through: a failed insert is logged there, never dropped. */
 function event<K extends MessageKind>(
   db: Db,
   d: Delivery,
@@ -689,7 +691,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   }
 
   // A send that timed out or dropped after it left may have been taken all the same, on any wire (provider-fetch): its
-  // outcome is unknown, and its receipt may still settle it (00177's guard lets exactly this row move on).
+  // outcome is unknown: nobody sends it again blind, and an email's receipt may still settle it (00177's guard).
   const failure = {
     http_status: sent.status,
     body: sent.errorBody ?? null,
@@ -721,26 +723,27 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedRefusal(d.channel, sent),
+    ...namedFailure(d.channel, sent),
   };
 }
 
 /**
- * A refusal the provider gave for a limit of its own, named here at the wire, so a caller says it in words or waits
- * without reading the provider's answer itself: the mail provider's (too fast, or the day's sending used up; channels
- * resendLimitOf), or WhatsApp's "not now" (graphThrottled). A failure that is ours -- no wire, no credentials -- is
- * neither.
+ * What the provider's failure came to, named here at the wire, so a caller says it in words or waits without reading
+ * the provider's answer itself: a limit of the mail provider's own (too fast, or the day's sending used up; channels
+ * resendLimitOf), WhatsApp's "not now" (graphThrottled), or a send that may have gone all the same (provider-fetch
+ * outcome unknown). A failure that is ours -- no wire, no credentials -- is none of them.
  */
-function namedRefusal(
+function namedFailure(
   channel: Channel,
   sent: SendResult & { reason?: string },
-): { limit?: ResendLimit; throttled?: true } {
+): { limit?: ResendLimit; throttled?: true; mayHaveGone?: true } {
   if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true as const } : {};
   if (channel === "email") {
     const limit = resendLimitOf(sent);
-    return limit ? { limit } : {};
+    return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 
 /**

@@ -76,7 +76,7 @@ test("where the edge is: the address the dashboard has always called unless EDGE
   );
 });
 
-test("every call to the edge is bounded and never throws: the door's answer as it came, a 504 when it did not answer in time, a 503 when it could not be reached", async () => {
+test("every call to the edge is bounded and never throws: the door's answer as it came, a 503 named edge_timeout when it did not answer in time, edge_unreachable when it could not be reached", async () => {
   await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
     const calls = [];
     const answering = async (url, init) => {
@@ -111,7 +111,7 @@ test("every call to the edge is bounded and never throws: the door's answer as i
         },
       },
     );
-    assert.deepEqual([slow.status, slow.body.error], [504, "edge_timeout"]);
+    assert.deepEqual([slow.status, slow.body.error], [503, "edge_timeout"]);
     const gone = await callEdge(
       AUD,
       {},

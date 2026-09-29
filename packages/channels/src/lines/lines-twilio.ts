@@ -66,19 +66,14 @@ export class TwilioError extends Error {
 }
 
 /**
- * The fetch-backed port: basic auth as `acct`, 15 s per call, through providerFetch. It never throws: a call that got
- * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
- * which a saga step's `need` refuses as any other failure. A read is asked twice when the first got no answer.
- */
-/**
  * One call to Twilio as `acct`, through providerFetch: basic auth, a form body already encoded (the port's, or A2P's
- * own encoder), 15 s unless said. A read is asked twice when the first got no answer.
+ * own encoder), 15 s unless said. A read is asked twice when the first got no answer quickly.
  */
 export function twilioRequest(
   acct: ProviderAccount,
   method: "GET" | "POST" | "DELETE",
   url: string,
-  o: { form?: string; timeoutMs?: number } = {},
+  o: { form?: string; timeoutMs?: number; breaker?: "hold" | "count" } = {},
 ): Promise<ProviderReply> {
   return providerFetch("twilio", url, {
     method,
@@ -88,12 +83,23 @@ export function twilioRequest(
     },
     body: o.form,
     timeoutMs: o.timeoutMs ?? TWILIO_TIMEOUT_MS,
+    breaker: o.breaker ?? "hold",
     ...(method === "GET" ? { idempotent: true, tries: 2 } : {}),
   });
 }
 
+/**
+ * The fetch-backed port: basic auth as `acct`, 15 s per call, through twilioRequest. It never throws: a call that got
+ * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
+ * which a saga step's `need` refuses as any other failure.
+ */
 export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
-  const a = await twilioRequest(acct, method, url, form ? { form: new URLSearchParams(form).toString() } : {});
+  // A text to a person is always sent: another call's timeouts never fail it (provider-fetch's breaker).
+  const text = method === "POST" && url.endsWith("/Messages.json");
+  const a = await twilioRequest(acct, method, url, {
+    ...(form ? { form: new URLSearchParams(form).toString() } : {}),
+    ...(text ? { breaker: "count" as const } : {}),
+  });
   const body =
     a.status === 0
       ? { error: a.error ?? "no answer" }

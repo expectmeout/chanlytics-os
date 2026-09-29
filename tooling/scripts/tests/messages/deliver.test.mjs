@@ -1616,11 +1616,12 @@ test("a send that timed out is failed with its outcome unknown, so its receipt m
   const t = coldWorld();
   const timedOut = { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
   const out = await deliver(ports(t, emailWire(timedOut)), cold());
-  assert.equal(out.outcome, "failed");
+  assert.deepEqual([out.outcome, out.mayHaveGone], ["failed", true], "the caller hears it may have gone");
   assert.deepEqual(t.messages[0].error, { http_status: 0, body: "timeout", outcome: "unknown" });
   const u = coldWorld();
   const neverLeft = { ok: false, wamid: null, status: 0, errorBody: "fetch failed", outcome: "retryable" };
-  await deliver(ports(u, emailWire(neverLeft)), cold());
+  const left = await deliver(ports(u, emailWire(neverLeft)), cold());
+  assert.equal("mayHaveGone" in left, false);
   assert.equal(t.messages[0].error.outcome, "unknown");
   assert.equal("outcome" in u.messages[0].error, false, "a request that never left is plainly failed");
 });

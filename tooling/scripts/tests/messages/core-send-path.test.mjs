@@ -252,6 +252,23 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     "Dashboard reply could not be delivered (it never reached the provider).",
   ]);
   assert.match(bare.log[2][1].subject, /Reply delivery failed: ana@example\.com/);
+  // No answer in time is not "never reached": it may have gone, and the owner is told to look before sending it again.
+  const maybe = fakes({
+    queued: row,
+    deliver: {
+      outcome: "failed",
+      reason: "provider",
+      status: 0,
+      errorBody: "timeout",
+      messageId: "m1",
+      mayHaveGone: true,
+    },
+  });
+  await core.sendQueued(maybe.ports, byEmail());
+  assert.equal(
+    maybe.log[1][3],
+    "Dashboard reply could not be delivered (the provider did not answer, so it may have gone; check the thread before sending it again).",
+  );
   const unset = fakes({
     queued: row,
     deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" },
@@ -537,7 +554,7 @@ test("a wire that could not be bound is tried again as a fresh job, the row stil
   assert.deepEqual(quiet.ops(), ["deliver", "retry"]);
 });
 
-test("a send the provider did not take (retry by outcome) is handed to a fresh job as an unbound wire is: nobody flagged, the platform paged only when the provider's breaker is open, and the last try is not held", async () => {
+test("a send the provider did not take (retry by outcome) is handed to a fresh job as an unbound wire is: nobody flagged, nobody paged, and the last try is not held", async () => {
   // The door threw by name before it wrote anything: the provider provably did not take the words (its "not now",
   // a connection that never opened). The row is still queued, so the same send goes again a while on.
   const throttled = fakes({ deliver: new NotTakenError("whatsapp", { status: 429, errorBody: "too many" }) });
@@ -546,11 +563,11 @@ test("a send the provider did not take (retry by outcome) is handed to a fresh j
   assert.equal(throttled.log[1][2].resumes, 1);
   assert.deepEqual(throttled.log[1][1], new Date(NOW + core.SEND_RETRY_WAITS_MS[0]));
 
-  // The provider's breaker open is the provider down for everyone: the platform hears of it.
-  const down = fakes({ deliver: new NotTakenError("whatsapp", { status: 0, errorBody: "breaker_open" }) });
-  await core.sendQueued(down.ports, send({ resumes: 1 }));
-  assert.deepEqual(down.ops(), ["deliver", "retry", "page"]);
-  assert.equal(down.log[2][1], "provider_down:whatsapp");
+  // A connection that never opened, the second time round: the next wait, and still nobody paged.
+  const again = fakes({ deliver: new NotTakenError("whatsapp", { status: 0, errorBody: "connect ECONNREFUSED" }) });
+  await core.sendQueued(again.ports, send({ resumes: 1 }));
+  assert.deepEqual(again.ops(), ["deliver", "retry"]);
+  assert.deepEqual(again.log[1][1], new Date(NOW + core.SEND_RETRY_WAITS_MS[1]));
 
   // The last try asks the door not to hold it: a provider still saying no then is told as any failure is.
   const last = fakes();

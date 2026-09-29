@@ -29,17 +29,20 @@ export function requestId(): string | null {
 }
 
 type Level = "info" | "warn" | "error";
-/** A line's fields: anything JSON can carry. An undefined field is dropped, not written as null. */
+/**
+ * A line's fields: anything JSON can carry. An undefined field is dropped, not written as null, and an Error is
+ * written as its message, never its stack (`{ error: e }` straight from a catch).
+ */
 type LogFields = Record<string, unknown>;
 
-function write(level: Level, event: string, fields: LogFields): void {
+function writeLine(level: Level, event: string, fields: LogFields): void {
   const line: Record<string, unknown> = { level, event };
   const id = requestId();
   if (id) line.request_id = id;
   for (const [k, v] of Object.entries(fields)) {
     if (v === undefined) continue;
     // The envelope's keys are the logger's own: a field that would replace one rides under `<key>_field`.
-    line[k === "event" || k === "level" || k === "request_id" ? `${k}_field` : k] = v;
+    line[k === "event" || k === "level" || k === "request_id" ? `${k}_field` : k] = v instanceof Error ? v.message : v;
   }
   const text = JSON.stringify(line);
   if (level === "error") console.error(text);
@@ -48,12 +51,7 @@ function write(level: Level, event: string, fields: LogFields): void {
 }
 
 export const log = {
-  info: (event: string, fields: LogFields = {}): void => write("info", event, fields),
-  warn: (event: string, fields: LogFields = {}): void => write("warn", event, fields),
-  error: (event: string, fields: LogFields = {}): void => write("error", event, fields),
+  info: (event: string, fields: LogFields = {}): void => writeLine("info", event, fields),
+  warn: (event: string, fields: LogFields = {}): void => writeLine("warn", event, fields),
+  error: (event: string, fields: LogFields = {}): void => writeLine("error", event, fields),
 };
-
-/** An error for a log field: its message, never a stack. */
-export function errField(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}

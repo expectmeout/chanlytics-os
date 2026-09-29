@@ -197,6 +197,7 @@ async function waTokenPermanence(): Promise<Section> {
     const r = await providerFetch("meta", `https://graph.facebook.com/v25.0/debug_token?${q}`, {
       timeoutMs: DIAG_READ_TIMEOUT_MS,
       idempotent: true,
+      tries: 2,
     });
     // No answer at all is said as a failed check, as the bare fetch's throw was.
     if (r.status === 0) throw new Error(r.error ?? "no answer");

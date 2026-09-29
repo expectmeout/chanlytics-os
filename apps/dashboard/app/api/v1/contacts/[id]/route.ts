@@ -13,7 +13,7 @@ import { requireUuid } from "@/server/request-guards";
 import type { RouteContext } from "@/server/with-route";
 import { load, readerContext } from "@/server/readers";
 import { person } from "@/server/readers/person";
-import { log, errField } from "@/server/log";
+import { log } from "@/server/log";
 
 /**
  * DELETE /api/v1/contacts/:id — honour a deletion request.
@@ -166,7 +166,7 @@ async function blockErasure(contact: ErasedContact): Promise<void> {
       email: contact.email ?? null,
     });
   } catch (e) {
-    log.error("erase_begin_failed", { contact: contact.id, error: errField(e) });
+    log.error("erase_begin_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
       "Could not mark this person as being erased, so nothing was deleted. Try again.",
@@ -198,7 +198,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
   try {
     await scrubErasedJobs(contact.tenant_id, contact.id, keys.identifiers, FINISHED_JOB_STATES);
   } catch (e) {
-    log.error("erase_jobs_prescrub_failed", { contact: contact.id, error: errField(e) });
+    log.error("erase_jobs_prescrub_failed", { contact: contact.id, error: e });
     throw new AppError(
       "internal",
       "The finished jobs that carried this person's number could not be scrubbed, so nothing was deleted. Try again.",
@@ -284,7 +284,7 @@ async function sweepLateObjects(
       removed: sweep.removed.length,
       error: sweep.error,
     } as Json).catch((e: unknown) => {
-      log.error("erase_sweep_decision_failed", { contact: id, error: errField(e) });
+      log.error("erase_sweep_decision_failed", { contact: id, error: e });
     });
   }
   return sweep;
@@ -331,7 +331,7 @@ function scrubAskTurns(ctx: RouteContext, contact: ErasedContact, needles: strin
 /** Every job that carried the person, scrubbed; a failure is logged and counts as none, never a failed erasure. */
 function scrubJobsBestEffort(contact: ErasedContact, identifiers: readonly string[]): Promise<number> {
   return scrubErasedJobs(contact.tenant_id, contact.id, identifiers).catch((e: unknown) => {
-    log.error("erase_jobs_scrub_failed", { contact: contact.id, error: errField(e) });
+    log.error("erase_jobs_scrub_failed", { contact: contact.id, error: e });
     return 0;
   });
 }
