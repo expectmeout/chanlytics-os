@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { inAppBootScript, routePrefetchScript, themeBootScript, themeColorOf } from "@chanlytics/contracts";
+import {
+  inAppBootScript,
+  routePrefetchScript,
+  themeBootScript,
+  themeColorOf,
+  DEFAULT_LOOK_PREF,
+} from "@chanlytics/contracts";
 import "./globals.css";
 
 /**
@@ -58,7 +64,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // resolveTheme). It was corrected only in an effect after the bundle had mounted, so a light workspace opened
     // dark and flipped on every refresh. The script changes the attribute before hydration, so the element says
     // the difference is expected. The CSP admits the inline script (csp.ts: 'unsafe-inline' for what Next streams).
-    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
+    // data-look is the look beside it, the same way: the default until the script stamps the one this device keeps.
+    <html
+      lang="en"
+      data-theme="dark"
+      data-look={DEFAULT_LOOK_PREF}
+      suppressHydrationWarning
+      className={`${geist.variable} ${geistMono.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}

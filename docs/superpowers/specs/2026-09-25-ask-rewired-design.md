@@ -883,6 +883,19 @@ through the gateway in development; the hop timestamp; the nightly hit-ratio che
 function (additive). **Proof:** the budget refusal still fires at the line (a db test); the nightly opens an issue on a
 forced miss.
 
+**Phase 6, landed** (28 Sep 2026; plan `2026-09-28-ask-rewired-6-gateway.md`, #1305). PR 6.1 (#1308), PR 6.2
+(#1316) and PR 6.3, which closes the phase, each merged on green; 6.1's migration went to production before its merge, as `00240` (#1306 had taken `00239`).
+`ask_tokens_day` sums the day's input and output tokens in one statement (a value that is not a number counts nothing;
+the service role alone may call it), so the gateway reads no usage row. What landed beyond the plan: the diagnostics
+are sent in production, not only development (the API made them generally available, hashes only, no cost, and a
+nightly can only name a cause that production recorded); a live follow-up's first round names the previous turn's last
+message, kept on the raw turn, and the diagnostics count in the replay's size and never in its prefix, so a thread
+still replays; the hop is split, not timed across two clocks: the edge's `server-timing` gives its own time and the
+model's time to its headers, and the dashboard takes both from its wait. The nightly's lines are alarms, not this
+document's targets: at least ten answered turns, a median cache hit of 50% or more, a median first text of 6 s or
+less; production's last three days sat at 73–82% and 2.8–4.3 s. A forced miss (twelve turns at a 3% hit) exits 1 with
+the most-given miss reason, run end to end on a replayed stack.
+
 **Phase 7 · The first run and the last doors.** The palette mounted on `#/start` with the `start` surface; ⌘K jumps for
 Pipeline, Memory and the back office; the demo palette's stale comments and the registry's stale rows corrected. No
 migration. **Proof:** the e2e first-run spec asks a question; the jump index test lists every real surface.

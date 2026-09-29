@@ -17,7 +17,7 @@ import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
-import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
+import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
 
 // Re-exported so consumers keep importing the seam from one place.
@@ -188,124 +188,152 @@ export type JoinLiveFeed = (
   opts: SubscribeOptions,
 ) => () => void;
 
-export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
-  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
-  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
-    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
+/** One runner's own: what its reads, its live feed and its stop share. */
+interface SurfaceRun {
+  readonly overrides: SurfaceOverride[];
+  /** The surfaces that watch the live feed. */
+  readonly realtime: SurfaceOverride[];
+  /** The tenant the cache was written for, read before this runner's boot could overwrite it. */
+  readonly cachedAtBoot: string | null;
+  /** The live feed's channel, this runner's own. */
+  readonly topic: string;
+  /** Each surface's pending refresh. */
+  readonly timers: Map<string, ReturnType<typeof setTimeout>>;
+  cancelled: boolean;
+  /** Leaves the live feed, once it is joined. */
+  unsubscribe: (() => void) | null;
+}
+
+function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
   // Read the cached identity BEFORE any boot can overwrite it. Every
   // successful boot persists with the CURRENT tenant, and snapshotSurface
   // assigns blob.tenant on every write — so the old guard, which read the
   // cache after Promise.all, always compared a value against itself and could
   // never fire.
   const cachedAtBoot = cachedTenant();
-  let cancelled = false;
-  const timers = new Map<string, ReturnType<typeof setTimeout>>();
-  const topic = `bridge-${++runnerSeq}`; // unique per runner: StrictMode double-mounts never collide
-
-  const onUnauthorized = () => {
-    // Cached customer data must never outlive the session allowed to see it.
-    clearSurfaceCache();
-    // The page's hash goes along, so signing in again lands where they were.
-    if (!cancelled) window.location.assign(signInHref(window.location.hash));
+  return {
+    overrides,
+    cachedAtBoot,
+    cancelled: false,
+    timers: new Map<string, ReturnType<typeof setTimeout>>(),
+    topic: `bridge-${++runnerSeq}`, // unique per runner: StrictMode double-mounts never collide
+    realtime: overrides.filter(subscribesToRealtime),
+    unsubscribe: null,
   };
+}
 
-  // The cache is keyed on this, so it must be the workspace actually being
-  // viewed — the one the server resolved — or nothing. Keyed on
-  // `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
-  // guard that exists to stop one tenant's rows being restored under
-  // another's name would never have fired.
-  const tenantId = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
+// The cache is keyed on this, so it must be the workspace actually being
+// viewed — the one the server resolved — or nothing. Keyed on
+// `__WORKSPACES[0]` it was constant for a member of two workspaces, and the
+// guard that exists to stop one tenant's rows being restored under
+// another's name would never have fired.
+const viewedWorkspace = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
 
-  const persist = (o: SurfaceOverride) => {
-    if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId(), o.trimSnapshot);
-  };
+function signOutOnUnauthorized(run: SurfaceRun): void {
+  // Cached customer data must never outlive the session allowed to see it.
+  clearSurfaceCache();
+  // The page's hash goes along, so signing in again lands where they were.
+  if (!run.cancelled) window.location.assign(signInHref(window.location.hash));
+}
 
-  const refresh = async (o: SurfaceOverride, phase: "boot" | "refresh") => {
-    try {
-      const ok = await activateOverride(o);
-      if (cancelled) return;
-      if (ok) {
-        persist(o);
-        setStatus(o.key, "live");
-      } else if (phase === "boot" || !isSurfaceReady(o.key)) {
-        // "degraded" means "real but stale" — it may only describe a surface
-        // that HAS real data. A failed refresh of a never-loaded surface is
-        // still just failed, and saying otherwise upgrades the lie.
-        setStatus(o.key, "seeded");
-      } else setStatus(o.key, "degraded");
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
+function persistSurface(o: SurfaceOverride): void {
+  if (o.globals?.length) snapshotSurface(o.key, o.globals, viewedWorkspace(), o.trimSnapshot);
+}
+
+async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot" | "refresh"): Promise<void> {
+  try {
+    const ok = await activateOverride(o);
+    if (run.cancelled) return;
+    if (ok) {
+      persistSurface(o);
+      setStatus(o.key, "live");
+    } else if (phase === "boot" || !isSurfaceReady(o.key)) {
+      // "degraded" means "real but stale" — it may only describe a surface
+      // that HAS real data. A failed refresh of a never-loaded surface is
+      // still just failed, and saying otherwise upgrades the lie.
+      setStatus(o.key, "seeded");
+    } else setStatus(o.key, "degraded");
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "unauthorized") signOutOnUnauthorized(run);
+  }
+}
+
+async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
+  try {
+    let ok = await activateOverride(o);
+    if (!ok && !run.cancelled) {
+      await new Promise((r) => setTimeout(r, BOOT_RETRY_MS)); // one retry covers boot blips
+      if (run.cancelled) return;
+      ok = await activateOverride(o);
     }
-  };
-
-  const boot = async (o: SurfaceOverride) => {
-    try {
-      let ok = await activateOverride(o);
-      if (!ok && !cancelled) {
-        await new Promise((r) => setTimeout(r, BOOT_RETRY_MS)); // one retry covers boot blips
-        if (cancelled) return;
-        ok = await activateOverride(o);
-      }
-      if (cancelled) return;
-      if (ok) {
-        persist(o);
-        setStatus(o.key, "live");
-      } else if (isSurfaceReady(o.key)) {
-        // The cache already restored REAL rows for this surface before React
-        // mounted, and both boot attempts then failed. Recording "seeded"
-        // there is the one thing that is not true: yesterday's real
-        // conversations were on screen under a status meaning "no real data",
-        // so the pill showed neither live nor stale. `refresh` has always used
-        // this rule; boot did not.
-        setStatus(o.key, "degraded");
-      } else {
-        setStatus(o.key, "seeded");
-      }
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "unauthorized") onUnauthorized();
-      else if (!cancelled) setStatus(o.key, "seeded");
+    if (run.cancelled) return;
+    if (ok) {
+      persistSurface(o);
+      setStatus(o.key, "live");
+    } else if (isSurfaceReady(o.key)) {
+      // The cache already restored REAL rows for this surface before React
+      // mounted, and both boot attempts then failed. Recording "seeded"
+      // there is the one thing that is not true: yesterday's real
+      // conversations were on screen under a status meaning "no real data",
+      // so the pill showed neither live nor stale. `refresh` has always used
+      // this rule; boot did not.
+      setStatus(o.key, "degraded");
+    } else {
+      setStatus(o.key, "seeded");
     }
-  };
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "unauthorized") signOutOnUnauthorized(run);
+    else if (!run.cancelled) setStatus(o.key, "seeded");
+  }
+}
 
-  activeRefresh = (o: SurfaceOverride) => refresh(o, "refresh");
-  activeOverrides = overrides;
+function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
+  const prev = run.timers.get(o.key);
+  if (prev) clearTimeout(prev);
+  run.timers.set(
+    o.key,
+    setTimeout(() => void refreshSurface(run, o, "refresh"), o.debounceMs ?? REFRESH_DEBOUNCE_MS),
+  );
+}
 
-  const scheduleRefresh = (o: SurfaceOverride) => {
-    const prev = timers.get(o.key);
-    if (prev) clearTimeout(prev);
-    timers.set(
-      o.key,
-      setTimeout(() => void refresh(o, "refresh"), o.debounceMs ?? REFRESH_DEBOUNCE_MS),
-    );
-  };
-
-  const realtimeOverrides = overrides.filter(subscribesToRealtime);
-  let unsubscribe: (() => void) | null = null;
-  // What the live feed's own reports mean for the page (surface-realtime.ts):
-  // a rejoin reads the gap, and a drop that outlasts the grace is the shell's
-  // to say.
-  const feed = feedWatch({
+/**
+ * What the live feed's own reports mean for the page (surface-realtime.ts):
+ * a rejoin reads the gap, and a drop that outlasts the grace is the shell's
+ * to say.
+ */
+function watchLiveFeed(run: SurfaceRun): FeedWatch {
+  return feedWatch({
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
     // reconnect after sleep/offline: postgres_changes has no backfill, so
     // refetch to close the gap
-    onReconnect: () => realtimeOverrides.forEach(scheduleRefresh),
+    onReconnect: () => run.realtime.forEach((o) => scheduleSurfaceRefresh(run, o)),
   });
+}
 
-  // Restored cache belongs to whoever was signed in when it was written. If a
-  // different workspace comes back, that data was never theirs to see: drop it
-  // and reload rather than leave another tenant's rows on screen.
-  const guardTenant = () => {
-    const cached = cachedAtBoot;
-    const actual = tenantId();
-    if (cached && actual && cached !== actual) {
-      clearSurfaceCache();
-      window.location.reload();
-      return true;
-    }
-    return false;
-  };
+// Restored cache belongs to whoever was signed in when it was written. If a
+// different workspace comes back, that data was never theirs to see: drop it
+// and reload rather than leave another tenant's rows on screen.
+function tenantChangedSinceCache(run: SurfaceRun): boolean {
+  const cached = run.cachedAtBoot;
+  const actual = viewedWorkspace();
+  if (cached && actual && cached !== actual) {
+    clearSurfaceCache();
+    window.location.reload();
+    return true;
+  }
+  return false;
+}
 
+/** A boot under way: settled once its last surface is in, and the hold on answers it lets go of then. */
+interface SurfaceBoot {
+  booted: Promise<void>;
+  releaseAnswers: () => void;
+}
+
+function bootInPasses(run: SurfaceRun): SurfaceBoot {
+  const { overrides } = run;
+  const boot = (o: SurfaceOverride) => bootSurface(run, o);
   // The boot. On a workspace page (/w/<slug>) the surfaces fire at once, the
   // name riding on every request. Off one — the home before it has sent the
   // tab on, the create screen — the workspace surface goes first and the rest
@@ -347,54 +375,62 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
       )
     : inLanes(pagesOwn, BOOT_LANES, boot);
   const booted = firstPass
-    .then(() => (cancelled ? undefined : pageReadsIn(window)))
-    .then(() => (cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
+    .then(() => (run.cancelled ? undefined : pageReadsIn(window)))
+    .then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
   activeBoot = booted.then(
     () => undefined,
     () => undefined,
   );
-  void booted.then(() => {
-    releaseAnswers();
-    if (cancelled) return;
-    if (guardTenant()) return;
-    if (!realtimeOverrides.length) return;
+  return { booted, releaseAnswers };
+}
+
+function joinFeedOnceBooted(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFeed, feed: FeedWatch): void {
+  void boot.booted.then(() => {
+    boot.releaseAnswers();
+    if (run.cancelled) return;
+    if (tenantChangedSinceCache(run)) return;
+    if (!run.realtime.length) return;
     // Scoped to the workspace this tab shows. RLS authorises the events
     // server-side; the filter is what makes the subscription this
     // workspace's and nobody else's, so a member of two workspaces neither
     // receives nor repaints on the other one's rows. The topic carries the
     // workspace too, so a switch is a new channel, never a shared one.
-    const ws = tenantId();
-    unsubscribe = joinFeed(
+    const ws = viewedWorkspace();
+    run.unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
-        realtimeOverrides
+        run.realtime
           .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> }))
-          .forEach(scheduleRefresh),
+          .forEach((o) => scheduleSurfaceRefresh(run, o)),
       {
-        topic: ws ? `${topic}:${ws}` : topic,
+        topic: ws ? `${run.topic}:${ws}` : run.topic,
         tenantId: ws ?? undefined,
         onStatus: (status) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", topic, status);
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", run.topic, status);
           feed.onStatus(status);
         },
       },
     );
   });
+}
 
+/** The return to the tab and the connection's comings and goings, heard; answers what stops hearing them. */
+function listenForReturns(run: SurfaceRun): () => void {
+  const { overrides } = run;
   // Every surface again, as the boot reads them: the one on screen first, the rest behind it through the lanes. A
   // return used to schedule all of them at once -- twenty surfaces, thirty reads in one burst, with the page's own no
   // sooner than a stranger's. Answers are NOT held here: the live feed is joined by now, and an answer held from
   // before one of its events would hide what the event changed. A return while one pass is still out is that pass.
   let againRunning = false;
   const readEverySurfaceAgain = () => {
-    if (againRunning || cancelled) return;
+    if (againRunning || run.cancelled) return;
     againRunning = true;
     const screen = screenRank(window);
     void inLanes(
       [...overrides].sort((x, y) => screen(x) - screen(y)),
       BOOT_LANES,
-      (o) => refresh(o, "refresh"),
+      (o) => refreshSurface(run, o, "refresh"),
     ).finally(() => {
       againRunning = false;
     });
@@ -417,16 +453,37 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   window.addEventListener("online", onOnline);
 
   return () => {
-    cancelled = true;
-    releaseAnswers();
-    activeRefresh = null;
-    activeOverrides = [];
     document.removeEventListener("visibilitychange", onVisible);
     window.removeEventListener("offline", onOffline);
     window.removeEventListener("online", onOnline);
-    timers.forEach((t) => clearTimeout(t));
+  };
+}
+
+/**
+ * Starts the surfaces: each one's first read (the boot), the live feed once the boot is in, and the reads again on a
+ * return to the tab or to the network. Answers the stop, which undoes them in the same order.
+ */
+export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFeed): () => void {
+  // Said now, at the call, not when the boot ends: a missing feed found then is a throw nobody awaits.
+  if (typeof joinFeed !== "function" && overrides.some(subscribesToRealtime))
+    throw new TypeError("startSurfaces: surfaces that watch the live feed need a feed to join");
+  const run = newSurfaceRun(overrides);
+  activeRefresh = (o: SurfaceOverride) => refreshSurface(run, o, "refresh");
+  activeOverrides = overrides;
+  const feed = watchLiveFeed(run);
+  const boot = bootInPasses(run);
+  joinFeedOnceBooted(run, boot, joinFeed, feed);
+  const stopListening = listenForReturns(run);
+
+  return () => {
+    run.cancelled = true;
+    boot.releaseAnswers();
+    activeRefresh = null;
+    activeOverrides = [];
+    stopListening();
+    run.timers.forEach((t) => clearTimeout(t));
     feed.stop();
-    if (unsubscribe) unsubscribe();
+    if (run.unsubscribe) run.unsubscribe();
     // What this runner watched goes with it; the next one says what it finds.
     setConnection({ offline: false, realtimeDown: false });
   };

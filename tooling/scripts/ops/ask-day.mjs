@@ -9,16 +9,21 @@
  * cost at the models' list prices. Read-only; the service role, because a
  * day's turns belong to every member of every workspace.
  *
- *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json]
+ *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
+ *
+ * --check says last, in one line, whether the day held the nightly's lines (ask-stats.mjs askDayVerdict), and exits 1
+ * when it crossed one: the nightly workflow opens an issue with that line.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { spread, pct, ms } from "../ask-stats.mjs";
+import { spread, pct, ms, missTally, askDayVerdict } from "../ask-stats.mjs";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HOURS = Math.max(1, Number(process.env.HOURS) || 24);
 const TENANT = process.env.TENANT || null;
 const JSON_OUT = process.argv.includes("--json");
+/** The nightly's check (the Phase 6 plan, D4): the day against its lines, said last, exit 1 when one is crossed. */
+const CHECK = process.argv.includes("--check");
 if (!URL_ || !KEY) {
   console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   process.exit(2);
@@ -118,6 +123,9 @@ function summarise(group) {
     cap_hits: sh.reduce((n, s) => n + num(s.cap_hits), 0),
     opened: spread(sh.map((s) => s.opened_ms)),
     since_last: spread(sh.map((s) => s.since_last_ms)),
+    // The Phase 6 plan: why rounds missed the cache (D2), and the first round's hop through the edge (D3).
+    misses: missTally(sh),
+    hop: spread(sh.map((s) => s.hop_ms)),
   };
 }
 const key = (t) => `${t.shape.model} · ${t.shape.surface ?? "none"}`;
@@ -151,6 +159,11 @@ for (const [model, group] of Object.entries(byModel)) {
     .sort((a, b) => b[1].length - a[1].length))
     console.log(line(`  ${k.slice(model.length + 3)}`, summarise(g)));
 }
+const whole = summarise(turns);
+console.log(
+  `\ncache misses by reason: ${whole.misses.length ? whole.misses.map((m) => `${m.reason} ${m.rounds}`).join(", ") : "none said"}` +
+    ` · the hop through the edge, median ${ms(whole.hop.median)}, p90 ${ms(whole.hop.p90)}`,
+);
 for (const [model, c] of Object.entries(cost))
   if (!byModel[model])
     console.log(
@@ -176,4 +189,15 @@ if (JSON_OUT) {
     ),
   );
   console.log(`saved ${out}`);
+}
+
+if (CHECK) {
+  const verdict = askDayVerdict({
+    turns: turns.length,
+    cacheHit: whole.cache_hit.median,
+    firstTextMs: whole.first_text.median,
+    misses: whole.misses,
+  });
+  console.log(`\n${verdict.line}`);
+  if (!verdict.ok) process.exitCode = 1;
 }

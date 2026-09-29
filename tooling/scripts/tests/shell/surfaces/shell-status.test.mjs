@@ -26,6 +26,8 @@ import {
   shellStatusLine,
   toBillingVM,
   toLiveVM,
+  LOOK_OPTIONS,
+  LOOK_OFFERED,
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
@@ -1149,6 +1151,51 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
   } finally {
     deep = true;
     delete globalThis.usePPToast;
+  }
+});
+
+test("the look travels as the theme does: stamped beside it on every root the shell draws, handed to the account menu, and its words published by the bridge", () => {
+  shell.installShell(win);
+  assert.deepEqual(win.__chrome.looks, LOOK_OPTIONS, "the looks beside the themes");
+  assert.equal(win.__chrome.lookOffered, LOOK_OFFERED, "and whether the account menu offers them, as contracts says");
+  const onLook = () => {};
+  const drawAt = (hash) => {
+    deep = false;
+    cells = [];
+    frames.begin();
+    win.location.hash = hash;
+    globalThis.ShellStatusBar = win.ShellStatusBar;
+    const theme = { theme: "light", themePref: "light", onTheme() {} };
+    return win.ChanlyticsApp({ ...theme, look: "glass", onLook, sidebar: "open", onSidebar() {} });
+  };
+  // The first run and the shared viewer are drawn instead of the chrome, each on a root of its own that carries the
+  // theme; a [data-look] rule has to find the look on every one of them.
+  const keptState = win.__surfaceState;
+  delete win.__surfaceState;
+  win.FirstRun = "FirstRun";
+  globalThis.ReportsPage = "ReportsPage";
+  try {
+    for (const [hash, root] of [
+      ["#/today", "app-root"],
+      ["#/start", "fr-shell"],
+      ["#/shared", "shared-root"],
+    ]) {
+      const drawn = drawAt(hash);
+      assert.equal(drawn.props.className, root, `${hash} is drawn on its own root`);
+      assert.deepEqual(
+        [drawn.props["data-theme"], drawn.props["data-look"]],
+        ["light", "glass"],
+        `${hash}: the look beside the theme`,
+      );
+    }
+    const sidebar = find(drawAt("#/today"), (n) => n.type === "Sidebar");
+    assert.equal(sidebar.props.look, "glass", "the account menu is handed the look in force");
+    assert.equal(sidebar.props.onLook, onLook, "and changes it through the shell's own prop, as the theme");
+  } finally {
+    deep = true;
+    delete win.FirstRun;
+    delete globalThis.ReportsPage;
+    if (keptState !== undefined) win.__surfaceState = keptState;
   }
 });
 

@@ -44,6 +44,7 @@ const VERSION = "2023-06-01";
 const UPSTREAM_TIMEOUT_MS = 55_000;
 
 export async function POST(request: Request): Promise<Response> {
+  const tIn = Date.now();
   const auth = authorizeAdmin(request, "/api/admin/llm");
   if (!auth.ok) return auth.response;
   const key = env.ANTHROPIC_API_KEY;
@@ -88,6 +89,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const t0 = Date.now();
+  const gatewayMs = t0 - tIn;
   let upstream: Response;
   try {
     upstream = await fetch(API, {
@@ -111,9 +113,19 @@ export async function POST(request: Request): Promise<Response> {
       headers: { "content-type": "application/json", "cache-control": "no-store" },
     });
   }
+  // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
+  // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
+  const modelMs = Date.now() - t0;
   const stream = teeUsage(upstream.body, async (usage, stopReason) => {
     const latency = Date.now() - t0;
-    L.info("ask_gateway_turn", { tenant: tenantId, ...usage, stop_reason: stopReason, ms: latency });
+    L.info("ask_gateway_turn", {
+      tenant: tenantId,
+      ...usage,
+      stop_reason: stopReason,
+      ms: latency,
+      gateway_ms: gatewayMs,
+      model_headers_ms: modelMs,
+    });
     await recordAskUsage(db, tenantId, userId, {
       ...usage,
       model: v.request.model,
@@ -129,6 +141,7 @@ export async function POST(request: Request): Promise<Response> {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store",
       "x-accel-buffering": "no",
+      "server-timing": `gateway;dur=${gatewayMs}, model;dur=${modelMs}`,
     },
   });
 }

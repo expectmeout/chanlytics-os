@@ -1,14 +1,16 @@
 /**
  * The chrome: the sidebar's two menus and its rail, the theme with a system
- * option, the shell's one status line, the shortcuts sheet — and the
- * floating pill retired. The words and rules are contracts; the wiring is
- * pinned so the shell, the bridge and the page keep agreeing.
+ * option and the look beside it, the shell's one status line, the shortcuts
+ * sheet — and the floating pill retired. The words and rules are contracts;
+ * the wiring is pinned so the shell, the bridge and the page keep agreeing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveTheme,
   isThemePref,
+  isLookPref,
+  lookPrefOf,
   isSidebarPref,
   workspaceHotkey,
   isTypingTarget,
@@ -16,8 +18,12 @@ import {
   shortcutGroups,
   SHORTCUTS,
   THEME_OPTIONS,
+  LOOK_OPTIONS,
+  DEFAULT_LOOK_PREF,
+  LOOK_OFFERED,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, press, textOf } from "../_legacy-react.mjs";
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
@@ -33,6 +39,21 @@ test("the theme: a choice, or the device's; unknown values fall back; the sideba
     ["light", "dark", "system"],
   );
   for (const t of THEME_OPTIONS) assert.ok(t.label && t.icon, t.id);
+});
+
+test("the look: Classic or Glass, Classic by default and for anything unknown, and not offered to members yet", () => {
+  assert.deepEqual(
+    LOOK_OPTIONS.map((l) => [l.id, l.label]),
+    [
+      ["classic", "Classic"],
+      ["glass", "Glass"],
+    ],
+  );
+  assert.ok(isLookPref("classic") && isLookPref("glass") && !isLookPref("Glass") && !isLookPref(null));
+  assert.equal(DEFAULT_LOOK_PREF, "classic", "the app as it is drawn today");
+  assert.equal(lookPrefOf("glass"), "glass");
+  assert.equal(lookPrefOf("neon"), DEFAULT_LOOK_PREF, "an unknown look is the default, as an unknown theme is");
+  assert.equal(LOOK_OFFERED, false, "the account menu offers no Look until Glass is drawn (the plan's step 5.5)");
 });
 
 test("hotkeys and typing: ⌘1 to ⌘9 for the first nine workspaces; a field being typed in keeps its keys", () => {
@@ -126,15 +147,22 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
         "publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));",
       ),
   );
-  assert.ok(
-    app.includes("const theme = resolveTheme(prefs.theme, systemDark);") &&
-      app.includes('document.documentElement.setAttribute("data-theme", theme);'),
-    "the page paints the resolved theme",
-  );
-  assert.ok(
-    app.includes("sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar"),
-    "the rail is a device preference",
-  );
+  // What the device's preferences are, what a press keeps and what the page wears are device-prefs.ts's, run by
+  // theme-boot.test.mjs against the head's script. The component only holds them: these are its calls.
+  for (const pin of [
+    "const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));",
+    "const { theme, look } = documentStamps(prefs, systemDark);",
+    "useDocumentStamps(theme, look);",
+    'document.documentElement.setAttribute("data-theme", theme);',
+    'document.documentElement.setAttribute("data-look", look);',
+    "setPrefs((p) => choosePref(browserStorage, p, key, v))",
+    'onTheme={(v) => choose("theme", v)}',
+    'onLook={(v) => choose("look", v)}',
+    'onSidebar={(v) => choose("sidebar", v)}',
+    "theme={theme}",
+    "look={look}",
+  ])
+    assert.ok(app.includes(pin), `the page wears and keeps what device-prefs.ts says: ${pin}`);
   assert.ok(
     !readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"),
     "the pill's styles are gone",
@@ -234,4 +262,47 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
   assert.ok(inbox.includes("}, [initialThreadId]);"), "the Inbox follows a later deep-link");
+});
+
+test("the account menu offers the look only once contracts does: none while it is not offered, then Classic and Glass under the theme, a press handing it to the shell", async () => {
+  // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
+  // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
+  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  const picked = [];
+  const themed = [];
+  const accountMenu = (lookOffered) => {
+    globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered };
+    fresh();
+    const sidebar = () =>
+      globalThis.React.createElement(globalThis.window.Sidebar, {
+        themePref: "dark",
+        onTheme: (v) => themed.push(v),
+        look: "classic",
+        onLook: (v) => picked.push(v),
+      });
+    press(byTestId(again(sidebar), "sb-account"));
+    return byTestId(again(sidebar), "sb-account-menu");
+  };
+  const groups = (menu) => all(menu, (n) => n.props?.role === "radiogroup").map((n) => n.props["aria-label"]);
+
+  const now = accountMenu(LOOK_OFFERED);
+  assert.ok(now, "the account menu opens");
+  assert.deepEqual(groups(now), ["Theme"], "not offered yet: the theme alone, and no Look to press");
+  assert.equal(byTestId(now, "sb-look-glass"), null);
+
+  const offered = accountMenu(true);
+  assert.deepEqual(groups(offered), ["Theme", "Look"], "offered: the look, under the theme");
+  const looks = LOOK_OPTIONS.map((l) => byTestId(offered, `sb-look-${l.id}`));
+  assert.deepEqual(
+    looks.map((b) => [textOf(b), b.props["aria-checked"]]),
+    [
+      ["Classic", true],
+      ["Glass", false],
+    ],
+    "the look in force is the one checked",
+  );
+  press(looks[1]);
+  assert.deepEqual(picked, ["glass"], "a press hands the look to the shell, as the theme's does");
+  assert.deepEqual(themed, [], "and leaves the theme as it was");
 });

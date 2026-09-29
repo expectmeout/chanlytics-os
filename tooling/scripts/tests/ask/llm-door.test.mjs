@@ -608,6 +608,30 @@ test("the line is the cap: a workspace one token under it is served, one at it i
   assert.equal(net.calls.length, 1, "only the round under the cap reached the model");
 });
 
+test("the cache diagnostics ride through (the Phase 6 plan, D2): an id the API wrote or null passes; anything else is dropped, never refused; and the answer says in server-timing what this edge took and what the model took to its headers (D3)", async () => {
+  const ask = (diagnostics) => validateGatewayRequest({ ...REQUEST, diagnostics }, "ask");
+  assert.deepEqual(ask({ previous_message_id: "msg_01AbC-d_9" }).request.diagnostics, {
+    previous_message_id: "msg_01AbC-d_9",
+  });
+  assert.deepEqual(ask({ previous_message_id: null }).request.diagnostics, { previous_message_id: null });
+  for (const bad of [{ previous_message_id: "not a message" }, { previous_message_id: 7 }, {}, "msg_01", null]) {
+    const v = ask(bad);
+    assert.equal(v.ok, true, "diagnostics change nothing the model answers: never a refusal");
+    assert.equal("diagnostics" in v.request, false, `dropped: ${JSON.stringify(bad)}`);
+  }
+  assert.equal("diagnostics" in validateGatewayRequest(REQUEST, "ask").request, false, "none asked, none sent");
+
+  const ws = T(10);
+  use({ events: [] });
+  const net = model();
+  const res = await knock(ws, turn({ request: { ...REQUEST, diagnostics: { previous_message_id: "msg_prev" } } }));
+  assert.equal(res.status, 200);
+  await res.text();
+  assert.deepEqual(net.calls[0].body.diagnostics, { previous_message_id: "msg_prev" }, "sent on to the model");
+  const timing = res.headers.get("server-timing");
+  assert.match(timing, /^gateway;dur=\d+, model;dur=\d+$/, "both durations, in whole milliseconds");
+});
+
 test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, Ask's turn may carry its answer format under 8,000 characters, and Ask is clamped to ASK_MAX_TOKENS while the lead purposes keep their ceiling", async () => {
   const ask = (over) => validateGatewayRequest({ ...REQUEST, ...over }, "ask");
   assert.equal(ask({ model: ASK_MODEL }).ok, true, "Ask's default profile is a model the door allows");

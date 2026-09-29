@@ -8,6 +8,8 @@
  */
 import {
   THEME_OPTIONS,
+  LOOK_OPTIONS,
+  LOOK_OFFERED,
   SHORTCUTS,
   pageTitle,
   shortcutGroups,
@@ -47,6 +49,9 @@ export interface ChromeWords {
   nextTheme: typeof nextThemePref;
   /** What that button shows and says. */
   themeButton: typeof themeButtonWords;
+  /** The looks, and whether the account menu offers them yet (contracts LOOK_OFFERED): it draws none until it does. */
+  looks: typeof LOOK_OPTIONS;
+  lookOffered: boolean;
   shortcuts: typeof SHORTCUTS;
   shortcutGroups: typeof shortcutGroups;
   statusLine: typeof shellStatusLine;
@@ -142,6 +147,8 @@ export function installShell(win: Window = window): void {
     themes: THEME_OPTIONS,
     nextTheme: nextThemePref,
     themeButton: themeButtonWords,
+    looks: LOOK_OPTIONS,
+    lookOffered: LOOK_OFFERED,
     shortcuts: SHORTCUTS,
     shortcutGroups,
     statusLine: shellStatusLine,

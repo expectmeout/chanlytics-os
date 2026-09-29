@@ -10,6 +10,10 @@
  *     the tool-call items dropped;
  *   - the recording copy is bounded, and a timeout is distinguishable from a
  *     provider refusal;
+ *   - a call read tells the provider's answers apart -- found, not found, a
+ *     refused key, unavailable with the wait it named -- and is bounded, so
+ *     the sweep that reads it can leave a row alone during an outage instead
+ *     of counting the outage against it;
  *   - the SQL upsert is forward-only, and the webhook, sweep and diagnostic
  *     carry their halves of the rule (pinned by source, executed against the
  *     live schema in calls.integration.test.mjs).
@@ -17,7 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { normalizeCall, liveTurns, fetchRecording } from "@chanlytics/channels";
+import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
 import { readRaw, importSrc } from "../../_source.mjs";
 
@@ -104,6 +108,168 @@ test("the recording fetch is bounded: a stalled provider rejects, a refusal retu
   } finally {
     server.closeAllConnections?.();
     await new Promise((r) => server.close(r));
+  }
+});
+
+test("a call read tells the provider's answers apart — found, not found, a refused key, unavailable with the wait it named — never throws, and a read that never answers is unavailable inside its bound, ten seconds by default", async () => {
+  // The wire: one answer per call id, in the shapes the live account sends.
+  // A signal never says how long it was given, so the static is wrapped and
+  // each signal remembers its budget.
+  const realFetch = globalThis.fetch;
+  const realTimeout = AbortSignal.timeout;
+  const budgets = new WeakMap();
+  AbortSignal.timeout = (ms) => {
+    const s = realTimeout.call(AbortSignal, ms);
+    budgets.set(s, ms);
+    return s;
+  };
+  const found = {
+    call_id: "call_found",
+    agent_id: "agent_x",
+    call_type: "phone_call",
+    direction: "inbound",
+    from_number: "+16465550123",
+    to_number: "+13055550100",
+    call_status: "ended",
+    recording_url: "https://cdn.retell.test/call_found.wav",
+  };
+  const soon = new Date(Date.now() + 90_000).toUTCString();
+  const past = new Date(Date.now() - 90_000).toUTCString();
+  const html = { "content-type": "text/html" };
+  const answers = {
+    call_found: () => Response.json(found),
+    call_limited_past: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": past } }),
+    call_limited_now: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": "0" } }),
+    call_gone: () => Response.json({ message: "call not found" }, { status: 404 }),
+    call_rejected: () => Response.json({ message: "invalid request" }, { status: 422 }),
+    call_unauthorized: () => Response.json({ message: "Unauthorized" }, { status: 401 }),
+    call_forbidden: () => Response.json({ message: "Forbidden" }, { status: 403 }),
+    call_limited: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": "30" } }),
+    call_limited_until: () =>
+      Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": soon } }),
+    call_down: () => new Response("<html>502 Bad Gateway</html>", { status: 502, headers: html }),
+    call_broken: () => new Response("<html>ok</html>", { status: 200, headers: html }),
+    call_no_id: () => Response.json({ message: "ok" }),
+    call_timeout: () => Response.json({ message: "Request Timeout" }, { status: 408 }),
+    call_too_early: () => Response.json({ message: "Too Early" }, { status: 425 }),
+    // The head answers at once; the body never finishes, until the read's own signal gives up (the
+    // fallback timer again keeps the process alive, as call_stalled's does).
+    call_slow_body: (init) =>
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('{"call_id":'));
+            const unbounded = setTimeout(() => c.error(new Error("the body was not bounded")), 1000);
+            init?.signal?.addEventListener("abort", () => {
+              clearTimeout(unbounded);
+              c.error(init.signal.reason);
+            });
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    call_unreachable: () => {
+      throw new TypeError("fetch failed");
+    },
+    // Answers only when the signal it was given gives up. The fallback timer
+    // is armed either way: a signal's own timer is unref'd and would let the
+    // process end mid-read, and a read that rode with no signal at all is an
+    // unbounded wait, reported rather than waited for.
+    call_stalled: (init) =>
+      new Promise((_, reject) => {
+        const unbounded = setTimeout(() => reject(new Error("the read was not bounded: no signal rode with it")), 1000);
+        init?.signal?.addEventListener("abort", () => {
+          clearTimeout(unbounded);
+          reject(init.signal.reason);
+        });
+      }),
+  };
+  const asked = [];
+  globalThis.fetch = async (url, init) => {
+    const id = String(url).split("/").pop();
+    asked.push({ url: String(url), auth: init?.headers?.Authorization, budgetMs: budgets.get(init?.signal) ?? null });
+    return answers[id](init);
+  };
+  const cfg = { apiKey: "retell-key-for-this-test" };
+  try {
+    assert.deepEqual(await getCall(cfg, "call_found"), { kind: "found", call: found });
+    assert.deepEqual(
+      asked,
+      [
+        {
+          url: "https://api.retellai.com/v2/get-call/call_found",
+          auth: "Bearer retell-key-for-this-test",
+          budgetMs: 10_000,
+        },
+      ],
+      "asked as this deployment, bounded at ten seconds unless the caller says otherwise",
+    );
+    assert.deepEqual(await getCall(cfg, "call_gone"), { kind: "not_found", status: 404 });
+    assert.deepEqual(
+      await getCall(cfg, "call_rejected"),
+      { kind: "not_found", status: 422 },
+      "any other refusal of the request is the same answer: asking again will not change it",
+    );
+    assert.deepEqual(await getCall(cfg, "call_unauthorized"), { kind: "auth", status: 401 });
+    assert.deepEqual(await getCall(cfg, "call_forbidden"), { kind: "auth", status: 403 });
+    assert.deepEqual(await getCall(cfg, "call_limited"), { kind: "unavailable", status: 429, retryAfterMs: 30_000 });
+    assert.deepEqual(
+      await getCall(cfg, "call_limited_past"),
+      { kind: "unavailable", status: 429, retryAfterMs: null },
+      "a date already past is 'retry now' (RFC 9110): no wait to hold a tick for",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_limited_now"),
+      { kind: "unavailable", status: 429, retryAfterMs: null },
+      "and so is zero",
+    );
+    const until = await getCall(cfg, "call_limited_until");
+    assert.equal(until.kind, "unavailable");
+    assert.ok(
+      until.retryAfterMs > 80_000 && until.retryAfterMs <= 90_000,
+      `an HTTP-date Retry-After is the wait from now: ${until.retryAfterMs}`,
+    );
+    assert.deepEqual(await getCall(cfg, "call_down"), { kind: "unavailable", status: 502, retryAfterMs: null });
+    assert.deepEqual(
+      await getCall(cfg, "call_broken"),
+      { kind: "unavailable", status: 200, retryAfterMs: null },
+      "a 200 that is not a call is not a call: a proxy's page, not the provider's word",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_no_id"),
+      { kind: "unavailable", status: 200, retryAfterMs: null },
+      "nor is an object that carries no call id",
+    );
+    assert.deepEqual(
+      [await getCall(cfg, "call_timeout"), await getCall(cfg, "call_too_early")],
+      [
+        { kind: "unavailable", status: 408, retryAfterMs: null },
+        { kind: "unavailable", status: 425, retryAfterMs: null },
+      ],
+      "a 408 and a 425 say 'not now', not 'no such call': no try is spent on them",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_slow_body", { timeoutMs: 50 }),
+      { kind: "unavailable", status: null, retryAfterMs: null },
+      "a body that stalls past the bound is no answer at all, so the tick stops asking",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_unreachable"),
+      { kind: "unavailable", status: null, retryAfterMs: null },
+      "no answer at all is not a refusal",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_stalled", { timeoutMs: 50 }),
+      { kind: "unavailable", status: null, retryAfterMs: null },
+      "a read that never answers is given up on inside its bound, not waited for",
+    );
+    assert.equal(asked.at(-1).budgetMs, 50, "the caller's bound rode with the read");
+  } finally {
+    globalThis.fetch = realFetch;
+    AbortSignal.timeout = realTimeout;
   }
 });
 
