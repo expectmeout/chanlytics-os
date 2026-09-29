@@ -16,7 +16,7 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
-import type { Channel, Sender } from "./deliver";
+import type { Channel, Delivery, Sender, Wire } from "./deliver";
 
 /**
  * What a read of a workspace's credentials came back as, from wherever they
@@ -150,4 +150,30 @@ function ownRouteOf(
   const route = owns.find((r) => r.as.address === from);
   if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
+}
+
+/** What the wire said, or why there was none to ask. */
+type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
+
+/**
+ * The words on this workspace's wire for the channel, or why there is none (deliver's last step, once the send may
+ * go). A wire that could not be BOUND (its credentials could not be read) throws before anything is written: asked only
+ * of words that may go, so a refusal is still recorded during an outage, and the row stays queued for the caller's next
+ * try. Not the same fact as `null`. Only a person's reply (`asReply`) may leave by an own domain (G15); any other send
+ * never carries the twin.
+ */
+export async function putOnWire(wire: Wire, d: Delivery, asReply: boolean): Promise<WireResult> {
+  const send = wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
+  if (send === undefined)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+    ...reply,
+  });
 }

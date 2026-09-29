@@ -54,7 +54,7 @@ import {
   type Database,
   type Json,
 } from "@chanlytics/db";
-import { isWireUnavailable, WireUnavailableError, type WireUnavailable } from "./wire-senders";
+import { putOnWire, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
 
@@ -556,30 +556,6 @@ function assertFrozenFor(d: Delivery): void {
   );
 }
 
-type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
-
-/**
- * The words on this workspace's wire for the channel, or why there is none. A wire that could not be BOUND (its
- * credentials could not be read) throws before anything is written: asked only of words that may go, so a refusal is
- * still recorded during an outage, and the row stays queued for the caller's next try. Not the same fact as `null`.
- */
-async function putOnWire(wire: Wire, d: Delivery): Promise<WireResult> {
-  const send = wire[d.channel];
-  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
-  if (send === undefined)
-    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
-  if (send === null)
-    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
-  // Only a person's reply may leave by an own domain (G15); any other send never carries the twin.
-  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
-    body: d.body,
-    template: d.template,
-    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
-    ...reply,
-  });
-}
-
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
   assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
@@ -618,7 +594,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   };
   if (reason) return refuse(reason);
 
-  const sent = await putOnWire(ports.wire, d);
+  const sent = await putOnWire(ports.wire, d, kindOf(d) === "reply");
 
   // The carrier's own no, on the person's behalf (channels smsRefusalOf:
   // Twilio 21610, the recipient replied STOP to this number before we heard --
