@@ -235,7 +235,6 @@ const PipelinePage = () => {
         <div className="cl-search-wrap">
           <Icon name="search" size={13} />
           <input ref={searchRef} placeholder="Search deals, clients, agents…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <span className="kbd">/</span>
         </div>
         <div className="cl-controls-right">
           <div className="cl-tabs">

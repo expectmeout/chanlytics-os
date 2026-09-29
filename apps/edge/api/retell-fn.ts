@@ -41,12 +41,12 @@ import {
   templatesFor,
 } from "../lib/packages/db.js";
 import {
+  bookingHeld,
   bookingTemplate,
   inboxSlots,
   NO_LINK_DETAILS,
   normalizePhone,
   offersBookingLink,
-  policyAskClass,
   purposeOfTemplate,
   renderTemplate,
   resolveFacts,
@@ -55,7 +55,7 @@ import {
 import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/receptionist/outbound-gate.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
-import { logger, errField } from "../lib/log.js";
+import { logger, errField, type Logger } from "../lib/log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -99,6 +99,37 @@ const CANNOT_SEND =
  * every workspace shares.
  */
 const NO_LINK = `This business has no booking link, so nothing was sent. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
+
+type Db = NonNullable<ReturnType<typeof pg>>;
+
+/** Where a refused send is said and recorded: the thread it would have joined, the call that asked, the modes read. */
+interface RefusedAt {
+  tenantId: string;
+  conversationId: string;
+  callId: string | undefined;
+  publishedNumber: string | null;
+  mode: string;
+  personMode: string | null;
+}
+
+/**
+ * A send refused before any row existed, by the gate or by the Autonomy tab's booking hold: said to the caller, and
+ * recorded. Every other refusal in the product lands somewhere durable -- the door writes message.send_blocked, a
+ * broadcast marks its recipient, a failed send flags the thread -- and this one was a line on stdout, so "she says she
+ * never got the link" had no answer. The door's own kind, naming the thread rather than a message, because the refusal
+ * came before any row existed to name. The caller is on the line, so the agent is told what to SAY -- never that a
+ * colleague is mid-thread with them, or what our policy is.
+ */
+async function refusedOnTheCall(db: Db, L: Logger, refusal: OutboundRefusal, at: RefusedAt): Promise<Response> {
+  L.info("retell_fn_refused", { tenant: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
+  await emitEvent(db, at.tenantId, "message.send_blocked", "conversation", at.conversationId, {
+    reason: refusal,
+    source: VOICE_SEND_SOURCE,
+    channel: "whatsapp",
+    call_id: at.callId ?? null,
+  });
+  return json(200, { result: refusalScript(refusal, at.publishedNumber) });
+}
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -212,7 +243,15 @@ export async function POST(request: Request): Promise<Response> {
     // workspace that asked to confirm its own bookings had its phone agent send
     // the link anyway while its WhatsApp receptionist was being held for the
     // same request (steps.ts layerTwo takes the link back out of a reply).
-    const bookingHeld = policyAskClass(rt.policy, "booking") === "booking";
+    const held = bookingHeld(rt.policy);
+    const refusedAt: RefusedAt = {
+      tenantId: routed.tenantId,
+      conversationId: contact.conversationId,
+      callId: call.call_id,
+      publishedNumber,
+      mode: replyMode,
+      personMode,
+    };
 
     // WHICH template, asked of the workspace. A read that fails throws to the
     // outer catch and the caller is told we could not send, which is true; a
@@ -221,6 +260,10 @@ export async function POST(request: Request): Promise<Response> {
     // to fix it.
     const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
     if (!booking) {
+      // Unless it holds its bookings. Under the hold the link would not go whichever template there was, so the hold is
+      // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
+      // workspace holding its bookings that they "can book online", the one thing the workspace chose not to have said.
+      if (held) return refusedOnTheCall(db, L, "booking_needs_a_person", refusedAt);
       L.info("retell_fn_no_template", { tenant: routed.tenantId });
       return json(200, { result: NO_TEMPLATE });
     }
@@ -260,7 +303,7 @@ export async function POST(request: Request): Promise<Response> {
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,
-      bookingHeld,
+      bookingHeld: held,
       // NOT caught to zero. This count IS the runaway guard, and a read that
       // failed is the condition most likely to accompany a runaway: a database
       // that cannot answer "how many today" reading as "none today" opens the
@@ -275,29 +318,7 @@ export async function POST(request: Request): Promise<Response> {
       nowMs: Date.now(),
     });
 
-    if (!gate.allowed) {
-      L.info("retell_fn_refused", {
-        tenant: routed.tenantId,
-        reason: gate.refusal,
-        mode: replyMode,
-        person_mode: personMode,
-      });
-      // A refusal a person can find afterwards. Every other refusal in the
-      // product lands somewhere durable -- the door writes message.send_blocked,
-      // a broadcast marks its recipient, a failed send flags the thread -- and
-      // this one was a line on stdout, so "she says she never got the link" had
-      // no answer. The door's own kind, naming the thread rather than a message,
-      // because the gate refused before any row existed to name.
-      await emitEvent(db, routed.tenantId, "message.send_blocked", "conversation", contact.conversationId, {
-        reason: gate.refusal,
-        source: VOICE_SEND_SOURCE,
-        channel: "whatsapp",
-        call_id: call.call_id ?? null,
-      });
-      // The caller is on the line, so the agent is told what to SAY — never
-      // that a colleague is mid-thread with them, or what our policy is.
-      return json(200, { result: refusalScript(gate.refusal!, publishedNumber) });
-    }
+    if (!gate.allowed) return refusedOnTheCall(db, L, gate.refusal!, refusedAt);
 
     // The template's OWN slots, filled from the workspace's facts the way the
     // Inbox and broadcasts fill them (I6): the business's name and its booking

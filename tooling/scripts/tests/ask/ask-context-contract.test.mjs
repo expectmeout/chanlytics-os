@@ -112,18 +112,23 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
     );
   }
   // A page with no chips of its own yet is offered those it was offered before it had a name: the Pipeline People's,
-  // the rest other's.
+  // the Calendar and Campaigns other's. The first run has its own since the palette opens there (Ask Rewired, Phase 7;
+  // ask.test.mjs holds them).
   for (const [surface, was] of [
     ["pipeline", "people"],
     ["calendar", "other"],
     ["campaigns", "other"],
-    ["start", "other"],
   ])
     assert.deepEqual(
       buildAskSuggestions({ ...quiet, surface, language: "es", dealsOn: true }),
       buildAskSuggestions({ ...quiet, surface: was, language: "es", dealsOn: true }),
       surface,
     );
+  assert.equal(
+    buildAskSuggestions({ ...quiet, surface: "start", language: "es", dealsOn: true })[0].q,
+    "¿Qué falta por configurar?",
+    "the first run asks its own question first",
+  );
 });
 
 test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast", () => {

@@ -9,13 +9,13 @@ import type { AskLanguage } from "./ask-language";
 
 /**
  * The surfaces that have no chips of their own yet, and whose they are offered (the Phase 2 plan, PR 2.1): the
- * Pipeline People's, as it was when it went by People's name; the rest other's.
+ * Pipeline People's, as it was when it went by People's name; the Calendar and Campaigns other's. The first run's are
+ * its own since the palette opens there (Phase 7).
  */
 const CHIPS_OF: Partial<Record<AskSurface, AskSurface>> = {
   pipeline: "people",
   calendar: "other",
   campaigns: "other",
-  start: "other",
 };
 
 export interface AskSuggestion {
@@ -65,6 +65,7 @@ const T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
@@ -100,6 +101,7 @@ const T = {
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
     proposals: "¿Quién tiene una propuesta pendiente?",
+    setupLeft: "¿Qué falta por configurar?",
     moreLike: "Encuentra más como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
@@ -121,6 +123,34 @@ const T = {
     actHoldQ: "Retén cada respuesta para mi revisión antes de enviarla",
   },
 } as const;
+
+/**
+ * Each page's own questions, after those the workspace's state asks for (who needs you, a held draft, a call, the
+ * openings): the key of each question's words and its icon, in the order offered. Leads' own are its ideas and its
+ * searches' words, which buildAskSuggestions puts first; a page not listed has none of its own. The first run's
+ * (Phase 7): what is left, which the turn answers from the steps the page shows (the server's start provider), and
+ * the hours, the facts it checks.
+ */
+const PAGE_QUESTIONS: Partial<Record<AskSurface, ReadonlyArray<readonly [keyof (typeof T)["en"], string]>>> = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"],
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"],
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"],
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"],
+  ],
+};
 
 /** Words cut to fit a chip: whole up to the cap, else the first letters and an ellipsis. */
 function clipWords(s: string, cap: number): string {
@@ -161,35 +191,9 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.liveNow > 0) add(t.live, "ask", "phone");
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  switch (at) {
-    case "today":
-      add(t.brief, "ask", "sparkle");
-      add(t.who, "ask", "users");
-      break;
-    case "inbox":
-      add(t.who, "ask", "users");
-      add(t.rules, "ask", "shield");
-      break;
-    case "people":
-      add(t.who, "ask", "users");
-      break;
-    case "leads":
-      // Its chips are above: nothing of the other pages' is added here.
-      break;
-    case "reports":
-      add(t.week, "ask", "trending-up");
-      break;
-    case "settings":
-      add(t.rules, "ask", "shield");
-      add(t.hours, "ask", "clock");
-      break;
-    case "live":
-    case "conversations":
-      add(t.calls, "ask", "phone", input.missedToday > 0);
-      break;
-    default:
-      break;
-  }
+  for (const [key, icon] of PAGE_QUESTIONS[at] ?? []) add(t[key], "ask", icon);
+  // Conversations and Live ask about today's calls, answered without a model when one was missed.
+  if (at === "live" || at === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
   // Deals are a thing here (0004): who has a proposal out, where people are looked at.
   if (input.dealsOn && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);

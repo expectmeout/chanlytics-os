@@ -208,9 +208,9 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       id: "open_times",
       title: "Say which times are open",
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
-      // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
+      // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
+      // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed
         ? linkGoes
           ? `No calendar to read, so it does not guess at open times —${inChat} it sends the link instead.`
