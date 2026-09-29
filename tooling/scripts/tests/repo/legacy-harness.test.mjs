@@ -457,13 +457,14 @@ const served = (rel) =>
   });
 
 test("the harness links the stylesheets the app imports, in its order, the kit's right after the tokens", async () => {
-  // Both of the app's entries put the kit right after the tokens (the plan's §3.3): legacy.css for the shell, and
-  // app/globals.css for the pages outside it, so a signed-out page draws the same button.
+  // The shell's entry puts the kit right after the tokens (the plan's §3.3). The other entry, app/globals.css, opens
+  // with the tokens alone: no page outside the shell draws a kit class, and the change that first draws one imports
+  // the kit there.
   const tokens = `${LEGACY}/styles/tokens.css`;
   const kit = "apps/dashboard/src/surfaces/kit/kit.css";
   const app = cssImports("apps/dashboard/src/legacy-bridge/legacy.css");
   assert.deepEqual(app.slice(0, 2), [tokens, kit], "the shell's entry imports the tokens, then the kit");
-  assert.deepEqual(cssImports("apps/dashboard/app/globals.css"), [tokens, kit], "and so does the other entry");
+  assert.deepEqual(cssImports("apps/dashboard/app/globals.css"), [tokens], "the other entry imports the tokens alone");
   // The document links what the app imports, in the same order, each served as the file the app has at that place.
   const links = [...html.matchAll(/<link rel="stylesheet" href="([^"?:]+)[^"]*"/g)].map((m) => m[1]);
   assert.equal(links.length, app.length, `a link for each stylesheet the app imports: ${links.join(", ")}`);

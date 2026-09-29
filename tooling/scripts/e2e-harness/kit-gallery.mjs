@@ -977,7 +977,7 @@ export const FAMILIES = [
       },
       { id: "src-fl-card", source: "styles/fleet.css:170", html: `<section class="fl-card">${PANE_WORDS}</section>` },
       { id: "panel-flush", html: `<section class="panel panel-flush">${PANE_ROWS}</section>`, twin: "src-card" },
-      { id: "src-card", source: "styles/components.css:430", html: `<section class="card">${PANE_ROWS}</section>` },
+      { id: "src-card", source: "styles/components.css:437", html: `<section class="card">${PANE_ROWS}</section>` },
       {
         id: "panel-inset",
         html: `<div class="panel panel-inset panel-sm">Their conversations and notes go with them.</div>`,
@@ -990,7 +990,7 @@ export const FAMILIES = [
       },
       {
         id: "src-confirm-block",
-        source: "surfaces/kit/kit.css:642",
+        source: "surfaces/kit/kit.css:643",
         html: `<div class="confirm-block">Their conversations and notes go with them.</div>`,
       },
       {
@@ -1002,7 +1002,7 @@ export const FAMILIES = [
       },
       {
         id: "src-rec-card-tip",
-        source: "surfaces/kit/kit.css:2150",
+        source: "surfaces/kit/kit.css:2154",
         html: `<div class="rec-card-tip">Your hours come from Google once it is linked.</div>`,
       },
       {
@@ -1023,7 +1023,7 @@ export const FAMILIES = [
         id: "src-tbn-pop",
         stage: "pop",
         width: "desk",
-        source: "styles/components.css:974",
+        source: "styles/components.css:981",
         html: `<div class="gx-anchor"><section class="tbn-pop">${PANE_ROWS}</section></div>`,
       },
     ],
@@ -1041,7 +1041,7 @@ export const FAMILIES = [
       },
       {
         id: "src-cl-bucket-link",
-        source: "styles/components.css:1875",
+        source: "styles/components.css:1882",
         html: `<button type="button" class="cl-bucket-link">Write one${icon("arrow-right", 10)}</button>`,
       },
       {
@@ -1051,7 +1051,7 @@ export const FAMILIES = [
       },
       {
         id: "src-cl-bucket-link-danger",
-        source: "styles/components.css:1885",
+        source: "styles/components.css:1892",
         html: `<button type="button" class="cl-bucket-link danger">Delete the list</button>`,
       },
     ],
@@ -1195,7 +1195,7 @@ export const FAMILIES = [
         id: "src-rec-sheet",
         stage: "sheet",
         width: "desk",
-        source: "surfaces/kit/kit.css:1735",
+        source: "surfaces/kit/kit.css:1739",
         html: recSheetFrame(),
       },
       {
@@ -1209,7 +1209,7 @@ export const FAMILIES = [
         id: "src-rec-sheet-leaving",
         stage: "sheet",
         width: "desk",
-        source: "surfaces/kit/kit.css:1135, styles/components.css:3043",
+        source: "surfaces/kit/kit.css:1139, styles/components.css:3050",
         html: recSheetFrame(true),
       },
       {
@@ -1225,7 +1225,7 @@ export const FAMILIES = [
         id: "src-phone-sheet",
         stage: "sheet",
         width: "phone",
-        source: "styles/components.css:1856, styles/mobile.css:170, styles/clients.css:2406",
+        source: "styles/components.css:1863, styles/mobile.css:170, styles/clients.css:2406",
         html: phoneSheetFrame(),
       },
       {
@@ -1240,7 +1240,7 @@ export const FAMILIES = [
         id: "src-phone-sheet-leaving",
         stage: "sheet",
         width: "phone",
-        source: "styles/components.css:3068, styles/mobile.css:170, styles/clients.css:2406",
+        source: "styles/components.css:3075, styles/mobile.css:170, styles/clients.css:2406",
         html: phoneSheetFrame(true),
       },
     ],

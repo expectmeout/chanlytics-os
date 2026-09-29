@@ -351,8 +351,10 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 ### 3.3 The stylesheets: order, boundaries, one breakpoint
 
 - **Order.** `tokens.css` (scales, roles, modes, looks), then `kit.css`, then `components.css` (the frame's own chrome
-  until the frame moves), then one sheet per surface, then `mobile.css` and `ask.css`, as today. Both entry files
-  import the kit: `legacy-bridge/legacy.css` and `app/globals.css`, so sign-in draws the same button.
+  and the page sections that still share it, until each moves), then one sheet per surface, then `mobile.css` and
+  `ask.css`, as today. The shell's entry, `legacy-bridge/legacy.css`, imports the kit; `app/globals.css`, the entry of
+  the pages outside the shell, imports it in the change that first draws a kit class on one of them. None does yet,
+  so none of them waits on the kit's CSS to paint.
 - **No cascade layers in this program.** The kit's selectors are single classes, and a page that needs something
   different asks the kit for a variant. Layers would re-rank 19,700 lines of existing rules at once. Revisit when the
   page sheets hold layout only.
@@ -521,8 +523,13 @@ _Proof:_ the probes; style equality. _Done when:_ a TSX component can be written
 **2.1 The kit-grade CSS moves into the kit.** From `components.css`: buttons (:427-483), the input (:485-514), the
 badge shapes (:541-644), the live dot, faces (:669-702), empty states (:1845-1872), the menu (:1762-1821), confirm, the
 field error, the toast (:1886-1929), the tooltip (:2019-2031), the tab strip (:2033-2068). From `record.css`: fields,
-the switch, the toggle group, the combobox, the sheet, the fold, the row, chips. Each class joins `classes.json`.
-_Proof:_ style equality. _Done when:_ `components.css` holds the frame and nothing a page draws.
+the switch, the toggle group, the combobox, the sheet, the fold, the row, chips. Each class joins `classes.json`. The
+kit leaves `app/globals.css`, which 1.7 had import it too: no page outside the shell draws a kit class (§3.3).
+_Proof:_ style equality. _Done when:_ `components.css` holds no kit rule but at a width the kit does not take yet (the
+tab strip's 720px, the record kit's 760px, which Phase 4 takes to 900px), and names a kit class otherwise only beside a
+page's, in a rule the two share (the press, the role gate, how things come and go, reduced motion). What it keeps is
+the frame and the page sections that still share it (Campaigns, Agent Studio, the thread's attachments, the message
+preview, the day agenda, the KPI and stat strips, `.cl-bucket-link`), which leave with their surfaces in Phase 4.
 
 **2.2 The missing primitives, in CSS.** Each reproduces the most-used existing variant exactly, so a page that adopts
 it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented control (from `.rec-seg`), the panel's

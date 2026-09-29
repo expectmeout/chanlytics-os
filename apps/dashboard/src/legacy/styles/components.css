@@ -1,5 +1,12 @@
 /* ============================================================
-   CHANLYTICS — COMPONENT PRIMITIVES
+   CHANLYTICS — THE FRAME, AND THE PAGE SECTIONS THAT STILL SHARE IT
+   The kit's primitives are the kit's (src/surfaces/kit/kit.css, step 2.1 of
+   docs/plans/2026-09-28-the-interface-kit-and-its-looks.md). What is here is the frame, the shell's own chrome (the app
+   shell, the sidebar, the top bar, the shell's lines, the bell, how things come and go), and the page sections that
+   still share it: Campaigns, Agent Studio, the thread's attachments, the message preview, the day agenda, the KPI and
+   stat strips, the quiet link button (.cl-bucket-link). Each leaves with its surface in Phase 4. A kit class is named
+   here only at a width the kit does not take yet (the tab strip's 720px, the record kit's 760px), or beside a page's
+   class in a rule the two share (the press, the role gate, how things come and go, reduced motion).
    ============================================================ */
 
 /* ---------- App shell ---------- */

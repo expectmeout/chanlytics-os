@@ -14,9 +14,10 @@
      as (width > 900px). A query that names no width (reduced motion, reduced transparency) is not a breakpoint.
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
-   Loaded right after tokens.css, before every other stylesheet: by the app's two entry files (legacy-bridge/legacy.css
-   for the shell, app/globals.css for the pages outside it), and by the standalone document (legacy/Chanlytics.html,
-   at the one path outside its tree that tooling/scripts/serve-legacy.mjs serves).
+   Loaded right after tokens.css, before every other stylesheet: by the shell's entry file (legacy-bridge/legacy.css),
+   and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree that
+   tooling/scripts/serve-legacy.mjs serves). The other entry, app/globals.css, imports it in the change that first
+   draws a kit class on a page outside the shell (the plan's §3.3): none does yet.
 
    The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
@@ -1055,7 +1056,10 @@ a.chip:focus-visible {
 
 /* How an overlay comes and goes (components.css, "HOW THINGS COME AND GO"): a dialog rises a few pixels as it fades
    up, a side sheet slides in from its edge, a phone's sheet rises from the bottom, and the wash behind it fades; each
-   leaves the same way, faster. Only translate, scale and opacity move, never transform. */
+   leaves the same way, faster. Only translate, scale and opacity move, never transform. The kit owns this motion: the
+   frame's overlays and the pages' play it from here until they move, as do the kit's rules left in components.css
+   (the record kit's sheets at 760px and 761px, Confirm's panel). Only such rules play modal-in and modal-out (a
+   dialog), sheet-rise and sheet-drop (the record sheet under 761px) and nudge-in (Confirm, a receipt, a message). */
 @keyframes wash-in {
   from {
     opacity: 0;
@@ -2205,7 +2209,7 @@ textarea.rec-input {
    Step 2.2. The surface is a role (tokens.css, the surfaces): the pane is the most-drawn card's (.fl-card,
    fleet.css:170), the inset Confirm's block's (.confirm-block, above), the pop the record kit's tip card's
    (.rec-card-tip, above). The padding is a size: the pane's own; a small one for an inset or a pop; none for a panel of
-   rows edge to edge, which it clips (.card, components.css:430). Where a panel stands, how wide it is and whether it
+   rows edge to edge, which it clips (.card, components.css:437). Where a panel stands, how wide it is and whether it
    may shrink in a grid are the page's: a pop is placed by what opens it. */
 .panel {
   background: var(--surface-pane-fill);
@@ -2234,7 +2238,7 @@ textarea.rec-input {
 
 /* ---------- The quiet link button: words that act, with no ground ----------
    Step 2.2. Confirm's No, EmptyState's and FailedRead's acts on a line, and the pages' (.cl-bucket-link,
-   components.css:1875-1886, People's name for it). Its danger form is red at rest and the ink when hovered: the hover
+   components.css:1882-1893, People's name for it). Its danger form is red at rest and the ink when hovered: the hover
    outranks it here by specificity, where the source relies on coming later. Not a .btn modifier: it has no height,
    padding, border or ground of a button's. */
 .link-btn {
@@ -2366,8 +2370,8 @@ textarea.rec-input {
 /* ---------- Meter: a whole in its parts ----------
    Step 2.2. The charts kit's SegmentBar (charts.css:150-155): the parts in a row with 2px of ground between them, the
    ends rounded; at 8px, as three of its four sites draw it, 10px large, 4px small (the reach bar's,
-   components.css:2009, and the confidence and setup meters'). A part's share is its flex-grow, and its colour a tone
-   (the reach bar's, components.css:1997-1999) or the series colour a chart gives it. A part of nothing is not drawn.
+   components.css:2016, and the confidence and setup meters'). A part's share is its flex-grow, and its colour a tone
+   (the reach bar's, components.css:2004-2006) or the series colour a chart gives it. A part of nothing is not drawn.
    The words about a meter, a title and a legend, are the page's or the chart's. */
 .meter {
   display: flex;
@@ -2406,8 +2410,8 @@ textarea.rec-input {
 
 /* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
    Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
-   components.css:3033-3046): the window's height at its right edge, the page faded behind it. Under 900px, People's
-   phone sheet (components.css:1856-1863, mobile.css:170, clients.css:2406-2407, components.css:3066-3071): from the
+   components.css:3040-3053): the window's height at its right edge, the page faded behind it. Under 900px, People's
+   phone sheet (components.css:1863-1870, mobile.css:170, clients.css:2406-2407, components.css:3073-3078): from the
    bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 82% of the screen, a handle
    over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
    while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
