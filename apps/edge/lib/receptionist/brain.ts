@@ -68,6 +68,23 @@ export interface BrainCall {
   shadowText?: string;
 }
 
+/**
+ * Who a turn is for, as the ledger's row and the record's stamp take it (BrainCall): the workspace, what the answer is
+ * about, and the version of the settings the runtime read its prompt from.
+ */
+export function brainCallOf(
+  tenantId: string,
+  rt: { configVersion?: number | null },
+  over: { subjectId?: string | null; purpose?: BrainCall["purpose"] } = {},
+): BrainCall {
+  return {
+    tenantId,
+    subjectId: over.subjectId ?? null,
+    configVersion: rt.configVersion ?? null,
+    ...(over.purpose ? { purpose: over.purpose } : {}),
+  };
+}
+
 const TOKEN = /\s*\[\[HUMAN\]\]\s*/g;
 
 /** The old reading: words with a handoff token somewhere in them. */

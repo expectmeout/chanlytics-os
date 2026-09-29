@@ -3407,7 +3407,7 @@ function messageOf(json) {
     usage: j.usage && typeof j.usage === "object" ? j.usage : null
   };
 }
-function textOf(message) {
+function messageTextOf(message) {
   return message.content.filter((b) => b.type === "text").map((b) => typeof b.text === "string" ? b.text : "").join("");
 }
 function formatRejected(r2) {
@@ -3479,7 +3479,7 @@ async function askModel(key, ask, deps = {}) {
     outcome: "ok",
     message,
     usage: usageOf(message.usage),
-    text: textOf(message).trim()
+    text: messageTextOf(message).trim()
   };
 }
 async function streamModel(key, ask, deps = {}) {
@@ -7544,6 +7544,7 @@ export {
   mergeConsent,
   messageIdHeader,
   messageIdsIn,
+  messageTextOf,
   needsHydration,
   newNonce,
   nextA2PStep,
@@ -7630,7 +7631,6 @@ export {
   submitProfileRequest,
   submitTrustProductRequest,
   supportingDocumentRequest,
-  textOf,
   tokenExchangeRequest,
   tokenRefreshRequest,
   trunkDomain,

@@ -35,6 +35,27 @@ import {
 import { env } from "../../../lib/env.js";
 import { logger } from "../../../lib/log.js";
 
+/**
+ * The connection told to the platform's own record: the event that a number was connected, and the workspace's first line
+ * that answers, the funnel's first milestone (a phone line is the other door). Best effort: the connection stands either way.
+ */
+async function connected(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: string,
+  channelId: string,
+  n: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string },
+): Promise<void> {
+  await emitEvent(db, tenantId, "channel.connected", "channel", channelId, {
+    kind: "whatsapp",
+    phone_number_id: n.phoneNumberId,
+    waba_id: n.wabaId,
+    number_e164: n.e164,
+    verified_name: n.name,
+    by: n.by,
+  }).catch(() => {});
+  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
@@ -212,16 +233,7 @@ export async function POST(request: Request): Promise<Response> {
     return refuse(500, "credentials_failed");
   }
 
-  await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
-    kind: "whatsapp",
-    phone_number_id: phoneNumberId,
-    waba_id: wabaId,
-    number_e164: e164,
-    verified_name: config.verified_name,
-    by: userId,
-  }).catch(() => {});
-  // The workspace's first line that answers: the funnel's first milestone (a phone line is the other door).
-  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
+  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId });
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
   return json(200, {
     ok: true,

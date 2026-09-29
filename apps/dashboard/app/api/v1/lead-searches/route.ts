@@ -61,8 +61,13 @@ export const POST = write({
     const a = answerOf(data);
     const refused = refusalOf(a);
     if (refused) throw refused;
-    // The workspace's first search: the funnel's third milestone, written as the service role (the ledger's writer).
-    await recordActivation(serviceDb(), member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
+    // The workspace's first search: the funnel's third milestone, written as the service role (the ledger's writer). An
+    // analytics row never costs a search: nothing here may throw.
+    try {
+      await recordActivation(serviceDb(), member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
+    } catch {
+      /* the milestone is written by the next search */
+    }
     return { search_id: a.search_id, round_id: a.round_id };
   },
 });

@@ -84,7 +84,7 @@ function serverTiming(header: string | null): { gatewayMs: number | null; modelM
  * reached (a 429 that is not the budget, any 5xx: the model was never heard, so it never "refused"), or the API's
  * refusal of the request itself, whose words the loop reads to drop what the model would not take.
  */
-async function refusalOf(res: Response): Promise<GatewayRefusal> {
+async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
   // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
   // is an object with a message.
   const j = (await res.json().catch(() => ({}))) as {
@@ -140,7 +140,7 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
         signal: call.signal,
       });
       if (r.ok && r.body) res = r as Response & { body: ReadableStream<Uint8Array> };
-      else refusal = await refusalOf(r);
+      else refusal = await gatewayRefusalOf(r);
     } catch (e) {
       refusal = { kind: "unreachable", message: e instanceof Error ? e.message : String(e) };
     }

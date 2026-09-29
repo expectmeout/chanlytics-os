@@ -5,7 +5,7 @@ export {
   askModel,
   streamModel,
   formatRejected,
-  textOf,
+  messageTextOf,
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
 } from "./models/anthropic";

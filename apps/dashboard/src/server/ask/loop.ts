@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
@@ -41,7 +40,7 @@ import {
   type ToolContext,
   type ToolRun,
 } from "./tools";
-import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
+import { systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
@@ -338,10 +337,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
   // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
-  const system = [
-    { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
-    ...(shape ? [{ type: "text", text: shape, cache_control: { type: "ephemeral" } }] : []),
-  ];
+  const system = systemBlocks(input.facts, shape);
   const pageBlocks: SearchResultBlock[] = [
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
@@ -413,10 +409,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       proposals,
       questionAt,
       live,
-      promptHash: createHash("sha256")
-        .update(system.map((b) => b.text).join("\n"))
-        .digest("hex")
-        .slice(0, 16),
+      promptHash: systemHash(system),
     });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */

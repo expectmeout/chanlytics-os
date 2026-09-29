@@ -79,6 +79,17 @@ export interface TenantRuntime {
   configVersion?: number | null;
 }
 
+/**
+ * What the settings row says of itself: whether it failed to parse (a mistake somebody can fix), and its version, which
+ * every answer's meta is stamped with (contracts BrainMeta); null when the row has none.
+ */
+function configState(
+  parsed: boolean,
+  row: { version?: unknown } | null,
+): Pick<TenantRuntime, "configBroken" | "configVersion"> {
+  return { configBroken: !parsed, configVersion: typeof row?.version === "number" ? row.version : null };
+}
+
 /** The backstop for what the stamp does not see: credentials in Vault, a channel row. */
 const TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { v: TenantRuntime; exp: number; stamp: string | null }>();
@@ -251,8 +262,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         listing: listQ.error ? null : (listQ.data ?? null),
       },
       paused: tzQ.data?.status === "paused",
-      configBroken: !parseResult.ok,
-      configVersion: typeof cfgQ.data?.version === "number" ? cfgQ.data.version : null,
+      ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,
     };
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });

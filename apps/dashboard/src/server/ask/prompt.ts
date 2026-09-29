@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import {
   ASK_ANSWER_CAPS,
   ASK_ROW_WORDS,
@@ -275,6 +276,26 @@ export function stableSystem(f: WorkspaceFacts): string {
     "The workspace:",
     factsBlock(f),
   ].join("\n");
+}
+
+/**
+ * The turn's system blocks: the rules and facts every turn in the workspace shares, and the workspace's shape, each ending
+ * a cache breakpoint (the loop says why there are two).
+ */
+export function systemBlocks(
+  f: WorkspaceFacts,
+  shape: string | null,
+): Array<{ type: "text"; text: string; cache_control: { type: "ephemeral" } }> {
+  const block = (text: string) => ({ type: "text" as const, text, cache_control: { type: "ephemeral" as const } });
+  return [block(stableSystem(f)), ...(shape ? [block(shape)] : [])];
+}
+
+/** The first 16 hex of the sha256 of the system blocks: what a turn's answer was written from (AskTurnShape.prompt_hash). */
+export function systemHash(blocks: Array<{ text: string }>): string {
+  return createHash("sha256")
+    .update(blocks.map((b) => b.text).join("\n"))
+    .digest("hex")
+    .slice(0, 16);
 }
 
 /** A card from earlier in the thread, and what the person did with it and when it was recorded (the Phase 5 plan, D8). */

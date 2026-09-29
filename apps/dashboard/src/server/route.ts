@@ -206,6 +206,11 @@ interface Spec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
+/** A value as the ledger stores it, through its own serialization: no cast says what the compiler cannot see. */
+function viaJson<T>(value: unknown): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 /** The most of a card's key the ledger keeps; a longer one is not a card's (a proposal id is twenty characters). */
 const CARD_KEY_MAX = 120;
 
@@ -231,7 +236,7 @@ async function onceForCard<O>(
   const route = `${req.method} ${new URL(req.url).pathname}`.slice(0, 200);
   const claim = await claimIdempotencyKey(ctx.supabase, { tenantId, key, route, requestHash: "", nowIso });
   if (!claim.won) {
-    if (claim.held?.response) return claim.held.response as unknown as O;
+    if (claim.held?.response) return viaJson<O>(claim.held.response);
     throw new AppError("conflict", "This card is being approved already. Its answer arrives in a moment.");
   }
   let out: O;
@@ -241,7 +246,7 @@ async function onceForCard<O>(
     await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(() => {});
     throw e;
   }
-  const response = (out === undefined ? { ok: true } : out) as unknown as Json;
+  const response = viaJson<Json>(out === undefined ? { ok: true } : out);
   await keepIdempotencyReceipt(ctx.supabase, { tenantId, key, requestHash: "", response, stamp: nowIso }).catch(
     () => {},
   );

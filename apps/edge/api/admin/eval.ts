@@ -19,7 +19,7 @@ import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/packages/contracts.js";
 import type { RoutedChannel } from "../../lib/packages/db.js";
-import { generateReply } from "../../lib/receptionist/brain.js";
+import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
 
@@ -108,20 +108,17 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
-
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
   const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
   // The holding message as a customer would get it, its details filled as they are now (S5).
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const started = Date.now();
+  const call = brainCallOf(tenantId, rt);
   const results = [];
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, {
-        tenantId,
-        configVersion: rt.configVersion ?? null,
-      });
+      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, call);
       results.push({
         id: c.id,
         ok: true,

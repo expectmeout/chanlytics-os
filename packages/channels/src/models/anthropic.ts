@@ -134,7 +134,7 @@ function messageOf(json: unknown): ModelMessage {
 }
 
 /** The text of an answer's text blocks, joined. */
-export function textOf(message: Pick<ModelMessage, "content">): string {
+export function messageTextOf(message: Pick<ModelMessage, "content">): string {
   return message.content
     .filter((b) => b.type === "text")
     .map((b) => (typeof b.text === "string" ? b.text : ""))
@@ -236,7 +236,7 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
     outcome: "ok",
     message,
     usage: usageOf(message.usage),
-    text: textOf(message).trim(),
+    text: messageTextOf(message).trim(),
   };
 }
 

@@ -2341,12 +2341,21 @@ declare function sha256Hex(s: string): Promise<string>;
 declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", term: string): Promise<string>;
 
 /**
- * The judge, as the runner uses it (PRD §7.1, E4): one structured call per
- * batch of at most 25 places, the facts capped and quoted, the answer kept by
- * operation id so a replayed page pays nothing twice. A refusal is asked once
- * more; refused twice, the batch is Needs review with the reason "the judge
- * could not read these". A 429, a 5xx or no answer throws, and the ledger's
- * waits retry the job.
+ * The judge as the runner uses it (PRD §7.1, E4): what is shown, and one batch asked of the port the edge binds.
+ *
+ *   - factsOf / fact: a place's listing facts as the judge sees them, each one line without control characters and at
+ *     most FACT_MAX characters, never a page's own words.
+ *   - judgeBatch: one call for a batch of at most 25 places (contracts LEAD_JUDGE_BATCH), asked once and once more when
+ *     the answer is a refusal, a capped answer or out of its shape; refused twice, the batch is Needs review with the
+ *     reason JUDGE_REFUSED_REASON. A 429, a 5xx or no answer is thrown, and the jobs ledger's waits retry the job. The
+ *     answer comes back by place ref with the judgment to keep, under the operation id (opIdFor) so a replayed page pays
+ *     nothing twice.
+ *   - JUDGE_TIMEOUT_MS and PAGE_READ_ALLOWANCE_MS: the registry's bound for one call (contracts MODEL_ROUTES.lead_judge),
+ *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
+ *
+ * The call itself is channels' leadJudge over the edge's model port (apps/edge/lib/leads/lead-wires.ts), which writes each
+ * call to the usage ledger for the search's workspace (`tenantId`) and, while the switch is on, puts each place's criteria
+ * to a second model in shadow (decision 0023). Nothing of that is seen here: the verb takes a LeadJudge and returns answers.
  */
 
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
@@ -2387,11 +2396,18 @@ declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: Plac
 tenantId?: string): Promise<JudgedBatch>;
 
 /**
- * How much a round asks the provider for, and what each run may charge (PRD
- * §0.5 "size from yield", S6, §13.3). contracts' placesToAsk sizes the ask
- * and estimateRoundUsd prices it with room; this turns them into one cap per
- * run: the term's estimate, scaled down when the sum would pass what the
- * round still has reserved, never under the actor's floor.
+ * How much a round asks the provider for, and what each run may charge (PRD §0.5 "size from yield", S6, §13.3): the
+ * arithmetic the runner (runner/) turns into runs, over contracts' placesToAsk (the places to ask each term for) and
+ * estimateRoundUsd (their price, with room).
+ *
+ *   - probeAsk / mainAsk: the terms and places per term for the probe (LEAD_PROBE_PLACES spread across every term, E10)
+ *     and for the main phase (what remains, over the probe's yield, without the term the question dropped).
+ *   - yieldOf / probeYield / hasContact: the yield that sizes the main phase: the share of the probe's places that are not
+ *     left out and hold a way to reach them (a phone that dials, or a candidate email: decision 0010), never the Qualified
+ *     share, and never under 5%; a probe that judged nothing counts as 20%.
+ *   - runCaps: one dollar cap per run: the estimate for its places, every cap scaled down when the sum would pass what
+ *     the round still has reserved, none under the actor's floor (MAPS_CAP_FLOOR_USD), and none at all when less than
+ *     that floor is left: the round then starts nothing.
  */
 
 /** The probe: LEAD_PROBE_PLACES spread across every term (E10). */
@@ -2567,9 +2583,18 @@ type StartOutcome = {
 declare function startRound(p: LeadPorts, roundId: string, owner: string, resume?: boolean): Promise<StartOutcome>;
 
 /**
- * A place as the collect takes it: the next batch of a page's items, where the round measures from, and the member
- * the commit writes, its class decided by code. The collect is collect.ts; the re-judging (rejudge.ts) makes its
- * members here too.
+ * A place as the collect takes it (collect.ts; rejudge.ts makes its members here too): what a page's items become before
+ * the judge and after it.
+ *
+ *   - takeBatch: the next batch of a page's items from a cursor, at most LEAD_JUDGE_BATCH places the judge must see,
+ *     each item cleaned (clean.ts) and marked when a rule settles it before judging (closed for good: left out; no
+ *     location: Needs review), with the items around them.
+ *   - centerOf / nearbyFor: where the round measures from (the plan's centre, or for a city ask the median of the probe's
+ *     places, E7) and where to look next when a round ran dry (the three nearest ZIP centres past the area, D3).
+ *   - memberOf: the member and the lead's columns the commit writes for one place, its class decided by code from the
+ *     judge's answers (contracts classify, §0.1) or by the rule that kept it from the judge, a left-out place keeping none
+ *     of its candidate emails or listing detail (PRD §0.4, §15).
+ *   - askedOf: what each key asked under a plan, worked out once per plan (judgeAsked hashes every question).
  */
 
 interface Prepared {

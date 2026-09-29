@@ -32,7 +32,7 @@ import {
   fallbackMessages,
 } from "../../lib/packages/contracts.js";
 import { cancelJobsFor } from "../../lib/packages/jobs.js";
-import { generateReply } from "../../lib/receptionist/brain.js";
+import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { queueDraft } from "../../lib/receptionist/draft-queue.js";
 import { env } from "../../lib/env.js";
 import { logger, errField } from "../../lib/log.js";
@@ -75,7 +75,6 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-
   const { data: m, error: mErr } = await db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
@@ -147,7 +146,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
       undefined,
       frameSteer(text),
-      { tenantId: m.tenant_id, subjectId: m.conversation_id, configVersion: rt.configVersion ?? null },
+      brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
     );
   } catch (e) {
     L.error("steer_brain_failed", { error: errField(e) });

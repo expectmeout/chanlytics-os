@@ -116,7 +116,7 @@ export async function runRound(
       case "usage":
         usage = {
           messageId: ev.messageId,
-          model: ev.model ?? null,
+          model: ev.model,
           cacheMiss: ev.cacheMiss,
           inputTokens: ev.inputTokens,
           cacheReadTokens: ev.cacheReadTokens,
