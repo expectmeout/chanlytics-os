@@ -9,7 +9,7 @@
  * ./surface-status, which is pure and unit-tested; everything here is the
  * side-effecting half.
  */
-import type { subscribeMessagesInserts, SubscribeOptions } from "@chanlytics/db";
+import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db";
 import { MIN_MS } from "@chanlytics/contracts";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
@@ -154,8 +154,6 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
   return (o) => rank(o) < strangers;
 }
 
-let runnerSeq = 0;
-
 /**
  * What a return to the tab reads: every surface, unless the tab was away less than AWAY_BEFORE_READ_AGAIN_MS with the
  * live feed up and every one of these surfaces live. A failed surface is the one that MOST needs retrying -- it used to
@@ -178,13 +176,13 @@ function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: 
 }
 
 /**
- * How the runner joins the live feed: the one subscription, over the client the page holds. Handed in rather than
+ * How the runner joins the live feed: the workspace's topic, over the client the page holds. Handed in rather than
  * built here: the runner used to make the Supabase browser client itself once its boot was in, so a node test that
  * mounted real surfaces built one with no URL or key, and the throw -- in an un-awaited continuation -- failed
  * whichever test was running when the boot happened to finish.
  */
 export type JoinLiveFeed = (
-  onChange: Parameters<typeof subscribeMessagesInserts>[1],
+  onChange: Parameters<typeof subscribeWorkspaceChanges>[1],
   opts: SubscribeOptions,
 ) => () => void;
 
@@ -195,8 +193,6 @@ interface SurfaceRun {
   readonly realtime: SurfaceOverride[];
   /** The tenant the cache was written for, read before this runner's boot could overwrite it. */
   readonly cachedAtBoot: string | null;
-  /** The live feed's channel, this runner's own. */
-  readonly topic: string;
   /** Each surface's pending refresh. */
   readonly timers: Map<string, ReturnType<typeof setTimeout>>;
   cancelled: boolean;
@@ -216,7 +212,6 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     cachedAtBoot,
     cancelled: false,
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
-    topic: `bridge-${++runnerSeq}`, // unique per runner: StrictMode double-mounts never collide
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
   };
@@ -305,7 +300,7 @@ function watchLiveFeed(run: SurfaceRun): FeedWatch {
   return feedWatch({
     graceMs: REALTIME_GRACE_MS,
     onDown: (down) => setConnection({ realtimeDown: down }),
-    // reconnect after sleep/offline: postgres_changes has no backfill, so
+    // reconnect after sleep/offline: the feed replays nothing it missed, so
     // refetch to close the gap
     onReconnect: () => run.realtime.forEach((o) => scheduleSurfaceRefresh(run, o)),
   });
@@ -390,24 +385,23 @@ function joinFeedOnceBooted(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLi
     if (run.cancelled) return;
     if (tenantChangedSinceCache(run)) return;
     if (!run.realtime.length) return;
-    // Scoped to the workspace this tab shows. RLS authorises the events
-    // server-side; the filter is what makes the subscription this
-    // workspace's and nobody else's, so a member of two workspaces neither
-    // receives nor repaints on the other one's rows. The topic carries the
-    // workspace too, so a switch is a new channel, never a shared one.
+    // Scoped to the workspace this tab shows: the database tells each
+    // workspace's changes on a topic of its own, and Realtime admits only its
+    // members (00265), so a member of two workspaces neither hears nor
+    // repaints on the other one's. A switch is a new topic; a tab with no
+    // workspace joins nothing.
     const ws = viewedWorkspace();
     run.unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
         run.realtime
-          .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row }))
+          .filter((o) => wantsRefresh(o, table, { table, event, row }))
           .forEach((o) => scheduleSurfaceRefresh(run, o)),
       {
-        topic: ws ? `${run.topic}:${ws}` : run.topic,
         tenantId: ws ?? undefined,
         onStatus: (status) => {
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", run.topic, status);
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", ws, status);
           feed.onStatus(status);
         },
       },

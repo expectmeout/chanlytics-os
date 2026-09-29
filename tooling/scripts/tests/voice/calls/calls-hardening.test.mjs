@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../../_source.mjs";
+import { changesOf } from "../../_live-feed.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -64,7 +65,7 @@ test("a conversation row moves only when its timestamps move", () => {
   assert.ok(sql.includes("if v_conversation_id is null then"), "a skipped upsert still yields the id");
 });
 
-test("realtime events are routed by table: a transcript turn repaints Live, not five surfaces", () => {
+test("realtime events are routed by table: a transcript turn repaints Live, not five surfaces", async () => {
   assert.deepEqual([...DEFAULT_REFRESH_TABLES], ["messages", "conversations", "escalations"]);
   const legacy = { refreshOnMessageInserts: true };
   assert.equal(wantsRefresh(legacy, "messages"), true);
@@ -74,15 +75,13 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(wantsRefresh(live, "messages"), false);
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
-  const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row })'));
   const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/live.ts");
   assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
-  const rt = readCode("packages/db/src/realtime.ts");
-  assert.ok(
-    /,\s*w\.table,\s*payload\.eventType,?\s*\)/.test(rt),
-    "the subscription hands the table and the event to the callback",
-  );
+  // The live feed hands the runner a turn's notice as the calls table's UPDATE (packages/db realtime.ts); the runner
+  // routes it by table (shell/surfaces/surface-boot.test.mjs runs that).
+  const [turn] = await changesOf({ event: "UPDATE", payload: { table: "calls", op: "UPDATE", statuses: ["ongoing"] } });
+  assert.deepEqual([turn.table, turn.event], ["calls", "UPDATE"], "the table and the event reach the callback");
+  assert.deepEqual([wantsRefresh(live, turn.table, turn), wantsRefresh(legacy, turn.table, turn)], [true, false]);
 });
 
 test("the trigger wakes the edge for calls that have simply run too long", () => {

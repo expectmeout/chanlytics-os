@@ -597,7 +597,7 @@ flowchart LR
   API -->|DTOs| VM[contracts view models]
   VM -->|write| G[window globals the mockup reads]
   G -->|"surface:* events"| UI[mockup components re-render]
-  RT[Realtime, one subscription, this workspace] -->|row changed| R
+  RT[Realtime, this workspace's topic] -->|a table changed| R
   UI -->|verbs| I
 ```
 
@@ -634,7 +634,7 @@ An override fetches from `/api/v1` through the client, maps the rows through a c
 | google        | `/google`                                                                       | `__GOOGLE`                                                                                         | the three Google tables                                       |
 | billing       | `/billing`                                                                      | `__BILLING_ACCOUNT`                                                                                | billing accounts                                              |
 
-Realtime goes through one wrapper, `packages/db/src/realtime.ts`, which pushes the session's token to Realtime **before** the channel joins (a channel that joins as `anon` receives nothing, forever, because RLS filters every event) and **filters every subscription to the workspace the tab shows** (`tenant_id=eq.<id>`), so a change in another workspace a person belongs to no longer refetches every tab they have open.
+Realtime goes through one wrapper, `packages/db/src/realtime.ts`. The database tells each workspace what changed (decision 0019, 00265): a statement trigger on each watched table sends a notice on the private topic `workspace:<id>:changes`, naming the table and the operation, and a call's statuses, never a row, once per transaction for each workspace, table and event. The wrapper pushes the session's token to Realtime **before** the channel joins (a private channel that joins as `anon` is refused), joins **the topic of the workspace the tab shows**, and hands each notice to the runner as a change of its table; one policy on `realtime.messages` admits a member to their workspaces' topics, and nobody may send on one. The runners in a tab share the topic's channel, and the last to leave closes it. A change in another workspace a person belongs to never reaches this tab.
 
 ### 11.3 Real or demo — the surface registry
 

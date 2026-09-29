@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toTodayVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { changesOf } from "../_live-feed.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh } = await import(
@@ -126,7 +127,7 @@ test("an ongoing call is a live row the strip can draw", () => {
   assert.match(live.who, /Daniela/);
 });
 
-test("Today repaints when a call starts or ends, not on every transcript turn", () => {
+test("Today repaints when a call starts or ends, not on every transcript turn", async () => {
   const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/today.ts");
   // The searches ride along since a round that stops to ask is a lead_rounds UPDATE (spec G7); the calls rule is the same.
   assert.ok(surface.includes('refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],'));
@@ -163,8 +164,21 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     true,
     "Live still repaints per turn",
   );
-  const db = readCode("packages/db/src/realtime.ts");
-  assert.ok(/w\.table,\s*payload\.eventType,?\s*\)/.test(db), "the event type reaches the rule");
-  const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row })'));
+  // A call's notice reaches the rule as its event and each of its statuses (packages/db realtime.ts), and the runner
+  // hands the rule what the feed heard (shell/surfaces/surface-boot.test.mjs runs that).
+  const turn = await changesOf({ event: "UPDATE", payload: { table: "calls", op: "UPDATE", statuses: ["ongoing"] } });
+  assert.deepEqual(
+    turn.map((c) => wantsRefresh(today, c.table, c)),
+    [false],
+    "a transcript turn: every call still ongoing",
+  );
+  const ended = await changesOf({
+    event: "UPDATE",
+    payload: { table: "calls", op: "UPDATE", statuses: ["ended", "ongoing"] },
+  });
+  assert.deepEqual(
+    ended.map((c) => wantsRefresh(today, c.table, c)),
+    [true, false],
+    "one call of two ended in a statement: Today repaints",
+  );
 });

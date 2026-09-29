@@ -58,8 +58,8 @@ export interface FeedWatch {
 
 /**
  * What the live feed's own reports mean for the page. Every rejoin after the
- * first join reads what was missed, because postgres changes carry no
- * backfill. A drop is said only once it outlasts the grace, so a blip the
+ * first join reads what was missed, because the feed replays nothing it
+ * missed. A drop is said only once it outlasts the grace, so a blip the
  * client rejoins within seconds never flashes a line, and it is said once
  * however many errors follow; the feed's return is said at once.
  */
