@@ -39,6 +39,7 @@ import { planArea, planWhere, planWho } from "../../../../../packages/contracts/
 import { planMinutes } from "../../../../../packages/contracts/src/leads/search/cards.ts";
 import { planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { keysDrawn } from "../../_keys.mjs";
 import { pipelineHelpers } from "../../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -1670,6 +1671,15 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F opens Ask; one 
   );
   click(door);
   assert.equal(asks.at(-1), "open", "a click event is not words: the plain open, nothing seeded");
+});
+
+test("REGRESSION: Leads draws no key -- its search box drew a / and Find leads an F, beside the ? sheet that lists them", () => {
+  fresh();
+  const tree = draw();
+  assert.equal(textOf(byTestId(tree, "leads-find")).trim(), "Find leads");
+  assert.deepEqual(keysDrawn(tree), []);
+  assert.equal(press("f"), true, "F still finds");
+  assert.equal(asks.at(-1), "open");
 });
 
 test("Esc closes the peek, then the plan panel, then the Columns menu, then the selection -- one press each, in that order", () => {
