@@ -5,8 +5,9 @@
  * that did not send earns no quiet, so the next tick tries again.
  *
  * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts);
- * a provider refusing a send with 401 or 403 -- credentials, not content -- and
- * the mail provider's day or month used up (core/messages/send.ts); due jobs
+ * a provider refusing a send with 401 or 403 -- credentials, not content -- a
+ * workspace's credentials that could not be READ, the reply left queued for a
+ * fresh job, and the mail provider's day or month used up (core/messages/send.ts); due jobs
  * nobody is claiming, WhatsApp messages Meta accepted that have had no receipt
  * for six hours, and the mail domain losing its standing (api/cron/health.ts);
  * a customer waiting in a workspace with nobody on file to tell

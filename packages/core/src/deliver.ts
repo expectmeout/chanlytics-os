@@ -54,6 +54,7 @@ import {
   type Database,
   type Json,
 } from "@chanlytics/db";
+import { isWireUnavailable, WireUnavailableError, type WireUnavailable } from "./wire-senders";
 
 export type { DeliveryRefusal };
 
@@ -111,8 +112,11 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * channel at all. `null`: the channel exists but this workspace holds no
  * credentials or line for it -- refused here, never guessed from the
  * environment, which is how one business's message left on another's line.
+ * A WireUnavailable: the channel may well be this workspace's, but its
+ * credentials could not be read just now -- nothing is sent, nothing is
+ * failed, and the caller tries again later.
  */
-export type Wire = Partial<Record<Channel, Sender | null>>;
+export type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
 
 export interface Delivery {
   tenantId: string;
@@ -554,9 +558,14 @@ function assertFrozenFor(d: Delivery): void {
 
 type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
 
-/** The words on this workspace's wire for the channel, or why there is none. */
+/**
+ * The words on this workspace's wire for the channel, or why there is none. A wire that could not be BOUND (its
+ * credentials could not be read) throws before anything is written: asked only of words that may go, so a refusal is
+ * still recorded during an outage, and the row stays queued for the caller's next try. Not the same fact as `null`.
+ */
 async function putOnWire(wire: Wire, d: Delivery): Promise<WireResult> {
   const send = wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   if (send === undefined)
     return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
   if (send === null)

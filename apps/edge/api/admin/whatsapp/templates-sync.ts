@@ -50,9 +50,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!ch.waba_id) return refuse(409, "no_waba");
 
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return refuse(503, "no_token");
+  // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
+  if (creds.outcome !== "present") return refuse(503, "no_token");
 
-  const listed = await listTemplates(creds.accessToken, ch.waba_id);
+  const listed = await listTemplates(creds.credentials.accessToken, ch.waba_id);
   if (!listed.ok) {
     L.error("wa_templates_list_failed", {
       tenant_id: tenantId,

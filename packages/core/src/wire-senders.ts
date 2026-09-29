@@ -16,7 +16,57 @@ import {
   type EmailSendsAs,
   type ResendConfig,
 } from "@chanlytics/channels";
-import type { Sender } from "./deliver";
+import type { Channel, Sender } from "./deliver";
+
+/**
+ * What a read of a workspace's credentials came back as, from wherever they
+ * are kept (the edge's Vault, for WhatsApp). Three answers, because two of
+ * them used to be one: `present` is the pair; `absent` is a channel that
+ * carries none -- not connected, refused at the door and said to the owner;
+ * `unavailable` is a read that FAILED (Vault, the database) whose truth nobody
+ * has. The number may well be connected, so it is neither a refusal nor "not
+ * connected": a send that meets it waits (WireUnavailable) rather than fail
+ * for good and send the owner to reconnect a number that works.
+ */
+export type CredentialsRead<C> =
+  { outcome: "present"; credentials: C } | { outcome: "absent" } | { outcome: "unavailable"; error: string };
+
+/**
+ * A wire that could not be BOUND this run: the workspace's credentials could
+ * not be read (CredentialsRead unavailable). A plain object rather than a
+ * class, because the value is built on the edge and read inside core's dist
+ * and jobs' bundle of it, and `instanceof` does not cross a bundle.
+ */
+export interface WireUnavailable {
+  unavailable: true;
+  /** The read's own words, for the log and the pager; an owner meets them only if every wait is spent (sendQueued). */
+  error: string;
+}
+export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
+export function isWireUnavailable(w: unknown): w is WireUnavailable {
+  return typeof w === "object" && w !== null && "unavailable" in w && w.unavailable === true;
+}
+
+/**
+ * The door could not be opened: this channel's wire could not be bound
+ * (Wire's WireUnavailable). Thrown before anything is written -- a queued row
+ * stays queued, no event is emitted -- as every read that fails at the door
+ * throws: "we could not check" is not "not connected". A caller that speaks to
+ * a person tries again later (sendQueued, sendBroadcastBatch); deliverSafely
+ * says it as `wire_unreadable`. Told apart by name, not by class, for the same
+ * reason WireUnavailable is an object.
+ */
+export class WireUnavailableError extends Error {
+  readonly channel: Channel;
+  constructor(channel: Channel, error: string) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+}
+export function isWireUnavailableError(e: unknown): e is WireUnavailableError {
+  return e instanceof Error && e.name === "WireUnavailableError";
+}
 
 /**
  * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
@@ -28,6 +78,12 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
     const digits = to.replace(/^\+/, "");
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
+}
+
+/** WhatsApp's wire from a credentials READ: the sender, none to refuse with, or a wire that could not be bound. */
+export function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | WireUnavailable {
+  if (read.outcome === "unavailable") return wireUnavailable(read.error);
+  return whatsappSender(read.outcome === "present" ? read.credentials : null);
 }
 
 /**

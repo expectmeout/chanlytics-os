@@ -890,14 +890,9 @@
     "depth": 2
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 249,
+    "lines": 236,
     "branches": 30,
     "depth": 3
-  },
-  "packages/core/src/messages/send.ts::sendQueued#1": {
-    "lines": 136,
-    "branches": 49,
-    "depth": 1
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
     "lines": 184,
