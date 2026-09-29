@@ -6308,6 +6308,9 @@ type Database = {
             };
             people_list: {
                 Args: {
+                    p_after_added?: string;
+                    p_after_at?: string;
+                    p_after_id?: string;
                     p_contact_id?: string;
                     p_limit?: number;
                     p_offset?: number;
@@ -6315,6 +6318,7 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: {
+                    added_at: string;
                     call_count: number;
                     call_seconds: number;
                     came_from: string;
@@ -6343,6 +6347,7 @@ type Database = {
                     has_backfill: boolean;
                     has_chat: boolean;
                     id: string;
+                    in_touch_at: string;
                     last_call_at: string;
                     last_inbound_at: string;
                     last_inbound_call_at: string;
@@ -9610,18 +9615,37 @@ declare function namesOfPeople(db: Db$6, tenantId: string, ids: readonly string[
     id: string;
 } & NameableContact>>;
 /**
- * One page of people. The page arguments are named only when they leave their defaults, so a database that has not
- * been given 00112 answers the first page as it always has. A read that fails THROWS: a page the database could not
- * answer is never an empty workspace.
+ * Where a page of People starts (0021, 00268): just past this place in the kept order, a row's `in_touch_at`,
+ * `added_at` and `id`. Someone who writes between two pages moves above it, so a pass that follows it reads nobody
+ * twice; they are read on the next pass.
+ */
+interface PeopleCursor {
+    at: string;
+    added: string;
+    id: string;
+}
+/**
+ * The place just past a row, when its database says it (00268). Null for a row without it: a database before 00268,
+ * whose next page is read by offset, and which is never named a cursor it cannot take.
+ */
+declare function peopleCursorOf(row: PersonRowDto | undefined): PeopleCursor | null;
+/**
+ * One page of people: after a cursor, or an offset. The page arguments are named only when they leave their defaults,
+ * so a database that has not been given 00112 answers the first page as it always has, and one before 00268 is never
+ * named a cursor (a cursor comes only from a row that carries its place). A read that fails THROWS: a page the
+ * database could not answer is never an empty workspace.
  */
 declare function peoplePage(db: Db$6, tenantId: string, page?: {
     q?: string | null;
     offset?: number;
     limit?: number;
+    after?: PeopleCursor | null;
 }): Promise<PersonRowDto[]>;
 /**
  * Everyone, every page of them: whatever counts people counts everyone. One call is at most a thousand rows, and a
  * caller that does not loop gets a thousand with no error, no flag and no way to tell them from "that is everyone".
+ * Each page after the first starts just past the last row's place (00268), so nobody is read twice when someone writes
+ * between two pages; from a database before 00268, by offset, as it always was.
  */
 declare function everyoneIn(db: Db$6, tenantId: string): Promise<PersonRowDto[]>;
 /**
@@ -10257,4 +10281,4 @@ declare function dueCalendars(db: Db, p: {
     tenantId?: string;
 }): Promise<DuePage<DueCalendar>>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedEvents, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peopleCursorOf, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedEvents, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

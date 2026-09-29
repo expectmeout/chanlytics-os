@@ -3583,24 +3583,30 @@ async function namesOfPeople(db, tenantId, ids) {
   }
   return out;
 }
+function peopleCursorOf(row) {
+  return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
+}
 async function peoplePage(db, tenantId, page = {}) {
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
+  const after = page.after ?? null;
   const { data, error } = await db.rpc("people_list", {
     p_tenant_id: tenantId,
     ...page.q ? { p_query: page.q } : {},
     ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {},
+    ...after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data ?? [];
 }
 async function everyoneIn(db, tenantId) {
   const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
+  for (let after = null; ; ) {
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all.length });
     all.push(...page);
     if (page.length < PEOPLE_PAGE) return all;
+    after = peopleCursorOf(page[page.length - 1]);
   }
 }
 async function erasureDigests(db, tenantId, values) {
@@ -5613,6 +5619,7 @@ export {
   outreachModeOf,
   parentEmailOf,
   pauseConversation,
+  peopleCursorOf,
   peoplePage,
   personReplyMode,
   platformHoldStands,

@@ -208,9 +208,11 @@ export {
   IDS_PER_READ,
   namesOfPeople,
   peoplePage,
+  peopleCursorOf,
   everyoneIn,
   erasureDigests,
 } from "./repositories/people";
+export type { PeopleCursor } from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,

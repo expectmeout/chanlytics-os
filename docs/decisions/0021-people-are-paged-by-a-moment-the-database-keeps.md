@@ -1,6 +1,6 @@
 # 0021 · People are paged by a moment the database keeps
 
-**Status:** Accepted by Ruben, 28 Sep 2026. Decided; step 1 built (00259, #1306 folded into the lane's landing), steps 2 to 5 to come. The open questions stay open for the steps they touch.
+**Status:** Accepted by Ruben, 28 Sep 2026. Built: step 1 (00259, #1306 folded into the lane's landing), and steps 2 and 3 together (00268 and its callers); steps 4 and 5 to come. The open questions stay open for the steps they touch.
 Written against commit `887e79cc` (main, 28 September 2026, after
 #1210 merged), and every file and line below was read at it. The numbers are from a model on Postgres 16 (Context says
 what it holds) with #1226's `people_list` (00250) and #1247's indexes (00253) applied, since both are open and both
@@ -264,3 +264,39 @@ Each is its own pull request, in this order, and each ships alone.
 2. **Should our own messages move a person up People?** Today they do: a broadcast puts every recipient at the top.
    The kept moment keeps the order as it is, and could as easily keep only their own last word.
 3. **0019's payload.** Step 5 asks it to name the people a change touched. They are ids, not rows.
+
+## Built (29 September 2026): steps 2 and 3
+
+Built in one pull request against `9025895a`: the migration
+`supabase/migrations/00268_people_are_paged_by_their_kept_moments.sql`, and the callers in `packages/db` (`peoplePage`,
+`everyoneIn`), the dashboard (`GET contacts`, its reader, `everyPerson` and Show more) and so the edge's `allPeople`,
+which reads through `everyoneIn`. Where it differs from Steps and Shape:
+
+- **Steps 2 and 3 are one pull request, and either can deploy first.** A caller names a cursor only once a row carries
+  its place (`in_touch_at`, `added_at`), which only 00268 answers; until then it asks by offset, as before. So the
+  dashboard and the edge may deploy before the migration is applied, and the migration waits only on the fill.
+- **The migration refuses to apply while a live person has no kept moments.** A person with no row would be on no
+  page, so the precondition Shape states in prose ("does not read the table until `person_moments_check` finds every
+  workspace whole") is a check in the file: it counts the live people without a row and raises, naming the fill.
+- **The cursor is always the index's own condition.** Written `p_after_id is null or (…) < (…)`, as Shape has it, a
+  SQL function planned without its arguments' values (00250's lesson) keeps the comparison as a filter, so a later page
+  walks the order from the top. Without a cursor the comparison is made against a place past every row instead
+  (`infinity` and the largest id), and the generic plan walks `person_moments_order` from the cursor.
+- **The route takes `?after=` beside the offset.** The offset counts what the page holds, for `has_more`, and
+  `page.next` is the cursor, opaque (the last row's place, base64url); a cursor the route did not give is refused.
+  `has_more` is now false on a short page too: someone who wrote while the pages were read counts in the total, and is
+  read first on the next pass rather than after the cursor.
+- **Measured** on the local replay (Postgres 17) with this note's model, a workspace of 10,050 people beside ten of
+  1,000, alternating five times: the first page took 853 ms as 00250 reads it (median) and 151 ms page first; every
+  page, eleven calls, 9.7 s and 1.65 s. Every row and column was the same, each row's kept moment was the one its
+  columns show, and a deep page chose its people in 4 ms. Reading the messages through `message_moment`, the rule's
+  one statement, costs about 60 ms of a page; written out again in the function it would not, and would be the rule's
+  second statement.
+- **The tests** are `tooling/scripts/tests/database/people-are-paged-by-their-kept-moments.db.test.mjs` (a first page
+  reads the same blocks of each table in a workspace of 300 and of 900; the cursor and the offset read every live
+  person once in the same order, the erased, the merged and the never-in-touch where they belong; two people who write
+  after the first page are each read at most once, and open the next pass; the older call by position; a member reads
+  their workspace's page and a stranger none), against which 00250's function fails the first two;
+  `people/people-routes.test.mjs` (the page's `next`, the next page just past the last row, a database before 00268
+  asked by offset, a cursor refused; `everyone` reading nobody twice when someone writes between pages); and
+  `shell/surfaces/people-pages.test.mjs` (the tab's pages follow `next`, and the offset alone without it).

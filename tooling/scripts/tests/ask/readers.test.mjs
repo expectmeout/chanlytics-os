@@ -2086,7 +2086,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
     ],
   );
   assert.equal(harbor.data.calendar.state, "none");
-  assert.deepEqual(harbor.data.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false });
+  assert.deepEqual(harbor.data.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false, next: null });
   assert.deepEqual(
     harbor.rows.map((x) => x.label),
     ["Ada", "Ada"],
@@ -2094,7 +2094,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
   const found = await kernel.load(turnIn(worldCtx(pagingWorld())), peopleReader, { q: "bo", offset: 0 });
   assert.deepEqual(
     [found.data.people.map((p) => p.id), found.data.page],
-    [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false }],
+    [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false, next: null }],
     "the door matched, and the count counted the same match",
   );
   // The same reading of who exists as the CSV export (everyone(), server/people/people.ts): the door's rows under the member's
