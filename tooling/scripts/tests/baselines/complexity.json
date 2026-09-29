@@ -674,11 +674,6 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
-    "lines": 213,
-    "branches": 26,
-    "depth": 1
-  },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
     "lines": 164,
     "branches": 32,
