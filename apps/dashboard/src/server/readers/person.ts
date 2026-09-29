@@ -11,6 +11,7 @@ import {
   type PersonEscalationDto,
   type PersonRowDto,
 } from "@chanlytics/contracts";
+import { readAllRows } from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -25,8 +26,33 @@ import { personRuns } from "../campaigns/broadcasts";
 import { leadOfPerson } from "../leads/leads";
 import { personNotesRead, stepFor } from "../people/person-notes";
 import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
-import { load, stamp, type Reader, type RowRef } from "./index";
+import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 import * as facts from "./facts";
+
+/** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
+const PERSON_MESSAGES = 2000;
+
+/**
+ * Their messages on the threads `convIds` names, newest first, so the cap drops the oldest history (groupMessages
+ * restores order). Paged: PostgREST answers a thousand rows whatever a select asks for, so `.limit(2000)` read 1,000,
+ * and past that the page lost their older messages and a proposal sent among them read as never sent. The id breaks
+ * ties, so the order is the same on every page. A message that arrives between two pages moves the rest down a place,
+ * and the next page opens with the last one read: each is kept once.
+ */
+function personMessages(rc: ReaderContext, convIds: string[]) {
+  return readAllRows(
+    "person messages",
+    (from, to) =>
+      rc.ctx.supabase
+        .from("messages")
+        .select(MESSAGE_COLUMNS)
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+    PERSON_MESSAGES,
+  ).then((rows) => [...new Map(rows.map((m) => [m.id, m])).values()]);
+}
 
 /**
  * One person in full, as GET contacts/:id answers it: the route's body, moved here whole, so the profile and Ask's
@@ -68,13 +94,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         };
       }
       const [msgs, escs, decs] = await Promise.all([
-        // Newest-first so a cap drops the oldest history; groupMessages restores order.
-        sb
-          .from("messages")
-          .select(MESSAGE_COLUMNS)
-          .in("conversation_id", convIds)
-          .order("created_at", { ascending: false })
-          .limit(2000),
+        personMessages(rc, convIds),
         sb
           .from("escalations")
           .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
@@ -88,11 +108,10 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
           .order("created_at", { ascending: false })
           .limit(500),
       ]);
-      if (msgs.error) throw new Error(msgs.error.message);
       if (escs.error) throw new Error(escs.error.message);
       if (decs.error) throw new Error(decs.error.message);
       return {
-        byConv: groupMessages(msgs.data ?? []),
+        byConv: groupMessages(msgs),
         escalations: (escs.data ?? []) as PersonEscalationDto[],
         decisions: (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null })),
       };

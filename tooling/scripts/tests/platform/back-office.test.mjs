@@ -49,6 +49,7 @@ import {
   platformPartnerRows,
   platformPartnerSummary,
   platformPartnerStanding,
+  pageVitalsWords,
 } from "@chanlytics/contracts";
 
 const clock = (sweep, healthy, detail = null) => ({
@@ -1251,6 +1252,7 @@ function api(tenants, detail = null, calls = []) {
     actions: platformLineActions,
     warning: platformActionWarning,
     words: activityWords,
+    vitalsWords: pageVitalsWords,
     // A zone the page is GIVEN, not the one it is in: the same contracts
     // functions the bridge hands over.
     clock: {
@@ -1869,6 +1871,72 @@ test("a deployment whose overview predates the queue draws no card at all", asyn
   await page.settle();
   assert.equal(byId(page.tree, "platform-queue"), null);
   assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
+});
+
+/* ------------------------------------------------------------------------ how fast the pages are (00255) */
+
+/** One row of page_vitals_p75(): a metric over every page (null) or over one. */
+const p75 = (metric, page, samples, value) => ({ metric, page, samples, p75: value });
+
+test("the timings card: the 75th percentile in words, a line for each metric, and the slowest pages by name", async () => {
+  const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
+  globalThis.window.__platform = {
+    ...api([harbor]),
+    list: async () => ({
+      ok: true,
+      tenants: [harbor],
+      health: null,
+      queue: null,
+      partners: null,
+      vitals: [
+        p75("INP", null, 30, 610),
+        p75("LCP", null, 40, 2300),
+        p75("LCP", "inbox", 25, 3300),
+        p75("INP", "inbox", 20, 640),
+        p75("LCP", "today", 15, 1900),
+      ],
+      message: "",
+    }),
+  };
+  const page = mount(Pane);
+  await page.settle();
+  assert.equal(
+    textOf(byId(page.tree, "platform-vitals-words")),
+    "Of 40 page loads in the last 7 days, three in four drew the page within 2.3 s and answered a tap within 610 ms.",
+  );
+  const lines = byId(page.tree, "platform-vitals-lines");
+  assert.match(textOf(lines), /Drawn \(LCP\) 2\.3 s · good · 40 loads/);
+  assert.match(textOf(lines), /Answers a tap \(INP\) 610 ms · poor · 30 loads with a tap/);
+  assert.match(
+    textOf(byId(page.tree, "platform-vitals-pages")),
+    /^inbox Drawn within 3\.3 s, a tap answered within 640 ms · 25 loads$/,
+  );
+  assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
+});
+
+test("timings that could not be read say so, and an overview that predates them draws no card", async () => {
+  const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
+  globalThis.window.__platform = {
+    ...api([harbor]),
+    list: async () => ({
+      ok: true,
+      tenants: [harbor],
+      health: null,
+      queue: null,
+      partners: null,
+      vitals: null,
+      message: "",
+    }),
+  };
+  const unread = mount(Pane);
+  await unread.settle();
+  assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings could not be read just now.");
+  assert.equal(byId(unread.tree, "platform-vitals-lines"), null, "nothing is drawn, because nothing is known");
+  globalThis.window.__platform = api([harbor]);
+  const older = mount(Pane);
+  await older.settle();
+  assert.equal(byId(older.tree, "platform-vitals"), null);
+  assert.ok(byId(older.tree, "platform-overview"), "and the workspaces are still there");
 });
 
 /* ------------------------------------------------------------------------ partners (decision 0012, P5) */

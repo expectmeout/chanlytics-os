@@ -8223,8 +8223,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z23] = m;
-  if (z23) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z24] = m;
+  if (z24) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -14569,7 +14569,9 @@ var RETENTION_DAYS = {
   /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
-  jobs_failed: 90
+  jobs_failed: 90,
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
+  page_vitals: 30
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -14583,7 +14585,7 @@ var EVENT_EVIDENCE_KINDS = [
 ];
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -17623,7 +17625,7 @@ var FIRST_RUN_TRY_WORDS = {
   stay: "OK, I'll call",
   anyway: "Skip anyway"
 };
-function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
+function firstRunTryOf({ dto, calls, since, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
   const own = voice.active ? normalizePhone(voice.number) : null;
@@ -24403,6 +24405,7 @@ var SCHEMA_SETS = {
     "reach_out_replied",
     "reach_out_day"
   ],
+  "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
@@ -24641,6 +24644,7 @@ var ROUTE_KEYS = [
   "POST templates/draft",
   "POST templates/starter",
   "POST templates/sync",
+  "POST vitals",
   "POST workspaces/create",
   "PUT business-record",
   "PUT contacts/[id]/consent",
@@ -24818,6 +24822,122 @@ function roleGate(role, perm, doing) {
     title: NEEDS_TITLE[needs],
     reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.`
   };
+}
+
+// src/shell/vitals.ts
+import { z as z18 } from "zod";
+var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
+var PAGE_VITAL_BANDS = {
+  LCP: [2500, 4e3],
+  INP: [200, 500],
+  CLS: [0.1, 0.25],
+  FCP: [1800, 3e3],
+  TTFB: [800, 1800]
+};
+var PAGE_VITAL_WORDS = {
+  LCP: "Drawn",
+  INP: "Answers a tap",
+  CLS: "Holds still",
+  FCP: "First paint",
+  TTFB: "First byte"
+};
+var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
+var VITAL_CEILING = 10 * MIN_MS;
+function vitalsPageOf(route) {
+  const first = (route ?? "").split(/[/?]/)[0] ?? "";
+  return PAGE_NAME.test(first) ? first : "other";
+}
+var PageVitalReport = z18.object({
+  id: z18.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
+  name: z18.enum(PAGE_VITALS, { error: "A report names one of the five." }),
+  value: z18.number().min(0).max(VITAL_CEILING)
+});
+var PageVitalsInput = z18.object({
+  page: z18.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  vitals: z18.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
+});
+var PAGE_VITALS_READ = { days: 7, most: 25e3 };
+var PAGE_VITALS_MIN_LOADS = 20;
+var PAGES_SHOWN = 8;
+var VERDICT_TONES = { good: "ok", "needs work": "warn", poor: "danger" };
+function isVital(m) {
+  return PAGE_VITALS.includes(m);
+}
+function loadsWords(n) {
+  return `${n.toLocaleString("en-US")} load${n === 1 ? "" : "s"}`;
+}
+function vitalValueWords(metric, value) {
+  if (metric === "CLS") return value.toFixed(2);
+  if (value < 1e3) return `${Math.round(value)} ms`;
+  return `${(value / 1e3).toFixed(1)} s`;
+}
+function vitalVerdict(metric, p75) {
+  const [good, poor] = PAGE_VITAL_BANDS[metric];
+  if (p75 <= good) return "good";
+  return p75 <= poor ? "needs work" : "poor";
+}
+function vitalLinesOf(overall) {
+  return PAGE_VITALS.flatMap((metric) => {
+    const r2 = overall.get(metric);
+    if (!r2) return [];
+    const verdict = vitalVerdict(metric, r2.p75);
+    const value = vitalValueWords(metric, r2.p75);
+    const counted2 = `${loadsWords(r2.samples)}${metric === "INP" ? " with a tap" : ""}`;
+    return [
+      {
+        metric,
+        label: `${PAGE_VITAL_WORDS[metric]} (${metric})`,
+        value,
+        verdict,
+        tone: VERDICT_TONES[verdict],
+        samples: r2.samples,
+        hint: `${value} \xB7 ${verdict} \xB7 ${counted2}`
+      }
+    ];
+  });
+}
+function sentenceOf(overall) {
+  const loads = Math.max(...[...overall.values()].map((r2) => r2.samples));
+  const counted2 = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
+  const drawn = overall.get("LCP");
+  const tap = overall.get("INP");
+  const said = [
+    drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
+    tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null
+  ].filter(Boolean);
+  return said.length ? `Of ${counted2}, three in four ${said.join(" and ")}.` : `${counted2}; none has drawn its page yet.`;
+}
+function pagesOf(rows) {
+  const byPage = /* @__PURE__ */ new Map();
+  for (const r2 of rows) {
+    if (r2.page === null || r2.metric !== "LCP" && r2.metric !== "INP") continue;
+    const held = byPage.get(r2.page) ?? {};
+    if (r2.metric === "LCP") held.drawn = r2;
+    else held.tap = r2;
+    byPage.set(r2.page, held);
+  }
+  return [...byPage.entries()].flatMap(
+    ([page, h]) => h.drawn && h.drawn.samples >= PAGE_VITALS_MIN_LOADS ? [{ page, ...h, drawn: h.drawn }] : []
+  ).sort((a, b) => b.drawn.p75 - a.drawn.p75 || a.page.localeCompare(b.page)).slice(0, PAGES_SHOWN).map((p) => {
+    const drawn = vitalValueWords("LCP", p.drawn.p75);
+    const tap = p.tap ? vitalValueWords("INP", p.tap.p75) : null;
+    const said = `Drawn within ${drawn}${tap ? `, a tap answered within ${tap}` : ""}`;
+    return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} \xB7 ${loadsWords(p.drawn.samples)}` };
+  });
+}
+function pageVitalsWords(rows) {
+  if (rows === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
+  const overall = /* @__PURE__ */ new Map();
+  for (const r2 of rows) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
+  if (overall.size === 0) {
+    return {
+      sentence: `No page has sent its timings in the last ${PAGE_VITALS_READ.days} days.`,
+      lines: [],
+      pages: []
+    };
+  }
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
 
 // src/templates/template-slots.ts
@@ -27065,13 +27185,13 @@ var NOTIFICATION_KIND_GROUPS = [
 ];
 
 // src/workspace/signup.ts
-import { z as z18 } from "zod";
+import { z as z19 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z18.string().trim().max(80);
-var SignupSchema = z18.object({
-  name: z18.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z18.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z19.string().trim().max(80);
+var SignupSchema = z19.object({
+  name: z19.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z19.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -27085,9 +27205,9 @@ var SignupSchema = z18.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z18.string().max(200).optional(),
+  password: z19.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z18.string().trim().min(1).max(64).optional(),
+  timezone: z19.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -27097,11 +27217,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z18.object({
-  name: z18.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z19.object({
+  name: z19.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z18.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z19.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -27929,7 +28049,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z19 } from "zod";
+import { z as z20 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -27952,11 +28072,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z19.object({
-  code: z19.string().trim().min(1).max(64),
-  terms: z19.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z20.object({
+  code: z20.string().trim().min(1).max(64),
+  terms: z20.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z19.object({ letters: z19.boolean() }).strict();
+var PartnerLettersSchema = z20.object({ letters: z20.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -28238,32 +28358,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z19.coerce.number();
-var letterSum = z19.object({ currency: z19.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z19.object({
+var letterCents = z20.coerce.number();
+var letterSum = z20.object({ currency: z20.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z20.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z19.array(z19.object({ kind: z19.string(), currency: z19.string(), count: z19.coerce.number(), cents: letterCents })).default([]),
+  written: z20.array(z20.object({ kind: z20.string(), currency: z20.string(), count: z20.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z19.array(letterSum).default([]),
+  matured: z20.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z19.array(letterSum).default([]),
-  paid: z19.array(z19.object({ currency: z19.string(), cents: letterCents, reference: z19.string(), sent_at: z19.string() })).default([]),
+  voided: z20.array(letterSum).default([]),
+  paid: z20.array(z20.object({ currency: z20.string(), cents: letterCents, reference: z20.string(), sent_at: z20.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z19.array(z19.object({ workspace: z19.string().nullable(), standing: z19.string(), why: z19.string().nullable() })).default([]),
+  standing: z20.array(z20.object({ workspace: z20.string().nullable(), standing: z20.string(), why: z20.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z19.array(z19.string().nullable()).default([]),
+  brought: z20.array(z20.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z19.array(z19.string().nullable()).default([]),
-  declined: z19.array(z19.string().nullable()).default([]),
+  accepted: z20.array(z20.string().nullable()).default([]),
+  declined: z20.array(z20.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z19.object({ status: z19.string(), why: z19.string().nullable() }).nullable().default(null),
-  balance: z19.array(
-    z19.object({
-      currency: z19.string(),
+  status: z20.object({ status: z20.string(), why: z20.string().nullable() }).nullable().default(null),
+  balance: z20.array(
+    z20.object({
+      currency: z20.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z19.string().nullable()
+      next_payable_at: z20.string().nullable()
     })
   ).default([])
 });
@@ -28364,16 +28484,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z20 } from "zod";
+import { z as z21 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z20.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z20.object({
-  name: z20.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z20.string().trim().max(64).nullish(),
+var ownerEmail = z21.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z21.object({
+  name: z21.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z21.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z20.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z21.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -28449,7 +28569,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -28517,16 +28637,16 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z21.object({
-  partner_id: z21.string().uuid("That partner does not exist."),
-  why: z21.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z22.object({
+  partner_id: z22.string().uuid("That partner does not exist."),
+  why: z22.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
 
 // src/workspace/partner-invite.ts
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
 var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
 var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
@@ -28535,8 +28655,8 @@ function partnerCodeFrom(raw) {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-var PartnerInviteSchema = z22.object({
-  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z23.object({
+  code: z23.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -29030,6 +29150,11 @@ export {
   OWN_MESSAGE_REFUSALS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
+  PAGE_VITALS,
+  PAGE_VITALS_MIN_LOADS,
+  PAGE_VITALS_READ,
+  PAGE_VITAL_BANDS,
+  PAGE_VITAL_WORDS,
   PARAM_SOURCES,
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
@@ -29114,6 +29239,8 @@ export {
   PUSH_RECEIPTS_AFTER_MS,
   PUSH_TOKEN_MAX,
   PageContextSchema,
+  PageVitalReport,
+  PageVitalsInput,
   PartnerBecomeSchema,
   PartnerInviteSchema,
   PartnerLetterNewsSchema,
@@ -29892,6 +30019,7 @@ export {
   ownedDomainOf,
   paceWords,
   pageTitle,
+  pageVitalsWords,
   paramLabel,
   parseAmount,
   parseBrainOutput,
@@ -30344,6 +30472,9 @@ export {
   visitTitleFor,
   visitsIn,
   visitsOf,
+  vitalValueWords,
+  vitalVerdict,
+  vitalsPageOf,
   waWindow,
   waitAfterDays,
   waitedLabel,

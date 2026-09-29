@@ -11,7 +11,7 @@
 import { formatPhoneDisplay, normalizePhone, samePhone, whyNotAHandoff } from "../shared/phone";
 import { forwardingTestOpen } from "../voice/forwarding";
 import type { LiveCallVM } from "../voice/live";
-import { forwardedLineOf, type SetupDto, type SetupVM } from "./setup";
+import { forwardedLineOf, type SetupDto } from "./setup";
 import { MIN_MS } from "../shared/time";
 
 export type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
@@ -136,7 +136,6 @@ export const FIRST_RUN_TRY_WORDS = {
 
 export interface FirstRunTryInput {
   dto: SetupDto;
-  vm: SetupVM;
   /** The Live page's calls (now and recent); empty before that read lands. */
   calls: readonly LiveCallVM[];
   /** When this screen opened, in ms: a call from before it is not the test. */
@@ -144,7 +143,7 @@ export interface FirstRunTryInput {
   nowMs: number;
 }
 
-export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM {
+export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM {
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
   const own = voice.active ? normalizePhone(voice.number) : null;

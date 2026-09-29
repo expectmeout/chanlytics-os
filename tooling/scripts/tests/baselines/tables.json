@@ -61,7 +61,7 @@
   "apps/dashboard/src/server/readers/calls.ts": 1,
   "apps/dashboard/src/server/readers/channels.ts": 3,
   "apps/dashboard/src/server/readers/conversation.ts": 1,
-  "apps/dashboard/src/server/readers/conversations.ts": 2,
+  "apps/dashboard/src/server/readers/conversations.ts": 1,
   "apps/dashboard/src/server/readers/escalations.ts": 1,
   "apps/dashboard/src/server/readers/notifications.ts": 3,
   "apps/dashboard/src/server/readers/person.ts": 12,

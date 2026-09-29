@@ -324,6 +324,52 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
   return hits.map(({ said, ...h }) => ({ ...h, snippet: headline(said, q) }));
 }
 
+/** The columns newest_messages answers a message in: the reader's MESSAGE_COLUMNS. */
+const MESSAGE_ROW = [
+  "id",
+  "conversation_id",
+  "direction",
+  "sender",
+  "type",
+  "body",
+  "media",
+  "meta",
+  "status",
+  "created_at",
+  "channel_ts",
+  "channel",
+];
+
+/**
+ * `newest_messages` (00258), answered out of the messages a fixture holds, in the function's own shape: the newest
+ * p_each messages of each of these threads in the workspace p_tenant_id, and of those the newest p_most, newest first
+ * with the id breaking ties, each with the columns a fixture gave it of MESSAGE_ROW. Refused as the function refuses
+ * (22023) past a hundred threads, a hundred of each or four thousand in all; a null argument answers null (strict). No
+ * RLS: the double holds one member's view.
+ */
+function newestMessagesIn(tables, { p_tenant_id, p_threads, p_each, p_most }) {
+  if ([p_tenant_id, p_threads, p_each, p_most].some((v) => v == null)) return null;
+  if (p_threads.length > 100 || !(p_each >= 1 && p_each <= 100) || !(p_most >= 1 && p_most <= 4000)) {
+    throw Object.assign(
+      new Error("newest_messages reads at most a hundred threads, a hundred messages of each and four thousand in all"),
+      { code: "22023" },
+    );
+  }
+  const newest = (a, b) =>
+    Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  const mine = (tables.messages ?? []).filter((m) => m.tenant_id === p_tenant_id);
+  return [...new Set(p_threads)]
+    .flatMap((t) =>
+      mine
+        .filter((m) => m.conversation_id === t)
+        .sort(newest)
+        .slice(0, p_each),
+    )
+    .sort(newest)
+    .slice(0, p_most)
+    .map((m) => Object.fromEntries(MESSAGE_ROW.filter((k) => k in m).map((k) => [k, m[k]])));
+}
+
 /**
  * The zone a row is judged in, as 00245 safe_zone answers it: the workspace's own, the product's default when it has
  * none, and UTC when the name is not spelled Area/Location (or UTC) or is not a zone Intl knows -- the edge's own
@@ -405,6 +451,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       (p_values ?? []).map((v) =>
         v == null ? null : crypto.createHash("sha256").update(`${p_tenant_id}:${v}`, "utf8").digest("hex"),
       ),
+    // The Inbox's messages (00258), each thread's newest, from the messages the fixture holds: every suite that reads
+    // GET conversations reads through it.
+    newest_messages: (args) => newestMessagesIn(tables, args),
     /**
      * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way
      * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`

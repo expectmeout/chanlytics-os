@@ -114,6 +114,7 @@ export const SCHEMA_SETS = {
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
     "reach_out_day",
   ],
+  "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],

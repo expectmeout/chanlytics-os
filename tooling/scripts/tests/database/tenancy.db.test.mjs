@@ -337,6 +337,9 @@ before(async () => {
   const prior = `tenancy_${Date.now()}`;
   await seed("lead_niche_priors", { category_key: prior }, null);
   probes.push(["lead_niche_priors", "category_key", prior]);
+  // A page load's timing (00255): the platform's, with no person and no workspace on it.
+  await seed("page_vitals", { id: key, page: "tenancy", metric: "LCP", value: 1 }, null);
+  probes.push(["page_vitals", "id", key]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
@@ -511,6 +514,9 @@ const TENANT_TABLES = {
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
   person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
+  // A person's moments (00259, 0021): members read; only the triggers on contacts, messages and calls, and the fill,
+  // write. Every person has a row from their insert, so the stranger's is refused for the privilege, not the key.
+  person_moments: ["member", () => ({ contact_id: ctx.contact2, tenant_id: A, added_at: new Date().toISOString() })],
   policies: [
     "member",
     () => ({ tenant_id: A, class: "faq", mode: "auto", subject_type: "contact", subject_id: ctx.contact2 }),
@@ -646,6 +652,7 @@ const OTHER_TABLES = {
   partners: "own", // a partner's own row (0012): read by user_id; written only through partner_become
   partner_payouts: "own", // a partner's own payouts (0012, P5): read through their partner row; written only by partner_payout_mark
   partner_reversals_waiting: "none", // a refund that came before its share (00207): the service role's alone
+  page_vitals: "none", // a page load's timings (00255): no person, no workspace; the routes and the back office read it
 };
 
 const seen = async (client, table, filter) => {

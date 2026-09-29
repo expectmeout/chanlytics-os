@@ -335,7 +335,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
-    "lines": 301,
+    "lines": 300,
     "branches": 84,
     "depth": 1
   },
@@ -505,7 +505,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
-    "lines": 227,
+    "lines": 204,
     "branches": 38,
     "depth": 1
   },
@@ -600,7 +600,7 @@
     "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
-    "lines": 257,
+    "lines": 250,
     "branches": 50,
     "depth": 1
   },
