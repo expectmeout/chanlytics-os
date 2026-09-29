@@ -316,7 +316,7 @@ const trapTab = (e, box) => {
   if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 };
-Object.assign(window, { trapTab, tabStops: tabStopsIn });
+Object.assign(window, { trapTab, tabStops: tabStopsIn, propsWithout: (props, keys) => Object.fromEntries(Object.entries(props).filter(([k]) => !keys.includes(k))) });
 
 // ---- A thumb's gestures ------------------------------------------------------------------------
 // One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
