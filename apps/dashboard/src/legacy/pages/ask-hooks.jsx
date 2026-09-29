@@ -131,6 +131,12 @@ const useHoldPress = ({ talk, onHold }) => {
     onPointerDown: (e) => {
       if (e && e.preventDefault) e.preventDefault();
       if (timer.current || held.current) return;
+      // The press keeps its pointer, as a touch does anyway: a mouse's hold outlasts the three hiding under it as they
+      // start to listen (a thread dims), which otherwise read as the pointer leaving and ended the hold at once.
+      const el = e && e.currentTarget;
+      if (el && el.setPointerCapture && e.pointerId != null) {
+        try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ }
+      }
       from.current = e && typeof e.clientX === "number" ? { x: e.clientX, y: e.clientY } : null;
       timer.current = setTimeout(() => { timer.current = null; held.current = true; if (onHold) onHold(); talk.start(); }, AH_HOLD_MS);
     },
@@ -141,6 +147,7 @@ const useHoldPress = ({ talk, onHold }) => {
     onPointerUp: end,
     onPointerLeave: end,
     onPointerCancel: end,
+    onLostPointerCapture: end,
     onContextMenu: (e) => { if (e && e.preventDefault) e.preventDefault(); },
   };
 };
@@ -178,13 +185,39 @@ const ahStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduce
 const ahPinTop = (qTop, gap = 14) => Math.max(0, qTop - gap);
 /** Whether the newest question's first line is below what the thread shows: Latest is offered then. */
 const ahLatestShown = ({ qTop, scrollTop, clientHeight }) => qTop > scrollTop + clientHeight - 24;
+/** How long a glide may take before Latest looks again, where the browser says no `scrollend`. */
+const AH_GLIDE_MS = 900;
+/**
+ * The thread is gliding to its newest question (`data-pinning`): Latest holds back meanwhile (useAskLatest), since the
+ * question is on its way up, not out of sight; it flashed on every follow-up in a thread longer than the screen. The
+ * glide's end (`scrollend`, or AH_GLIDE_MS where the browser has none) lets it look again.
+ */
+const ahGlide = (body) => {
+  if (!body.dataset || !body.addEventListener) return;
+  body.dataset.pinning = "1";
+  let over = false;
+  const done = () => {
+    if (over) return;
+    over = true;
+    body.removeEventListener("scrollend", done);
+    delete body.dataset.pinning;
+    if (typeof Event === "function" && body.dispatchEvent) body.dispatchEvent(new Event("scroll"));
+  };
+  body.addEventListener("scrollend", done);
+  setTimeout(done, AH_GLIDE_MS);
+};
 /** Stand the newest question at the top of the thread `body`, gliding unless motion is reduced. */
 const ahPinNow = (body) => {
   const q = body && body.querySelector ? body.querySelector("#ask-now-q") : null;
   if (!q) return;
   const top = ahPinTop(q.offsetTop);
-  if (typeof body.scrollTo === "function") body.scrollTo({ top, behavior: ahStill() ? "auto" : "smooth" });
-  else body.scrollTop = top;
+  if (typeof body.scrollTo !== "function") {
+    body.scrollTop = top;
+    return;
+  }
+  const still = ahStill();
+  if (!still) ahGlide(body);
+  body.scrollTo({ top, behavior: still ? "auto" : "smooth" });
 };
 /** D5: each time `key` changes (another question, another conversation), the newest question stands at the top. */
 const useAskPin = (bodyRef, key, on) => {
@@ -205,7 +238,8 @@ const useAskLatest = (bodyRef, on) => {
     const look = () => {
       frame = 0;
       const q = body.querySelector("#ask-now-q");
-      setShown(!!q && ahLatestShown({ qTop: q.offsetTop, scrollTop: body.scrollTop, clientHeight: body.clientHeight }));
+      const gliding = !!(body.dataset && body.dataset.pinning);
+      setShown(!gliding && !!q && ahLatestShown({ qTop: q.offsetTop, scrollTop: body.scrollTop, clientHeight: body.clientHeight }));
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(look);
