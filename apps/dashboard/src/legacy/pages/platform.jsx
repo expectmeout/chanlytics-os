@@ -468,6 +468,81 @@ const PartnerStandingRow = ({ ws, name, P, onDone, flash }) => {
   );
 };
 
+// The machinery under every workspace. The database has answered this
+// for months and nothing in the product showed it: the clocks and the
+// job backlog were read by the health sweep and by the keyless /api/health,
+// both of which speak to a monitor outside the product. It belongs
+// HERE and not on an owner's page — both counts are platform-wide, so a
+// salon owner told "forty jobs are late" has been shown something that
+// is not about them and that they cannot act on.
+const PlatformHealthCard = ({ P, health }) => {
+  if (!health) return null;
+  return (
+    <section className="fl-card set-card" data-testid="platform-health">
+      <div className="fl-card-head">
+        <h2 className="fl-card-title">The platform</h2>
+        <span className="fl-card-sub set-says" data-testid="platform-health-words">{P.healthWords(health)}</span>
+      </div>
+      {health.unhealthy.length > 0 && (
+        <div className="cl-attn-list" data-testid="platform-health-clocks">
+          {health.unhealthy.map((u) => (
+            <div className="set-row" key={u.sweep}>
+              <div className="set-row-info">
+                <span className="set-row-label">{u.sweep}</span>
+                <span className="set-row-hint">{u.detail || "This clock is not running."}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+// How fast the pages are (00255): the 75th percentile of what people's own
+// browsers measured as each page loaded and answered, so the bundle's budget is
+// judged against what they see. Platform-wide, like the clocks above it; a read
+// that failed says so here and takes nothing else with it; an overview that
+// predates the timings has none, and draws no card, and a list that could not
+// be read says so once, above. Every word is the view model's (contracts
+// pageVitalsWords).
+const PlatformVitalsCard = ({ P, rows, problem }) => {
+  if (problem || rows === undefined) return null;
+  const pace = P.vitalsWords(rows);
+  return (
+    <section className="fl-card set-card" data-testid="platform-vitals">
+      <div className="fl-card-head">
+        <h2 className="fl-card-title">How fast the pages are</h2>
+        <span className="fl-card-sub set-says" data-testid="platform-vitals-words">{pace.sentence}</span>
+      </div>
+      {pace.lines.length > 0 && (
+        <div className="cl-attn-list" data-testid="platform-vitals-lines">
+          {pace.lines.map((l) => (
+            <div className="set-row" key={l.metric}>
+              <div className="set-row-info">
+                <span className="set-row-label">{l.label}</span>
+                <span className="set-row-hint" data-tone={l.tone}>{l.hint}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {pace.pages.length > 0 && (
+        <div className="cl-attn-list" data-testid="platform-vitals-pages">
+          {pace.pages.map((pg) => (
+            <div className="set-row" key={pg.page}>
+              <div className="set-row-info">
+                <span className="set-row-label">{pg.page}</span>
+                <span className="set-row-hint">{pg.hint}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
@@ -477,6 +552,7 @@ const PanePlatform = () => {
   const [health, setHealth] = React.useState(held && held.ok ? held.health : null);
   const [queue, setQueue] = React.useState(held && held.ok ? held.queue : null);
   const [partners, setPartners] = React.useState(held && held.ok ? held.partners : null);
+  const [vitals, setVitals] = React.useState(held && held.ok ? held.vitals : null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
@@ -492,12 +568,13 @@ const PanePlatform = () => {
     // A read that throws is a failed read like any other, not a page left reading for ever.
     const r = await Promise.resolve().then(() => P.list()).catch(() => ({ ok: false, message: "" }));
     setBusy(false);
-    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); setQueue(null); setPartners(null); return; }
+    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); setQueue(null); setPartners(null); setVitals(null); return; }
     setProblem(null);
     setTenants(r.tenants);
     setHealth(r.health);
     setQueue(r.queue);
     setPartners(r.partners);
+    setVitals(r.vitals);
   }, [P]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -534,33 +611,8 @@ const PanePlatform = () => {
 
   return (
     <>
-      {/* The machinery under every workspace. The database has answered this
-          for months and nothing in the product showed it: the clocks and the
-          job backlog were read by the health sweep and by the keyless /api/health,
-          both of which speak to a monitor outside the product. It belongs
-          HERE and not on an owner's page — both counts are platform-wide, so a
-          salon owner told "forty jobs are late" has been shown something that
-          is not about them and that they cannot act on. */}
-      {health && (
-        <section className="fl-card set-card" data-testid="platform-health">
-          <div className="fl-card-head">
-            <h2 className="fl-card-title">The platform</h2>
-            <span className="fl-card-sub set-says" data-testid="platform-health-words">{P.healthWords(health)}</span>
-          </div>
-          {health.unhealthy.length > 0 && (
-            <div className="cl-attn-list" data-testid="platform-health-clocks">
-              {health.unhealthy.map((u) => (
-                <div className="set-row" key={u.sweep}>
-                  <div className="set-row-info">
-                    <span className="set-row-label">{u.sweep}</span>
-                    <span className="set-row-hint">{u.detail || "This clock is not running."}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      <PlatformHealthCard P={P} health={health} />
+      <PlatformVitalsCard P={P} rows={vitals} problem={problem} />
       {/* Who is knocking. These people have no workspace, so this is the only
           surface in the product they appear on at all -- which is how a table
           with a writer and no reader went unnoticed long enough for the writer

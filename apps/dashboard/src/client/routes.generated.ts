@@ -179,6 +179,7 @@ export const ROUTES = {
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
   "POST templates/sync": { method: "POST", path: "/api/v1/templates/sync" },
+  "POST vitals": { method: "POST", path: "/api/v1/vitals" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
   "PUT business-record": { method: "PUT", path: "/api/v1/business-record" },
   "PUT contacts/[id]/consent": { method: "PUT", path: "/api/v1/contacts/[id]/consent" },
@@ -382,6 +383,7 @@ export type Routes = {
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;
   "POST templates/sync": typeof import("../../app/api/v1/templates/sync/route").POST;
+  "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
   "PUT business-record": typeof import("../../app/api/v1/business-record/route").PUT;
   "PUT contacts/[id]/consent": typeof import("../../app/api/v1/contacts/[id]/consent/route").PUT;

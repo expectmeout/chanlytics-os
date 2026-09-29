@@ -1144,7 +1144,6 @@ const FirstRun = ({ param = null, onNavigate }) => {
     step.key === "try"
       ? F.tryIt({
           dto: S.dto,
-          vm: S.vm,
           calls: liveNow ? [...(liveNow.now || []), ...(liveNow.recent || [])] : [],
           since: trySince.current,
           nowMs: Date.now(),

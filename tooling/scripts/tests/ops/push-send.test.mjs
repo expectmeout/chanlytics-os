@@ -210,7 +210,10 @@ test("a phone the service reports gone is forgotten; a row nobody can hear, or t
   assert.deepEqual(q.sent, [], "a purged row says nothing");
 });
 
-test("a month's bell is counted whole, a page at a time and the marks in short lists", async () => {
+test("a month's bell is counted whole, a page at a time and the marks in short lists", async (t) => {
+  // The rows are dated 1 to 25 September and the bell counts the last thirty days (BELL_WINDOW_DAYS), so the clock is
+  // the 28th: read off the wall clock, the first of them would leave the window on 1 October and the count with it.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   // The read of the window's rows is paged (a thousand a page) and the marks are asked for a hundred ids at a time:
   // a single read answers a thousand rows at most, and a hundred-odd uuids more in one `in` list is a URL too long.
   // The fake does not cap either; this holds the count right across the seams the paging introduces.

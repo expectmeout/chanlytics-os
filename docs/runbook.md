@@ -673,6 +673,19 @@ What trips it:
 - **A tab pressed again is not in the flows.** The bar's selected item takes no click, and a Maestro tap is one;
   `walk.mjs` presses More again with a touch and hears the page ask for its drawer.
 
+## See how fast the pages are
+
+Each page load in a workspace sends its web vitals when the page is hidden, and the back office's card, "How fast
+the pages are", says the 75th percentile of each over the last seven days (00255). That is the number to hold the
+bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap answered.
+
+1. **Read it** on the back office, or in SQL as the service role: `select * from page_vitals_p75();` gives one row per
+   metric over every page (`page` null), then one per metric and page.
+2. **An empty card** after the migration is applied means no page has been hidden since: open a workspace, switch
+   tabs, and read it again.
+3. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
+   ahead of its migration is expected, and otherwise is the database.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable

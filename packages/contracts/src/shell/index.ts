@@ -1,4 +1,7 @@
-/** The dashboard's chrome: its words and hotkeys, the tone vocabulary, a refusal in the owner's words, who is signed in. */
+/**
+ * The dashboard's chrome: its words and hotkeys, the tone vocabulary, a refusal in the owner's words, who is signed
+ * in, and how fast its pages are.
+ */
 export { refusalOf, roleGate, NEEDS_TITLE, PERM_DOING } from "./refusal";
 export type { RefusalInput, Refusal, RolePerm } from "./refusal";
 export {
@@ -70,3 +73,25 @@ export type {
 } from "./chrome";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./tone";
 export type { Tone, StateKind, LeadPinnable } from "./tone";
+export {
+  PAGE_VITALS,
+  PAGE_VITAL_BANDS,
+  PAGE_VITAL_WORDS,
+  PAGE_VITALS_READ,
+  PAGE_VITALS_MIN_LOADS,
+  PageVitalReport,
+  PageVitalsInput,
+  vitalsPageOf,
+  vitalValueWords,
+  vitalVerdict,
+  pageVitalsWords,
+} from "./vitals";
+export type {
+  PageVital,
+  PageVitalsInputDto,
+  PageVitalsRowDto,
+  PageVitalVerdict,
+  PageVitalLineVM,
+  PageVitalsPageVM,
+  PageVitalsVM,
+} from "./vitals";
