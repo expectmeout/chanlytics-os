@@ -10,7 +10,11 @@
  *
  * This list is the only copy. The workflow's first step pipes the changed files
  * in, for a pull request and for a push to main alike, and gates every step
- * after it on the answer.
+ * after it on the answer. It names every module a stack suite loads, followed
+ * through its imports: database/db-paths-changed.test.mjs walks each suite and
+ * fails one that loads a module outside it, so the list cannot fall behind the
+ * suites again (on 29 Sep 2026, 41 of 101 suites loaded past it, and 11 main
+ * commits that changed what they load skipped the replay).
  *
  * Patterns read the way GitHub reads `paths` filters: `**` crosses directories,
  * `*` does not, and a pattern with no directory matches at the root only.
@@ -25,20 +29,21 @@ import { pathToFileURL } from "node:url";
 export const DB_PATHS = [
   // the migrations, the seed and the config the local stack starts from
   "supabase/**",
-  // the suites that run against the replayed database, in whichever domain folder they sit
+  // the suites that run against the replayed database, in whichever domain folder they sit, and the helpers they share
   "tooling/scripts/tests/**/*.db.test.mjs",
   "tooling/scripts/tests/**/*.integration.test.mjs",
-  // the *.integration suites call the db package's repositories, through its committed dist
-  "packages/db/src/**",
-  // the reach-out engine the stack suites run end to end (the clock, the sender, the door by lead, the approve ports):
-  // a change to it alone must replay what proves it
-  "apps/edge/lib/reach-out/**",
-  "apps/edge/lib/email/**",
-  "apps/edge/api/cron/reach-out.ts",
-  "packages/core/src/campaigns/**",
-  "packages/core/src/deliver.ts",
-  "packages/jobs/src/handlers.ts",
-  "apps/dashboard/src/server/ports/campaign-ports.ts",
+  "tooling/scripts/tests/_*.mjs",
+  // what the suites run against it: the packages that write rows, their sources and the dists built from them (a change
+  // to contracts or channels that reaches a suite through one of them rewrites that dist, and so replays)
+  "packages/core/**",
+  "packages/jobs/**",
+  "packages/db/**",
+  // the edge's doors and sweeps and what they call, and the dashboard's server, its database client and its routes
+  "apps/edge/api/**",
+  "apps/edge/lib/**",
+  "apps/dashboard/src/server/**",
+  "apps/dashboard/src/lib/**",
+  "apps/dashboard/app/api/**",
   // what the two --check steps compare with the database
   "tooling/scripts/gen/schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",
