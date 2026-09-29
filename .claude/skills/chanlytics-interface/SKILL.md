@@ -47,8 +47,10 @@ every count below may only fall.
    never its markup typed again), and otherwise write the entry's classes (a button, a chip, a panel). On a surface
    under `apps/dashboard/src/surfaces/`, import the component from the kit's `index.ts`: a press that opens a page
    takes `href` and is drawn as a link, and `className` carries layout alone.
-3. Place it from the page's own stylesheet with display, grid, flex, gap, position, size and overflow. A value it
-   needs is a token; a look it needs that the kit lacks is a variant (both below).
+3. Place it from the page's own stylesheet with display, grid, flex, gap, position, size and overflow. Which variant
+   it draws at which width (a glyph alone on a phone) is the page's too, at the width its own layout already changes
+   (the Calendar's `crPhone`, 720px); the kit's own rules change at 900px alone. A value it needs is a token; a look
+   it needs that the kit lacks is a variant (both below).
 
 Done when the change adds no class that draws a primitive to a page's stylesheet, no selector restyling a kit class
 from one (`.my-page .btn`), no literal type size, radius, shadow, colour or blur, and no `style` prop: the three
@@ -159,7 +161,7 @@ The families the plan found built more than once (its Appendix A), with what a p
 | tab strip | `.stabs`, as `SurfaceTabs` draws it |
 | card | `Panel`: `pane`, `inset` or `pop`; `sm` or `flush` |
 | meter, bar | `Meter` (`.meter`) |
-| tooltip | a `data-tip` attribute, drawn by `.ui-tip`; `RecordTip` in the record kit |
+| tooltip, a native `title` | a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus; `RecordTip` in the record kit |
 | quiet link | `LinkButton` (`.link-btn`) |
 | list row | `ListRow` (`.list-row`) |
 | confirmation, flash | `Confirm` (`.confirm*`), `usePPToast` (`.pp-toast*`) |
