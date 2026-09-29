@@ -649,7 +649,12 @@ agents, once the kit is whole, and makes it absolute.
 
 **6.1 The measures that reached zero become rules.** Each moves from a baseline to a plain test in `tests/styles/`
 that refuses any entry, with no raise, as `layout-measure.test.mjs` refuses a literal width; its register row
-retires.
+retires. None had reached zero on 29 September, when 6.2 to 6.5 were written after Phase 2 (#1331), ahead of Phases
+3 to 5: the register counted 1,093 literal style values in 22 stylesheets, 2,155 selectors naming 864 primitive
+classes outside the kit (a class once per stylesheet), and 286 style props in 49 files (`docs/debt.md`, "The
+numbers"). So this step added nothing then. 6.2 to 6.5 write the rules as the build held them that day, as measures
+that may only fall and the lint on raw elements of step 1.7, and each measure becomes its rule in the change that
+banks its last entry.
 
 **6.2 `CLAUDE.md`.**
 
