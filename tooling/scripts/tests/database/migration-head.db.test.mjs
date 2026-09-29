@@ -3,8 +3,8 @@
  * keyed /api/diag answers, and the service role's alone.
  *
  * The replay applies every file in supabase/migrations, so the head is the folder's highest version and the count is
- * the folder's; a member's session and the anon key are refused the function, since which migration a database runs is
- * the platform's to read.
+ * the folder's; a signed-in person's session and the anon key are refused the function, since which migration a
+ * database runs is the platform's to read.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,9 +32,25 @@ test("the head is the folder's highest version, and every file in it is applied"
   assert.deepEqual(data, [{ head: folder.at(-1).version, applied: folder.length }]);
 });
 
-test("only the service role may ask: the anon key is refused", { skip }, async () => {
+test("only the service role may ask: the anon key is refused, and so is a signed-in person", { skip }, async () => {
   const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await anon.rpc("migration_head");
-  assert.equal(data, null);
-  assert.ok(error, "refused");
+  const refused = await anon.rpc("migration_head");
+  assert.equal(refused.data, null);
+  assert.equal(refused.error?.code, "42501", "the privilege, not an empty answer");
+
+  const db = createClient(URL_, KEY, { auth: { persistSession: false } });
+  const email = `migration-head-${Date.now()}@example.com`;
+  const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  try {
+    const session = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const signedIn = await session.auth.signInWithPassword({ email, password });
+    assert.equal(signedIn.error, null, signedIn.error?.message);
+    const answer = await session.rpc("migration_head");
+    assert.equal(answer.data, null);
+    assert.equal(answer.error?.code, "42501", "a member of a workspace does not read the platform's migration head");
+  } finally {
+    await db.auth.admin.deleteUser(made.data.user.id);
+  }
 });
