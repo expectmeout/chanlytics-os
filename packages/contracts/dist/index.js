@@ -62,44 +62,6 @@ function dayPlusInZone(tz, atMs, days) {
   return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at3.getUTCDay()], y, m, d };
 }
 
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
-
 // src/leads/search/caps.ts
 var LEAD_MONTHLY_ALLOWANCE = 500;
 var LEAD_MONTHLY_BUDGET_USD = 25;
@@ -116,7 +78,6 @@ var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 function leadMonth(zone, at3) {
   const d = dayInZone(zone, at3.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
@@ -1798,6 +1759,44 @@ function leadPlanAsk(plan, facts) {
   return { count: count2, label, covers };
 }
 
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
 // src/shared/clock.ts
 var FORMATS = /* @__PURE__ */ new Map();
 function formatsFor(tz) {
@@ -2603,7 +2602,6 @@ var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
-var ASK_RETENTION_DAYS = 90;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -3538,7 +3536,6 @@ function leadPhoneState(phone) {
   if (!phone) return "none";
   return phoneDialable(phone) ? "ok" : "invalid";
 }
-var LEAD_EMAIL_REASON = /^email:/;
 function classify(plan, answer, facts, emailState, inArea, phoneState) {
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
@@ -14108,7 +14105,6 @@ function openingVerdict(code2, reading, stepLanguage) {
 var DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"];
 var isDraftWhy = (v) => DRAFT_WHYS.includes(v);
 var DRAFT_NEEDS_MS = 25e3;
-var DRAFT_MAX = 4e3;
 var DRAFT_NOTICE_MAX = 240;
 var SILENT_MODE = "never";
 function draftRefusal(f) {
@@ -22556,7 +22552,6 @@ function toCampaignReportVM(dto) {
     }
   };
 }
-var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/reports/report-facts.ts
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -29032,7 +29027,6 @@ export {
   ASK_MODEL_PROFILES,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
-  ASK_RETENTION_DAYS,
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -29086,7 +29080,6 @@ export {
   CALL_KEY_PREFIX,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
-  CAMPAIGN_REPORT_RANGES,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_CONSENT_SOURCE,
@@ -29155,7 +29148,6 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
-  DRAFT_MAX,
   DRAFT_NEEDS_MS,
   DRAFT_NOTICE_MAX,
   DRAFT_WHYS,
@@ -29250,7 +29242,6 @@ export {
   LEAD_DAY_CAP_USD,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_DRAFT_NOTE,
-  LEAD_EMAIL_REASON,
   LEAD_EMAIL_STATES,
   LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
@@ -29302,7 +29293,6 @@ export {
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_QUESTION_WAIT_LINE,
-  LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
   LEAD_REVIEW_ACT_WORDS,

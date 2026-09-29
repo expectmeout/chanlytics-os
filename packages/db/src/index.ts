@@ -26,7 +26,6 @@ export {
   answeredReachOutEmail,
   stampEmailSent,
   stampEmailLeftAs,
-  sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,
   recordEmailNo,

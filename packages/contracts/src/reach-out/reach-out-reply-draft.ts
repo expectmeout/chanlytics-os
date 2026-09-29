@@ -24,9 +24,6 @@ export const isDraftWhy = (v: unknown): v is DraftWhy => (DRAFT_WHYS as readonly
  */
 export const DRAFT_NEEDS_MS = 25_000;
 
-/** The longest draft kept (the column's check). */
-export const DRAFT_MAX = 4000;
-
 /** How much of a draft the notice quotes. */
 export const DRAFT_NOTICE_MAX = 240;
 

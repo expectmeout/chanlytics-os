@@ -151,15 +151,9 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 z.config({ jitless: true });
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -571,6 +565,11 @@ var LeadSuggestAnswerSchema = z5.object({
     })
   ).min(1).max(4)
 });
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -3617,9 +3616,6 @@ async function getRetellLlm(cfg, llmId, version) {
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
   };
-}
-function needsHydration(c) {
-  return !c.transcript && !c.transcript_object;
 }
 var RECORDING_TIMEOUT_MS = 2e4;
 async function fetchRecording(url, opts = {}) {
@@ -7203,7 +7199,6 @@ export {
   mergeConsent,
   messageIdHeader,
   messageIdsIn,
-  needsHydration,
   newNonce,
   nextA2PStep,
   nextLineStep,

@@ -38,7 +38,6 @@ export {
   LEAD_ESTIMATE_MARGIN,
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASK_MAX_FACTOR,
-  LEAD_QUESTION_WAIT_MS,
   leadMonth,
 } from "./search/caps";
 export { LeadSearchPlanSchema, planVersionOf } from "./search/plan";
@@ -62,14 +61,7 @@ export {
 } from "./search/cards";
 export type { LeadCardBrief } from "./search/cards";
 export { LEAD_ENDING_WORDS, endingOfRound } from "./search/endings";
-export {
-  LEAD_KIND_KEY,
-  leadKindWord,
-  LEAD_UNREACHABLE_KEY,
-  leadPhoneState,
-  LEAD_EMAIL_REASON,
-  classify,
-} from "./search/class";
+export { LEAD_KIND_KEY, leadKindWord, LEAD_UNREACHABLE_KEY, leadPhoneState, classify } from "./search/class";
 export type { LeadPhoneState, LeadClassification } from "./search/class";
 export { questionAfterProbe } from "./search/question";
 export type { ProbeMember, LeadQuestion } from "./search/question";

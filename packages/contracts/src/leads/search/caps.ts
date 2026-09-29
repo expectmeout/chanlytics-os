@@ -5,7 +5,6 @@
  * and the month a lead counts in.
  */
 import { dayInZone } from "../../calendar/zone-math";
-import { HOUR_MS } from "../../shared/time";
 
 /* -------------------------------------------------- the caps (§13.3, §16) -- */
 
@@ -33,8 +32,6 @@ export const LEAD_ESTIMATE_MARGIN = 1.3;
 /** The main round asks for the remainder over the probe's yield, clamped here (S6). */
 export const LEAD_ASK_MIN_FACTOR = 1.2;
 export const LEAD_ASK_MAX_FACTOR = 4;
-/** An unanswered question ends the round after this long (§0.5). */
-export const LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 
 /* ---------------------------------------------------------- the month -- */
 

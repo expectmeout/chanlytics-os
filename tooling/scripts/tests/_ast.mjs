@@ -544,6 +544,71 @@ function statementIsTypeOnly(n) {
   return !!named && ts.isNamedImports(named) && named.elements.length > 0 && named.elements.every((e) => e.isTypeOnly);
 }
 
+/** The names a built bundle exports: its `export { a, b as c }` clauses of its own (esbuild writes one, at the end). */
+export function bundleExports(sf) {
+  const out = new Set();
+  for (const st of sf.statements) {
+    if (!ts.isExportDeclaration(st) || st.moduleSpecifier || !st.exportClause || !ts.isNamedExports(st.exportClause))
+      continue;
+    for (const e of st.exportClause.elements) out.add(e.name.text);
+  }
+  return out;
+}
+
+/** The values a module declares with `export`: a function, a class, an enum, a `const`/`let`/`var` binding. */
+function exportedValues(sf) {
+  const out = [];
+  for (const st of sf.statements) {
+    if (!(ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)))
+      continue;
+    if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) out.push(d.name.text);
+    } else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) {
+      out.push(st.name.text);
+    }
+  }
+  return out;
+}
+
+/** Every identifier a file writes, and every string that could name one (`m["toVM"]`, a name read through a string). */
+function namesIn(sf) {
+  const out = new Set();
+  const visit = (n) => {
+    if (ts.isIdentifier(n)) out.add(n.text);
+    else if (ts.isStringLiteralLike(n) && /^[A-Za-z_$][\w$]*$/.test(n.text)) out.add(n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * A package's exported values that no other module imports: `{ file: [name, …] }` over `modules`, the package's own
+ * modules, for each value its barrel makes public (`publicNames`) that no file of `readers` but its own mentions.
+ * The caller leaves the package's barrels out of `readers`: a barrel re-exports a name, it does not read it. knip
+ * enters each package at its barrel, so to knip every one of these is public and used; this is the pass it cannot
+ * make. A name another module happens to share counts as read, so the count is a floor.
+ */
+export function unimportedExports(modules, publicNames, readers) {
+  const readBy = new Map();
+  for (const { file, sf } of readers) {
+    for (const name of namesIn(sf)) {
+      if (!publicNames.has(name)) continue;
+      if (!readBy.has(name)) readBy.set(name, new Set());
+      readBy.get(name).add(file);
+    }
+  }
+  const out = {};
+  for (const { file, sf } of modules) {
+    for (const name of exportedValues(sf)) {
+      if (!publicNames.has(name)) continue;
+      const by = readBy.get(name);
+      if (!by || [...by].every((f) => f === file)) (out[file] ??= []).push(name);
+    }
+  }
+  return out;
+}
+
 /** The package a bare specifier names (`@scope/name`, `name`), or null for a relative path or a Node built-in. */
 export function packageOf(specifier) {
   if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) return null;

@@ -103,13 +103,7 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 z.config({ jitless: true });
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LEAD_MAX_PLACES = 1e3;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -528,6 +522,11 @@ var LeadSuggestAnswerSchema = z5.object({
     })
   ).min(1).max(4)
 });
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORMATS = /* @__PURE__ */ new Map();
 function formatsFor(tz) {
   const hit = FORMATS.get(tz);
@@ -3392,9 +3391,6 @@ async function stampEmailLeftAs(db, p) {
   if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
   return data === true;
 }
-async function sentEmailRequestOf(db, p) {
-  return (await sentEmailOf(db, p))?.request ?? null;
-}
 async function sentEmailOf(db, p) {
   const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
   if (error) throw new Error(`sent email request: ${error.message}`);
@@ -5635,7 +5631,6 @@ export {
   sendingDomainOf,
   sendingDomainsOf,
   sentEmailOf,
-  sentEmailRequestOf,
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,

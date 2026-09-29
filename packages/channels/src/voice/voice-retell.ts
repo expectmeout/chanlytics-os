@@ -606,11 +606,6 @@ export async function getRetellLlm(
   };
 }
 
-/** True when a v3 list row still needs a getCall to be complete. */
-export function needsHydration(c: RetellCall): boolean {
-  return !c.transcript && !c.transcript_object;
-}
-
 /**
  * Recording bytes. Retell serves these from an UNSIGNED public CDN URL
  * (verified: HEAD 200 with no auth) — so we copy customer audio into private

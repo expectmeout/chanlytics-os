@@ -258,15 +258,6 @@ export async function stampEmailLeftAs(
 }
 
 /**
- * The request an outbound email was frozen with (its row's meta.email.request), or null when there is no such row or
- * it froze none: what a receipt reads to know whether the email was a reply or a campaign's (channels
- * isCampaignEmail). A read that fails throws; the receipt comes again.
- */
-export async function sentEmailRequestOf(db: Db, p: { tenantId: string; messageId: string }): Promise<unknown | null> {
-  return (await sentEmailOf(db, p))?.request ?? null;
-}
-
-/**
  * An outbound email as a receipt reads it: the request it was frozen with, and the lead a reach-out wrote it for
  * (meta.reach_out.lead_id), so a permanent bounce marks that lead's address (Reach out C11). Null when there is no such
  * row. A read that fails throws; the receipt comes again.

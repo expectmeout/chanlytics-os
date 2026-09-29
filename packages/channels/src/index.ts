@@ -33,7 +33,6 @@ export {
   updateLiveCall,
   stopCall,
   getRetellLlm,
-  needsHydration,
   fetchRecording,
   verifyRetellSignature,
 } from "./voice/voice-retell";
