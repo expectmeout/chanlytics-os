@@ -24877,7 +24877,7 @@ function vitalVerdict(metric, p75) {
   if (p75 <= good) return "good";
   return p75 <= poor ? "needs work" : "poor";
 }
-function linesOf3(overall) {
+function vitalLinesOf(overall) {
   return PAGE_VITALS.flatMap((metric) => {
     const r2 = overall.get(metric);
     if (!r2) return [];
@@ -24937,7 +24937,7 @@ function pageVitalsWords(rows) {
       pages: []
     };
   }
-  return { sentence: sentenceOf(overall), lines: linesOf3(overall), pages: pagesOf(rows) };
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
 
 // src/templates/template-slots.ts

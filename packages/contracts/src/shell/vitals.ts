@@ -140,7 +140,7 @@ export function vitalVerdict(metric: PageVital, p75: number): PageVitalVerdict {
 }
 
 /** The line for each metric reported over every page, in the order of PAGE_VITALS. */
-function linesOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): PageVitalLineVM[] {
+function vitalLinesOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): PageVitalLineVM[] {
   return PAGE_VITALS.flatMap((metric) => {
     const r = overall.get(metric);
     if (!r) return [];
@@ -217,5 +217,5 @@ export function pageVitalsWords(rows: readonly PageVitalsRowDto[] | null): PageV
       pages: [],
     };
   }
-  return { sentence: sentenceOf(overall), lines: linesOf(overall), pages: pagesOf(rows) };
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
 }
