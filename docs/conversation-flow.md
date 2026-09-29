@@ -165,6 +165,7 @@ _Fix:_ clear the assignee when a membership is removed; give the sweeper a secon
 **G4. ✅ The Booking autonomy dial is not honoured on the phone.** On text it is enforced twice — in the prompt, and in `layerTwo` (`packages/core/src/inbound/steps.ts:100-112`), which _strips the booking link out of the reply_ and escalates. On voice, `retell-fn.ts:173` reads `rt.policy?.reply?.mode` — the **reply** class, not `booking` — and `retell-availability.ts` reads no policy at all.
 _What happens:_ a workspace that set "Ask me first" on bookings still has its phone agent reading open times aloud and texting the booking link, while its WhatsApp receptionist is being muzzled for the same request.
 _Fix:_ read `policy.booking` in both voice endpoints, the way `policyAskClass` does on text.
+_Narrowed by the owner's decision (21 Sep 2026): reading open times aloud was never the defect. Under "Asks you" the receptionist says which times are open, on a call and in chat, and holds back only the booking link. `check_availability` offers the times and says a member of the team will confirm; `send_booking_link` refuses as `booking_needs_a_person`, where no booking template is approved as well. Both read `bookingHeld`._
 
 ### Severity 2 — correctness holes that will bite
 

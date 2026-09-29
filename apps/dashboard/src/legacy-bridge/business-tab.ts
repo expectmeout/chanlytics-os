@@ -75,7 +75,6 @@ import {
   sameListed,
   type PromptBlockVM,
   type ProfileCrossing,
-  type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 
@@ -247,7 +246,7 @@ export function profileCrossing(
   if (!stored || typeof stored !== "object") return null;
   const parsed = TenantConfigWriteSchema.safeParse({ brain: next });
   if (!parsed.success || !parsed.data.brain) return null;
-  const was = hasProfile(((stored as { profile?: unknown }).profile ?? null) as BusinessProfile | null);
+  const was = hasProfile((stored as { profile?: unknown }).profile ?? null);
   const now = hasProfile(parsed.data.brain.profile ?? null);
   if (was === now) return null;
   const crossing: ProfileCrossing = was ? "stops" : "starts";

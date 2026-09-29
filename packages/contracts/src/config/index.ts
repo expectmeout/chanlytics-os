@@ -32,6 +32,8 @@ export {
   POLICY_MODES,
   POLICY_MODE_WORDS,
   POLICY_CLASS_MODES,
+  policyModeOffered,
+  policyModeRefusal,
   PolicyLimitsSchema,
 } from "./workspace-config/policy-classes";
 export type { PolicyClass, PolicyMode, PolicyLimits, PolicyRow } from "./workspace-config/policy-classes";

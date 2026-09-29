@@ -145,7 +145,7 @@ export function fallbacksWords(
   const keys = Object.keys(FALLBACK_DEFAULTS) as (keyof typeof FALLBACK_DEFAULTS)[];
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
-    const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
+    const t = typeof f[k] === "string" ? f[k].trim() : "";
     return t !== "" && !isProductFallback(k, t);
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };

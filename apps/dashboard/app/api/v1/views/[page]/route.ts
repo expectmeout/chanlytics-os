@@ -31,6 +31,6 @@ export const PUT = write({
       p_view: input.view as Json,
     });
     if (error) throw dbRefusal(error);
-    return { views: (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as Record<string, unknown> };
+    return { views: data && typeof data === "object" && !Array.isArray(data) ? data : {} };
   },
 });

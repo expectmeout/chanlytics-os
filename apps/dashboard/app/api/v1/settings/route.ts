@@ -9,7 +9,6 @@ import {
   withStoredKeysKept,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
-import type { Json } from "@chanlytics/db";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { load, readerContext } from "@/server/readers";
 import { feedVisibleTo, knownFacts, settings, withHiddenFeed } from "@/server/readers/settings";
@@ -77,7 +76,7 @@ export const PUT = write({
     // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any
     // depth) is put back first: the page never saw it, so the page never meant to delete it.
     const next = withStoredKeysKept(parsed.data, before?.config);
-    const result = await putTenantConfig(ctx.supabase, member.tenantId, next as Json, body.version, ctx.userId);
+    const result = await putTenantConfig(ctx.supabase, member.tenantId, next, body.version, ctx.userId);
     // Two different failures, each in its own words (settings-write.ts says why).
     if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
     await recordSettingsChanged(ctx, member.tenantId, before?.config, next, result.row.version);

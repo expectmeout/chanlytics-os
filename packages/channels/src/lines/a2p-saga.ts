@@ -261,7 +261,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
     const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
     return {
       ok: false,
-      step: (step ?? nextA2PStep(state) ?? "profile") as A2PStep,
+      step: step ?? nextA2PStep(state) ?? "profile",
       error,
       pending: isBrandNotReady(error),
       state,

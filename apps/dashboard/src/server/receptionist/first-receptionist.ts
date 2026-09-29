@@ -21,7 +21,7 @@ import {
   withStoredKeysKept,
   type BrainConfig,
 } from "@chanlytics/contracts";
-import { getTenantConfig, putTenantConfig, type Json } from "@chanlytics/db";
+import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listingFactsFor } from "../connections/google";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
@@ -56,7 +56,7 @@ export async function receptionistFromWhatIsKnown(ctx: RouteContext, tenantId: s
   if (!next.success) throw new AppError("internal", "The receptionist could not be set up from what is known.", 500);
   // The whole column is written: what the read left out of the stored row is kept (withStoredKeysKept).
   const kept = withStoredKeysKept(next.data, row.config);
-  const put = await putTenantConfig(ctx.supabase, tenantId, kept as Json, row.version, ctx.userId);
+  const put = await putTenantConfig(ctx.supabase, tenantId, kept, row.version, ctx.userId);
   if (!put.ok) {
     // A colleague's save landed between the read and the write. Where none was set up and it set one up, theirs
     // stands; anything else is the settings' own conflict, and a second press reads what is there now.

@@ -40,7 +40,7 @@ export const GET = read({
     return {
       record,
       path,
-      problems: businessRecordProblems(record as BusinessRecordDto, path, {
+      problems: businessRecordProblems(record, path, {
         ourNumbers: await ourNumbers(ctx, member.tenantId),
       }),
     };

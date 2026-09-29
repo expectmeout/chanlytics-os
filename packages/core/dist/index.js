@@ -4043,13 +4043,13 @@ function addressOf(header) {
   const s = oneLine(header ?? "");
   if (!s) return null;
   const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
-  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  const address = (angle ? angle[2] ?? "" : s).trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  const name = angle ? (angle[1] ?? "").trim().replace(/^"(.*)"$/, "$1").trim() : "";
   return { address, name: name || null };
 }
 function requestLeavesAs(request, as) {
-  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && request.reply_to.every((to) => as.replyRoutes.includes(to.trim().toLowerCase()));
 }
 function resendLimitOf(r22) {
   if (r22.ok || r22.status !== 429 && r22.status !== 409) return null;

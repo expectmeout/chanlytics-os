@@ -251,7 +251,7 @@ function barsOf({ start, step }: RunFacts, stamps: (string | null)[]): number[] 
     const t = s ? Date.parse(s) : NaN;
     if (!Number.isFinite(t)) continue;
     const i = Math.floor((t - start) / step);
-    if (i >= 0 && i < RUN_REPORT_STEPS) out[i]! += 1;
+    if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
   }
   return out;
 }

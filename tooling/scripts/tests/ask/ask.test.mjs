@@ -17,6 +17,7 @@ import {
   ASK_CITATION_KINDS,
   ASK_MAX_TOKENS,
   ASK_PAGES,
+  ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   ASK_TOKENS_DAY,
@@ -26,6 +27,7 @@ import {
   PROPOSAL_GATE,
   applySettingsChange,
   askJump,
+  askPages,
   cleanAnswer,
   buildAskSuggestions,
   citationRoute,
@@ -171,6 +173,148 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   );
 });
 
+/* ------------------------------------------------ the jumps (Ask Rewired, Phase 7) */
+
+// ⌘K's jumps against the pages a workspace has: every page the shell's registry calls real, and People's scopes beside
+// them, is a jump away; every jump lands on a real page, where that page is now, and on a page an answer may name. The
+// Pipeline is a jump where deals are on and the back office for Chanlytics staff, read from the two bits their own doors
+// are drawn by (People's scope strip, Settings' rail); Memory lands on Business, where what the receptionist knows
+// lives (#417). A real page added to the registry without a jump fails here.
+const { SURFACE_STATES, surfaceStateFor, surfaceRetiredTo } = await import(
+  pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
+);
+const { jumpIndexFrom } = await import(
+  pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts")).href
+);
+
+/**
+ * Every page a workspace can have, and the jump that reaches it: its label, and where it lands. The keys are the
+ * registry's real routes, and People's scopes the registry routes as `clients` (SCOPES).
+ */
+const REACHED = {
+  today: ["Today", "today"],
+  inbox: ["Inbox", "inbox"],
+  conversations: ["Conversations", "conversations"],
+  clients: ["People", "clients"],
+  reports: ["Reports", "reports"],
+  live: ["Calls", "live"],
+  // The route moves to the scope (SURFACE_RETIRED), and the jump goes straight there.
+  leads: ["Leads", "clients/leads"],
+  // People › Lists is People's rail; `segments/<id>` still lands there.
+  segments: ["Lists", "clients"],
+  calendar: ["Calendar", "calendar"],
+  outbound: ["Playbooks", "outbound"],
+  broadcasts: ["Broadcasts", "broadcasts"],
+  messages: ["Templates", "messages"],
+  start: ["Setting up", "start"],
+  "admin/profile": ["Profile", "admin/profile"],
+  "admin/workspace": ["Settings", "admin/workspace"],
+  "admin/team": ["Team", "admin/team"],
+  "admin/autonomy": ["Autonomy", "admin/autonomy"],
+  "admin/notifications": ["Notifications", "admin/notifications"],
+  "admin/integrations": ["Connections", "admin/integrations"],
+  "admin/billing": ["Billing", "admin/billing"],
+  // The pane says it is not built and points at Business: Memory's jump lands there, never on it (#417).
+  "admin/memory": ["Receptionist memory", "admin/workspace"],
+  "admin/activity": ["Activity", "admin/activity"],
+  "admin/platform": ["Back office", "admin/platform"],
+  "admin/partner": ["Partner", "admin/partner"],
+  // People's third scope where deals are on (0008): an address of `clients`, not a route of the registry's own.
+  "clients/pipeline": ["Pipeline", "clients/pipeline"],
+};
+// People's scopes are listed by hand: a scope is an address of `clients`, which the registry routes as one page, so a
+// new scope's jump is this list's to add (people.jsx plScopes).
+const SCOPES = ["clients/pipeline"];
+
+/** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
+const EVERY = askPages({ dealsOn: true, platformAdmin: true });
+const where = (to) => {
+  const [page, ...rest] = to.split("/");
+  return [page, rest.length ? rest.join("/") : null];
+};
+
+test("the jump index lists every real surface: each page the registry calls real, and People's scopes, is a jump away", () => {
+  const real = Object.keys(SURFACE_STATES)
+    .filter((k) => SURFACE_STATES[k] === "real")
+    .sort();
+  assert.deepEqual(
+    Object.keys(REACHED)
+      .filter((k) => !SCOPES.includes(k))
+      .sort(),
+    real,
+    "a real page the table does not list has no jump; a listed one the registry drops is a jump to nowhere",
+  );
+  for (const [route, [label, to]] of Object.entries(REACHED)) {
+    const jump = EVERY.find((e) => e.label === label);
+    assert.ok(jump, `${route}: no jump called ${label}`);
+    assert.equal(jump.to, to, `${route}: ${label} lands on ${to}`);
+    assert.equal(askJump(label, EVERY)[0]?.to, to, `${route}: typing "${label}" finds it first`);
+  }
+  // A moved address is reached where it is now.
+  assert.equal(surfaceRetiredTo("leads", null), REACHED.leads[1]);
+});
+
+test("every jump lands on a real page, where the page is now, on a page an answer may name, and no two share a name", () => {
+  const labels = EVERY.map((e) => e.label);
+  assert.equal(new Set(labels).size, labels.length, `a name twice: ${labels.join(", ")}`);
+  const listed = new Set(Object.values(REACHED).map(([label]) => label));
+  for (const e of EVERY) {
+    assert.equal(e.kind, "page");
+    assert.ok(listed.has(e.label), `${e.label}: a jump the table does not account for`);
+    const [page, param] = where(e.to);
+    assert.equal(surfaceStateFor(page, param), "real", `${e.to} is a real page`);
+    assert.equal(surfaceRetiredTo(page, param), undefined, `${e.to} is where the page is, not an address that moves`);
+    assert.ok(ASK_PAGE_ROUTES.includes(e.to), `${e.to} is a page a citation or an answer's Open may name`);
+  }
+  assert.ok(!EVERY.some((e) => e.to === "admin/memory"), "never the pane that says it is not built (#417)");
+});
+
+test("the Pipeline is a jump where deals are on, after Leads; the back office for Chanlytics staff; every workspace has the rest", () => {
+  const names = (has) => askPages(has).map((e) => e.label);
+  const none = names({ dealsOn: false, platformAdmin: false });
+  assert.deepEqual(
+    none,
+    ASK_PAGES.map((e) => e.label),
+    "the pages every workspace has",
+  );
+  assert.ok(!none.includes("Pipeline") && !none.includes("Back office"));
+  const deals = names({ dealsOn: true, platformAdmin: false });
+  assert.equal(deals.indexOf("Pipeline"), deals.indexOf("Leads") + 1, "People's scopes in the strip's order");
+  assert.ok(!deals.includes("Back office"));
+  const staff = names({ dealsOn: false, platformAdmin: true });
+  assert.equal(staff.at(-1), "Back office");
+  assert.ok(!staff.includes("Pipeline"), "where deals are off the Pipeline's address draws People");
+});
+
+test("the bridge's jump index reads the two bits the pages draw those doors by, and a few words reach each new page", () => {
+  const index = (w) => jumpIndexFrom({ ...w });
+  const first = (words, w) => askJump(words, index(w))[0]?.to ?? null;
+  const on = { __PEOPLE: { rows: [], dealsOn: true }, __ME: { role: "owner", platform_admin: true } };
+  const off = { __PEOPLE: { rows: [], dealsOn: false }, __ME: { role: "owner" } };
+  assert.equal(first("pipe", on), "clients/pipeline");
+  assert.ok(
+    askJump("deals", index(on)).some((j) => j.to === "clients/pipeline"),
+    "the Pipeline answers to its deals",
+  );
+  assert.equal(first("back office", on), "admin/platform");
+  assert.equal(first("pipe", off), null, "deals off: no Pipeline");
+  assert.equal(first("back office", off), null, "not staff: no back office");
+  assert.equal(first("pipe", {}), null, "before People is read, nothing is claimed");
+  for (const w of [on, off]) {
+    assert.equal(first("memory", w), "admin/workspace", "Memory lands on Business");
+    assert.equal(first("ai memory", w), "admin/workspace", "and so does the pane's own name");
+    assert.equal(first("partner", w), "admin/partner");
+    assert.equal(first("setting up", w), "start", "the first run is a jump away");
+  }
+  // The rest of the index is the browser's own rows, after the pages.
+  const people = index({ ...on, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }], dealsOn: true } });
+  assert.deepEqual(
+    askJump("pip", people).map((j) => j.label),
+    ["Pipeline", "Pip Adams"],
+    "a page before a person",
+  );
+});
+
 test("suggestions come from the data, in the person's language, and never offer what the workspace cannot answer", () => {
   const none = buildAskSuggestions({
     surface: "today",
@@ -223,6 +367,69 @@ test("the question about proposals is offered only where deals are a thing (0004
     !buildAskSuggestions({ ...quiet, surface: "inbox", language: "en", dealsOn: true }).some((s) => s.q === EN),
     "the Inbox is not where people are looked at",
   );
+});
+
+test("on the first run the page's own questions lead: what is left to set up and the hours, in either language, and never an offer or a playbook; every other page's chips are what they were (Ask Rewired, Phase 7)", () => {
+  const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false, canAct: true };
+  const chips = (surface, language = "en") =>
+    buildAskSuggestions({ ...quiet, surface, language, leadSearches: ["pilates in denver"] }).map(
+      (s) => `${s.q}${s.fast ? "*" : ""}`,
+    );
+  assert.deepEqual(chips("start"), [
+    "What is left to set up?",
+    "What are our hours this week?",
+    "Who needs me right now?*",
+    "How did the week go?",
+    "What can the receptionist do on its own?",
+    "Remember that ",
+  ]);
+  assert.deepEqual(chips("start", "es").slice(0, 2), [
+    "¿Qué falta por configurar?",
+    "¿Cuál es nuestro horario esta semana?",
+  ]);
+  const first = buildAskSuggestions({ ...quiet, surface: "start", language: "en" })[0];
+  assert.equal(first.fast, false, "the model's, over the steps the server's start provider reads: no quick answer");
+  // The page questions as one table (PAGE_QUESTIONS): each other surface offers what it did before it, word for word.
+  const EVERYONE = ["Who needs me right now?*", "How did the week go?", "What can the receptionist do on its own?"];
+  const OFFER = ["Remember that ", "Send the ", "Start a win-back playbook for the quiet clients"];
+  const CALLS = ["Did anyone call while I was busy?", ...EVERYONE, "Remember that "];
+  const was = {
+    today: ["Brief me on today", "Who wrote today?", ...EVERYONE, "Remember that ", "Close on "],
+    inbox: [
+      "Who wrote today?",
+      "What can the receptionist do on its own?",
+      "Who needs me right now?*",
+      "How did the week go?",
+      "Remember that ",
+      "Hold every reply for my review before it sends",
+    ],
+    people: ["Who wrote today?", ...EVERYONE, ...OFFER],
+    leads: ["Find more like: pilates in denver", ...EVERYONE, "Remember that "],
+    conversations: CALLS,
+    live: CALLS,
+    reports: [
+      "How did the week go?",
+      "Who needs me right now?*",
+      "What can the receptionist do on its own?",
+      "Remember that ",
+    ],
+    settings: [
+      "What can the receptionist do on its own?",
+      "What are our hours this week?",
+      "Who needs me right now?*",
+      "How did the week go?",
+      "Remember that ",
+      "Close on ",
+      "Change Saturday's hours to ",
+      "Invite ",
+    ],
+    pipeline: ["Who wrote today?", ...EVERYONE, ...OFFER],
+    calendar: [...EVERYONE, ...OFFER],
+    campaigns: [...EVERYONE, ...OFFER],
+    other: [...EVERYONE, ...OFFER],
+  };
+  for (const [surface, chipsWere] of Object.entries(was)) assert.deepEqual(chips(surface), chipsWere, surface);
+  assert.deepEqual([...Object.keys(was), "start"].sort(), [...ASK_SURFACES].sort(), "every surface is held here");
 });
 
 test("the surfaces are one list, Leads among them, and every kind a scope may have is a kind a citation names, a run as a broadcast: the route and the prompt read the same names", () => {

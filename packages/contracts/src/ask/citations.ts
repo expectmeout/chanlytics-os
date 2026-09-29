@@ -66,12 +66,16 @@ export function noteRows(read: AskReadSet, refs: Iterable<AskRowRef>): void {
   for (const r of refs) if (r.kind !== "page") read[r.kind].set(r.id, r);
 }
 
-/** The pages a citation or a navigate target may point at without a read. */
+/**
+ * The pages a citation or a navigate target may point at without a read: every page the palette jumps to (askPages;
+ * the Pipeline and the back office only where the workspace and the person have them), and People's lists.
+ */
 export const ASK_PAGE_ROUTES = [
   "today",
   "inbox",
   "clients",
   "clients/leads",
+  "clients/pipeline",
   "segments",
   "conversations",
   "live",
@@ -89,6 +93,8 @@ export const ASK_PAGE_ROUTES = [
   "admin/billing",
   "admin/activity",
   "admin/profile",
+  "admin/partner",
+  "admin/platform",
 ] as const;
 
 // A list of the workspace's own is a row (`clients/list:<id>`, its reader's route), so its address is no page; a People

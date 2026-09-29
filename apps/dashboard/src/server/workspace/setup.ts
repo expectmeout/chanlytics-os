@@ -379,7 +379,7 @@ function whatsappSection(wa: ChannelRow | null, lastMsg: SetupReads["lastMsg"]):
     present: !!wa,
     active: wa?.status === "active",
     number: wa?.number_e164 ?? null,
-    quality: typeof waCfg.quality_rating === "string" ? (waCfg.quality_rating as string) : null,
+    quality: typeof waCfg.quality_rating === "string" ? waCfg.quality_rating : null,
     lastInboundAt: lastMsg.data?.channel_ts ?? lastMsg.data?.created_at ?? null,
   };
 }

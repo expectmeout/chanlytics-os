@@ -10,7 +10,7 @@
  * outcome than a vetoed one, and no reply at all is worse than both.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { recordOutbound } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import type { BrainMeta } from "../packages/contracts.js";
@@ -59,7 +59,7 @@ export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: 
       externalId: null,
       status: "queued",
       channel: a.channel ?? "whatsapp",
-      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,
+      meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) },
     });
     if (!messageId) return null;
     await scheduleJob(db, {

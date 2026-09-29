@@ -534,7 +534,7 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
     policies.PUT.run(send("PUT", { class: "booking", mode: "veto" }, inB), ctxFor(tables)),
     "validation",
     400,
-    "Only replies can be held for review",
+    "The Bookings row has nothing to hold for review.",
   );
   await refused(
     policies.PUT.run(send("PUT", { class: "booking", mode: "never" }, inB), ctxFor(tables)),

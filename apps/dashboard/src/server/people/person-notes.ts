@@ -113,7 +113,7 @@ export async function noteOn(ctx: RouteContext, contactId: string, noteId: strin
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", NOTE_REFUSALS.not_found, 404);
-  return data as NoteRow;
+  return data;
 }
 
 /**

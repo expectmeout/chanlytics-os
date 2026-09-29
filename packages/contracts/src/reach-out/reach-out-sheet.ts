@@ -283,14 +283,14 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
   if (r.first) {
     const open = r.first.opening;
     const leads = !!open && r.first.body.startsWith(open);
-    const rest = leads ? r.first.body.slice(open!.length) : r.first.body;
-    if (leads) words.push({ text: open!, opening: true });
+    const rest = leads ? r.first.body.slice(open.length) : r.first.body;
+    if (leads) words.push({ text: open, opening: true });
     if (rest.trim()) words.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
   const hosts = r.domains.map((d) => d.host);
   const from =
     r.domains.length === 1
-      ? `all from ${r.domains[0]!.host}, ${plural(r.domains[0]!.sent_days, "clean day", "clean days")}`
+      ? `all from ${r.domains[0].host}, ${plural(r.domains[0].sent_days, "clean day", "clean days")}`
       : r.domains.length > 1
         ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}`
         : null;
@@ -347,7 +347,7 @@ const runDayWords = (runFor: string): string =>
  */
 export function chainPaceOf(c: Pick<ReachOutChainDto, "domains">): { host: string | null; share: number } {
   return {
-    host: c.domains.length === 1 ? c.domains[0]!.host : null,
+    host: c.domains.length === 1 ? c.domains[0].host : null,
     share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0),
   };
 }

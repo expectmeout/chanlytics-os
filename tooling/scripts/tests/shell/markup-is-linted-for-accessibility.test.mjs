@@ -13,10 +13,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { ESLint } from "eslint";
+import config, { withoutTypes } from "../../../../eslint.config.mjs";
 import { ROOT } from "../_source.mjs";
 import { repoFiles } from "../_ast.mjs";
 
-const eslint = new ESLint({ cwd: ROOT });
+// The accessibility rules read the markup, not its types: the probes are linted without the typed rules' programs.
+const eslint = new ESLint({ cwd: ROOT, overrideConfigFile: true, overrideConfig: withoutTypes(config) });
 const A11Y = "jsx-a11y-x/";
 /** A click on a bare div: no keyboard reaches it, and a screen reader does not call it a control. */
 const CLICKABLE_DIV = "function Probe({ go }) {\n  return <div onClick={go}>Open</div>;\n}\n";

@@ -45,11 +45,7 @@ export interface BusinessGap {
 export const CANNOT_SAY_SERVICES = "cannot say what you offer";
 
 const has = (v: unknown): boolean =>
-  typeof v === "string"
-    ? v.trim().length > 0
-    : Array.isArray(v)
-      ? v.length > 0
-      : !!v && Object.keys(v as object).length > 0;
+  typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
 
 /**
  * The one fact most worth adding, and the row that adds it; null when nothing is missing.

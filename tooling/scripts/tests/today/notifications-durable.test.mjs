@@ -12,6 +12,7 @@ import {
   SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
 import { readCode } from "../_source.mjs";
+import { toldFor } from "../_live-feed.mjs";
 
 const NOW = Date.parse("2026-09-06T16:00:00.000Z");
 const row = (over = {}) => ({
@@ -113,10 +114,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ),
   );
-  assert.ok(
-    readCode("packages/db/src/realtime.ts").includes('{ table: "notifications", event: "INSERT" }'),
-    "the channel watches the table",
-  );
+  assert.deepEqual(toldFor("notifications"), ["INSERT"], "the live feed is told of a note kept");
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
   assert.ok(
     /dedupeFeed\(\[\s*\.\.\.applyReadState\(feedFromGlobals\(win, Date\.now\(\)\), deviceState\(\)\),\s*\.\.\.serverNotificationRows\(win\.__NOTIFICATIONS\?\.dto\),?\s*\]\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(

@@ -353,7 +353,7 @@ export async function POST(request: Request): Promise<Response> {
     } as NormalizedCall);
     const msgId = await recordCallNote(db, {
       tenantId: row.tenant_id,
-      conversationId: row.conversation_id as string,
+      conversationId: row.conversation_id,
       contactId: row.contact_id,
       body: line,
       externalId: `call:${row.retell_call_id}`,
