@@ -938,9 +938,12 @@ const familyHtml = (f) =>
   `<section class="gx-family" data-family="${f.family}"><h2 class="gx-family-name">${f.family}</h2>` +
   `<p class="gx-about">${f.about}</p><div class="gx-entries">${f.entries.map(entryHtml).join("\n")}</div></section>`;
 
-/** The gallery's page, built afresh: the mockup's fonts and stylesheets in its order, the app's rules, the entries. */
+/**
+ * The gallery's page, built afresh: the mockup's fonts and stylesheets in its order, the app's rules, the entries. Its
+ * words say no count: a family added at the end moves nothing drawn above it, so a recording of the page before and
+ * after (style-equality.mjs) differs only in what was added.
+ */
 export function galleryDocument(families = FAMILIES) {
-  const entries = families.reduce((n, f) => n + f.entries.length, 0);
   return `<!doctype html>
 <html lang="en" data-theme="dark" data-look="classic" class="legacy-on">
 <head>
@@ -955,7 +958,7 @@ export function galleryDocument(families = FAMILIES) {
   <div id="root"><main class="gx">
     <header class="gx-head"><h1 class="gx-title">The kit</h1>
       <p class="gx-lede">Every class in apps/dashboard/src/surfaces/kit/classes.json, drawn by the app's own stylesheets in the
-      app's order: ${families.length} families, ${entries} entries. Press t for the other theme and l for the other look.</p>
+      app's order, a family at a time. Press t for the other theme and l for the other look.</p>
     </header>
 ${families.map(familyHtml).join("\n")}
   </main></div>
