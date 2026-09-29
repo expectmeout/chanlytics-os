@@ -14570,7 +14570,7 @@ var RETENTION_DAYS = {
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
-  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00229). */
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00252). */
   page_vitals: 30
 };
 var RATE_HITS_RETENTION_HOURS = 2;
@@ -24877,7 +24877,7 @@ function vitalVerdict(metric, p75) {
   if (p75 <= good) return "good";
   return p75 <= poor ? "needs work" : "poor";
 }
-function linesOf2(overall) {
+function linesOf3(overall) {
   return PAGE_VITALS.flatMap((metric) => {
     const r2 = overall.get(metric);
     if (!r2) return [];
@@ -24937,7 +24937,7 @@ function pageVitalsWords(rows) {
       pages: []
     };
   }
-  return { sentence: sentenceOf(overall), lines: linesOf2(overall), pages: pagesOf(rows) };
+  return { sentence: sentenceOf(overall), lines: linesOf3(overall), pages: pagesOf(rows) };
 }
 
 // src/templates/template-slots.ts
