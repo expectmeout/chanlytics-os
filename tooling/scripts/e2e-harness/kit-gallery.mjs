@@ -25,8 +25,9 @@
  * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
  * every selector of kit.css in a browser. The words are made up, as every fixture's are.
  *
- * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the record sheet and the kit's sheet
- * this page draws place the toast stack as it stands beside a sheet, for every entry.
+ * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the overlays this page draws place the
+ * toast stack for every entry, beside a sheet on a desk and, on a phone, as while the bell's panel is open (the Panel
+ * family draws the bell's list).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -631,9 +632,9 @@ export const FAMILIES = [
     family: "Toast",
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
-      "each with its ×. The stack stands where it stands beside an open record sheet, lifted over its foot on a phone " +
-      "and beside it on a desk, because this page draws one (record.css, :root:has(.rec-sheet)): its place with no " +
-      "sheet open is drawn by the style-equality recorder's toast scene, not here.",
+      "each with its ×. The stack stands where this page's overlays put it: beside a sheet on a desk (record.css, " +
+      ":root:has(.rec-sheet)), at a phone's foot as while the bell's panel is open (mobile.css, :root:has(.tbn-pop)). " +
+      "Its place with none open is drawn by the style-equality recorder's toast scene, not here.",
     entries: [
       {
         id: "pp-toast",
