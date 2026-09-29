@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
+import jsxA11y from "eslint-plugin-jsx-a11y-x";
 import globals from "globals";
 
 /**
@@ -36,8 +37,10 @@ const OUR_TS_RULES = {
   // documentation, and renaming those to `_req` to satisfy a linter that
   // should not be reading type positions makes the types worse.
   "no-unused-vars": "off",
+  // An error since our TypeScript held none (27 September), as in the scripts: a new unused name fails outright, and
+  // the lint baseline cannot bank it.
   "@typescript-eslint/no-unused-vars": [
-    "warn",
+    "error",
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
   ],
   "no-empty": ["error", { allowEmptyCatch: true }],
@@ -59,6 +62,30 @@ const OUR_TS_RULES = {
 
 /** Plugin map for every TypeScript block. */
 const TS_PLUGINS = { "@typescript-eslint": tseslint.plugin };
+
+/**
+ * What a person with a screen reader or only a keyboard meets: the jsx-a11y rules, from eslint-plugin-jsx-a11y-x, the
+ * maintained fork (the original supports ESLint 9 at most, and this repository runs 10). Its recommended set, every
+ * rule a warning, so the lint baseline holds what each file has today and any new finding fails
+ * (tooling/scripts/checks/lint.mjs), in the shell's JSX as in the TSX.
+ */
+const A11Y_RULES = Object.fromEntries(
+  Object.entries(jsxA11y.configs.recommended.rules).map(([rule, entry]) => {
+    const [level, ...options] = Array.isArray(entry) ? entry : [entry];
+    return [rule, level === "off" ? "off" : ["warn", ...options]];
+  }),
+);
+
+/** The markup the browser draws, each path one a block below already parses. */
+const DASHBOARD_MARKUP = [
+  "apps/dashboard/app/**/*.tsx",
+  "apps/dashboard/src/legacy-bridge/**/*.tsx",
+  "apps/dashboard/src/client/**/*.tsx",
+  "apps/dashboard/src/auth/**/*.tsx",
+  "apps/dashboard/src/yes/**/*.tsx",
+  "apps/dashboard/src/surfaces/**/*.tsx",
+  "apps/dashboard/src/legacy/**/*.jsx",
+];
 
 /**
  * The boundaries between the dashboard's layers. Nothing but convention held
@@ -446,6 +473,13 @@ export default [
         { additionalHooks: "^(use[A-Z][A-Za-z]*(Effect|Layout|Memo|Callback)|useEffectP)$" },
       ],
     },
+  },
+
+  // Accessibility, over all of the dashboard's markup (A11Y_RULES).
+  {
+    files: DASHBOARD_MARKUP,
+    plugins: { "jsx-a11y-x": jsxA11y },
+    rules: A11Y_RULES,
   },
 
   // Test and operational scripts.

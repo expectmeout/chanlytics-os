@@ -6,7 +6,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  setupSteps,
   firstRunTryOf,
   FIRST_RUN_TRY_WORDS as W,
   TRY_QUIET_AFTER_MS,
@@ -97,8 +96,7 @@ const callOf = (over = {}) => ({
   ],
   ...over,
 });
-const tryOf = (dto, calls = [], since = SINCE, nowMs = NOW) =>
-  firstRunTryOf({ dto, vm: setupSteps(dto, nowMs), calls, since, nowMs });
+const tryOf = (dto, calls = [], since = SINCE, nowMs = NOW) => firstRunTryOf({ dto, calls, since, nowMs });
 
 test("published for the page", () => {
   assert.equal(FIRST_RUN_HELPERS.tryIt, firstRunTryOf);

@@ -20906,14 +20906,13 @@ declare const FIRST_RUN_TRY_WORDS: {
 };
 interface FirstRunTryInput {
     dto: SetupDto;
-    vm: SetupVM;
     /** The Live page's calls (now and recent); empty before that read lands. */
     calls: readonly LiveCallVM[];
     /** When this screen opened, in ms: a call from before it is not the test. */
     since: number;
     nowMs: number;
 }
-declare function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM;
+declare function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): FirstRunTryVM;
 
 /**
  * The first run's addresses, with nothing else: setup.ts reads Find's from here, not from first-run.ts, so the two

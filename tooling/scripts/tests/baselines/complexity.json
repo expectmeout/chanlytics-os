@@ -335,7 +335,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
-    "lines": 301,
+    "lines": 300,
     "branches": 84,
     "depth": 1
   },
