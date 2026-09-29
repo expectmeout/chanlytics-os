@@ -3297,12 +3297,18 @@ async function getCall(cfg, callId, opts = {}) {
     return { kind: "unavailable", status: null, retryAfterMs: null };
   }
   if (r2.ok) {
-    const body = await r2.json().catch(() => null);
+    let body = null;
+    try {
+      body = await r2.json();
+    } catch (e) {
+      if (e instanceof Error && e.name === "TimeoutError")
+        return { kind: "unavailable", status: null, retryAfterMs: null };
+    }
     return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
   }
   await r2.body?.cancel().catch(() => void 0);
   if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
-  if (r2.status === 429 || r2.status >= 500)
+  if (r2.status === 408 || r2.status === 425 || r2.status === 429 || r2.status >= 500)
     return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers.get("retry-after")) };
   return { kind: "not_found", status: r2.status };
 }

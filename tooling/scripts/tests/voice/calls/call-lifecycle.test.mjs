@@ -152,6 +152,25 @@ test("a call read tells the provider's answers apart — found, not found, a ref
       Response.json({ message: "Too Many Requests" }, { status: 429, headers: { "retry-after": soon } }),
     call_down: () => new Response("<html>502 Bad Gateway</html>", { status: 502, headers: html }),
     call_broken: () => new Response("<html>ok</html>", { status: 200, headers: html }),
+    call_no_id: () => Response.json({ message: "ok" }),
+    call_timeout: () => Response.json({ message: "Request Timeout" }, { status: 408 }),
+    call_too_early: () => Response.json({ message: "Too Early" }, { status: 425 }),
+    // The head answers at once; the body never finishes, until the read's own signal gives up (the
+    // fallback timer again keeps the process alive, as call_stalled's does).
+    call_slow_body: (init) =>
+      new Response(
+        new ReadableStream({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('{"call_id":'));
+            const unbounded = setTimeout(() => c.error(new Error("the body was not bounded")), 1000);
+            init?.signal?.addEventListener("abort", () => {
+              clearTimeout(unbounded);
+              c.error(init.signal.reason);
+            });
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     call_unreachable: () => {
       throw new TypeError("fetch failed");
     },
@@ -218,6 +237,24 @@ test("a call read tells the provider's answers apart — found, not found, a ref
       await getCall(cfg, "call_broken"),
       { kind: "unavailable", status: 200, retryAfterMs: null },
       "a 200 that is not a call is not a call: a proxy's page, not the provider's word",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_no_id"),
+      { kind: "unavailable", status: 200, retryAfterMs: null },
+      "nor is an object that carries no call id",
+    );
+    assert.deepEqual(
+      [await getCall(cfg, "call_timeout"), await getCall(cfg, "call_too_early")],
+      [
+        { kind: "unavailable", status: 408, retryAfterMs: null },
+        { kind: "unavailable", status: 425, retryAfterMs: null },
+      ],
+      "a 408 and a 425 say 'not now', not 'no such call': no try is spent on them",
+    );
+    assert.deepEqual(
+      await getCall(cfg, "call_slow_body", { timeoutMs: 50 }),
+      { kind: "unavailable", status: null, retryAfterMs: null },
+      "a body that stalls past the bound is no answer at all, so the tick stops asking",
     );
     assert.deepEqual(
       await getCall(cfg, "call_unreachable"),

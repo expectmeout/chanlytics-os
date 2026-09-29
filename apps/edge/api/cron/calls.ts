@@ -45,6 +45,7 @@ import { ingestCall, recordCallNote, linkCallMessage, setCallRecording } from ".
 import {
   copyRecording,
   purgeExpiredRecordings,
+  RECORDING_DEFER_LIMIT_MS,
   RECORDING_MAX_ATTEMPTS,
   SWEEP_COPY_TIMEOUT_MS,
 } from "../../lib/voice/call-recording.js";
@@ -187,7 +188,7 @@ async function retryRecordings(leg: ProviderLeg) {
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0, deferred: 0 };
   const { data: pendingRec, error: recErr } = await db
     .from("calls")
-    .select("id, tenant_id, retell_call_id, recording")
+    .select("id, tenant_id, retell_call_id, recording, ended_at")
     .in("status", ["ended", "error"])
     .filter("recording->>fetch_state", "eq", "pending")
     .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
@@ -199,6 +200,8 @@ async function retryRecordings(leg: ProviderLeg) {
     if ((rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
     if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
     recordings.candidates++;
+    // An outage past its limit spends the tries again (RECORDING_DEFER_LIMIT_MS); a hold still touches nothing.
+    const deferralsSpend = row.ended_at !== null && Date.parse(row.ended_at) < Date.now() - RECORDING_DEFER_LIMIT_MS;
     if (provider.hold) {
       recordings.deferred++;
       continue;
@@ -215,13 +218,18 @@ async function retryRecordings(leg: ProviderLeg) {
       // the queue, where untouched it stood first every tick and starved the
       // rest.
       noteProvider(provider, read);
-      recordings.deferred++;
-      if (!provider.hold && read.status !== null)
-        await setCallRecording(db, row.tenant_id, row.id, {
-          fetch_state: "pending",
-          attempts: rec.attempts ?? 0,
-          error: `provider_${read.status}`,
-        });
+      if (provider.hold || read.status === null) {
+        recordings.deferred++;
+        continue;
+      }
+      const attempts = (rec.attempts ?? 0) + (deferralsSpend ? 1 : 0);
+      const exhausted = attempts >= RECORDING_MAX_ATTEMPTS;
+      await setCallRecording(db, row.tenant_id, row.id, {
+        fetch_state: exhausted ? "failed" : "pending",
+        attempts,
+        error: `provider_${read.status}`,
+      });
+      recordings[!deferralsSpend ? "deferred" : exhausted ? "failed" : "retry"]++;
       continue;
     }
     const url = read.kind === "found" ? (read.call.recording_url ?? null) : null;
@@ -248,6 +256,7 @@ async function retryRecordings(leg: ProviderLeg) {
       providerUrl: url,
       attempts: rec.attempts ?? 0,
       timeoutMs: SWEEP_COPY_TIMEOUT_MS,
+      deferralsSpend,
     });
     recordings[outcome]++;
   }

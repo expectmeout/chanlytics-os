@@ -270,10 +270,10 @@ const RETELL_READ_TIMEOUT_MS = 10_000;
  *   found        the call, as the provider holds it;
  *   not_found    the provider answered and has no such call -- a 404, or any
  *                other refusal of the request: asking again will not change it;
- *   unavailable  the provider could not answer just now: a 429, a 5xx, a body
- *                that is not a call, a timeout or a network error, with the
- *                wait it named when it named one; `status` is null when no
- *                answer came at all;
+ *   unavailable  the provider could not answer just now: a 408, a 425, a 429,
+ *                a 5xx, a body that is not a call, a timeout or a network
+ *                error, with the wait it named when it named one; `status` is
+ *                null when no answer came at all, a body that stalled included;
  *   auth         the key is refused (401, 403): every read will be, until it is fixed.
  */
 export type RetellCallRead =
@@ -321,7 +321,14 @@ export async function getCall(
     return { kind: "unavailable", status: null, retryAfterMs: null };
   }
   if (r.ok) {
-    const body: unknown = await r.json().catch(() => null);
+    let body: unknown = null;
+    try {
+      body = await r.json();
+    } catch (e) {
+      // A body that stalled past the bound is no answer at all, as a request that did.
+      if (e instanceof Error && e.name === "TimeoutError")
+        return { kind: "unavailable", status: null, retryAfterMs: null };
+    }
     // A 200 that is not a call is a proxy's page in front of the provider, not its word.
     return isCallBody(body)
       ? { kind: "found", call: body }
@@ -329,7 +336,7 @@ export async function getCall(
   }
   await r.body?.cancel().catch(() => undefined);
   if (r.status === 401 || r.status === 403) return { kind: "auth", status: r.status };
-  if (r.status === 429 || r.status >= 500)
+  if (r.status === 408 || r.status === 425 || r.status === 429 || r.status >= 500)
     return { kind: "unavailable", status: r.status, retryAfterMs: retryAfterMs(r.headers.get("retry-after")) };
   return { kind: "not_found", status: r.status };
 }

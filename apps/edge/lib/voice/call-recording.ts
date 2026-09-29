@@ -26,7 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
 import { fetchRecording } from "../packages/channels.js";
 import { setCallRecording } from "../packages/db.js";
-import { RECORDING_RETENTION_DAYS } from "../packages/contracts.js";
+import { DAY_MS, RECORDING_RETENTION_DAYS } from "../packages/contracts.js";
 import { logger } from "../log.js";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
@@ -34,6 +34,14 @@ export const RECORDING_MAX_ATTEMPTS = 3;
 export const WEBHOOK_COPY_TIMEOUT_MS = 6_000;
 /** The sweep can afford to wait for a long recording. */
 export const SWEEP_COPY_TIMEOUT_MS = 20_000;
+/**
+ * How long an outage may hold a copy without spending its tries. A deferral is
+ * no try (the provider or the bucket could not answer), but a file that fails
+ * that way for ever would say "still processing" for ever and wake the sweep
+ * every five minutes: past this, since the call ended, a deferral counts, and
+ * the copy ends "couldn't be saved" within RECORDING_MAX_ATTEMPTS more.
+ */
+export const RECORDING_DEFER_LIMIT_MS = 2 * DAY_MS;
 
 const REC_EXT: Record<string, string> = {
   "audio/wav": "wav",
@@ -169,7 +177,15 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 
 export async function copyRecording(
   db: SupabaseClient<Database>,
-  p: { tenantId: string; callId: string; providerUrl: string; attempts?: number | null; timeoutMs: number },
+  p: {
+    tenantId: string;
+    callId: string;
+    providerUrl: string;
+    attempts?: number | null;
+    timeoutMs: number;
+    /** The outage has held this copy past RECORDING_DEFER_LIMIT_MS: a deferral spends a try. */
+    deferralsSpend?: boolean;
+  },
 ): Promise<CopyOutcome> {
   const L = logger({ tenant: p.tenantId });
   const attempt = (p.attempts ?? 0) + 1;
@@ -179,7 +195,12 @@ export async function copyRecording(
   // No try spent: the count stays, and the write alone (00007's trigger on
   // updated_at) sends the row to the back of the queue for the next tick.
   const defer = async (error: string, fields: Record<string, unknown>): Promise<CopyOutcome> => {
-    L.error("call_recording_copy_failed", {
+    if (p.deferralsSpend) {
+      L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, error, ...fields });
+      await settle(exhausted ? "failed" : "pending", { error });
+      return exhausted ? "failed" : "retry";
+    }
+    L.warn("call_recording_copy_failed", {
       call: p.callId,
       outcome: "deferred",
       attempts: p.attempts ?? 0,

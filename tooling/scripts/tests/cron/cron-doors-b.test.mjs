@@ -139,7 +139,9 @@ const silent = (why = "this case must not reach a provider") =>
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(at("apps/edge/lib/voice/call-recording.ts"));
+const { SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS, RECORDING_DEFER_LIMIT_MS, copyRecording } = await import(
+  at("apps/edge/lib/voice/call-recording.ts")
+);
 const SWEEPS = {
   calls: await import(at("apps/edge/api/cron/calls.ts")),
   google: await import(at("apps/edge/api/cron/google.ts")),
@@ -1067,6 +1069,106 @@ test("calls: a call the provider answers 500 on every time is written with its c
     { fetch_state: "pending", attempts: 0, error: "provider_500" },
     "and still no try spent",
   );
+});
+
+test("calls: an outage holds a copy for two days at most — past RECORDING_DEFER_LIMIT_MS since the call ended, a provider 5xx on the row and a CDN 5xx each spend a try, so a file that can never be fetched ends couldn't-be-saved instead of processing for ever; a provider-wide hold still touches nothing", async () => {
+  const T = tenant(10);
+  const old = ago(RECORDING_DEFER_LIMIT_MS + HOUR);
+  const tables = {
+    calls: [
+      pendingCopy(T, "cursed", 1, { ended_at: old }),
+      pendingCopy(T, "cdn_down", 2, { ended_at: old, updated_at: ago(9 * MIN) }),
+      pendingCopy(T, "fresh", 0, { updated_at: ago(8 * MIN) }),
+    ],
+    messages: [],
+    events: [],
+  };
+  use(tables, { ingest_call: ingestRpc(tables) });
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+  wired((req) => {
+    if (req.url === `${GET_CALL_URL}call_cursed`) return { status: 500, body: { message: "Internal Server Error" } };
+    if (req.url === "https://cdn.retell.test/call_cdn_down.wav") return new Response("Bad Gateway", { status: 502 });
+    return providerUp(req);
+  });
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 1, failed: 1, deferred: 0 });
+  assert.deepEqual(
+    rec("cursed"),
+    { fetch_state: "pending", attempts: 2, error: "provider_500" },
+    "two days on, the provider's 500 on this call is a try",
+  );
+  assert.deepEqual(
+    rec("cdn_down"),
+    { fetch_state: "failed", attempts: 3, error: "provider_502" },
+    "and a CDN that has not served the file for two days ends it at the third",
+  );
+
+  // Inside the two days nothing changed: an outage is still no try.
+  for (const id of ["cursed", "cdn_down"]) tables.calls.find((c) => c.id === id).updated_at = iso(NOW);
+  wired((req) =>
+    req.url === `${GET_CALL_URL}call_fresh`
+      ? { status: 503, body: { message: "Service Unavailable" } }
+      : providerUp(req),
+  );
+  [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(rec("fresh"), { fetch_state: "pending", attempts: 0, error: "provider_503" });
+
+  // A hold (a rate limit) touches no row, however old: the provider is down for everyone, not for this file.
+  tables.calls.find((c) => c.id === "cursed").updated_at = ago(10 * MIN);
+  tables.calls.find((c) => c.id === "fresh").updated_at = ago(11 * MIN);
+  wired(() => ({ status: 429, body: { message: "Too Many Requests" } }));
+  [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(rec("cursed").attempts, 2, "a rate limit spends nothing");
+});
+
+test("calls: the copy step itself — a CDN connection that fails and a bucket that answers with no status are deferred with the count unchanged, an upload that never answers is the copy's own bound and counts, and once deferrals spend a deferral is a try", async () => {
+  const T = tenant(11);
+  const tables = { calls: [pendingCopy(T, "c1", 1)], messages: [], events: [] };
+  const db = use(tables);
+  const rec = () => tables.calls[0].recording;
+  const copy = (over = {}) =>
+    copyRecording(db, {
+      tenantId: T,
+      callId: "c1",
+      providerUrl: "https://cdn.retell.test/call_c1.wav",
+      attempts: rec().attempts,
+      timeoutMs: 50,
+      ...over,
+    });
+  const wav = () =>
+    new Response(new Uint8Array([82, 73, 70, 70]), { status: 200, headers: { "content-type": "audio/wav" } });
+  const realUpload = db.storage.from("media").upload;
+  const bucketAnswers = (upload) => {
+    db.storage.from = () => ({ upload, remove: async () => ({ data: [], error: null }) });
+  };
+
+  // The CDN's connection is refused: no answer, nobody's word on the file.
+  wired(() => {
+    throw new TypeError("fetch failed");
+  });
+  assert.equal(await copy(), "deferred");
+  assert.deepEqual(rec(), { fetch_state: "pending", attempts: 1, error: "fetch failed" });
+
+  // The bucket answers with an error that carries no status: unreachable, not a refusal of the file.
+  wired(wav);
+  bucketAnswers(async () => ({ data: null, error: { message: "socket hang up" } }));
+  assert.equal(await copy(), "deferred");
+  assert.deepEqual(rec(), { fetch_state: "pending", attempts: 1, error: "storage_unreachable" });
+
+  // An upload that never answers is the copy's own bound running out: counted, as the CDN's timeout is.
+  bucketAnswers(() => new Promise(() => {}));
+  assert.equal(await copy(), "retry");
+  assert.equal(rec().attempts, 2);
+  assert.equal(rec().error, "storage upload timed out after 50 ms");
+
+  // Past the limit, the same unreachable bucket spends the last try.
+  bucketAnswers(async () => ({ data: null, error: { message: "socket hang up" } }));
+  assert.equal(await copy({ deferralsSpend: true }), "failed");
+  assert.deepEqual(rec(), { fetch_state: "failed", attempts: 3, error: "storage_unreachable" });
+  bucketAnswers(realUpload);
 });
 
 test("calls: recordings past the ninety days the privacy page states are removed from the bucket and the row says so — before the provider is asked, so a deployment without the key still keeps that promise; a call that ended, or errored, without an analysis still gets its line in the customer's thread, once", async () => {

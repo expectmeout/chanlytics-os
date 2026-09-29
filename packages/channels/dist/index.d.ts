@@ -324,10 +324,10 @@ declare function listCalls(cfg: RetellConfig, opts: {
  *   found        the call, as the provider holds it;
  *   not_found    the provider answered and has no such call -- a 404, or any
  *                other refusal of the request: asking again will not change it;
- *   unavailable  the provider could not answer just now: a 429, a 5xx, a body
- *                that is not a call, a timeout or a network error, with the
- *                wait it named when it named one; `status` is null when no
- *                answer came at all;
+ *   unavailable  the provider could not answer just now: a 408, a 425, a 429,
+ *                a 5xx, a body that is not a call, a timeout or a network
+ *                error, with the wait it named when it named one; `status` is
+ *                null when no answer came at all, a body that stalled included;
  *   auth         the key is refused (401, 403): every read will be, until it is fixed.
  */
 type RetellCallRead = {
