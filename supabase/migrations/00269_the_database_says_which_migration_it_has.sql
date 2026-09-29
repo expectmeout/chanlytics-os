@@ -1,4 +1,4 @@
--- 00280 · The database says which migration it has.
+-- 00269 · The database says which migration it has.
 --
 -- Production took migrations from branches, below main's head and out of order, and nothing compared what it applied
 -- with main (the scorecard's defect 59). The CLI's ledger, supabase_migrations.schema_migrations, is the answer, but

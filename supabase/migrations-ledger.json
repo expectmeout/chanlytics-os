@@ -27,20 +27,9 @@
     "00248": "a workspace its last member leaves is ended landed as 00262 (#1330)",
     "00249": "an erased person's digest is keyed landed as 00263 (#1330)",
     "00252": "a page says how fast it was landed as 00255 (#1227)",
-    "00266": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00267": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00268": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00269": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00270": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00271": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00272": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00273": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00274": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00275": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00276": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00277": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00278": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head",
-    "00279": "reserved for a road-to-10 lane on 29 Sep 2026; each lands at the number free then, above the head"
+    "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
+    "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -282,6 +271,6 @@
     "00263_an_erased_person_s_digest_is_keyed.sql": "faa01645d719e0c56aca50d4d972978162c1bef02cd155c2221e54ede3caf6cb",
     "00264_an_event_says_which_version_of_its_kind_it_is.sql": "0c6e226a44ab7e074ff89f3ab67b606c71db7e8c0e3b4755181a87be06960275",
     "00265_the_database_tells_each_workspace_what_changed.sql": "ea6a806e26239bc4c23a0f737fef26202fd942794743d40070255568dfe87189",
-    "00280_the_database_says_which_migration_it_has.sql": "38d7e10f6d5e0840003a28ce19e20911567cb43f063136291588c551e681d99c"
+    "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197"
   }
 }
