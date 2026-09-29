@@ -292,10 +292,12 @@ a surface's own stylesheet   layout only
 
 ### 3.1 Tokens in three tiers, and two settings
 
-- **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale
-  (`--blur-0` is `blur(0)`, never `none`: the build drops `backdrop-filter: none` written beside its prefixed twin,
-  #929) and a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought
-  with the face, its first reader.
+- **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale and
+  a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought with the
+  face, its first reader. A blur role's Classic value is `none`, read through `var()` so the build cannot drop it: the
+  build drops `backdrop-filter: none` written beside its prefixed twin (#929). `blur(0)` is not `none`: any value but
+  `none` makes its element a containing block for its fixed children and a stacking context (Phase 6's review, 29
+  September, in the harness's Chromium).
 - **Tier 2, roles.** New: what a thing is for, set by a look.
   - Surfaces: `--surface-page` (the backdrop), `--surface-pane` (a content panel: a list, a peek, a composer),
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
@@ -645,12 +647,13 @@ _Done when:_ every pixel comes from the tokens and the kit, in the look members 
 ### Phase 6 · Everyone builds with the kit (the last task)
 
 The holds of step 1.1 have refused new one-offs since the first week. This phase writes the rule down for people and
-agents, once the kit is whole, and makes it absolute.
+agents, and makes each hold absolute once its count reaches zero. 6.2 to 6.5 came first, on 29 September after Phase 2
+(#1331), and write the rules as the build then held them; 6.1 follows each measure's last entry, in Phase 4.
 
 **6.1 The measures that reached zero become rules.** Each moves from a baseline to a plain test in `tests/styles/`
 that refuses any entry, with no raise, as `layout-measure.test.mjs` refuses a literal width; its register row
 retires. None had reached zero on 29 September, when 6.2 to 6.5 were written after Phase 2 (#1331), ahead of Phases
-3 to 5: the register counted 1,093 literal style values in 22 stylesheets, 2,155 selectors naming 864 primitive
+3 and 4: the register counted 1,093 literal style values in 22 stylesheets, 2,155 selectors naming 864 primitive
 classes outside the kit (a class once per stylesheet), and 286 style props in 49 files (`docs/debt.md`, "The
 numbers"). So this step added nothing then. 6.2 to 6.5 write the rules as the build held them that day, as measures
 that may only fall and the lint on raw elements of step 1.7, and each measure becomes its rule in the change that
@@ -714,8 +717,8 @@ alternatives.
 | 5.5  | Offered in the account menu           | yes, by choice   | a walk on production            | 5.3, 5.4                            |
 | 5.6  | Glass by default                      | yes              | a walk on production            | 5.5 and Ruben's yes                 |
 | 5.7  | Classic retired                       | no               | style equality in Glass         | a release cycle after 5.6           |
-| 6.1  | Measures at zero become rules         | no               | the rule tests                  | Phase 4                             |
-| 6.2  | `CLAUDE.md`                           | no               | `docs-paths.test.mjs`           | 6.1                                 |
+| 6.1  | Measures at zero become rules, last   | no               | the rule tests                  | each measure's last entry (Phase 4) |
+| 6.2  | `CLAUDE.md`                           | no               | `docs-paths.test.mjs`           | Phase 2 (#1331)                     |
 | 6.3  | The shell's `CLAUDE.md`               | no               | none                            | 6.2                                 |
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
@@ -755,8 +758,9 @@ surfaces are done, since they are not offered to members until step 5.5.
   panes, never rows or cards inside a pane (the canvases' "never glass on glass"); measure on the phone app; fall back
   to opaque fills where blur is missing or transparency is reduced.
 - **Two looks double the visual review** until Classic retires (decision 6). The gallery keeps that review to one page.
-- **The build's CSS quirks.** `backdrop-filter: none` beside its prefixed twin vanishes in the build (#929): the kit
-  writes `blur(0)`. Relative colours already work (`oklch(from …)`).
+- **The build's CSS quirks.** `backdrop-filter: none` beside its prefixed twin vanishes in the build (#929), and
+  `blur(0)` is not `none` (§3.1): a blur role's Classic value is `none`, read through `var()`. Relative colours already
+  work (`oklch(from …)`).
 - **Contrast on translucent surfaces.** A pane's fill depends on what is behind it; small text on glass is checked in
   both modes, and the `-ink` tokens stay the rule for tone words.
 - **The mascot and the map read the theme and the tokens.** Both are checked against Glass in step 5.3.

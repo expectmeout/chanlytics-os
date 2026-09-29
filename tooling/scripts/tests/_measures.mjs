@@ -209,7 +209,7 @@ export const MEASURES = [
       return out;
     },
     advice:
-      "Draw it with a shared primitive rather than a class of the page's own, and never restyle one from a page's stylesheet: a button, chip, tab, card, sheet, field or face is written once (components.css and record.css hold them until the kit's folder, apps/dashboard/src/surfaces/kit/, does). If none fits, the kit takes a new variant (the interface kit's rule 3, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+      "Draw it with the kit's primitive, never a class of the page's own: the kit's rules are in apps/dashboard/src/surfaces/kit/kit.css, their names in classes.json beside it. Place it through a class of the page's own that names no kit class and holds no primitive's word, since a selector naming a kit class counts even when it only places it. If the kit has nothing that fits, it takes a new variant with its gallery entry (the interface kit's rule 3, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md; .claude/skills/chanlytics-interface/SKILL.md).",
   },
   {
     name: "inline style props",

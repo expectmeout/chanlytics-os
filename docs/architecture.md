@@ -308,39 +308,44 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
 ## The interface
 
-What a page looks like is written in two places, and a page only places what
-they draw (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`): the
-tokens hold every value, and the kit draws every primitive from them. A new
-look is then an edit to the tokens, and a new kind of button an edit to the
-kit.
+The plan (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`) puts
+what a page looks like in two places: the tokens hold every value, and the
+kit draws every primitive from them. A new look is then an edit to the
+tokens, and a new kind of button an edit to the kit. Phases 1 and 2 built
+both. The pages still write values and primitives of their own, which leave
+as each surface moves onto the kit (the plan's Phase 4).
 
 ```text
-apps/dashboard/src/legacy/styles/tokens.css   the scales, each mode's colours, the roles, the looks
-apps/dashboard/src/surfaces/kit/kit.css       each primitive, drawn once, reading the tokens
+apps/dashboard/src/legacy/styles/tokens.css   the scales, each theme's colours, the roles, the looks
+apps/dashboard/src/surfaces/kit/kit.css       the kit's own rules, reading the tokens
 apps/dashboard/src/surfaces/kit/*.tsx         its components, for a surface written in TSX
-a page's own stylesheet                       layout only: display, grid, flex, gap, position, size, overflow
+a page's own stylesheet                       its layout; until Phase 4, its own primitives and values too
 ```
 
 **The tokens, in tiers.** The scales sit on `:root`: type, space, radii,
 motion, the tones and the accent, and the lengths every page shares (the
-measures, the rails, a list row on a phone). Each mode, light or dark, sets
+measures, the rails, a list row on a phone). Each theme, light or dark, sets
 its own grounds, lines, inks and shadows under `[data-theme]`. The roles say
 what a value is for: a pane's fill, edge and radius, what pops over the page
-and its depth, a control's height, the primary action's fill and ink. They
-are made from the scales and the mode's colours, so Classic draws what the
-pages drew before them, and they are set on `:root, [data-theme]`, every
-element that stamps a mode, because a custom property is made where it is
-set: one made on the root alone would keep the root's colours inside a root
-that stamps the other mode. A kit rule reads a role, never the scale under
-it, and a role arrives with its first reader. A component's own values, the
-third tier, are declared on its class in `kit.css` (`--sheet-in`), and no
-look sets them.
+and its depth, a control's height, the primary action's fill and ink. In
+Classic they are made from the scales and the theme's colours, so Classic
+draws what the pages drew before them. They are set on `:root, [data-theme]`,
+every element that stamps a theme, because a custom property is made where it
+is set. One made on the root alone would keep the root's colours inside a
+root that stamps the other theme. A kit rule reads a role where a look sets
+the value (a surface, a control, an action), and otherwise the scale or the
+theme's colour. A role arrives with its first reader. A component's own
+values, the third tier, are declared on its class in `kit.css`
+(`--sheet-in`), and no look sets them.
 
-**The kit** is `apps/dashboard/src/surfaces/kit/`. `kit.css` draws each
-primitive once, on a class of its own: the buttons, the badges, the fields
-and the record kit's controls, the menu, Confirm, the empty states, the
-toast, the tooltip, the tab strip, the panel, the face, the list row, the
-meter and the sheet, with one phone breakpoint, 900px. `classes.json` is its
+**The kit** is `apps/dashboard/src/surfaces/kit/`. `kit.css` holds the kit's
+own rules, on classes of its own: the buttons, the badges, the fields and the
+record kit's controls, the menu, Confirm, the empty states, the toast, the
+tooltip, the tab strip, the panel, the face, the list row, the meter and the
+sheet, with one phone breakpoint, 900px. Four primitives stand in it twice by
+design until Phase 4 takes the house's out: `.avatar` beside `.face`,
+`.rec-sheet` beside `.sheet`, and the surfaces of `.rec-card-tip` and
+`.confirm-block` beside `.panel-pop` and `.panel-inset`. `classes.json` is its
 registry: the house's own names, with no prefix, which the measures read, so
 a listed class declared in any other stylesheet is a primitive outside the
 kit. Each component is a module that renders those classes, typed and named
@@ -349,14 +354,16 @@ its props mapped to classes by `variants.ts`, so a legacy page that writes
 the classes and a surface that draws the component draw the same markup. The
 shell reaches the kit through its classes, since
 `apps/dashboard/src/legacy-bridge/legacy.css` imports `kit.css` right after
-the tokens. A page reaches a component once decision 0015 moves it into TSX,
-and the house's components over the kit's classes (`StatePill`, `MoreMenu`,
-the record kit) are written in TSX by the first surface that moves with them.
-Whether the kit's interactive components are built on Base UI is not decided
-yet, and the Sheet's component waits on it.
+the tokens. A surface in TSX cannot import the house's JSX components over
+the kit's classes (`StatePill`, `Confirm`, the record kit's fields): the
+first surface that needs one moves it into the kit as TSX, drawing what it
+drew (the plan's Phase 3). A sheet, a menu or a picker waits instead on
+Ruben's decision whether the kit builds its interactive components on Base
+UI. The lint's messages name the kit's Field, Switch, Select, Sheet and
+Confirm, which arrive by one of these two roads.
 
 **The gallery** draws every class of the registry in every state its rules
-name, in both modes and both looks, at a desk and a phone width:
+name, in both themes and both looks, at a desk and a phone width:
 `tooling/scripts/e2e-harness/kit-gallery.mjs`, the local e2e harness's `kit`
 record, never served in production. `e2e/kit/kit.spec.ts` checks in a
 browser that every class and every selector of `kit.css` is drawn and reads
@@ -372,31 +379,36 @@ file, and in it a raw `<button>`, `<input>`, `<select>`, `<textarea>` or
 take instead. A surface moved before its kit step waits in `KIT_PENDING`
 (`eslint.config.mjs`), which lifts that one rule for its folder.
 
-**The looks.** A look is a set of role values, chosen beside the mode.
-Classic, the app as it is drawn, is the roles block itself; Glass, the
-canvases' finish, is to be a `[data-look="glass"]` block after it, with
-`[data-look="glass"][data-theme="dark"]` for its dark side. The look travels
-as the theme does (`packages/contracts/src/shell/chrome.ts`): kept on the
-device in the same stored object, and only once chosen, so a device that
-never chose follows the default; stamped as `data-look` on `<html>` by the
-head's script before first paint, and on `.app-root`, `.shared-root` and
-`.fr-shell` beside their `data-theme`, so a look's dark side matches wherever
-a mode's rules do; and chosen in the account menu. Two constants roll a look
-out: `LOOK_OFFERED` puts it in the menu, and `DEFAULT_LOOK_PREF` makes it the
-look of every device that never chose. Like the theme, the look is the
-browser's, not the member's, so no table holds it. The theme's other readers
-(the browser's bars, the phone app, the lead map, the mascot, the charts'
-palette) follow `data-theme` alone. `docs/runbook.md`, "Add a look".
+**The looks.** A look is a set of token values, chosen beside the theme.
+Classic, what members see, is the roles block itself. Glass, the canvases'
+finish, is drawn, and not yet offered: two blocks after the roles,
+`[data-look="glass"]` and `[data-look="glass"][data-theme="dark"]` for its
+dark side. They set the roles, and the theme's own colours where Glass's
+differ, since many kit rules read a colour such as `--ink` directly. The
+look travels as the theme does (`packages/contracts/src/shell/chrome.ts`). It
+is kept on the device in the same stored object, and only once chosen, so a
+device that never chose follows the default. The head's script stamps it as
+`data-look` on `<html>` before first paint, and `.app-root`, `.shared-root`
+and `.fr-shell` stamp it beside their `data-theme`, so a look's dark side
+matches wherever a theme's rules do. Two constants roll a look out:
+`LOOK_OFFERED` puts it in the account menu, where a member then chooses it,
+and `DEFAULT_LOOK_PREF` makes it the look of every device that never chose.
+Like the theme, the look is the browser's, not the member's, so no table
+holds it. The theme's other readers (the browser's bars, the phone app, the
+lead map, the mascot, the charts' palette) follow `data-theme` alone.
+`docs/runbook.md`, "Add a look".
 
-**The holds.** The pages still write values and primitives of their own,
-which leave as each surface moves onto the kit (the plan's Phase 4), and three
-measures keep them from growing: the type sizes, radii, shadows, colours and
-blurs a stylesheet writes as literals (`style-values.json`), a primitive's
-class declared or restyled outside the kit (`kit-primitives.json`), and the
-`style` props in the shell's markup (`inline-styles.json`), read as CSS and as
-syntax (`tooling/scripts/tests/_css.mjs`). A change that must move nothing on
-screen is recorded before and after and compared (`docs/runbook.md`, "Prove a
-style change").
+**The holds.** Three measures may only fall, and a new entry in any of them
+is a red build: the type sizes, radii, shadows, colours and blurs a
+stylesheet writes as literals (`style-values.json`), a primitive's class
+declared, or a kit class named, in a stylesheet other than the kit's
+(`kit-primitives.json`), and the `style` props in the shell's markup
+(`inline-styles.json`). The first two read the stylesheets as CSS
+(`tooling/scripts/tests/_css.mjs`), the third the markup's syntax tree
+(`tooling/scripts/tests/_ast.mjs`). None counts a duration, a row or a
+page's layout: a page stylesheet with its layout alone is Phase 4's target.
+A change that must move nothing on screen is recorded before and after and
+compared (`docs/runbook.md`, "Prove a style change").
 
 ## What is where
 

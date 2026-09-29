@@ -67,17 +67,22 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `trade-neutral.test.mjs` fails one trade's words in front of another's customers.
 - **Nothing in the UI states a fact the database cannot support.** A zero is shown; an invented
   number is not. `surface-registry.ts` decides what is real; `no-fabricated-data.spec.ts` checks it.
-- **One kit.** A button, switch, segmented control, pill, chip, count, mark, panel, field, select, menu, sheet, row,
-  face, meter, empty state, toast or tooltip comes from `apps/dashboard/src/surfaces/kit/`. A page composes them and
-  never declares its own; a new need is a variant in the kit, with its gallery entry. `kit-primitives.json` counts a
-  primitive's class declared or restyled outside the kit, `kit-gallery.test.mjs` fails a kit class the gallery does
-  not draw, and a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `src/surfaces` outside the kit
-  is a lint error. Before a change that draws or restyles a page, read `.claude/skills/chanlytics-interface/SKILL.md`,
-  a skill Claude Code reaches for by itself: where the tokens, the kit and its gallery are, how to add a variant, and
-  how to prove a style change.
-- **A value is a token.** A colour, type size, radius, shadow, blur or duration is read from `tokens.css`; a page
-  stylesheet declares layout only. `style-values.json` counts the type sizes, radii, shadows, colours and blurs a
-  stylesheet writes, and `inline-styles.json` the `style` props in the shell's markup.
+- **One kit.** The kit's own rules are in `apps/dashboard/src/surfaces/kit/kit.css`, under the names its registry beside
+  it lists (`classes.json`). A need the kit does not meet is a variant there, with its gallery entry:
+  `kit-gallery.test.mjs` fails a kit class no entry draws. The primitives the pages still draw themselves, and their
+  rules over the kit's classes, are `kit-primitives.json`'s baseline. It counts, in every stylesheet but the tokens'
+  and the kit's, each selector naming a class the registry lists or a class named for a button, switch, segmented
+  control, tab, pill, chip, tally, mark, card, panel, field, select, menu, sheet, face, meter, empty state, toast or
+  tooltip; a row and a page's own count are not counted. It may only fall, it empties surface by surface in the plan's
+  Phase 4, and a new entry is a red build. In `src/surfaces`, a raw `<button>`, `<input>`, `<select>`, `<textarea>` or
+  `<dialog>` outside the kit is a lint error. Before a change that draws or restyles a page, read
+  `.claude/skills/chanlytics-interface/SKILL.md`, a skill Claude Code also reaches for by itself: where the tokens, the
+  kit and its gallery are, how to add a variant, and how to prove a style change.
+- **A value is a token.** A stylesheet reads a type size, radius, shadow, colour or blur from `tokens.css`.
+  `style-values.json` counts each one written as a literal, per stylesheet but `tokens.css` (the charts' validated
+  palette in `charts.css` is counted, and kept), and may only fall. `inline-styles.json` counts the `style` props in
+  the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
+  no test holds it yet.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.
@@ -144,9 +149,9 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `packages/contracts/src/calendar/calendar-vm.ts`                                | Pure; every sentence the page says comes from here                                                                                               |
 | A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `apps/dashboard/src/legacy-bridge/calendar.ts`                                 | Classify it in `apps/dashboard/src/legacy-bridge/surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page             |
 | A component of the kit                        | `apps/dashboard/src/surfaces/kit/button.tsx` with `apps/dashboard/src/surfaces/kit/kit.css`                                        | Its classes from `variants()`, listed in the registry beside it; a type test beside it; drawn as its gallery family draws it                     |
-| A colour, a size or an effect                 | A role in `apps/dashboard/src/legacy/styles/tokens.css`, on `:root, [data-theme]`                                                  | A kit rule reads the role, never the scale or the colour under it; a role arrives with its first reader                                          |
-| A look                                        | A `[data-look]` block in `apps/dashboard/src/legacy/styles/tokens.css`, after the roles                                            | Sets roles only, its dark side in a block of its own; Classic is the roles themselves (`docs/runbook.md`, "Add a look")                          |
-| A page's styles                               | `apps/dashboard/src/legacy/styles/<surface>.css`, then its folder in `apps/dashboard/src/surfaces/<surface>/` once it moves        | Layout only: display, grid, flex, gap, position, size, overflow. What a thing looks like is the kit's                                            |
+| A colour, a size or an effect                 | `apps/dashboard/src/legacy/styles/tokens.css`: a role on `:root, [data-theme]`, a scale on `:root`, or both themes' colour         | A role where a look sets the value (a surface, a control, an action), else a scale or the themes' colour; a role comes with its reader           |
+| A look                                        | The `[data-look="glass"]` blocks in `apps/dashboard/src/legacy/styles/tokens.css`, after the roles                                 | Two blocks, the dark side second: the roles, and the theme's colours where the look's differ (`docs/runbook.md`, "Add a look")                   |
+| A page's styles                               | `apps/dashboard/src/legacy/styles/<surface>.css`, then its folder in `apps/dashboard/src/surfaces/<surface>/` once it moves        | None is layout-only yet: Phase 4 leaves each with display, grid, flex, gap, position, size and overflow alone                                    |
 | An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`                                                          | `tooling/scripts/tests/repo/env-manifest.test.mjs` holds the two to the same list; blank is unset                                                |
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`                                                 | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                                                                 |
 | A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                         |
@@ -209,8 +214,10 @@ listed there with its date and the program it waits on.
 - A fallback that answers in anyone's voice when the database cannot be read. It holds for a person.
 - A new dependency where the repository already solves the problem (charts, calendar parsing,
   phone formatting are hand-rolled on purpose).
-- A button, chip, tab strip, card, sheet, field or face of a page's own, or a second implementation of a kit component.
-- A literal colour, type size, radius, shadow or blur in a stylesheet.
+- A primitive of a page's own, a page's rule over a kit class, or a second implementation of a kit component (**One
+  kit** above says what is counted).
+- A literal colour, type size, radius, shadow or blur in a stylesheet: the values are in `tokens.css`, and a chart's
+  colour is the validated palette in `charts.css`.
 - A migration that edits history, or a job kind without its handler and CHECK.
 - Counts in prose that go stale; measure and say when.
 
