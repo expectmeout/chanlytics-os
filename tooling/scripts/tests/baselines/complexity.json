@@ -635,7 +635,7 @@
     "depth": 4
   },
   "apps/edge/api/retell-fn.ts::POST#1": {
-    "lines": 279,
+    "lines": 269,
     "branches": 40,
     "depth": 3
   },

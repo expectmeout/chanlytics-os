@@ -157,12 +157,14 @@ export function policyAskClass(
  * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
  * does in policyAskClass.
  *
- * The edge asks this question inline, through policyAskClass, and this must keep
- * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
- * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
- * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
- * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
- * chat reply classed as a booking -- a price or services reply still carries it).
+ * The phone asks it here: apps/edge/api/retell-fn.ts (which outbound-gate.ts
+ * refuses as booking_needs_a_person, with or without an approved booking
+ * template) and apps/edge/api/retell-availability.ts (which still offers a caller
+ * the open times, then a member of the team confirming in place of the link:
+ * describeOpenings' `bookingHeld`, the owner's decision of 21 Sep 2026). Chat
+ * asks it through policyAskClass, and this must keep agreeing with it:
+ * packages/core/src/inbound/steps.ts layerTwo takes the link back out of a chat
+ * reply classed as a booking -- a price or services reply still carries it.
  * Stated here so the Business tab reads the rule instead of keeping a copy of it.
  */
 export function bookingHeld(policy: Record<string, { mode: string }> | null | undefined): boolean {
