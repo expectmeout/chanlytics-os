@@ -4,7 +4,8 @@
 -- caller_has_permission on aal2, and said has_permission (the service role's, about any user) was unchanged. But the
 -- SECURITY DEFINER doors a session calls straight through PostgREST check the caller themselves, and a definer
 -- function never sees the restrictive policy: the lead finder's eleven doors ask has_permission(auth.uid(), …,
--- 'find'), team_roster, reach_out_reach and reach_out_chain_report ask memberships, and partner_overview and
+-- 'find'), team_roster and Reach out's five reads (reach_out_reach, reach_out_chain_report, reach_out_report,
+-- reach_out_search_lines, reach_out_lead_timeline) ask memberships, and partner_overview and
 -- partner_workspace_money read the partner record. So a session signed in with a partner's password alone could start
 -- a search and spend the workspace's month, read every member's email, and read each brought workspace's numbers,
 -- billing and money (the re-score of 28 September 2026).
@@ -15,9 +16,9 @@
 -- dashboard's own door refuses the same session first (seatNeedsSecondFactor). The partner's own reads answer nothing
 -- to a session without it, as they answer nothing to a caller who is no partner. Every other role is unchanged.
 --
--- Each function is its latest definition (00201, 00068, 00204, 00211, 00241) with the one clause added; grants
--- stand, since create or replace keeps them. Re-runnable. A later change to any of them keeps the clause
--- (partners/second-factor-doors.db.test.mjs holds it).
+-- Each function is its latest definition (00201, 00068, 00204, 00211, 00241, 00241, 00241, 00241) with the one clause
+-- added; grants stand, since create or replace keeps them. Re-runnable. A later change to any of them keeps the clause
+-- (partners/second-factor.db.test.mjs holds it).
 
 create or replace function public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text)
 returns boolean
@@ -283,5 +284,384 @@ begin
          limit 5) x), '[]'::jsonb),
       'can_remove', not exists (select 1 from public.reach_out_sends s
                                  where s.root_id = p_root_id and s.state in ('claimed', 'queued', 'sent', 'failed')))
+  );
+end $$;
+
+create or replace function public.reach_out_report(p_tenant_id uuid, p_days int)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_tz    text;
+  v_today date;
+  v_since timestamptz;
+begin
+  if auth.uid() is null or not exists (
+       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_days is null or p_days not in (7, 30, 90) then
+    raise exception 'A period is 7, 30 or 90 days.' using errcode = '22023';
+  end if;
+  select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
+  v_tz := coalesce(v_tz, 'America/New_York');
+  v_today := (now() at time zone v_tz)::date;
+  v_since := (v_today - (p_days - 1))::timestamp at time zone v_tz;
+  return (
+    -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
+    -- the clock settles a send whose email bounced before it was read sent. Dated by when it left.
+    with left_ as (
+      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
+             coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
+             lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
+        from public.reach_out_sends s
+        left join public.messages m on m.id = s.message_id
+       where s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+    ),
+    sent as (
+      select * from left_ x where x.sent_at >= v_since
+    ),
+    handed as (
+      select s.root_id, s.playbook_id, count(*) as n
+        from public.reach_out_sends s
+       where s.tenant_id = p_tenant_id and s.state = 'handed' and s.sent_at >= v_since
+       group by s.root_id, s.playbook_id
+    ),
+    last_sent as (
+      select distinct on (x.root_id, x.lead_id) x.root_id, x.playbook_id, x.lead_id, x.contact_id, x.angle,
+             l.closed_reason, l.booked_at
+        from sent x
+        join public.leads l on l.id = x.lead_id and l.tenant_id = p_tenant_id
+       order by x.root_id, x.lead_id, x.sent_at desc
+    ),
+    wrote as (
+      select w.contact_id from public.outreach_wrote_back(p_tenant_id, array(
+        select distinct ls.contact_id from last_sent ls where ls.contact_id is not null)) w(contact_id)
+    ),
+    answers as (
+      select ls.root_id, ls.playbook_id, ls.lead_id, ls.angle,
+             coalesce(ls.contact_id in (select contact_id from wrote), false) as wrote_back,
+             exists (select 1 from public.reach_out_replies r
+                      where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
+                        and r.claim <> 'auto_reply' and r.intent in ('interested', 'question')) as interested,
+             ls.booked_at is not null as booked,
+             coalesce(ls.closed_reason = 'said_no', false) as said_no
+        from last_sent ls
+    ),
+    angles as (
+      select x.angle, count(*) as written,
+             (select count(*) from answers a where a.angle = x.angle and a.wrote_back) as wrote_back,
+             row_number() over (order by count(*) desc, x.angle) as rank
+        from sent x
+       where x.angle is not null
+       group by x.angle
+    ),
+    domains as (
+      select x.domain_id, d.host, d.state, d.held_why, d.held_at, count(*) as sent,
+             count(*) filter (where x.status in ('delivered', 'read')) as delivered,
+             count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'
+                                and lower(coalesce(x.error->>'kind', '')) = 'permanent') as bounced,
+             count(*) filter (where x.meta->'email'->>'complained_at' is not null) as complained
+        from sent x
+        left join public.sending_domains d on d.id = x.domain_id and d.tenant_id = p_tenant_id
+       group by x.domain_id, d.host, d.state, d.held_why, d.held_at
+    )
+    select jsonb_build_object(
+      'timezone', v_tz,
+      'days', p_days,
+      'today', v_today,
+      'since', v_today - (p_days - 1),
+      'has_reach_out', exists (select 1 from public.playbooks p
+                               where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'),
+      'totals', jsonb_build_object(
+        'written', (select count(*) from sent),
+        'delivered', (select count(*) from sent where status in ('delivered', 'read')),
+        'bounced', (select count(*) from sent where status = 'failed' and error->>'provider' = 'bounced'),
+        'wrote_back', (select count(*) from answers where wrote_back),
+        'interested', (select count(*) from answers where interested),
+        'booked', (select count(*) from answers where booked),
+        'said_no', (select count(*) from answers where said_no),
+        'handed', coalesce((select sum(n) from handed), 0)),
+      'series', (
+        select coalesce(jsonb_agg(jsonb_build_object('day', g.day, 'written', coalesce(c.n, 0)) order by g.day), '[]'::jsonb)
+          from (select (v_today - k) as day from generate_series(0, p_days - 1) k) g
+          left join (select (x.sent_at at time zone v_tz)::date as day, count(*) as n from sent x group by 1) c
+            on c.day = g.day),
+      'chains', coalesce((
+        select jsonb_agg(ch.body order by ch.last_at desc nulls last)
+          from (
+            select r.id,
+                   (select max(x.sent_at) from sent x where x.root_id = r.id) as last_at,
+                   jsonb_build_object(
+                     'root_id', r.id,
+                     'name', r.name,
+                     'state', r.state,
+                     'search', (select jsonb_build_object('id', q.id, 'name', q.name)
+                                  from public.lead_searches q where q.id = r.lead_search_id),
+                     'last_at', (select max(x.sent_at) from sent x where x.root_id = r.id),
+                     'runs', (select count(*) from public.broadcasts b
+                               where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
+                                 and b.audience->>'root_id' = r.id::text and b.run_for >= v_today - (p_days - 1)),
+                     'steps', (
+                       with recursive c as (
+                         select p.id, 0 as n from public.playbooks p where p.id = r.id
+                         union all
+                         select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+                       )
+                       select coalesce(jsonb_agg(jsonb_build_object(
+                         'id', c.id,
+                         'n', c.n,
+                         'hand', p.hand->>'kind',
+                         'written', (select count(*) from sent x where x.playbook_id = c.id),
+                         'delivered', (select count(*) from sent x where x.playbook_id = c.id
+                                         and x.status in ('delivered', 'read')),
+                         'bounced', (select count(*) from sent x where x.playbook_id = c.id
+                                       and x.status = 'failed' and x.error->>'provider' = 'bounced'),
+                         'wrote_back', (select count(*) from answers a where a.playbook_id = c.id and a.wrote_back),
+                         'interested', (select count(*) from answers a where a.playbook_id = c.id and a.interested),
+                         'booked', (select count(*) from answers a where a.playbook_id = c.id and a.booked),
+                         'said_no', (select count(*) from answers a where a.playbook_id = c.id and a.said_no),
+                         'handed', coalesce((select h.n from handed h where h.playbook_id = c.id), 0))
+                         order by c.n), '[]'::jsonb)
+                         from c join public.playbooks p on p.id = c.id)) as body
+              from public.playbooks r
+             where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
+               and (exists (select 1 from sent x where x.root_id = r.id)
+                    or exists (select 1 from handed h where h.root_id = r.id))
+             order by 2 desc nulls last
+             limit 20
+          ) ch), '[]'::jsonb),
+      'angles', coalesce((
+        select jsonb_agg(jsonb_build_object('angle', a.angle, 'written', a.written, 'wrote_back', a.wrote_back)
+                         order by a.rank)
+          from angles a where a.rank <= 8), '[]'::jsonb),
+      'other_angles', jsonb_build_object(
+        'written', coalesce((select sum(a.written) from angles a where a.rank > 8), 0),
+        'wrote_back', coalesce((select sum(a.wrote_back) from angles a where a.rank > 8), 0)),
+      'no_angle', (select count(*) from sent where angle is null),
+      'domains', coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'host', d.host, 'state', d.state, 'held_why', d.held_why, 'held_at', d.held_at,
+                 'sent', d.sent, 'delivered', d.delivered, 'bounced', d.bounced, 'complained', d.complained)
+               order by d.sent desc, d.host)
+          from (select * from domains order by sent desc, host limit 10) d), '[]'::jsonb))
+  );
+end $$;
+
+create or replace function public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_root     public.playbooks%rowtype;
+  v_tz       text;
+  v_midnight timestamptz;
+begin
+  if auth.uid() is null or not exists (
+       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select * into v_root from public.playbooks p
+   where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
+     and p.lead_search_id = p_search_id
+   order by p.created_at desc
+   limit 1;
+  if not found then
+    return null;
+  end if;
+  select coalesce(nullif(t.timezone, ''), 'America/New_York') into v_tz from public.tenants t where t.id = p_tenant_id;
+  v_tz := coalesce(v_tz, 'America/New_York');
+  v_midnight := date_trunc('day', now() at time zone v_tz) at time zone v_tz;
+  return (
+    -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
+    with sends as (
+      select s.id, s.lead_id, s.state, s.reason, s.send_at, s.checked_at, s.domain_id, s.message_id,
+             case when s.state = 'sent' then s.sent_at
+                  when s.state = 'failed' and public.email_left(m.status, m.error)
+                    then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
+             coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false) as bounced,
+             b.state in ('pending_approval', 'scheduled', 'sending') as live
+        from public.reach_out_sends s
+        join public.broadcasts b on b.id = s.broadcast_id
+        left join public.messages m on m.id = s.message_id
+       where s.tenant_id = p_tenant_id and s.root_id = v_root.id
+    ),
+    per as (
+      select x.lead_id,
+             count(*) filter (where x.left_at is not null) as sent,
+             min(x.left_at) as first_sent_at,
+             max(x.left_at) as last_sent_at,
+             min(x.send_at) filter (where x.state = 'planned' and x.live) as next_at,
+             bool_or(x.state = 'held' and x.live) as held,
+             bool_or(x.state = 'handed') as handed,
+             bool_or(x.bounced and x.left_at is not null) as bounced,
+             max(x.left_at) filter (where x.bounced) as bounced_at,
+             max(x.left_at) as ord
+        from sends x
+       group by x.lead_id
+    )
+    select jsonb_build_object(
+      'chain', jsonb_build_object('root_id', v_root.id, 'name', v_root.name, 'state', v_root.state),
+      'written_to', (select count(*) from per where sent > 0),
+      'today', (select count(*) from sends where left_at >= v_midnight),
+      'next', (select jsonb_build_object('at', x.send_at, 'business', l.business_name, 'host', d.host)
+                 from sends x
+                 join public.leads l on l.id = x.lead_id
+                 left join public.sending_domains d on d.id = x.domain_id
+                where x.state = 'planned' and x.live and x.checked_at is not null
+                order by x.send_at
+                limit 1),
+      'held', (select count(*) from sends where state = 'held' and live),
+      'waiting_run_id', (select b.id from public.broadcasts b
+                          where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
+                            and b.audience->>'root_id' = v_root.id::text and b.state = 'pending_approval'
+                          order by b.created_at desc
+                          limit 1),
+      'leads', coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'lead_id', p.lead_id,
+                 'stage', l.stage,
+                 'closed_reason', l.closed_reason,
+                 'sent', p.sent,
+                 'first_sent_at', p.first_sent_at,
+                 'last_sent_at', p.last_sent_at,
+                 'next_at', p.next_at,
+                 'held', coalesce(p.held, false),
+                 'handed', coalesce(p.handed, false),
+                 'bounced', coalesce(p.bounced, false),
+                 'bounced_at', p.bounced_at,
+                 'email_state', l.email_state,
+                 'reply', (select jsonb_build_object('intent', r.intent, 'claim', r.claim, 'read_at', r.read_at,
+                                                     'undone', r.undone_at is not null)
+                             from public.reach_out_replies r
+                            where r.tenant_id = p_tenant_id and r.lead_id = p.lead_id
+                            order by r.read_at desc
+                            limit 1),
+                 'away_until', (select max(r.until_at) from public.reach_out_replies r
+                                 where r.tenant_id = p_tenant_id and r.lead_id = p.lead_id and r.intent = 'away'
+                                   and r.claim = 'auto_reply' and r.until_at > now() and r.undone_at is null),
+                 'resume_at', l.resume_at,
+                 'booked_at', l.booked_at,
+                 'stopped_at', l.reach_out_stopped_at))
+          from (select * from per order by ord desc nulls first, lead_id limit 2000) p
+          join public.leads l on l.id = p.lead_id and l.tenant_id = p_tenant_id), '[]'::jsonb)
+    )
+  );
+end $$;
+
+create or replace function public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_lead public.leads%rowtype;
+  v_root uuid;
+begin
+  if auth.uid() is null or not exists (
+       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select * into v_lead from public.leads l
+   where l.id = p_lead_id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null;
+  if not found then
+    return null;
+  end if;
+  select s.root_id into v_root from public.reach_out_sends s
+   where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+   order by s.created_at desc
+   limit 1;
+  return jsonb_build_object(
+    'lead_id', v_lead.id,
+    'business_name', v_lead.business_name,
+    'stage', v_lead.stage,
+    'closed_reason', v_lead.closed_reason,
+    'found_at', v_lead.found_at,
+    'email_state', v_lead.email_state,
+    'resume_at', v_lead.resume_at,
+    'booked_at', v_lead.booked_at,
+    'stopped_at', v_lead.reach_out_stopped_at,
+    'chain', (select jsonb_build_object('root_id', p.id, 'name', p.name, 'state', p.state)
+                from public.playbooks p where p.id = v_root and p.tenant_id = p_tenant_id),
+    -- The chain's search when there is one, else the newest search that found the lead.
+    'search', coalesce(
+      (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
+         from public.playbooks p
+         join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id
+         left join public.lead_search_members sm on sm.search_id = q.id and sm.lead_id = v_lead.id
+        where p.id = v_root),
+      (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
+         from public.lead_search_members sm
+         join public.lead_searches q on q.id = sm.search_id and q.removed_at is null
+        where sm.tenant_id = p_tenant_id and sm.lead_id = v_lead.id and sm.blanked_at is null
+        order by sm.created_at desc
+        limit 1)),
+    -- The person's email thread: where the reach-out's emails, and the answers to them, are.
+    'conversation_id', (select m.conversation_id from public.reach_out_sends s join public.messages m on m.id = s.message_id
+                         where s.tenant_id = p_tenant_id and s.lead_id = v_lead.id and s.state = 'sent'
+                         order by s.sent_at desc
+                         limit 1),
+    'sends', coalesce((
+      with recursive c as (
+        select p.id, 0 as n from public.playbooks p where p.id = v_root
+        union all
+        select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+      )
+      select jsonb_agg(jsonb_build_object(
+               'id', s.id,
+               'n', c.n,
+               'hand', p.hand->>'kind',
+               'state', s.state,
+               'reason', s.reason,
+               'send_at', s.send_at,
+               'sent_at', coalesce(s.sent_at, case when s.state = 'failed' and public.email_left(m.status, m.error)
+                                                  then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),
+               'left', s.state = 'sent' or (s.state = 'failed' and coalesce(public.email_left(m.status, m.error), false)),
+               'angle', s.angle,
+               'host', d.host,
+               'message_id', s.message_id,
+               'email_status', m.status,
+               'bounced', coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false))
+             order by coalesce(s.sent_at, s.send_at, s.created_at), s.id)
+        from (select * from public.reach_out_sends x
+               where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id and x.root_id = v_root
+               order by x.created_at desc
+               limit 20) s
+        left join c on c.id = s.playbook_id
+        left join public.playbooks p on p.id = s.playbook_id
+        left join public.sending_domains d on d.id = s.domain_id
+        left join public.messages m on m.id = s.message_id), '[]'::jsonb),
+    'readings', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'message_id', r.message_id,
+               'read_at', r.read_at,
+               'intent', r.intent,
+               'claim', r.claim,
+               'summary', r.summary,
+               'undone', r.undone_at is not null,
+               'until_at', r.until_at,
+               -- What the reading did, as its door recorded it (contracts readingPlan): the page says it, never re-derives it.
+               'stops', coalesce((r.plan->>'stops')::boolean, false),
+               'convert', coalesce((r.plan->>'convert')::boolean, false),
+               'said_no', coalesce((r.plan->>'saidNo')::boolean, false),
+               'can_undo', public.reach_out_reply_undoable(r.message_id) is null)
+             order by r.read_at desc)
+        from (select * from public.reach_out_replies x
+               where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id
+               order by x.read_at desc
+               limit 10) r), '[]'::jsonb),
+    'can_stop', v_root is not null and v_lead.reach_out_stopped_at is null
   );
 end $$;
