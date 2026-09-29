@@ -326,7 +326,8 @@ a surface's own stylesheet   layout only
   root that carries both. A third look later is one more block.
 - **Material rules.** The glass rim is a masked gradient on a pseudo-element, never an extra element in the markup.
   `@supports not (backdrop-filter: blur(1px))` and `prefers-reduced-transparency: reduce` fall back to opaque fills.
-  Reduced motion keeps its rule.
+  Reduced motion keeps its rule. Safari matches no `prefers-reduced-transparency`, so an iPhone with Reduce
+  Transparency on keeps the glass: a platform limit, which the real-phone check before step 5.5 looks at (§6).
 - **What does not change.** The five non-CSS readers of the theme (§1.3) keep reading `data-theme`. The mascot reads
   tokens, so it is checked against glass surfaces in Phase 5.
 
@@ -779,7 +780,9 @@ surfaces are done, since they are not offered to members until step 5.5.
   first draws one of its components raises the JS budget, with the reason, component by component (decision 15).
 - **Accessibility:** the one-badge spec's contrast rules (tone words in the `-ink` tokens, 4.5:1) checked on glass
   fills in the gallery; #1230's lint.
-- **The phone:** the blur's cost measured on the phone app on a mid-range phone before step 5.5.
+- **The phone:** the blur's cost measured on the phone app on a mid-range phone before step 5.5, the drawer's blur
+  among it: on the review's software renderers (29 September) the drawer's blur stopped about 60px short of its edge,
+  and Windows' WebKit drew none. The same check sees what an iPhone with Reduce Transparency draws (§3.1).
 - **The full check line** on every step: build, typecheck, lint, tests, formatting, no dist drift.
 
 ---
@@ -790,9 +793,13 @@ surfaces are done, since they are not offered to members until step 5.5.
   uses it (`git diff 81c5a7a42..origin/main` over the files it touches), and a finding already fixed is said to be.
 - **Pages are held by other programs.** Reach out, Ask Rewired and the file splitter hold files this program would
   touch. 0015's rule applies: a surface waits until no open pull request holds it.
-- **Glass costs frames on a phone.** Backdrop blur on many layers is expensive. Blur only the control layer and the
-  panes, never rows or cards inside a pane (the canvases' "never glass on glass"); measure on the phone app; fall back
-  to opaque fills where blur is missing or transparency is reduced.
+- **Glass costs frames on a phone.** Backdrop blur on many layers is expensive. Blur only the control layer, and only
+  where the page moves behind it: on a phone the tab bar, Ask's circle and the drawer; on a desk the top bar's capsules
+  and the strip of views besides. Never rows or cards inside a pane (the canvases' "never glass on glass"), not the
+  panes, and not a sheet's foot, which stands on the sheet's opaque ground: over the page's still light a pane's blur
+  changed what was drawn by under one level in 255. Settings on a phone drew eleven blurred layers, six of them on
+  screen at rest, and draws two, the tab bar and Ask's circle (the review of steps 5.1 to 5.3, 29 September). Measure
+  on the phone app; fall back to opaque fills where blur is missing or transparency is reduced.
 - **Two looks double the visual review** until Classic retires (decision 6). The gallery keeps that review to one page.
 - **The build's CSS quirks.** `backdrop-filter: none` beside its prefixed twin vanishes in the build (#929), and
   `blur(0)` is not `none` (§3.1): a blur role's Classic value is `none`, read through `var()`. Relative colours already
@@ -944,6 +951,35 @@ button is a capsule filled with the accent, its words at weight 600, with a soft
 specular top edge. The rules the canvases hold: glass is the control layer; panes are clear; never glass on glass
 (inside a pane everything is an inset); coral only for the primary act, the live call, the Now line and the selected
 tab; amber for the one warning; counts are neutral text; green for what is open, checked or won.
+
+**Changed from the canvases for contrast** (the review of steps 5.1 to 5.3, 29 September). The canvases drew their
+inks on their own boards; on the app's pages, and over the look's strongest light, the blue pool, some read under the
+house's rule: 4.5:1 for words, 3:1 for large ones. Each value keeps its hue, and `tokens.css` says why beside it. The
+ratios are the worst met, before and after: every word of nine pages, at a desk and on a phone, read on the pixels
+drawn under it, and every word of the gallery (its check 7), each entry shot at the top of the window. The faint ink,
+and a tone a page still writes as words, are held to Classic's own ratio on Classic's ground rather than to 4.5:1.
+
+| Role | Canvas (or Classic) | Glass | Before → after, on the worst ground met |
+| --- | --- | --- | --- |
+| Ink 3, `--ink-dim`, light | `rgba(50,52,64,0.64)` | `oklch(0.328 0.021 278 / 0.78)` | 3.44 → 4.80, an empty state over the pool; the pages' 3.63 → 5.16 |
+| Ink 3, `--ink-dim`, dark | `rgba(236,236,245,0.52)` | `oklch(0.946 0.012 286 / 0.66)` | 3.97 → 5.29, the sidebar's words |
+| Ink 4, `--ink-faint`, light | `rgba(50,52,64,0.22)` | `oklch(0.328 0.021 278 / 0.45)` | 1.48 → 2.35; no word under its Classic twin (the Calendar's hours 2.38, Classic 2.37) |
+| Ink 4, `--ink-faint`, dark | `rgba(236,236,245,0.22)` | `oklch(0.946 0.012 286 / 0.38)` | 1.82 → 2.77; no word under its Classic twin (the sidebar's hint 2.77, Classic 2.70) |
+| Ink 3 and 4 on the picked lozenge, dark (new: `--selected-ink-dim`, `--selected-ink-faint`) | the page's | `oklch(0.946 0.012 286 / 0.8)`, `/ 0.5` | a count on it 3.06 → 4.86; the hint of the place you are on 1.65 → 2.86 (Classic 2.43) |
+| Accent, light | `#E4523C` | `oklch(0.6 0.185 31)`, `#D84733` | white on it 3.77 → 4.31 (Classic 3.88); a page's coral words 2.92 → 3.31 (Classic 3.27) |
+| Primary (the button), light | `#E0503A` | `oklch(0.58 0.184 31)`, `#D1412D` | white on it 3.90 → 4.66 |
+| Accent's words, light | `#B93A26` | `oklch(0.45 0.15 32)`, `#972815` | 3.24 → 4.71, over the pool |
+| Accent's words, dark | `#FF8A7C` | `oklch(0.82 0.11 28)`, `#FFA89C` | 3.81 → 4.70, the tab bar's picked label |
+| Amber, light | `#E09A24` | `oklch(0.72 0.147 74)`, `#DA9419` | a page's amber words 1.92 → 2.04 (Classic 2.03) |
+| Amber's words, light | `#8A5A0C` | `oklch(0.45 0.09 72)`, `#744C0E` | 3.73 → 4.71, a pill over the pool |
+| Red's words, light (Classic's) | `#B7191C` | `oklch(0.45 0.17 27)`, `#9E1618` | 2.99 → 4.85, over the pool |
+| Red's words, dark (Classic's) | `#E6443D` | `oklch(0.74 0.15 27)`, `#FB8276` | 2.72 → 4.85, a quiet destructive act on the glass; Today's failed line 4.16 → 6.77 |
+| Blue's words, light (Classic's) | `#006394` | `oklch(0.43 0.1 235)`, `#00577E` | 3.88 → 4.83 |
+
+Words the house's rules still write in a raw tone (a quiet destructive act, a menu's destructive item, what went wrong,
+a toast's link and its act) read the tone's ink under Glass (`kit.css`), as the one-badge spec says every tone's words
+do: the red and blue rows' before is those words in the raw tone. The dark look sets blue's words again, at Classic's
+value, since the light look now sets its own. The pane's blur (14px and 1.25, above) is not drawn (§7).
 
 ---
 
