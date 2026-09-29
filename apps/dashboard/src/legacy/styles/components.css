@@ -3111,3 +3111,181 @@ html.legacy-on .msg-use-link { position: relative; }
   .stabs-tab, .phone-tab { transition: none; }
   .stabs-tab:active, .phone-tab:active { transform: none; }
 }
+
+/* ============================================================
+   THE FRAME IN GLASS (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3)
+   The shell's own chrome in the Glass look, after every desk board's frame in the canvases (Appendix C; liquid.py
+   sidebar, toolbar, live_pill, bell): the page lit, the sidebar floating, the top bar its capsules with the live call
+   as an island, and the strip of views set into the page. Each rule names the look inside :where(), so it weighs what
+   the rule it restyles weighs and comes after it, and reads the look's roles (tokens.css, GLASS); none matches in
+   Classic. The phone's drawer, its tab bar and Ask's glass circle beside it are mobile.css's.
+   ============================================================ */
+
+/* The page is lit: the three pools over the ground, which the frame's glass takes its colour from. */
+.app-root[data-look="glass"] {
+  background-image: var(--surface-page-light);
+  background-repeat: no-repeat;
+}
+
+/* The sidebar floats: the control layer's glass clear of the window's edges, at its own corner, with its sheen, its
+   rim and its depth, as tall as what it holds and never past the window (liquid.py sidebar). It does not blur: nothing
+   passes behind it but the page's light, which a blur does not change, and a blur would make it the containing block
+   of its own menus, which are fixed and placed against the window. A phone's drawer, which the page passes behind,
+   blurs from a layer of its own (mobile.css). */
+:where([data-look="glass"]) .sidebar {
+  position: relative;
+  align-self: start;
+  max-height: calc(100% - 28px);
+  margin: 14px 0 14px 14px;
+  border-right: 0;
+  border-radius: var(--surface-control-radius);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* A place in it: rounded as the sidebar's inset, the one you are on the lozenge in ink, a hover an inset's fill. */
+:where([data-look="glass"]) .nav-item {
+  border-radius: var(--radius-xl);
+}
+:where([data-look="glass"]) .nav-item:hover {
+  background: var(--surface-inset-fill);
+}
+:where([data-look="glass"]) .nav-item.active,
+:where([data-look="glass"]) .nav-item.urgent.active {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+/* A place's count is the neutral count, filled, as the canvases' sidebar draws it: never a warning's colour. */
+:where([data-look="glass"]) .nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--count-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--count-ink);
+}
+/* The workspace's mark and the member's face are insets of the sidebar's glass, in ink. */
+:where([data-look="glass"]) .sb-team-mark,
+:where([data-look="glass"]) .user-chip .avatar {
+  border: 1px solid var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+}
+
+/* The top bar is its capsules (liquid.py toolbar): the bar no ground and no rule of its own, the crumbs where they
+   were, and each control a capsule of the control layer's glass with its rim: Ask's wide one with its key, the bell
+   and the theme round. The page's own act beside them is the kit's button. */
+:where([data-look="glass"]) .topbar {
+  height: 64px;
+  padding: 12px 24px;
+  border-bottom-color: transparent;
+  background: transparent;
+}
+:where([data-look="glass"]) .tb-ask,
+:where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
+  position: relative;
+  height: var(--control-h-lg);
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  backdrop-filter: var(--surface-control-blur);
+}
+:where([data-look="glass"]) .tb-ask {
+  padding: 0 8px 0 12px;
+}
+:where([data-look="glass"]) .tb-ask:hover {
+  background-color: var(--surface-control-fill);
+}
+:where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
+  width: var(--control-h-lg);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme):hover {
+  background-color: var(--surface-control-fill);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .tb-ask::after,
+:where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .tb-ask .kbd {
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+}
+
+/* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own
+   inks and its own coral, which its dot, its clock and its arrow read. On a desk it stands in the top bar's row, in the
+   middle, clear of the crumbs and the capsules, and takes no room from the page; under 900px it stands under the top
+   bar, in the middle of the page's width. Still the one door to Live, and a focus still draws its ring. */
+:where([data-look="glass"]) .live-bar {
+  --ink: var(--surface-island-ink);
+  --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
+  --accent: var(--surface-island-accent);
+  --accent-ink: var(--surface-island-accent);
+  align-self: center;
+  width: auto;
+  max-width: calc(100% - 32px);
+  min-height: var(--control-h-lg);
+  margin: 2px 0 6px;
+  padding: 0 14px 0 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-island-fill);
+  box-shadow: var(--surface-island-depth);
+}
+:where([data-look="glass"]) .live-bar:hover {
+  background: var(--surface-island-fill);
+}
+:where([data-look="glass"]) .live-bar:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+@media (min-width: 901px) {
+  :where([data-look="glass"]) .live-bar {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    z-index: 2;
+    max-width: 36%;
+    margin: 0;
+    translate: -50% 0;
+  }
+  :where([data-look="glass"]) .live-bar-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* The strip of views stands in the page under the top bar, a capsule set in from the page's edge as the canvases'
+   title blocks set theirs (its padding is the capsule's own in Glass, the kit's). */
+:where([data-look="glass"]) .main > .stabs {
+  margin: 0 24px 8px;
+}

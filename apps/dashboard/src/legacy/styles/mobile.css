@@ -758,3 +758,87 @@ html.in-app .phone-tabs { display: none; }
 html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
+
+/* ====================================================================
+   THE FRAME IN GLASS, on a phone (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3; components.css
+   has the desk's). The drawer floats as the sidebar does; the tab bar is one capsule of the control layer's glass over
+   the page, with room at its right for Ask's glass circle (decision 12), which ask.css draws with the palette's rules;
+   the page keeps room for both. Each rule names the look inside :where(), so it weighs what the rule it restyles
+   weighs, and reads the look's roles; none matches in Classic.
+   ==================================================================== */
+@media (max-width: 900px) {
+  /* The drawer blurs the page passing behind it from a layer under its words (::before): the drawer is a layer of its
+     own already, fixed over the page, so its menus stay placed against the window. */
+  :where([data-look="glass"]) .side-wrap .sidebar {
+    background: transparent;
+    box-shadow: var(--surface-control-depth);
+  }
+  :where([data-look="glass"]) .side-wrap .sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    backdrop-filter: var(--surface-control-blur);
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The strip of views at the rows' 16px, as every strip on a phone. */
+  :where([data-look="glass"]) .main > .stabs {
+    margin: 4px 16px 8px;
+  }
+
+  /* The tab bar is one capsule floating over the page, 14px clear of its sides and of the home bar, with the room for
+     Ask's circle at its right (liquid.py tabbar): its tabs lozenges when picked, the picked one's glyph and word in
+     coral at 600, and the count on the Inbox the neutral count, with no ring. */
+  :where([data-look="glass"]) .phone-tabs {
+    left: 14px;
+    right: 86px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    padding: 6px;
+    border-top: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  :where([data-look="glass"]) .phone-tabs::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  :where([data-look="glass"]) .phone-tab {
+    min-height: 50px;
+    border-radius: var(--radius-full);
+    color: var(--ink-muted);
+  }
+  :where([data-look="glass"]) .phone-tab.active {
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+    font-weight: var(--weight-semibold);
+    color: var(--accent-ink);
+  }
+  :where([data-look="glass"]) .phone-tab-badge {
+    box-shadow: none;
+  }
+
+  /* Room under every surface for the bar, 14px clear of it, and the toast above it. */
+  :where([data-look="glass"]) .main-scroll {
+    padding-bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+  }
+  :where([data-look="glass"]) .pp-toast-stack {
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 76px);
+  }
+}
