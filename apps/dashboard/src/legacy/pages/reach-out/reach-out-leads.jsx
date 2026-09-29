@@ -6,6 +6,12 @@
 // to them, and Read as no · undo. Every sentence is contracts' (window.__reachOuts: reachOutLineOf, reachOutStripOf,
 // reachOutTimelineOf), read through the bridge (GET reach-outs/leads); a read that failed draws nothing of it, never
 // a line it did not read. Who may press is the role store's answer (window.gate / canDo "approve").
+//
+// And a list of your own (Part 7: J1-J12): Leads' *Import leads* (a file of the owner's own businesses, read here, every
+// address checked first by the finder's own check, as a search of its own) and the bulk bar's *Write to them* (the chosen
+// leads as a search of their own, with the reach-out sheet opened on it). A reach-out writes to a search, so both are
+// one. Every reading of a file and every word is contracts' (lead-import.ts), through window.__reachOuts.lists; the
+// page mounts it with one hook, useLeadLists, whose answer is the rail's door, the bar's act and the sheets they open.
 
 /** The search's lines are read again at most this often when the leads themselves are read again. */
 const RO_LEADS_REREAD_MS = 30_000;
@@ -155,4 +161,187 @@ const LeadReachOut = ({ lead, flash }) => {
   );
 };
 
-Object.assign(window, { useReachOutLeads, ReachOutLeadsStrip, LeadReachOut });
+/* ------------------------------------------------------------ a list of your own (Part 7) */
+
+const { useState: useLlState } = React;
+
+// Rows drawn before the import, as a taste of what was read.
+const LL_TASTE = 5;
+
+/** Where the rows come from: a file, or rows pasted and read. */
+const LlImportPick = ({ W, text, busy, onFile, onText, onRead }) => (
+  <>
+    <div className="rec-field">
+      <label>
+        <span className="rec-field-label">{W.file}</span>
+        <input type="file" accept=".csv,text/csv,text/plain" onChange={onFile} disabled={busy} data-testid="lead-import-file" />
+      </label>
+    </div>
+    <div className="rec-field">
+      <label>
+        <span className="rec-field-label">{W.paste}</span>
+        <textarea className="rec-input" rows={5} value={text} disabled={busy} placeholder={W.pastePlaceholder} onChange={(e) => onText(e.target.value)} data-testid="lead-import-paste" />
+      </label>
+      <button type="button" className="btn btn-sm pl-import-read" disabled={busy || !text.trim()} onClick={onRead} data-testid="lead-import-read">{W.read}</button>
+    </div>
+  </>
+);
+
+/** What was read, before anything is written: the counts, where the columns are, a taste, the name, who they are. */
+const LlImportPreview = ({ L, plan, ready, name, asked, busy, onName, onAsked }) => (
+  <div className="pl-import-preview" data-testid="lead-import-preview">
+    <p className="pl-import-counts" data-testid="lead-import-counts">{L.countWords(plan.counts)}</p>
+    <p className="pl-import-hint" data-testid="lead-import-columns">{plan.counts.rows === 0 ? "No rows were read from that." : L.columnWords(plan)} {L.words.costs}</p>
+    {ready.length > 0 && (
+      <table className="pl-import-table">
+        <thead><tr><th>Business</th><th>Email</th><th>Website</th></tr></thead>
+        <tbody>
+          {ready.slice(0, LL_TASTE).map((r) => (
+            <tr key={r.line}><td>{r.name}</td><td>{r.email}</td><td>{r.website_host || "—"}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+    {ready.length > LL_TASTE && <p className="pl-import-hint">and {(ready.length - LL_TASTE).toLocaleString()} more</p>}
+    <div className="rec-field">
+      <label>
+        <span className="rec-field-label">{L.words.nameLabel}</span>
+        <input className="rec-input" value={name} maxLength={120} disabled={busy} onChange={(e) => onName(e.target.value)} data-testid="lead-import-name" />
+      </label>
+    </div>
+    <div className="rec-field">
+      <label>
+        <span className="rec-field-label">{L.words.askedLabel}</span>
+        <input className="rec-input" value={asked} maxLength={400} disabled={busy} placeholder={L.words.askedHint} onChange={(e) => onAsked(e.target.value)} data-testid="lead-import-asked" />
+      </label>
+    </div>
+  </div>
+);
+
+/** The import sheet (J12): People's import's shape, the record kit's sheet, with the list's name and who they are. */
+const LeadImportSheet = ({ onClose, onDone = null, flash = null }) => {
+  const L = window.__reachOuts.lists;
+  const W = L.words;
+  const [text, setText] = useLlState("");
+  const [file, setFile] = useLlState(null);
+  const [plan, setPlan] = useLlState(null);
+  const [name, setName] = useLlState("");
+  const [asked, setAsked] = useLlState("");
+  const [busy, setBusy] = useLlState(false);
+  const [error, setError] = useLlState(null);
+  const [result, setResult] = useLlState(null);
+  const ready = plan ? plan.rows.filter(L.ready) : [];
+  const tooMany = ready.length > L.max;
+  const read = (t, fileName) => {
+    setPlan(L.planOf(t));
+    setResult(null);
+    setError(null);
+    if (!name.trim()) setName(L.nameOf(fileName));
+  };
+  const onFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { setFile(f.name); read(String(r.result || ""), f.name); };
+    r.readAsText(f);
+  };
+  const run = async () => {
+    if (busy || !ready.length || tooMany) return;
+    setBusy(true);
+    setError(null);
+    const rows = ready.map((r) => ({ name: r.name, email: r.email, phone: r.phone, website_host: r.website_host, city: r.city, region: r.region, category: r.category }));
+    const r = await L.importLeads({ name: name.trim() || L.nameOf(file), asked: asked.trim(), rows });
+    setBusy(false);
+    if (!r.ok) { setError(r.message || W.failed); return; }
+    const said = L.importAnswerWords(r.data, plan.counts.rows - ready.length);
+    setResult(said);
+    if (flash) flash({ msg: <>{said.title}</> });
+    if (onDone) onDone(r.data.search_id);
+  };
+  const problem = error || (tooMany ? W.tooMany : plan && plan.counts.rows > 0 && !ready.length ? W.nothing : null);
+  return (
+    <window.RecordSheet
+      id="lead-import"
+      title={W.importTitle}
+      sub={W.importSub}
+      onClose={onClose}
+      closeLabel={result ? "Done" : "Cancel"}
+      onSave={plan && ready.length && !tooMany && !result ? run : null}
+      saveLabel={`${L.saveLabel(ready.length)} · about ${L.cents(ready.length)}¢`}
+      saving={busy}
+      savingLabel="Importing…"
+      foot={problem || result ? (
+        <div className="pl-import-foot">
+          <window.FieldError id="lead-import-problem" message={problem} testid="lead-import-error" />
+          {result ? <button type="button" className="btn btn-sm" onClick={onClose} data-testid="lead-import-done">Done</button> : null}
+        </div>
+      ) : null}
+      testid="lead-import-sheet"
+    >
+      <div className="pl-import">
+        {!result && <LlImportPick W={W} text={text} busy={busy} onFile={onFile} onText={setText} onRead={() => read(text, null)} />}
+        {plan && !result && <LlImportPreview L={L} plan={plan} ready={ready} name={name} asked={asked} busy={busy} onName={setName} onAsked={setAsked} />}
+        {result && (
+          <div className="pl-import-summary" data-testid="lead-import-summary">
+            <p className="pl-import-counts"><b>{result.title}</b></p>
+            {result.lines.map((l) => <p key={l} className="pl-import-hint">{l}</p>)}
+          </div>
+        )}
+      </div>
+    </window.RecordSheet>
+  );
+};
+
+// Where the bridge is absent: no door, no act, no sheet.
+const LL_NONE = { importDoor: null, writeAct: () => null, node: null, stripOf: () => null, emptyOf: () => null };
+
+/**
+ * The page's one hook (J12): the rail's *Import leads*, the bar's *Write to them* for the rows chosen and shown, and the
+ * sheet either opens. A list made lands the page on it; one chosen opens the reach-out sheet over it.
+ */
+const useLeadLists = ({ flash = null } = {}) => {
+  const [importing, setImporting] = useLlState(false);
+  const [writing, setWriting] = useLlState(null);
+  const [busy, setBusy] = useLlState(false);
+  const L = window.__reachOuts && window.__reachOuts.lists;
+  if (!L) return LL_NONE;
+  const open = (id) => { if (window.CHANLY && window.__leadsRouteOf) window.CHANLY.nav(window.__leadsRouteOf({ searchId: id, list: "all" })); };
+  const may = !window.canDo || window.canDo("approve");
+  const choose = async (ids) => {
+    if (busy || !ids.length) return;
+    setBusy(true);
+    const name = L.chooseNameOf();
+    const r = await L.chooseLeads({ name, lead_ids: ids.slice(0, L.max) });
+    setBusy(false);
+    if (!r.ok) { if (flash) flash({ tone: "warn", msg: <>{r.message || L.words.failed}</> }); return; }
+    if (flash) flash({ msg: <>{L.chooseAnswerWords(r.data)}</> });
+    open(r.data.search_id);
+    setWriting({ id: r.data.search_id, name });
+  };
+  const importDoor = (
+    <button type="button" className="cl-rail-newseg" onClick={() => setImporting(true)} data-testid="leads-import" {...window.gate("find", "import leads")}>
+      <Icon name="download" size={11} /> {L.words.importDoor}
+    </button>
+  );
+  // The act for the rows chosen and shown (never "all that match": a view is not a list of ids), on a desk the bar's
+  // button and on a phone a row of its sheet (`shut` closes the sheet first).
+  const writeAct = ({ ids, phone = false, shut = () => {} }) => {
+    if (!ids.length) return null;
+    if (phone) return <window.PhoneSheetRow icon="mail" label={L.words.write} meta={busy ? L.words.writing : null} disabled={busy} onClick={() => { shut(); choose(ids); }} testid="leads-bulk-write" gate={may ? null : window.gate("approve", "write to these leads")} />;
+    return (
+      <button type="button" className="btn btn-sm" disabled={busy} title={L.words.writeHint} onClick={() => choose(ids)} data-testid="leads-bulk-write" {...window.gate("approve", "write to these leads")}>
+        <Icon name="mail" size={12} /> {busy ? L.words.writing : L.words.write}
+      </button>
+    );
+  };
+  const node = (
+    <>
+      {importing ? <LeadImportSheet onClose={() => setImporting(false)} onDone={open} flash={flash} /> : null}
+      {writing && window.ReachOutSheet ? <window.ReachOutSheet search={writing} onClose={() => setWriting(null)} onDone={() => {}} /> : null}
+    </>
+  );
+  // A list's own strip in the finder's strip's place, and what its table says while its addresses are checked (J8).
+  return { importDoor, writeAct, node, stripOf: L.stripOf, emptyOf: L.emptyOf };
+};
+
+Object.assign(window, { useReachOutLeads, ReachOutLeadsStrip, LeadReachOut, useLeadLists, LeadImportSheet });

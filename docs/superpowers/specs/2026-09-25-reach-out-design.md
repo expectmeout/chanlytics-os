@@ -2,7 +2,7 @@
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
 shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) shipped 27–28 Sep (§6, twelve PRs; N1–N6);
-Part 6 (what comes back) shipped 28–29 Sep (§6, #1325; H1–H12); Part 7 (bring your own list) next. The eight decisions
+Part 6 (what comes back) shipped 28–29 Sep (§6, #1325; H1–H12); Part 7 (bring your own list) shipped 29 Sep (§6, one PR; J1–J12). The eight decisions
 in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
@@ -152,6 +152,24 @@ longer matters.
   Making the person does not convert the lead.
 - **The lead** becomes `nurture` / `contacted_at` / `last_outcome = 'emailed'` only once its email has left, when the
   clock reads it sent (`leadWritten`).
+
+**As built (Part 7; 00242): a list of your own is a search.** `lead_searches.via` gains `import` and `chosen`, so the
+audience above, and every rule a reach-out keeps, holds for a list as it is.
+- **A file** (`lead_search_import`, an owner's or a partner's, 1 to 500 rows): a row needs a business name and an
+  address; an address a person in People holds, one on the never-again list and a second row of one address are left
+  out and said. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the
+  check's round, and draws nothing; one another round is checking now is left out; otherwise it is checked. Every other
+  row is a new lead waiting in Needs review for its address alone, marked when it shares a number or a website with
+  another of the workspace's leads (the finder's share, which the audience never writes to: one business is written to
+  once), and the finder's own check round checks them (`lead_check`, `lead_check_commit`, unchanged): one that checks
+  out is Qualified and counted, the rest wait in Needs review. Each address checked reserves one of the month's leads
+  (0010: paid per verified lead) and what does not check out goes back when the round ends; Remove the ones you haven't
+  touched gives back exactly what the list drew.
+- **A selection** (`lead_search_choose`, an acting member's, 1 to 500 leads): only a lead already counted joins,
+  counted again without drawing the month and outside its round, which is made and ended at once and rings nothing, so
+  there is nothing to give back.
+- The spec's three offers in the bulk bar (add to a reach-out, a new one, once) are one door: a chain's audience is a
+  search, so the chosen leads become one, and *once* is a chain of one step, which the sheet already makes.
 
 ### 4.3 The words
 
@@ -607,6 +625,17 @@ On the surfaces as they stand; the canvas draws each.
   became of it; their reply says how it was read; a Found row says where the business was found, with Open the lead; and
   the About rail says the reach-out and where they stand in it. The hero's line stays the thread's flag.
 
+**As built (Part 7; 00242).**
+- **Import leads** sits in the rail's foot beside New search, on a desk and in a phone's Lists sheet: People's import's
+  sheet (a file or pasted rows, the counts and a taste before anything is written) with the list's name and *Who are
+  they?*, the search's `asked`, which the opening reads. The list lands the page on it; its strip, in the finder's
+  strip's place, says its check while it runs and then how many have a checked address, and the bell says "Your list …
+  is checked".
+- **Write to them** sits in the bulk bar after Copy emails, and in a phone's sheet: the rows chosen and shown become a
+  search named "12 chosen on Sep 28" and the reach-out sheet opens on it. Never "all that match": a view is not a list.
+- A list is never searched again: its menu offers neither *Find new ones* nor *Search again, changed*, and the door
+  refuses one in words. A search with no round or no area no longer throws on Leads.
+
 
 ### 4.12 Failure handling
 
@@ -707,7 +736,11 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    booked on the chain's row; Leads while it writes (the strip, the Stage line, the peek's story, Stop writing to them,
    the undo on the lead); a person's rows; and the day's numbers at 6 PM, a line in the bell (§4.9).
    `docs/superpowers/plans/2026-09-28-reach-out-part-6-what-comes-back.md` has the decisions (H1–H12) and what was built.
-7. **Later:** bring your own list (leads from a CSV, checked first, as a search). 1 PR.
+7. **Built 29 Sep 2026 in one PR (00242).** **Bring your own list:** a file of the owner's businesses as a search, every
+   address checked first by the finder's own check; the bulk bar's *Write to them*, chosen leads as a search with the
+   reach-out sheet opened on it; and Leads drawing a search with no finder plan (§4.2, §4.11).
+   `docs/superpowers/plans/2026-09-28-reach-out-part-7-bring-your-own-list.md` has the decisions (J1–J12) and what was
+   built.
 
 Then the PRD's Part 1 (customers' channels) and the rest of its order.
 

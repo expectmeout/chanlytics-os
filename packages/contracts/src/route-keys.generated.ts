@@ -132,6 +132,8 @@ export const ROUTE_KEYS = [
   "POST lead-searches/[id]/more",
   "POST lead-searches/[id]/stop",
   "POST lead-searches/[id]/undo",
+  "POST lead-searches/chosen",
+  "POST lead-searches/import",
   "POST leads/[id]/draft",
   "POST leads/[id]/exclude",
   "POST leads/[id]/keep",

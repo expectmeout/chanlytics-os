@@ -88,6 +88,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A draft is not here on purpose -- it changes no row a surface shows; the
   // lead moves when the owner answers "Did you send it?", which is a stage.
   "POST lead-searches": leads,
+  // A list of your own (00242) is a search: the rail and the leads read again.
+  "POST lead-searches/import": leads,
+  "POST lead-searches/chosen": leads,
   "POST lead-searches/[id]/answer": leads,
   "POST lead-searches/[id]/more": leads,
   "POST lead-searches/[id]/stop": leads,

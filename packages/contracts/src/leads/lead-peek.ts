@@ -234,6 +234,36 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
  * seen, and what Claude read), the other addresses, Found, the site. Every sentence here, so the page says nothing
  * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
  */
+/**
+ * Where a lead was found, in the peek's words: the head's short line, the first step's, and the site's. A lead a list of
+ * the owner's own brought (00242) has no place: it was found on no listing, and its address came with the list.
+ */
+function foundWords(
+  r: Pick<LeadRowDto, "place_id" | "rank" | "website" | "email_state">,
+  term: string | null,
+): { summary: string; what: string; site: string } {
+  const host = r.website;
+  if (!r.place_id)
+    return {
+      summary: "From your list",
+      what: "From your list",
+      site: host ? `${host} · the address came with your list` : "The address came with your list",
+    };
+  return {
+    summary: term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps",
+    what: term
+      ? r.rank
+        ? `Google Maps · #${r.rank} for “${term}”`
+        : `Google Maps · searching “${term}”`
+      : "A Google Maps listing",
+    site: host
+      ? r.email_state === "none"
+        ? `${host} · no email on the home, contact or about pages`
+        : `${host} · an email on the contact page`
+      : "No website to check",
+  };
+}
+
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
@@ -286,12 +316,8 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       }
     : null;
   const host = r.website;
-  const siteLine = host
-    ? r.email_state === "none"
-      ? `${host} · no email on the home, contact or about pages`
-      : `${host} · an email on the contact page`
-    : "No website to check";
   const term = search?.plan.terms[0] ?? null;
+  const where = foundWords(r, term);
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
   const passed = m.checks.filter((c) => c.answer === "yes").length;
   const unsure = m.checks.filter((c) => c.answer === "unknown").length;
@@ -401,19 +427,10 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
     // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
     // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
-    foundSummary: [term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps", dayIn(tz, r.found_at, now)]
-      .filter(Boolean)
-      .join(" · "),
+    foundSummary: [where.summary, dayIn(tz, r.found_at, now)].filter(Boolean).join(" · "),
     found: [
-      {
-        at: clockIn(tz, r.found_at, now),
-        what: term
-          ? r.rank
-            ? `Google Maps · #${r.rank} for “${term}”`
-            : `Google Maps · searching “${term}”`
-          : "A Google Maps listing",
-      },
-      { at: clockIn(tz, r.found_at, now), what: siteLine },
+      { at: clockIn(tz, r.found_at, now), what: where.what },
+      { at: clockIn(tz, r.found_at, now), what: where.site },
       // The mailbox's long sentence is the email row's to say; here it is the state's one word.
       { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox · ${LEAD_EMAIL_WORDS[r.email_state]}` },
     ],
@@ -437,13 +454,17 @@ export const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to
  * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
  */
 export function leadSearchWords(
-  s: { asked: string; asked_on: string; plan?: LeadSearchPlan } | null,
+  s: { asked: string; asked_on: string; plan?: LeadSearchPlan; via?: string } | null,
   tz: string,
 ): { askedLine: string; keepsLine: string } {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
   const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(
     new Date(s.asked_on),
   );
+  // A list of the owner's own (00242) asked the finder for nothing: it says where it came from.
+  if (s.via === "import")
+    return { askedLine: `Your list, imported on ${day}: “${s.asked}”.`, keepsLine: LEAD_REMOVE_KEEPS };
+  if (s.via === "chosen") return { askedLine: `Leads you chose on ${day}.`, keepsLine: LEAD_REMOVE_KEEPS };
   // Release A spells an exclusion `exclusions[]: { key, text, origin }` and a criterion
   // `criteria[]: { key, text, standard, required }` (search/plan.ts, LeadSearchPlanSchema):
   // what is left out is the exclusions list, and its words are `text`.

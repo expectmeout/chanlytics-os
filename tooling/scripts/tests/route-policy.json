@@ -625,6 +625,20 @@
       "rate": "lead_search",
       "spend": true
     },
+    "POST lead-searches/chosen": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_bulk",
+      "spend": false
+    },
+    "POST lead-searches/import": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_search",
+      "spend": true
+    },
     "GET lead-suggestions": {
       "kind": "read",
       "scope": "workspace",

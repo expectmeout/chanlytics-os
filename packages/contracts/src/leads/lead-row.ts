@@ -7,6 +7,7 @@ import type { LeadCounts, LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./lead-facts";
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
+import { isLeadList } from "./lead-import";
 import { LEAD_CLOSED_REASONS, type LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
@@ -271,11 +272,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     found: [
       {
         at: clockIn(tz, r.found_at, now),
-        what: term
-          ? r.rank
-            ? `On Google Maps, #${r.rank} for “${term}”`
-            : `On Google Maps, searching “${term}”`
-          : "On a Google Maps listing",
+        what: foundLine(r, term),
       },
     ],
   };
@@ -346,6 +343,13 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
 /** A round that is still going; one waiting on the owner is its own mark. */
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
+/** Where a row's lead was found. A lead a list of the owner's own brought (00242) has no place: found on no listing. */
+function foundLine(r: Pick<LeadRowDto, "place_id" | "rank">, term: string | null): string {
+  if (!r.place_id) return "From your list";
+  if (!term) return "On a Google Maps listing";
+  return r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`;
+}
+
 /** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
 export function leadRail(
   counts: LeadCounts,
@@ -353,7 +357,15 @@ export function leadRail(
   now: Date = new Date(),
 ): {
   lists: { id: LeadList; label: string; count: number }[];
-  searches: { id: string; name: string; count: number; mark: "live" | "question" | null; undoable: boolean }[];
+  searches: {
+    id: string;
+    name: string;
+    count: number;
+    mark: "live" | "question" | null;
+    undoable: boolean;
+    /** A list of the owner's own (00242): its menu offers nothing that searches again. */
+    list: boolean;
+  }[];
 } {
   // Said no is a list only when somebody said no: an empty row in the rail
   // teaches the owner nothing and costs them a line every day.
@@ -372,6 +384,7 @@ export function leadRail(
       name: s.name,
       count: s.round?.counted ?? 0,
       undoable: leadUndoable(s, now),
+      list: isLeadList(s),
       mark: !s.round
         ? null
         : s.round.state === "waiting_on_owner"

@@ -80,7 +80,7 @@ export const SCHEMA_SETS = {
   ],
   "lead_search_members.class": ["qualified", "review", "excluded"],
   "lead_search_members.fit": ["strong", "look", "long"],
-  "lead_searches.via": ["people", "ask"],
+  "lead_searches.via": ["people", "ask", "import", "chosen"],
   "lead_suppressions.kind": ["email", "place", "phone", "domain"],
   "lead_suppressions.what": ["email_opt_out", "customer", "erased", "said_no"],
   "leads.closed_reason": ["said_no", "not_a_fit", "customer", "stale", "search_removed"],

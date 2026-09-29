@@ -60,6 +60,23 @@ import {
   reachOutLineOf,
   reachOutStripOf,
   reachOutTimelineOf,
+  isLeadList,
+  LEAD_IMPORT_WORDS,
+  LEAD_LIST_MAX,
+  leadCheckAgainCents,
+  leadChooseAnswerWords,
+  leadChooseNameOf,
+  leadImportAnswerWords,
+  leadImportColumnWords,
+  leadImportCountWords,
+  leadImportNameOf,
+  leadImportPlanOf,
+  leadImportReady,
+  leadImportSaveLabel,
+  leadListEmptyOf,
+  leadListStripOf,
+  type LeadChooseInput,
+  type LeadImportInput,
   type ReachOutLeadLineDto,
   type ReachOutLeadTimelineDto,
   type ReachOutLeadsDto,
@@ -205,6 +222,32 @@ export const reachOuts = {
     };
     next();
     return stop;
+  },
+  /**
+   * A list of your own (Part 7, 00242): a file's rows, or leads chosen on Leads, as a search a reach-out writes to. The
+   * two doors answer or refuse in words (the typed client's result); the rest is contracts' reading of a file
+   * (lead-import.ts) and every sentence the import sheet, *Write to them* and a list's strip say.
+   */
+  lists: {
+    importLeads: (body: LeadImportInput) => api()("POST lead-searches/import", { body }),
+    chooseLeads: (body: LeadChooseInput) => api()("POST lead-searches/chosen", { body }),
+    planOf: leadImportPlanOf,
+    ready: leadImportReady,
+    countWords: leadImportCountWords,
+    columnWords: leadImportColumnWords,
+    saveLabel: leadImportSaveLabel,
+    /** A list's name from its file's, by the business's clock when the file has none. */
+    nameOf: (fileName: string | null) => leadImportNameOf(fileName, Date.now(), businessZone()),
+    /** "Chosen on Sep 28", by the business's clock. */
+    chooseNameOf: () => leadChooseNameOf(Date.now(), businessZone()),
+    importAnswerWords: leadImportAnswerWords,
+    chooseAnswerWords: leadChooseAnswerWords,
+    stripOf: leadListStripOf,
+    emptyOf: leadListEmptyOf,
+    isList: isLeadList,
+    cents: leadCheckAgainCents,
+    words: LEAD_IMPORT_WORDS,
+    max: LEAD_LIST_MAX,
   },
   /** Every sentence a chain's row, an email row, the sheet and the Leads door say (contracts reach-out-*.ts). */
   words: {

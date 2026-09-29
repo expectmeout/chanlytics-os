@@ -5348,6 +5348,10 @@ export type Database = {
         Args: { p_gen: number; p_owner: string; p_run_id: string }
         Returns: boolean
       }
+      lead_search_choose: {
+        Args: { p_lead_ids: string[]; p_name: string; p_tenant_id: string }
+        Returns: Json
+      }
       lead_search_create: {
         Args: {
           p_estimate_usd: number
@@ -5355,6 +5359,16 @@ export type Database = {
           p_tenant_id: string
           p_thread_id?: string
           p_via: string
+        }
+        Returns: Json
+      }
+      lead_search_import: {
+        Args: {
+          p_asked: string
+          p_estimate_usd: number
+          p_name: string
+          p_rows: Json
+          p_tenant_id: string
         }
         Returns: Json
       }
