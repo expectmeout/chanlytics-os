@@ -1,7 +1,7 @@
 import "server-only";
 import { MIN_MS } from "@chanlytics/contracts";
 import { claimControl, releaseControl } from "@chanlytics/db";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeAnswered } from "../edge";
 
 /** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */

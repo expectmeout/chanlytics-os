@@ -1,6 +1,5 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
-import { deployment } from "../deployment";
 import { createClient } from "@supabase/supabase-js";
 import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
@@ -29,6 +28,7 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
 
 import { callEdge, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
+import { deployment, env } from "../env";
 import { log } from "@/server/log";
 
 /** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
@@ -54,7 +54,7 @@ interface SignupOutcome {
  */
 export function inviteCodeMatches(given: string | undefined | null): boolean {
   const a = Buffer.from(given ?? "");
-  const b = Buffer.from(process.env.SIGNUP_CODE ?? "");
+  const b = Buffer.from(env.SIGNUP_CODE ?? "");
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
@@ -82,7 +82,7 @@ export function inviteCodeMatches(given: string | undefined | null): boolean {
  * cheerfully reports a code on its way.
  */
 export async function signUp(input: SignupInput & { password: string }): Promise<SignupOutcome> {
-  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { data, error } = await anon.auth.signUp({

@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";

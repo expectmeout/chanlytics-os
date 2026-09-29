@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { log } from "@/server/log";
 

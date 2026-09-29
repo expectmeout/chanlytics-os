@@ -4,6 +4,8 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { writeAuthCookies } from "@/server/auth-cookies";
+import { env, isProduction } from "@/server/env";
+import { publicEnv } from "@/lib/public-env";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -96,8 +98,8 @@ function noStore(response: NextResponse): NextResponse {
  * also a vercel.app host and must keep answering as itself.
  */
 function canonicalRedirect(request: NextRequest): NextResponse | null {
-  const canonical = process.env.CANONICAL_HOST;
-  if (!canonical || process.env.VERCEL_ENV !== "production") return null;
+  const canonical = env.CANONICAL_HOST;
+  if (!canonical || !isProduction()) return null;
   const host = request.headers.get("host");
   if (!host || host === canonical || !host.endsWith(".vercel.app")) return null;
   // The unsubscribe link answers where it is pressed: a mail client's one click must never be redirected (RFC
@@ -112,7 +114,7 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
 
 export async function proxy(request: NextRequest) {
   // On the cold link host (D17) the unsubscribe page and nothing else: never a sign-in form on a domain cold mail names.
-  const linkHost = linkHostOf(process.env.UNSUBSCRIBE_ORIGIN);
+  const linkHost = linkHostOf(env.UNSUBSCRIBE_ORIGIN);
   if (!linkHostAnswers({ host: request.headers.get("host"), path: request.nextUrl.pathname, linkHost }))
     return new NextResponse("Not found", { status: 404 });
   const moved = canonicalRedirect(request);
@@ -122,9 +124,9 @@ export async function proxy(request: NextRequest) {
   // nonce a request header would carry does not reach the render on Vercel
   // (src/csp.ts says what was tried), so the policy names inline by name.
   const csp = contentSecurityPolicy({
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    leadMapBase: process.env.NEXT_PUBLIC_LEAD_MAP_BASE,
-    dev: process.env.NODE_ENV !== "production",
+    supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
+    leadMapBase: env.NEXT_PUBLIC_LEAD_MAP_BASE,
+    dev: !publicEnv.productionBuild,
     reportOnly: CSP_HEADER === "content-security-policy-report-only",
   });
   const nextWithPolicy = () => {
@@ -134,26 +136,22 @@ export async function proxy(request: NextRequest) {
   };
   let response = nextWithPolicy();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = nextWithPolicy();
-          // A refreshed token rides out on THIS response, so the headers that
-          // keep it out of every cache in front of us ride with it. Dropping
-          // them lets a shared cache hand one operator's Set-Cookie to the
-          // next person who asks for the URL -- see src/server/auth-cookies.ts.
-          writeAuthCookies(response, cookiesToSet, headers);
-        },
+  const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet, headers) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = nextWithPolicy();
+        // A refreshed token rides out on THIS response, so the headers that
+        // keep it out of every cache in front of us ride with it. Dropping
+        // them lets a shared cache hand one operator's Set-Cookie to the
+        // next person who asks for the URL -- see src/server/auth-cookies.ts.
+        writeAuthCookies(response, cookiesToSet, headers);
       },
     },
-  );
+  });
 
   // getClaims() VERIFIES the token's signature -- locally, over the project's public signing key (the JWKS, fetched
   // once per process and kept ten minutes), where the project signs with an asymmetric key; over the Auth server,

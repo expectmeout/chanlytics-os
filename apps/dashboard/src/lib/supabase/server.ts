@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@chanlytics/db";
+import { env } from "@/server/env";
 
 /**
  * Session-scoped server client — the ONLY client /api/v1 handlers and server
@@ -9,27 +10,21 @@ import type { Database } from "@chanlytics/db";
  */
 export async function createClient() {
   const cookieStore = await cookies();
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
-          } catch {
-            // Called from a Server Component with no response — middleware
-            // refreshes sessions, so this is safe to ignore.
-          }
-        },
+  return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          // Called from a Server Component with no response — middleware
+          // refreshes sessions, so this is safe to ignore.
+        }
       },
     },
-  );
+  });
 }
 
 /**
@@ -38,19 +33,15 @@ export async function createClient() {
  * verification is the route's (getClaims over it), never assumed from the header.
  */
 export function createBearerClient(token: string) {
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        setAll() {
-          /* a bearer request has no cookie to refresh */
-        },
+  return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return [];
       },
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      setAll() {
+        /* a bearer request has no cookie to refresh */
+      },
     },
-  );
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
 }

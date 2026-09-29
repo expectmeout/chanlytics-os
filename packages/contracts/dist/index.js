@@ -28277,6 +28277,61 @@ function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
 }
 
+// src/workspace/security-switches.ts
+var SECURITY_SWITCHES = [
+  {
+    name: "RETELL_DOORS_SIGNED",
+    app: "edge",
+    weaker: "Unset, the three voice doors (the inbound webhook, the booking-link and availability functions) open for RETELL_FN_SECRET (?key= or x-fn-secret) as well as for Retell's signature (lib/voice/voice-door-auth.ts).",
+    sunset: "2026-10-17",
+    readiness: {
+      event: "voice_door_auth",
+      when: "sig: true on each of the three doors on real deliveries, read from 3 October 2026"
+    },
+    closes: "Ruben sets RETELL_DOORS_SIGNED=1 after the read; after a clean week the change that empties KEY_READ_FROM and stops provisioning the secret."
+  },
+  {
+    name: "RETELL_WEBHOOK_KEY",
+    app: "edge",
+    weaker: "Unset, the voice doors' signature is checked with RETELL_API_KEY instead of the badged webhook key, so a delivery Retell signed with the badged key reads as unsigned and only the shared secret admits it.",
+    sunset: "2026-10-17",
+    readiness: { event: "voice_door_auth", when: "sig: true on the webhook door with RETELL_WEBHOOK_KEY set" },
+    closes: "Set RETELL_WEBHOOK_KEY on the edge; then the change that stops falling back to RETELL_API_KEY."
+  },
+  {
+    name: "DIAG_KEY",
+    app: "edge",
+    weaker: "On an edge without EDGE_CALL_SECRET (a preview: production refuses to boot without it), the platform key alone opens every admin door (lib/admin-auth.ts).",
+    sunset: "2026-10-17",
+    readiness: {
+      event: "admin_door_key_only",
+      when: "no ok: true line but the diagnostic's and the sending-domains lift's, read from 3 October 2026"
+    },
+    closes: "EDGE_CALL_SECRET on the preview projects (Ruben's switch); then the change that deletes DIAG_KEY and platformKey, the runbook's knock minting a token instead."
+  },
+  {
+    name: "GOOGLE_OAUTH_STATE_SECRET",
+    app: "dashboard",
+    weaker: "Unset on a preview or a laptop, DIAG_KEY signs the Google OAuth state (src/server/connections/google.ts). Production refuses the fallback: without its own secret, Connect Google says it is not set up.",
+    sunset: "2026-10-17",
+    readiness: { event: "google_state_signed_by_diag_key", when: "no line from any deployment for a week" },
+    closes: "GOOGLE_OAUTH_STATE_SECRET on every project that offers Connect Google; then the change that deletes the fallback."
+  },
+  {
+    name: "EDGE_TOKEN_UNBOUND",
+    app: "edge",
+    weaker: "A per-call token from a dashboard deployed before tokens were bound is accepted without a body hash, and on the live-call doors without a workspace (lib/admin-auth.ts), so either app may deploy first.",
+    sunset: "2026-10-13",
+    readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
+    closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on a door that acts on one."
+  }
+];
+function daysToSunset(sw, now) {
+  const end = Date.parse(`${sw.sunset}T00:00:00Z`);
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((end - today) / DAY_MS);
+}
+
 // src/workspace/password.ts
 var PASSWORD_MIN = 12;
 var PASSWORD_MAX_BYTES = 72;
@@ -29626,6 +29681,7 @@ export {
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
+  SECURITY_SWITCHES,
   SELF_LIFTING_HOLDS,
   SELLS_BY,
   SELLS_BY_FIRST,
@@ -29887,6 +29943,7 @@ export {
   dayPlusInZone,
   dayProblems,
   dayWords,
+  daysToSunset,
   dealCardsOf,
   dealFactsOf,
   dealIsOpen,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SIGNUP_WORDS, googleCallbackUrl } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
+import { publicEnv } from "@/lib/public-env";
 
 /**
  * Whether the hosted project has the Google provider switched on. Supabase's
@@ -13,8 +14,8 @@ import { createClient } from "@/lib/supabase/client";
  */
 let known: Promise<boolean> | null = null;
 function googleEnabled(): Promise<boolean> {
-  known ??= fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
-    headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
+  known ??= fetch(`${publicEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
+    headers: { apikey: publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY! },
   })
     .then((r) => r.json())
     .then((j: { external?: { google?: boolean } }) => j?.external?.google === true)

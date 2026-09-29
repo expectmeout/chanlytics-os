@@ -20,7 +20,6 @@
 import {
   desiredVoiceShell,
   availabilityUrl,
-  DEFAULT_FN_URL,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
@@ -62,7 +61,7 @@ export const VOICE_NUMBER_DEFAULTS = {
 } as const;
 
 /** The product's voice endpoints, from the one base the shell already pins. */
-export function voiceEndpoints(fnUrl: string = DEFAULT_FN_URL): {
+export function voiceEndpoints(fnUrl: string): {
   fn: string;
   availability: string;
   webhook: string;
@@ -97,7 +96,7 @@ export function stripKey(url: string | null | undefined): string | null {
 }
 
 /** POST /create-retell-llm: the shell, with the secret on its tools. */
-export function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string = DEFAULT_FN_URL): Record<string, unknown> {
+export function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string): Record<string, unknown> {
   return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
 }
 
@@ -105,7 +104,7 @@ export function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string = DEFAULT_
 export function voiceAgentCreateBody(
   o: { llmId: string; llmVersion: number | null; agentName: string },
   s: ProvisionSecrets,
-  fnUrl: string = DEFAULT_FN_URL,
+  fnUrl: string,
 ): Record<string, unknown> {
   return {
     agent_name: o.agentName,
@@ -133,7 +132,7 @@ export function voiceNumberBinding(o: { agentId: string; pinned: boolean }): Arr
 export function voiceNumberCreateBody(
   o: { areaCode: number; agentId: string; pinned: boolean; nickname: string },
   s: ProvisionSecrets,
-  fnUrl: string = DEFAULT_FN_URL,
+  fnUrl: string,
 ): Record<string, unknown> {
   return {
     ...VOICE_NUMBER_DEFAULTS,
@@ -148,7 +147,7 @@ export function voiceNumberCreateBody(
 export function voiceNumberBindBody(
   o: { agentId: string; pinned: boolean; nickname: string },
   s: ProvisionSecrets,
-  fnUrl: string = DEFAULT_FN_URL,
+  fnUrl: string,
 ): Record<string, unknown> {
   return {
     nickname: o.nickname,

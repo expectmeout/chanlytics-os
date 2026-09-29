@@ -1,5 +1,5 @@
 import "server-only";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 import { log } from "@/server/log";
 

@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
 import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
+import { env } from "@/server/env";
 import { log } from "@/server/log";
 
 /**
@@ -99,7 +100,7 @@ export const POST = write({
       .eq("user_id", ctx.userId);
     if (countErr) throw new Error(`memberships_count: ${countErr.message}`);
     const door = firstWorkspaceDoor({
-      posture: signupPosture(process.env.SIGNUP_CODE),
+      posture: signupPosture(env.SIGNUP_CODE),
       memberships: count ?? 0,
       // The code typed here, or the one sign-up checked and kept (pendingCodeOf): so the first workspace is made
       // from sign-up's answers with nothing typed twice, and a code that stopped being right stops opening it.

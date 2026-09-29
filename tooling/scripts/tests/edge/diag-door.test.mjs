@@ -23,7 +23,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   signEdgeToken,
   desiredVoiceShell,
-  DEFAULT_FN_URL,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
@@ -57,6 +56,8 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+/** Where this edge tells the provider its voice tools post (no EDGE_ORIGIN here: the default off production). */
+const { edgeFnUrl } = await import(at("apps/edge/lib/dashboard-origin.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/ops/page-operator.ts"));
 const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
@@ -489,7 +490,7 @@ const llmOnShell = (id) => ({
   version: 1,
   model: "claude-4.5-haiku",
   model_temperature: 0,
-  ...desiredVoiceShell(DEFAULT_FN_URL, { "x-fn-secret": "fn-secret-nobody-may-see" }),
+  ...desiredVoiceShell(edgeFnUrl(), { "x-fn-secret": "fn-secret-nobody-may-see" }),
 });
 
 test("each voice line's agent and shell are read from Retell: the live transcript, the model, drift on both, the webhook URL without its key; an unreadable agent is named; a fingerprint of the held key beside the auth and delivery evidence, never the key", async () => {

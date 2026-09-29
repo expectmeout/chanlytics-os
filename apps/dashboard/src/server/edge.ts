@@ -1,9 +1,11 @@
 /**
  * How the dashboard reaches the edge: where it is, and what a call carries.
  *
- * The address was a literal in five files; it is one variable now, EDGE_URL,
- * with the old literal as its default so nothing moves until it is set (a
- * preview pointed at a staging edge is then one variable away). The
+ * The address was a literal in five files; it is one variable now, EDGE_URL.
+ * Production must name it (env.ts: it refuses to boot without), so a
+ * production deployment never quietly calls an address it was not given; a
+ * preview or a laptop keeps the old literal as its default, and a preview
+ * pointed at a staging edge is one variable away. The
  * credential was one shared key in a header; a call now carries a token
  * minted for the door it opens (packages/channels edge-token), bound to the
  * workspace and the person, valid for a minute, when EDGE_CALL_SECRET is set
@@ -16,9 +18,11 @@
  */
 import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels";
 import { MIN_MS } from "@chanlytics/contracts";
+import { env, isProduction } from "./env";
 import { requestId } from "./log";
 
-const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
+/** Where a preview or a laptop calls when EDGE_URL is unset: the edge's production address, as it always was. */
+const NOT_PRODUCTION_EDGE_URL = "https://chanlytics-messaging.vercel.app";
 
 /**
  * How long a lambda keeps what the edge said this deployment can do (Google's, billing's, own domains'): five
@@ -26,14 +30,20 @@ const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
  */
 export const READY_TTL_MS = 5 * MIN_MS;
 
-/** The edge's origin, no trailing slash. */
+/**
+ * The edge's origin, no trailing slash (env.ts strips it). A production deployment without EDGE_URL never starts
+ * (instrumentation.ts), and one that somehow runs without it throws here rather than call an address nobody set.
+ */
 export function edgeUrl(): string {
-  return (process.env.EDGE_URL || DEFAULT_EDGE_URL).replace(/\/+$/, "");
+  const set = env.EDGE_URL;
+  if (set) return set;
+  if (isProduction()) throw new Error("env_invalid: EDGE_URL is required in production");
+  return NOT_PRODUCTION_EDGE_URL;
 }
 
 /** Whether this deployment holds any credential the edge would honour. */
 export function edgeConfigured(): boolean {
-  return !!(process.env.EDGE_CALL_SECRET || process.env.DIAG_KEY);
+  return !!(env.EDGE_CALL_SECRET || env.DIAG_KEY);
 }
 
 /**
@@ -56,9 +66,10 @@ export function edgeHeaders(
   const h: Record<string, string> = { "content-type": "application/json" };
   const id = requestId();
   if (id) h[REQUEST_ID_HEADER] = id;
-  const secret = process.env.EDGE_CALL_SECRET;
+  const secret = env.EDGE_CALL_SECRET;
+  const key = env.DIAG_KEY;
   if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);
-  else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
+  else if (key) h["x-diag-key"] = key;
   return h;
 }
 

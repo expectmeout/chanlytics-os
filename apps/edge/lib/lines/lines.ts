@@ -14,7 +14,6 @@ import {
   importPhoneNumber,
   voiceEndpoints,
   smsInboundUrl,
-  DEFAULT_FN_URL,
   withKey,
   type LinePorts,
   type LineRow,
@@ -28,24 +27,12 @@ import {
 import { ensureVoiceAgent } from "../voice/voice-agent.js";
 import type { LineDto } from "../packages/contracts.js";
 import { env } from "../env.js";
+import { edgeFnUrl } from "../dashboard-origin.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
   provider: LineProvider;
   master: ProviderAccount;
-}
-
-/**
- * Where this deployment answers, as the provider must be told to reach it.
- *
- * The default is the address the edge has always had; `EDGE_ORIGIN` moves
- * it, the way DASHBOARD_ORIGIN moves the dashboard's. Without this the
- * production URL is a constant inside a shared package, which is exactly
- * the thing that has to be edited and redeployed to move an environment.
- */
-export function edgeFnUrl(): string {
-  const o = env.EDGE_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? `${o}/api/retell-fn` : DEFAULT_FN_URL;
 }
 
 /** Real credentials win; the dry provider only outside production; otherwise none. */

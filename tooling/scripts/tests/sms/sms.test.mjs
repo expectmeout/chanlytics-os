@@ -432,8 +432,8 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // using it, taken over once they have released it -- is RUN against a
   // database holding two workspaces' rows, in lines-saga.test.mjs.
   // One value says where this deployment answers, so a provider is never
-  // told an address baked into a shared package.
-  assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("env.EDGE_ORIGIN"));
+  // told an address baked into a shared package: edgeFnUrl, run in
+  // edge/edge-boot.test.mjs.
   assert.ok(
     edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"),
     "the voice webhook is built from the same value",

@@ -21,7 +21,7 @@ import {
 } from "../lib/packages/channels.js";
 import { metaAppId } from "../lib/whatsapp/meta-graph.js";
 import { env } from "../lib/env.js";
-import { unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
+import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
 import { coldReplyDomains } from "../lib/email/email.js";
 import { emailDomainOf } from "../lib/packages/contracts.js";
 
@@ -257,7 +257,7 @@ function voiceAgentEntry(
         live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
         // Which text model the line runs — provisioning parity, in one word.
         model: llm?.model ?? null,
-        shell: llm ? voiceShellDrift(llm) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+        shell: llm ? voiceShellDrift(llm, edgeFnUrl()) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
         // The agent-level settings the pipeline needs: the live
         // transcript event, a webhook budget the recording copy fits
         // in, signed recording links.

@@ -325,6 +325,29 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), []);
 });
 
+test("the dashboard reads the environment through src/server/env.ts or src/lib/public-env.ts, nowhere else", async () => {
+  const read = "export const k = process.env.DIAG_KEY;\n";
+  for (const at of [
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/app/api/v1/probe/route.ts",
+    "apps/dashboard/proxy.ts",
+    "apps/dashboard/next.config.ts",
+    "apps/dashboard/instrumentation.ts",
+    "apps/dashboard/src/legacy-bridge/probe.ts",
+    "apps/dashboard/src/auth/Probe.tsx",
+    "apps/dashboard/src/csp.ts",
+  ]) {
+    assert.deepEqual(await rulesFiredOn(at, read), ["no-restricted-properties"], at);
+  }
+  assert.deepEqual(
+    await rulesFiredOn("apps/dashboard/src/server/probe.ts", "const { env } = process;\nexport const k = env;\n"),
+    ["no-restricted-properties"],
+    "a destructured read is a read",
+  );
+  assert.deepEqual(await rulesFiredOn("apps/dashboard/src/server/env.ts", read), []);
+  assert.deepEqual(await rulesFiredOn("apps/dashboard/src/lib/public-env.ts", read), []);
+});
+
 /**
  * A line that must not compile says why, in every TypeScript block: the type tests' negatives (`*.type-test.ts`) are
  * `@ts-expect-error <why>`, and one that starts to compile is TS2578, an unused directive. `@ts-ignore` would stay

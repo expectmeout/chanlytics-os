@@ -59,9 +59,6 @@ export const FACTS_UNAVAILABLE =
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 
-/** Where the booking-link tool posts. Overridable for previews. */
-export const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
-
 /** The availability tool posts beside it, on the same host and secret. */
 export function availabilityUrl(fnUrl: string): string {
   return /\/api\/retell-fn$/.test(fnUrl)
@@ -87,10 +84,7 @@ export interface VoiceShellTarget {
  * live tool's headers are carried over untouched, and a tool with none is
  * reported rather than silently created secret-less.
  */
-export function voiceShellTools(
-  fnUrl: string = DEFAULT_FN_URL,
-  bookingHeaders?: Record<string, string> | null,
-): RetellTool[] {
+export function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[] {
   return [
     {
       type: "end_call",
@@ -164,10 +158,7 @@ export function voiceShellTools(
 }
 
 /** The whole target: what a converged agent's LLM holds. */
-export function desiredVoiceShell(
-  fnUrl: string = DEFAULT_FN_URL,
-  bookingHeaders?: Record<string, string> | null,
-): VoiceShellTarget {
+export function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget {
   return {
     general_prompt: VOICE_SHELL_PROMPT,
     begin_message: VOICE_SHELL_BEGIN,
@@ -305,9 +296,9 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
  * The diagnostic's view: on the shell or not, and why not. Strings only —
  * this is printed by /api/diag, and the live tools carry a secret header.
  */
-export function voiceShellDrift(live: LiveVoiceLlm): { converged: boolean; drift: string[] } {
+export function voiceShellDrift(live: LiveVoiceLlm, fnUrl: string): { converged: boolean; drift: string[] } {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
-  const url = typeof booking?.url === "string" ? (booking.url as string) : DEFAULT_FN_URL;
+  const url = typeof booking?.url === "string" ? (booking.url as string) : fnUrl;
   const headers = (booking?.headers as Record<string, string> | undefined) ?? null;
   const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers));
   const drift = [...plan.drift];

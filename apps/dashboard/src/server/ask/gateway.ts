@@ -16,7 +16,7 @@ export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import type { EdgeErrorCode } from "@chanlytics/contracts";
 
 export interface GatewayCall {

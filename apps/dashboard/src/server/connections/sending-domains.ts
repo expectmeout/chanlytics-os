@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError, sendingDomainDtoOf, type EdgeErrorCode, type SendingDomainDto } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 
 const AUD = "/api/admin/sending-domains";
 

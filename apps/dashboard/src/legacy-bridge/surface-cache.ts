@@ -19,10 +19,11 @@
 
 import { clearReadCaches } from "./read-cache";
 import { clearTabMemory } from "./tab-memory";
+import { publicEnv } from "@/lib/public-env";
 
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
 const CACHE_NAME = "chanlytics.surfaces.v1";
-const BUILD = process.env.NEXT_PUBLIC_BUILD_SHA || "dev";
+const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
 /**

@@ -26,9 +26,11 @@
  * a ceiling on spend that cannot be held is not a ceiling.
  */
 import { AppError, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
-import { createServiceClient, type Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isProduction } from "@/server/env";
 import { log } from "@/server/log";
+import { serviceDbIfConfigured } from "@/server/service-db";
 
 interface RateRule {
   limit: number;
@@ -298,10 +300,7 @@ let store: RateStore | null = null;
  * strict take refuses: a deployment that cannot count across instances does
  * not spend on a ceiling it cannot hold.
  */
-export function memoryByConfiguration(
-  fallback: RateStore,
-  production = process.env.VERCEL_ENV === "production",
-): RateStore {
+export function memoryByConfiguration(fallback: RateStore, production = isProduction()): RateStore {
   let said = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
@@ -324,12 +323,8 @@ export function memoryByConfiguration(
 /** Postgres when the server has its keys, else this instance's memory, said once. Chosen once. */
 function activeStore(): RateStore {
   if (store) return store;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store =
-    url && serviceRoleKey
-      ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory)
-      : memoryByConfiguration(memory);
+  const db = serviceDbIfConfigured();
+  store = db ? postgresStore(db, memory) : memoryByConfiguration(memory);
   return store;
 }
 

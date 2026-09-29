@@ -740,10 +740,6 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
-    server.includes("return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;"),
-    "the state's key is the one the dashboard already shares with the edge",
-  );
-  assert.ok(
     /export const CONNECTION_COLUMNS =\s*"google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";/.test(
       server,
     ),

@@ -25,6 +25,9 @@ import {
 // The one rule for a service that needs a consultation first, for the phone, the assistant and the board (C5b).
 const { offerFor, offerLead, needsConsultation } = await import("@chanlytics/contracts");
 import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
+
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 import { readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -319,7 +322,7 @@ test("REGRESSION (C5b): the phone tool answers a consultation-first service with
 });
 
 test("the shell carries the tool beside the booking link, the edge guards it, and the phone prompt names it", () => {
-  const d = desiredVoiceShell(undefined, { "x-fn-secret": "sealed" });
+  const d = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
   const tool = d.general_tools.find((t) => t.name === "check_availability");
   assert.ok(tool, "on the shell");
   assert.equal(tool.url, "https://chanlytics-messaging.vercel.app/api/retell-availability");
@@ -354,7 +357,9 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
     ),
     "a phone tool, not a WhatsApp one",
   );
-  const created = voiceLlmCreateBody({ fnSecret: "sealed" }).general_tools.find((t) => t.name === "check_availability");
+  const created = voiceLlmCreateBody({ fnSecret: "sealed" }, FN_URL).general_tools.find(
+    (t) => t.name === "check_availability",
+  );
   assert.ok(
     created && created.url === "https://chanlytics-messaging.vercel.app/api/retell-availability",
     "provisioning creates it too",

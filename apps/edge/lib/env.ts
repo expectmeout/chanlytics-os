@@ -27,7 +27,16 @@
  *
  * The groups and the order follow `apps/edge/.env.example`, which documents
  * each one.
+ *
+ * One thing is done at import, and only in production: `assertBootable` at the
+ * end of this file. Every door reads its environment through here, so a
+ * production edge that lacks what it cannot serve without (REQUIRED_IN_PRODUCTION)
+ * logs one line, `env_invalid`, naming what is missing, and refuses to load:
+ * every door fails at once, loudly, instead of one at a time on first use.
+ * There is no instrumentation hook for plain functions; a module every door
+ * loads is the edge's boot.
  */
+import { logger } from "./log.js";
 
 function trimmedEnv(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -248,3 +257,51 @@ export const env = {
     return trimmedEnv(process.env.VERCEL_ENV);
   },
 };
+
+/** Whether this deployment is production: VERCEL_ENV says so, and nothing else does (an unset one is a laptop). */
+export function isProduction(): boolean {
+  return env.VERCEL_ENV === "production";
+}
+
+/** An https origin as typed (a trailing slash is the same origin), or null when the value is not one. */
+export function httpsOriginOf(value: string | undefined): string | null {
+  const o = value?.trim().replace(/\/+$/, "") ?? "";
+  return /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : null;
+}
+
+/**
+ * What a production edge cannot serve without: its memory, the secret the dashboard's calls are verified with (an
+ * edge without it lets the platform key open every admin door), and the two addresses it writes into links and hands
+ * to providers. DASHBOARD_ORIGIN and EDGE_ORIGIN had production's addresses as code defaults, so a production edge that
+ * lost its setting went on writing whatever the default said; production now names them, and only a preview or a
+ * laptop keeps the default (dashboard-origin.ts, lines/lines.ts, leads/lead-wires.ts).
+ */
+export const REQUIRED_IN_PRODUCTION = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "EDGE_CALL_SECRET",
+  "DASHBOARD_ORIGIN",
+  "EDGE_ORIGIN",
+] as const;
+
+/** The two of those that must be https origins, not merely set. */
+const ORIGINS: ReadonlySet<string> = new Set(["DASHBOARD_ORIGIN", "EDGE_ORIGIN"]);
+
+/** What a production environment lacks, by name only (a value is never repeated); none off production. */
+export function bootProblems(source: Readonly<Record<string, string | undefined>> = process.env): string[] {
+  if (source.VERCEL_ENV?.trim() !== "production") return [];
+  return REQUIRED_IN_PRODUCTION.filter((name) => {
+    const value = trimmedEnv(source[name]);
+    return !value || (ORIGINS.has(name) && !httpsOriginOf(value));
+  });
+}
+
+/** Refuse to load a production edge that lacks what it cannot serve without: one line naming it, then a throw. */
+export function assertBootable(source: Readonly<Record<string, string | undefined>> = process.env): void {
+  const missing = bootProblems(source);
+  if (!missing.length) return;
+  logger().error("env_invalid", { missing });
+  throw new Error(`env_invalid: this production edge cannot serve without ${missing.join(", ")}`);
+}
+
+assertBootable();

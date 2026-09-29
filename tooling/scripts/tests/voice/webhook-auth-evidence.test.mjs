@@ -17,10 +17,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { desiredVoiceShell, planVoiceConvergence, voiceLlmCreateBody } from "@chanlytics/channels";
+
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 import { whyNotAHandoff } from "@chanlytics/contracts";
 
 test("a freshly applied agent, with the provider's own defaults added, is converged", () => {
-  const desired = desiredVoiceShell(undefined, { "x-fn-secret": "sealed" });
+  const desired = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
   // What get-retell-llm returned right after the apply.
   const live = {
     general_prompt: desired.general_prompt,
@@ -50,7 +53,7 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
     "an empty required list is the provider's default and is dropped on save",
   );
   assert.ok(
-    !JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'),
+    !JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }, FN_URL).general_tools).includes('"required"'),
     "provisioning sends none either",
   );
 });

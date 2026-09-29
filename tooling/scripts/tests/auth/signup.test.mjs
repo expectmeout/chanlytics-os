@@ -132,7 +132,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     "a bucket per network and per address",
   );
   assert.ok(
-    route.includes("inviteCodeMatches(input.code)") && route.includes("process.env.SIGNUP_CODE"),
+    route.includes("inviteCodeMatches(input.code)") && route.includes("env.SIGNUP_CODE"),
     "the invite code compared in constant time, by the one function both doors use",
   );
   assert.ok(

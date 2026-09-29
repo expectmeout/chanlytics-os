@@ -54,6 +54,8 @@ export {
   ACTIVITY_KINDS,
 } from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
+export { SECURITY_SWITCHES, daysToSunset } from "./security-switches";
+export type { SecuritySwitch, SecuritySwitchName } from "./security-switches";
 export {
   signupPosture,
   pendingWorkspaceOf,

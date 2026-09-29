@@ -3645,11 +3645,10 @@ var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
 var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 function availabilityUrl(fnUrl) {
   return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
 }
-function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+function voiceShellTools(fnUrl, bookingHeaders) {
   return [
     {
       type: "end_call",
@@ -3717,7 +3716,7 @@ function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
     }
   ];
 }
-function desiredVoiceShell(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+function desiredVoiceShell(fnUrl, bookingHeaders) {
   return {
     general_prompt: VOICE_SHELL_PROMPT,
     begin_message: VOICE_SHELL_BEGIN,
@@ -3798,9 +3797,9 @@ function planVoiceConvergence(live, desired) {
   if (toolsDiffer) patch.general_tools = desired.general_tools;
   return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
 }
-function voiceShellDrift(live) {
+function voiceShellDrift(live, fnUrl) {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
-  const url = typeof booking?.url === "string" ? booking.url : DEFAULT_FN_URL;
+  const url = typeof booking?.url === "string" ? booking.url : fnUrl;
   const headers2 = booking?.headers ?? null;
   const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers2));
   const drift = [...plan.drift];
@@ -3924,7 +3923,7 @@ var VOICE_NUMBER_DEFAULTS = {
   country_code: "US",
   number_provider: "twilio"
 };
-function voiceEndpoints(fnUrl = DEFAULT_FN_URL) {
+function voiceEndpoints(fnUrl) {
   const base = fnUrl.replace(/\/api\/retell-fn$/, "");
   return {
     fn: fnUrl,
@@ -3939,10 +3938,10 @@ function withKey(url, secret) {
 function stripKey(url) {
   return typeof url === "string" ? url.split("?")[0] : null;
 }
-function voiceLlmCreateBody(s, fnUrl = DEFAULT_FN_URL) {
+function voiceLlmCreateBody(s, fnUrl) {
   return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
 }
-function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceAgentCreateBody(o, s, fnUrl) {
   return {
     agent_name: o.agentName,
     response_engine: {
@@ -3962,7 +3961,7 @@ function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
 function voiceNumberBinding(o) {
   return [{ agent_id: o.agentId, ...o.pinned ? { agent_version: "latest_published" } : {}, weight: 1 }];
 }
-function voiceNumberCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceNumberCreateBody(o, s, fnUrl) {
   return {
     ...VOICE_NUMBER_DEFAULTS,
     area_code: o.areaCode,
@@ -3971,7 +3970,7 @@ function voiceNumberCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
     inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret)
   };
 }
-function voiceNumberBindBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceNumberBindBody(o, s, fnUrl) {
   return {
     nickname: o.nickname,
     inbound_agents: voiceNumberBinding(o),
@@ -7066,7 +7065,6 @@ export {
   ApifyRetryable,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
-  DEFAULT_FN_URL,
   EDGE_TOKEN_TTL_MS,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,

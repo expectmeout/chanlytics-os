@@ -21,6 +21,9 @@ import {
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "../_source.mjs";
 
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+
 test("a fresh agent (provider defaults) is planned onto the pipeline's settings", () => {
   const plan = planAgentSettings({
     webhook_events: null,
@@ -98,7 +101,7 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
     "an agent with no webhook at all is someone else's drift",
   );
   // What provisioning creates plans nothing here.
-  const created = voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
+  const created = voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   assert.equal(created.webhook_url, bare);
   assert.equal(planAgentSettings(created).agentPatch, null);
 });
@@ -151,7 +154,7 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
   // Provisioning creates the agent with the same settings the converger keeps.
-  const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
+  const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   assert.deepEqual(created.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
   assert.equal(created.webhook_timeout_ms, 20000);
   assert.equal(created.opt_in_signed_url, true);

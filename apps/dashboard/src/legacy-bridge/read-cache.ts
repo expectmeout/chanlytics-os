@@ -29,6 +29,7 @@
  * workspaces cannot paint the last one's rows: the prefix simply misses.
  */
 import { getActiveWorkspace } from "./workspace";
+import { publicEnv } from "@/lib/public-env";
 
 /** Entries per cache. A log paged ten deep plus its filters, and no more. */
 const MAX_ENTRIES = 24;
@@ -39,7 +40,7 @@ const TAB_ENTRY_CHARS = 200_000;
 /** The tab's storage is shared with the surfaces (surface-cache.ts, up to 2M), so what this may take stays well under it. */
 const TAB_TOTAL_CHARS = 600_000;
 /** A deploy can change a view model's shape, so the tab's copy is the build's own, as surface-cache's is. */
-const BUILD = process.env.NEXT_PUBLIC_BUILD_SHA || "dev";
+const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
 
 export interface ReadCache<T> {
   /** The last answer for this key, or null. Synchronous: this is what the first paint draws. */

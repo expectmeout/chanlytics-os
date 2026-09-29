@@ -21,10 +21,9 @@ import {
   type LeadJudgeClient,
 } from "../packages/channels.js";
 import { JUDGE_TIMEOUT_MS } from "../packages/core.js";
-import { env } from "../env.js";
+import { env, httpsOriginOf } from "../env.js";
+import { edgeOrigin } from "../dashboard-origin.js";
 import { imageBytes, pageText } from "./lead-marks.js";
-
-const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 
 export interface LeadWires {
   apify: ApifyClient;
@@ -37,10 +36,9 @@ export interface LeadWires {
   webhookToken(runRowId: string): Promise<string>;
 }
 
-/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else EDGE_ORIGIN, else the address the edge has always had. */
+/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else the edge's own (EDGE_ORIGIN). */
 function leadWebhookBase(): string {
-  const o = env.LEAD_WEBHOOK_BASE || env.EDGE_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_ORIGIN;
+  return httpsOriginOf(env.LEAD_WEBHOOK_BASE) ?? edgeOrigin();
 }
 
 async function leadWebhookToken(runRowId: string): Promise<string> {

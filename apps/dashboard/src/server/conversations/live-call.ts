@@ -1,5 +1,5 @@
 import "server-only";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeAnswered } from "../edge";
 
 /** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */

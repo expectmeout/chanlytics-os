@@ -39,7 +39,6 @@ import {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
-  DEFAULT_FN_URL,
 } from "@chanlytics/channels";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
@@ -63,6 +62,9 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+/** Where this edge tells the provider its voice tools post (no EDGE_ORIGIN here: the default off production). */
+const { edgeFnUrl } = await import(at("apps/edge/lib/dashboard-origin.ts"));
+const FN_URL = edgeFnUrl();
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const provision = await import(at("apps/edge/api/admin/voice-provision.ts"));
 const converge = await import(at("apps/edge/api/admin/voice-converge.ts"));
@@ -348,7 +350,7 @@ test("provision, the plan: a dry run by default that prints what an apply would 
         ["notify", "notify"],
       ],
     );
-    const ends = voiceEndpoints(DEFAULT_FN_URL);
+    const ends = voiceEndpoints(FN_URL);
     assert.deepEqual(
       body.preview,
       {
@@ -437,7 +439,7 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
   const [llm, agent, publish, number] = p.seen.map((r) => (r.body ? JSON.parse(r.body) : null));
   assert.deepEqual(
     llm,
-    voiceLlmCreateBody(SECRETS),
+    voiceLlmCreateBody(SECRETS, FN_URL),
     "the shell, byte for byte: placeholders, the four tools with the secret on their header, spoken defaults",
   );
   assert.equal(
@@ -447,12 +449,12 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
   );
   assert.deepEqual(
     agent,
-    voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "Harbor Moving front desk" }, SECRETS),
+    voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "Harbor Moving front desk" }, SECRETS, FN_URL),
     "the product's voice, the webhook with its events, the analysis fields, retention",
   );
   assert.equal(
     agent.webhook_url,
-    voiceEndpoints(DEFAULT_FN_URL).webhook,
+    voiceEndpoints(FN_URL).webhook,
     "the call webhook carries no key: the signature is its credential",
   );
   assert.deepEqual(publish, { version: 0, version_title: "provisioned from the edge" });
@@ -461,6 +463,7 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
     voiceNumberCreateBody(
       { areaCode: 305, agentId: "agent_2", pinned: true, nickname: "Harbor Moving · Chanlytics" },
       SECRETS,
+      FN_URL,
     ),
   );
   assert.deepEqual(
@@ -598,7 +601,7 @@ test("provision, the apply that binds an existing number:the number is patched o
   ]);
   assert.deepEqual(
     JSON.parse(p.seen[3].body),
-    voiceNumberBindBody({ agentId: "agent_2", pinned: true, nickname: "Harbor Moving · Chanlytics" }, SECRETS),
+    voiceNumberBindBody({ agentId: "agent_2", pinned: true, nickname: "Harbor Moving · Chanlytics" }, SECRETS, FN_URL),
   );
   assert.deepEqual(body.result.number, { phone_number: NUMBER, bound: true, pinned: true, type: "retell-twilio" });
   assert.equal(tables.tenant_channels[0].number_e164, NUMBER);
@@ -664,7 +667,7 @@ test("provision, a run that fails partway answers with the step, the provider's 
   assert.equal(tables.tenant_channels.length, 0);
 
   // Resumed with the LLM: it is read first, then only the agent is created.
-  const resumed = retell({ llms: { llm_1: { ...voiceLlmCreateBody(SECRETS), llm_id: "llm_1", version: 0 } } });
+  const resumed = retell({ llms: { llm_1: { ...voiceLlmCreateBody(SECRETS, FN_URL), llm_id: "llm_1", version: 0 } } });
   try {
     [status, body] = await answer(await knock({ tenant_id: A, llm_id: "llm_1", area_code: 305, apply: true }));
   } finally {
@@ -681,14 +684,18 @@ test("provision, a run that fails partway answers with the step, the provider's 
 
   // Resumed with an agent a previous run left behind, unpublished: adopted, published, bound; the row names its LLM.
   const left = {
-    ...voiceAgentCreateBody({ llmId: "llm_left", llmVersion: 0, agentName: "Harbor Moving front desk" }, SECRETS),
+    ...voiceAgentCreateBody(
+      { llmId: "llm_left", llmVersion: 0, agentName: "Harbor Moving front desk" },
+      SECRETS,
+      FN_URL,
+    ),
     agent_id: "agent_left",
     version: 0,
     is_published: false,
   };
   const adopt = retell({
     agents: { agent_left: left },
-    llms: { llm_left: { ...voiceLlmCreateBody(SECRETS), llm_id: "llm_left", version: 0 } },
+    llms: { llm_left: { ...voiceLlmCreateBody(SECRETS, FN_URL), llm_id: "llm_left", version: 0 } },
   });
   const fresh = use();
   try {

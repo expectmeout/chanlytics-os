@@ -124,6 +124,7 @@ export const LOG_EVENTS = [
   "email_switch_rejected",
   "email_tell_failed",
   "email_wire_unavailable",
+  "env_invalid",
   "forwarding_evidence",
   "forwarding_verified",
   "forwarding_verify_failed",
