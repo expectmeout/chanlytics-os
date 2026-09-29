@@ -2,7 +2,7 @@
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
 shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) shipped 27–28 Sep (§6, twelve PRs; N1–N6);
-Part 6 (what comes back) shipped 28–29 Sep (§6, one PR; H1–H12); Part 7 (bring your own list) next. The eight decisions
+Part 6 (what comes back) shipped 28–29 Sep (§6, #1325; H1–H12); Part 7 (bring your own list) next. The eight decisions
 in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
@@ -703,7 +703,7 @@ Each to 100% before the next, and each shippable in either deploy order unless s
      chain go on, not `away` in their own words and not `not_now` (N1; §4.7 already said "Not now: the chain stops").
      Only an automatic out-of-office pauses, through a fact of its own (`away`, 00226), not through `wrote_back`.
      `wrote_back` was widened once, in its one place: an automatic reply read as no or wrong person counts (00222).
-6. **Built 28–29 Sep 2026 in one PR (00241).** **What comes back:** Reports by step, angle and domain; interested and
+6. **Built 28–29 Sep 2026 in one PR (#1325, 00241).** **What comes back:** Reports by step, angle and domain; interested and
    booked on the chain's row; Leads while it writes (the strip, the Stage line, the peek's story, Stop writing to them,
    the undo on the lead); a person's rows; and the day's numbers at 6 PM, a line in the bell (§4.9).
    `docs/superpowers/plans/2026-09-28-reach-out-part-6-what-comes-back.md` has the decisions (H1–H12) and what was built.

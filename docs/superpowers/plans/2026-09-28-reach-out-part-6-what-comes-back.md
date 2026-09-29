@@ -44,7 +44,7 @@ Contracts turn each read into words, in two new modules: `reports/reach-out-repo
 | PR  | Pull request | Migration | What it shipped |
 | --- | ------------ | --------- | --------------- |
 | 1   | #1321        | —         | The plan        |
-| 2   | the next PR  | 00241     | Reports' Reach-outs, the chain row's interested and booked, Leads while it writes, a person's rows, the 6 PM line |
+| 2   | #1325        | 00241     | Reports' Reach-outs, the chain row's interested and booked, Leads while it writes, a person's rows, the 6 PM line |
 
 PR 2 runs this sequence:
 1. Branch from `main` after this plan merges.
