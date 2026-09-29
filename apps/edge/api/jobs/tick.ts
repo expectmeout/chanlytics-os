@@ -35,6 +35,7 @@ import {
   dispatchJob,
   scheduleJob,
   scheduleJobOnce,
+  lateFields,
   CLAIM_FOR_MS,
   YIELD_AT_MS,
   LEAD_YIELD_AT_MS,
@@ -138,20 +139,23 @@ export async function POST(request: Request): Promise<Response> {
         leaseSeconds: LEASE_SECONDS,
       },
     );
-    L.info("jobs_tick", { ...counts });
+    // How late each kind's first claim came rides on the heartbeat's line (0018,
+    // step 1); the answer to pg_net keeps its counts alone.
+    const { lateMs, ...tally } = counts;
+    L.info("jobs_tick", { ...tally, ...lateFields(lateMs) });
     // Many failures in one heartbeat are also the platform's condition: one page
     // with the counts in words and where to look. Each failed job has already
     // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is
     // in addition to those, not instead of them.
-    if (counts.failed + counts.gaveUp >= MASS_FAILURE_PAGE) {
+    if (tally.failed + tally.gaveUp >= MASS_FAILURE_PAGE) {
       await pageOperator(
         { db },
         "jobs_mass_failure",
-        `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`,
-        massFailureBody(counts),
+        `${tally.failed + tally.gaveUp} jobs failed in one heartbeat`,
+        massFailureBody(tally),
       );
     }
-    return json(200, { ok: true, ...counts });
+    return json(200, { ok: true, ...tally });
   } catch (e) {
     // Only the claim throws out of runTick; everything per job is caught inside
     // it. A ledger that cannot be claimed from is a database problem, and a 503

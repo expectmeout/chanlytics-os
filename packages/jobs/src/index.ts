@@ -24,5 +24,5 @@ export {
 export type { Db, LedgerRow, Verdict } from "./ledger";
 export { settleJob, saySettled } from "./settle";
 export type { TerminalJob, Settled } from "./settle";
-export { runTick } from "./tick";
+export { runTick, lateFields } from "./tick";
 export type { TickFields, TickLog, TickPorts, TickOptions, TickCounts } from "./tick";

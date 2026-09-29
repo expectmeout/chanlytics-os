@@ -457,6 +457,7 @@ stateDiagram-v2
 - A handler that loops yields at 45 seconds and schedules its own follow-up.
 - A row whose lease ran out is claimed again, and `verdictFor` decides: work that speaks to a person (`outbound_send`, `broadcast_send`) **gives up** rather than risk a second message; internal work retries up to three times. There has been no re-claiming sweep since 00098: a lease that expires is settled by the tick itself. What the ledger cannot see — a queued reply with no job to send it, a customer's message the handler never finished with — the deadman tick finds (S-09, `lib/unfinished.ts`, #578) and puts in front of a person, never answering on its own.
 - `completeJob` and `failJob` are compare-and-swaps on the state _and_ the attempt. A failed job is **settled** by kind (a message stops saying "Sending…", a broadcast closes) and its workspace is told (`alertFor`, addressed from the workspace's own settings, naming the channel the reply failed on). A run that fails many jobs at once pages the platform (S-19).
+- Each heartbeat's `jobs_tick` line says how late each kind's first claim came, at worst, as `late_ms_<kind>` (decision 0018, step 1), so a reply waiting behind bulk work shows in the logs before anyone misses it. A row claimed again (a retry, a lease that ran out) is not counted.
 
 **The handlers** (`packages/jobs/src/handlers.ts`) are thin: each runs a `packages/core` use case over the runtime's ports.
 
