@@ -263,7 +263,7 @@ export function figuresOf(
   };
 
   // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
-  // people whose first word or call came today (00231: never one who has had neither); the threads the page holds may
+  // people whose first word or call came today (00254: never one who has had neither); the threads the page holds may
   // be fewer (a name is said only for a person the figure counts) or more (someone who existed before and wrote for
   // the first time today is not new), so a wire or a name is said only when the two agree.
   const newThreads = conversations.filter((c) => {

@@ -1,5 +1,5 @@
 /**
- * A person who has never written or phoned is not new (00231), on a real database.
+ * A person who has never written or phoned is not new (00254), on a real database.
  *
  * Today's "new people" is metrics_summary's count of the people whose first word or call falls in the window. A person
  * with neither used to score 'infinity', after every window's start, so everyone the calendar, a lead, a teammate or

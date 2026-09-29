@@ -1,4 +1,4 @@
--- 00231 · A person who has never written or phoned is not new.
+-- 00254 · A person who has never written or phoned is not new.
 --
 -- metrics_summary counts as new a person whose first word or call falls in the
 -- window: the earliest of their messages' provider times and their connected
@@ -75,7 +75,7 @@ begin
                           and coalesce(b.meta->>'backfill', 'false') = 'true')
        -- Their first word or call, whichever came first: least() passes over
        -- the one they never had. A person with neither has no first moment, so
-       -- no window holds it (00231); they scored 'infinity' and were new in
+       -- no window holds it (00254); they scored 'infinity' and were new in
        -- every window.
        and least(
              (select min(m.channel_ts) from messages m where m.contact_id = c.id),
