@@ -20,18 +20,24 @@ export function clockLabel(t: number): string {
   return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
 }
 
-const SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+/*
+ * A day key is already the business's day ("2026-11-17"), so its words are that day's for every viewer: the key's UTC
+ * noon, said in UTC. Said in the viewer's own zone, as these were, a Tuesday read "Wednesday" east of UTC+12 (the
+ * scorecard's defect 28); said in the business's zone it would do the same to a business there. Never a zone here.
+ */
+const SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+const LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 
+/** "Nov 17" */
 export function shortDate(key: string): string {
   const { y, m, d } = keyParts(key);
   return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 
+/** "Tuesday, November 17" */
 export function longDate(key: string): string {
   const { y, m, d } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, d, 12)),
-  );
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 
 /**

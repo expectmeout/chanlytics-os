@@ -9141,7 +9141,7 @@ function shiftMonth(key, n) {
 }
 function monthLabelOf(key) {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, 1, 12))
   );
 }
@@ -9197,16 +9197,15 @@ function clockLabel(t) {
   const hh = (h + 11) % 12 + 1;
   return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
 }
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 function shortDate(key) {
   const { y, m, d } = keyParts(key);
   return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 function longDate(key) {
   const { y, m, d } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, d, 12))
-  );
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 function closureDatesLabel(c) {
   if (!(c.until && c.until > c.date)) return shortDate(c.date);

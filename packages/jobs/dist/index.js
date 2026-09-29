@@ -1939,7 +1939,8 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   15 * MIN_MS,
   30 * MIN_MS
 ];
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -9789,7 +9790,8 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   15 * MIN_MS2,
   30 * MIN_MS2
 ];
-var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS2 = 24 * HOUR_MS2;
 var REPLY_LIMITS2 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -13727,7 +13729,8 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   15 * MIN_MS3,
   30 * MIN_MS3
 ];
-var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG3 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
 var REPLY_LIMITS3 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -16920,7 +16923,8 @@ function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
   return localToUtcMs(tz, y, m, d, 0, 0);
 }
-var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT22 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG22 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS22 = 24 * HOUR_MS22;
 var REPLY_LIMITS22 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -20223,7 +20227,8 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   15 * MIN_MS32,
   30 * MIN_MS32
 ];
-var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT32 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG32 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS32 = 24 * HOUR_MS32;
 var REPLY_LIMITS32 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -24175,7 +24180,8 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   15 * MIN_MS4,
   30 * MIN_MS4
 ];
-var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SHORT4 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG4 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 var WA_WINDOW_MS4 = 24 * HOUR_MS4;
 var REPLY_LIMITS4 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },

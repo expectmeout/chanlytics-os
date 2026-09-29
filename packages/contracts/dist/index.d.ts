@@ -11317,7 +11317,7 @@ declare function monthSpan(key: string): {
 };
 /** The first of the month `n` months away from `key`'s month. */
 declare function shiftMonth(key: string, n: number): string;
-/** "September 2026" */
+/** "September 2026": the key's month for every viewer, its first's UTC noon said in UTC (calendar-words.ts says why). */
 declare function monthLabelOf(key: string): string;
 /** Midnight of a day key in `tz`, as an instant. */
 /**
