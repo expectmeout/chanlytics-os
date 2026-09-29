@@ -297,7 +297,6 @@ export const LOG_EVENTS = [
   "resend_webhook_unreadable",
   "retell_analyzed_duplicate",
   "retell_availability",
-  "retell_availability_booking_held",
   "retell_availability_no_calendar",
   "retell_availability_unavailable",
   "retell_availability_unrouted",

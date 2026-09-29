@@ -33,7 +33,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            180   of which over 200 lines: 43
+functions over the limit            179   of which over 200 lines: 43
 files over 800 lines                 13
 directories over 20 modules           5
 window globals                      200   names
@@ -47,7 +47,7 @@ primitives outside the kit         2155   selectors naming 864 classes
 inline style props                  286   in 49 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
-source-text reads in tests          822
+source-text reads in tests          820
 lint warnings                       321   in 62 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      982   the shell included
 workspace route CSS, KB gzipped     126
