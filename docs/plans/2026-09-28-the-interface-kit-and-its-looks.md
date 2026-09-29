@@ -413,7 +413,7 @@ variant appears (decision 7).
 ### 3.5 The proofs
 
 - **Style equality, for every step that must look the same.** A recorder drives the e2e harness (its `salon`,
-  `pipeline` and `nightly` scenarios): each route at 1440 by 900 and 390 by 844, in both modes, walking every element
+  `pipeline` and `nightly` scenarios, and from step 2.3 the `kit` scenario's gallery): each route at 1440 by 900 and 390 by 844, in both modes, walking every element
   and recording its box and a fixed list of computed properties (colour, background, border, radius, shadow, filter,
   backdrop filter, font, line height, letter spacing, opacity). Before equals after, byte for byte. A planted fault
   (one token moved one step) must differ. It is written once as `tooling/scripts/checks/style-equality.mjs` because
@@ -528,11 +528,13 @@ _Proof:_ style equality. _Done when:_ `components.css` holds the frame and nothi
 it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented control (from `.rec-seg`), the panel's
 three surfaces (from the most common card rule), the row (from the phone row's tokens), the sheet (the record sheet
 on a desk, the phone sheet under 900px), the meter (from `SegmentBar`), the face (the phone row's 32px face), the
-composer chassis (head, rows, foot, from the record sheet). No page uses them yet. _Proof:_ the gallery; style
+composer chassis (head, rows, foot, from the record sheet). No page uses them yet. It comes after 2.3, whose gallery
+is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. _Proof:_ the gallery; style
 equality on the pages. _Done when:_ every component of §3.4 exists once in CSS.
 
-**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit.spec.ts` (§3.4). _Proof:_ the spec. _Done when:_ every
-class in `classes.json` has an entry, which the spec checks.
+**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
+and needs only 1.7; 2.1 can run beside it, and has a page that draws every class it moves once it lands. _Proof:_ the
+spec. _Done when:_ every class in `classes.json` has an entry, which the spec checks, and a node test holds in CI.
 
 **2.4 The React components for the new primitives.** Typed, rendering the kit's classes, tested on the stub React.
 Where a component already exists in JSX (`StatePill`, `MoreMenu`, `EmptyState`, the record kit), its TSX is written
@@ -657,8 +659,8 @@ alternatives.
 | 1.6  | The look setting                      | no               | boot tests, style equality      | 1.4                                 |
 | 1.7  | The kit's home                        | no               | lint probes, style equality     | #1205: 0015 decided                 |
 | 2.1  | Kit-grade CSS into the kit            | no               | style equality                  | 1.7                                 |
-| 2.2  | The missing primitives                | no               | gallery, style equality         | 2.1                                 |
-| 2.3  | The gallery                           | no               | e2e spec                        | 2.2                                 |
+| 2.2  | The missing primitives                | no               | gallery, style equality         | 2.3                                 |
+| 2.3  | The gallery, before 2.2               | no               | e2e spec                        | 1.7                                 |
 | 2.4  | React components, new primitives      | no               | tests                           | 2.2                                 |
 | 3.x  | 0015's thirteen steps                 | no               | equal by value                  | 0015's own holds                    |
 | 4.x  | Each surface on the kit (twelve)      | harmonies only   | style equality, listed diffs    | that surface's move                 |
@@ -687,7 +689,7 @@ the surfaces are done, since they are not offered to members until step 5.5.
   from step 1.7.
 - **Style equality** (§3.5) on every step a member must not see, with a planted fault shown to differ.
 - **The gallery spec,** from step 2.3: every class in `classes.json` drawn, each reading its tokens in both modes and
-  both looks.
+  both looks; `tests/styles/kit-gallery.test.mjs` holds the classes in CI, where no browser spec runs.
 - **The look's boot:** `theme-boot.test.mjs` extended; the chrome pins updated in the same change; the e2e sidebar spec.
 - **Moves:** 0015's equal-by-value proof, unchanged.
 - **The bundle budget:** the kit's first steps may raise the CSS by a little, as a Rises row; each Phase 4 step

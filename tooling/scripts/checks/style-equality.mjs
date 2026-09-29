@@ -53,7 +53,8 @@ const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
 /**
  * The harness's records and the routes each is opened at (the address after `#/`). The salon draws the mockup's
  * pages, a seeded person and every Settings pane; the pipeline the real People, Pipeline and person's page; the
- * nightly its empty Business pane (its other pages are the salon's own, element for element).
+ * nightly its empty Business pane (its other pages are the salon's own, element for element); the kit its gallery,
+ * which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name.
  */
 export const PAGES = {
   salon: [
@@ -66,6 +67,7 @@ export const PAGES = {
   ],
   pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
   nightly: ["today", "admin"],
+  kit: ["kit"],
 };
 
 /**

@@ -207,7 +207,7 @@ landed. It runs with `--retries=0`, where the config retries once locally: a
 mutation run asks whether the journey went red, and a retry that passes turns a
 caught mutant into a flake.
 
-Three records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
+Four records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
 `tooling/scripts/ops/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
@@ -220,6 +220,8 @@ For it alone the server answers People's reads and the fixture runs the app's
 People surface, courier and route gate over them, so People, the Pipeline and a
 person's page are real there; a route whose surface the harness does not serve
 (Today, the Inbox, Leads) waits on it and then says it could not be read.
+`kit` is the nightly's record with the kit's gallery for its page in place of
+the mockup (below, "See the kit").
 
 What it cannot prove: anything behind a Save (the page's saver refuses, by
 design, and the specs that run here never press one), and anything about timing
@@ -238,6 +240,30 @@ menu is an `escape` `MoreMenu`, which closes on any captured scroll event
 (`data-bits.jsx`), so a scroll into view between the menu opening and the item
 being clicked closes it and the item is never there -- rare, likelier on the
 harness because its page is slower, and the nightly can hit it too.
+
+### See the kit
+
+The kit's gallery is one page that draws every class in `apps/dashboard/src/surfaces/kit/classes.json`, in the app's
+own stylesheets in the app's order (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, step 2.3). The harness
+serves it as the `kit` record's page, at `/` and at the workspace's address, and production never does.
+
+```bash
+corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit   # the gallery's checks
+node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
+```
+
+Its families and entries are data in `tooling/scripts/e2e-harness/kit-gallery.mjs`: each entry is the markup a kit
+component renders, written out, with every state its rules name, and a form that is fixed or placed over the page (a
+sheet, a menu, the toasts) stands in a stage of its own. `?theme=light&look=glass` opens it in either. `e2e/kit.spec.ts`
+checks that every class in `classes.json` and every rule of `kit.css` is drawn, but a press's; that every `var()` a kit
+rule reads changes what its entry draws when that token is planted on the element, in both themes, both looks and at
+both widths; and that a new primitive computes what the source it replaces computes. It fails on faults planted in the
+page, which is its own proof, and it prints what it saw: the entries, the rules drawn and those left out as a press's,
+the token reads per run and the twins. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in
+`corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against production the
+spec skips, and the nightly's skip ceiling does not count it.
+
+A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 
 ### Prove a style change
 
@@ -259,12 +285,13 @@ every request, so what is recorded is the working tree as it stands.
 
 `record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with
 a coarse pointer, dark and light: the salon's pages, a seeded person and every Settings pane; the pipeline's People,
-Pipeline, Leads and person's page; the nightly's empty Business pane. Then eleven scenes, each a route and a press or two
-(a click, a hover, a focus or a key): a menu open, a Confirm, a toast, the person's fold open in place, the menu's danger
-item under the pointer, a button focused by a key, a record sheet, a combobox's list open in a fold, a segmented control
-with its picked segment, a switch that is on, and a tooltip. Motion is stopped before a page draws, and its clock
-stands still at one moment and moves only as the recorder steps it, ten simulated seconds a route, so a timer's work
-is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
+Pipeline, Leads and person's page; the nightly's empty Business pane; the kit's gallery, which draws every class of the
+kit (a recording made before the gallery joined is not compared with one after: exit 2). Then eleven scenes, each a
+route and a press or two (a click, a hover, a focus or a key): a menu open, a Confirm, a toast, the person's fold open
+in place, the menu's danger item under the pointer, a button focused by a key, a record sheet, a combobox's list open
+in a fold, a segmented control with its picked segment, a switch that is on, and a tooltip. Motion is stopped before a
+page draws, and its clock stands still at one moment and moves only as the recorder steps it, ten simulated seconds a
+route, so a timer's work is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
 `::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages drew. It
 refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
 page threw, or a request that never ended. A full recording takes ten to fifteen minutes.
