@@ -2,8 +2,9 @@
  * The switch registry (contracts ai/flags.ts): every lever that turns a behaviour on or off is listed once, with its
  * owner and the day it is looked at again (category 39, "feature flags"). The list and the code agree both ways: a
  * switch the edge reads as one (its getter in lib/env.ts is documented "Switch:") is listed, and a listed switch is read
- * where its mechanism says it is; a sunset that has passed is a red build until somebody decides; and a switch with no
- * sunset says why it stays.
+ * where its mechanism says it is; a sunset that has passed is said in every run, and a red build a month after it, so
+ * that no unrelated change is stopped on the day and nobody can leave it for good; and a switch with no sunset says why
+ * it stays.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -75,19 +76,25 @@ test("a listed switch is read where its mechanism says it is", () => {
   }
 });
 
-test("every switch has an owner and a day it is looked at again; one with no day says why it stays; none is past its day", () => {
+/** How long past its day a switch may stand before the build says so: a month to decide it. */
+const SUNSET_GRACE_DAYS = 30;
+
+test("every switch has an owner and a day it is looked at again; one with no day says why it stays; none is a month past its day", (t) => {
   const names = FLAGS.map((f) => f.name);
   assert.equal(new Set(names).size, names.length, "each is listed once");
   const today = new Date().toISOString().slice(0, 10);
+  const lastDay = new Date(Date.now() - SUNSET_GRACE_DAYS * 86_400_000).toISOString().slice(0, 10);
   for (const f of FLAGS) {
     assert.ok(["Ruben", "platform"].includes(f.owner), `${f.name}: an owner`);
     assert.ok(f.does.length > 10, `${f.name}: what it switches`);
     if (f.sunset === null) assert.ok(f.kept && f.kept.length > 10, `${f.name}: no sunset, so it says why it is kept`);
     else {
       assert.match(f.sunset, /^\d{4}-\d{2}-\d{2}$/, `${f.name}: a day`);
+      if (f.sunset < today)
+        t.diagnostic(`${f.name}: its day (${f.sunset}) has passed: decide it, and move or remove the row`);
       assert.ok(
-        f.sunset >= today,
-        `${f.name}: its day (${f.sunset}) has passed: decide it, and move or remove the row`,
+        f.sunset >= lastDay,
+        `${f.name}: its day (${f.sunset}) passed more than ${SUNSET_GRACE_DAYS} days ago: decide it, and move or remove the row`,
       );
     }
   }

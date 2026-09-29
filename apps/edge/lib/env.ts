@@ -179,7 +179,7 @@ export const env = {
   get TYPESAFE_API_KEY() {
     return trimmedEnv(process.env.TYPESAFE_API_KEY);
   },
-  /** Switch: '1' asks the second model beside the primary, with its key set; anything else asks nothing. */
+  /** Switch: '1' asks the second model beside the primary for every workspace, a comma-separated list of workspace ids for those alone, with its key set; anything else asks nothing. */
   get TYPESAFE_SHADOW() {
     return trimmedEnv(process.env.TYPESAFE_SHADOW);
   },

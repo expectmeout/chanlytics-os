@@ -199,12 +199,14 @@ as $$
   select coalesce(c.tenant_id, t.tenant_id), coalesce(c.n, 0), coalesce(t.n, 0)
     from calls c
     full join turns t on t.tenant_id = c.tenant_id
-   where coalesce(c.n, 0) + coalesce(t.n, 0) >= greatest(p_min, 1)
-   order by coalesce(c.n, 0) + coalesce(t.n, 0) desc
+   -- The larger of the two, never their sum: one failed receptionist turn is a ledger row AND a brain_error escalation,
+   -- so a sum counts it twice; the larger is the fewest distinct events the hour can have held.
+   where greatest(coalesce(c.n, 0), coalesce(t.n, 0)) >= greatest(p_min, 1)
+   order by greatest(coalesce(c.n, 0), coalesce(t.n, 0)) desc
    limit 50;
 $$;
 
 revoke execute on function public.ai_failures_hour(integer) from public, anon, authenticated;
 grant execute on function public.ai_failures_hour(integer) to service_role;
 comment on function public.ai_failures_hour(integer) is
-  'The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour, most first. The health sweep pages on it.';
+  'The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the two counts: a failed turn is in both), most first. The health sweep pages on it.';

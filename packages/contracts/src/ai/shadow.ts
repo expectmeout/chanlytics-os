@@ -34,8 +34,24 @@ export const SHADOW_CONFIDENT = 0.8;
 export const SHADOW_TIMEOUT_MS = 6_000;
 /** How long the primary waits for its shadow once the primary is done: a slow shadow is left behind, never waited on. */
 export const SHADOW_GRACE_MS = 1_500;
+/** How long the ledger write of a shadow's rows may take before it is left behind: the customer's reply never waits on it longer. */
+export const SHADOW_WRITE_MS = 1_500;
 /** The question a row names when its call never answered: one row per failed call, with no answer to compare. */
 export const SHADOW_CALL = "call";
+
+/**
+ * Whether the switch is on for a workspace. '1' is every workspace; a comma-separated list of workspace ids is a pilot
+ * on those alone (Ruben's own first); anything else, blank included, is off.
+ */
+export function shadowSwitchOn(value: string | undefined, tenantId: string): boolean {
+  const v = value?.trim();
+  if (!v) return false;
+  if (v === "1") return true;
+  return v
+    .split(",")
+    .map((id) => id.trim().toLowerCase())
+    .includes(tenantId.toLowerCase());
+}
 
 /** What a shadow said, as a label the primary can also give, and how sure it was. */
 export interface ShadowRead {
@@ -44,7 +60,7 @@ export interface ShadowRead {
   confident: boolean;
 }
 
-/** An answer read as a label; null when it is not the kind the question asked (a shadow that answers wrongly says nothing). */
+/** An answer read as a label; null when it is not the kind the question asked, or names an option it was not offered (a shadow that answers wrongly says nothing). */
 export function shadowRead(question: SystemOneQuestion, answer: SystemOneAnswer | undefined): ShadowRead | null {
   if (!answer || answer.type !== question.type) return null;
   let label: string;
@@ -53,6 +69,8 @@ export function shadowRead(question: SystemOneQuestion, answer: SystemOneAnswer 
     label = answer.noul >= 0.5 ? "true" : "false";
     confidence = Math.max(answer.noul, 1 - answer.noul);
   } else if (answer.type === "choice") {
+    // An option the question did not offer is not an answer to it, and a label the ledger's column would refuse would lose its whole batch.
+    if (question.type !== "choice" || !Object.hasOwn(question.criteria, answer.choice)) return null;
     label = answer.choice;
     confidence = answer.confidence;
   } else return null;
@@ -63,7 +81,7 @@ export function shadowRead(question: SystemOneQuestion, answer: SystemOneAnswer 
 /** What became of one shadow call, as the ledger keeps it. */
 export type ShadowCallOutcome =
   | { outcome: "ok"; model: string; inputTokens: number; answers: Record<string, SystemOneAnswer> }
-  | { outcome: "rejected" | "unreachable" | "unreadable"; model: string };
+  | { outcome: "rejected" | "unreachable"; model: string };
 
 /** One shadow call for one purpose: who it is for, the questions put, the primary's label for each. */
 export interface ShadowCallFor {
@@ -150,6 +168,16 @@ export function receptionistShadowCall(customerText: string): ShadowCallSpec {
       [q.stop]: stopRequestQuestion(),
     },
   };
+}
+
+/**
+ * The words a second model is put for a receptionist turn: the customer's own text; for a photo, its caption, and none
+ * when it has none (the framing the primary is given around a photo, and the placeholder a captionless one leaves as its
+ * text, are not words the customer wrote). Undefined asks the shadow nothing.
+ */
+export function shadowWordsOf(x: { text: string; photo: boolean; caption?: string | null }): string | undefined {
+  if (!x.photo) return x.text;
+  return x.caption?.trim() || undefined;
 }
 
 /** The primary's answer to each of those: its intent's class; the fence's verdict; and no stop, or the door would have held it. */

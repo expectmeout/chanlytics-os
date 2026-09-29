@@ -109,6 +109,9 @@ async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
   return res.status === 429 || res.status >= 500 ? { kind: "unreachable", message } : { kind: "bad_request", message };
 }
 
+/** The breath before the one retry of a model that could not be reached: a throttled or busy one is not asked again in the same instant. */
+const RETRY_PAUSE_MS = 400;
+
 /**
  * Open one model round and yield its events as they arrive.
  *
@@ -146,6 +149,7 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     }
     if (refusal && (refusal.kind !== "unreachable" || attempt > 0 || call.signal?.aborted))
       throw new GatewayRefused(refusal);
+    if (refusal) await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
   }
   yield { type: "timing", ...serverTiming(res.headers.get("server-timing")), headersMs: Date.now() - sentAt };
   const reader = res.body.getReader();

@@ -247,6 +247,35 @@ test(
       "the three in the hour, not the one three hours ago",
     );
     assert.equal(hot.data.filter((r) => r.tenant_id === B).length, 0);
+
+    // A failed receptionist turn is a ledger row AND a brain_error escalation: the two are not added. Three failed calls
+    // and four brain_error turns are four failures at most, so a line of five is not crossed, and a line of four is.
+    const person = await db.from("contacts").insert({ tenant_id: A }).select("id").single();
+    assert.equal(person.error, null, person.error?.message);
+    const thread = await db
+      .from("conversations")
+      .insert({ tenant_id: A, contact_id: person.data.id })
+      .select("id")
+      .single();
+    assert.equal(thread.error, null, thread.error?.message);
+    const held = await db.from("escalations").insert(
+      Array.from({ length: 4 }, () => ({
+        tenant_id: A,
+        conversation_id: thread.data.id,
+        reason: "brain_error",
+        state: "resolved",
+      })),
+    );
+    assert.equal(held.error, null, held.error?.message);
+    const rowOf = async (min) =>
+      (await db.rpc("ai_failures_hour", { p_min: min })).data
+        .filter((r) => r.tenant_id === A)
+        .map((r) => [Number(r.failed_calls), Number(r.brain_errors)]);
+    assert.deepEqual(await rowOf(4), [[3, 4]], "the larger of the two counts crosses a line of four");
+    assert.deepEqual(await rowOf(5), [], "and their sum, seven, does not cross a line of five");
+    await db.from("escalations").delete().eq("conversation_id", thread.data.id);
+    await db.from("conversations").delete().eq("id", thread.data.id);
+    await db.from("contacts").delete().eq("id", person.data.id);
     assert.equal((await member.rpc("ai_failures_hour", { p_min: 1 })).error?.code, "42501");
 
     await put([call(A, { created_at: ago(401 * DAY) }), call(A, { created_at: ago(399 * DAY) })]);
@@ -362,6 +391,9 @@ test(
   { skip },
   async () => {
     const sure = (over) => shadow(A, over);
+    // The view reads every workspace's week, so the counts below hold on a stack with no other shadow rows: this one is
+    // the suite's own, never production (the skip above), and it starts this test with none.
+    await db.from("ai_usage").delete().eq("shadow", true);
     await put([
       // reply_read / reply_intent: eight compared, six agree; five decided, four of them agree; one with no label to compare.
       ...Array.from({ length: 4 }, (_, i) => sure({ input_tokens: i === 0 ? 900 : 0, usd: i === 0 ? 0.000038 : 0 })),
@@ -396,7 +428,7 @@ test(
     ]);
     const week = await db.rpc("ai_shadow_agreement", { p_days: 7 });
     assert.equal(week.error, null, week.error?.message);
-    const mine = week.data.filter((r) => [A].includes(A) && r.port === "typesafe");
+    const mine = week.data.filter((r) => r.port === "typesafe");
     const row = (purpose, question) => mine.find((r) => r.purpose === purpose && r.question === question);
     assert.deepEqual(
       Object.keys(week.data[0]).sort(),

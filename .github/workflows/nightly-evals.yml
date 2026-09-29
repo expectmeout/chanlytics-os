@@ -30,29 +30,39 @@ jobs:
     permissions:
       contents: read
       issues: write
-    # The key is read into the job's environment once, so a step can ask whether it is set: a secret cannot be tested in
-    # an `if` directly.
-    env:
-      ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+    # The key is not in the job's environment: a secret cannot be tested in an `if` directly, so the first step reads it
+    # to say whether it is set and hands on that fact alone, and only the step that asks the model is given the key. The
+    # install's scripts, and every other step, never hold it.
     steps:
       - name: Say so when there is no eval key
-        if: ${{ env.ANTHROPIC_EVAL_KEY == '' }}
-        run: echo "SKIPPED - ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was judged. This is not a pass."
+        id: key
+        shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_EVAL_KEY" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "set=false" >> "$GITHUB_OUTPUT"
+            echo "SKIPPED - ANTHROPIC_EVAL_KEY is not set, so nothing was asked and nothing was judged. This is not a pass."
+          fi
       - uses: actions/checkout@v7
-        if: ${{ env.ANTHROPIC_EVAL_KEY != '' }}
+        if: ${{ steps.key.outputs.set == 'true' }}
       - uses: pnpm/action-setup@v6
-        if: ${{ env.ANTHROPIC_EVAL_KEY != '' }}
+        if: ${{ steps.key.outputs.set == 'true' }}
       - uses: actions/setup-node@v7
-        if: ${{ env.ANTHROPIC_EVAL_KEY != '' }}
+        if: ${{ steps.key.outputs.set == 'true' }}
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-        if: ${{ env.ANTHROPIC_EVAL_KEY != '' }}
+        if: ${{ steps.key.outputs.set == 'true' }}
       - name: The cases, twice each
         id: evals
-        if: ${{ env.ANTHROPIC_EVAL_KEY != '' }}
+        if: ${{ steps.key.outputs.set == 'true' }}
         shell: bash
+        env:
+          ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}
         run: node tooling/scripts/evals/nightly.mjs --repeats 2 | tee evals.txt
       - name: Say so when the line was missed
         if: ${{ failure() && steps.evals.outcome == 'failure' }}

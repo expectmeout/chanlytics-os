@@ -50,6 +50,18 @@ const PRICES = [
   "a discount of 10%",
   "it's half price on Tuesdays",
   "2x1 los martes",
+  // The review's probe (29 September): a country's word before the currency, more Spanish numerals, a share said in words.
+  "It's 45 US dollars",
+  "45 Canadian dollars",
+  "forty-five US dollars",
+  "quinientos pesos",
+  "veintidós dólares",
+  "veintiún dólares",
+  "twenty percent off",
+  "50 percent off",
+  "50 per cent off",
+  "un 20 por ciento de descuento",
+  "a discount of 20 percent",
 ];
 const NOT_PRICES = [
   "It takes 45 minutes.",
@@ -75,12 +87,24 @@ const MONEY = [
   "Puedes pagar a plazos.",
   "Pedimos un anticipo para reservar.",
   "Tenemos meses sin intereses.",
+  // The review's probe: a coupon, a promotion, a thing given free of charge.
+  "Here is a coupon for your next visit.",
+  "Use the promo code SPRING.",
+  "We have a voucher for you.",
+  "That one is free of charge.",
+  "It's on the house.",
+  "Te doy un cupón.",
+  "Es sin costo.",
+  "Hay una promoción en septiembre.",
 ];
 const NOT_MONEY = [
   "We take cards and cash.",
   "Aceptamos tarjeta y efectivo.",
   "Your appointment is on Saturday.",
   "A member of our team will follow up with the details.",
+  "There is free parking behind the salon.",
+  "Come in for a free consultation.",
+  "Complimentary coffee is served in the lounge.",
 ];
 
 test("the price guard reads every currency, spelled-out amounts and cuts, and leaves durations and times alone", () => {

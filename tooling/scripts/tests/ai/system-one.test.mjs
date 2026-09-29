@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { askSystemOne, resetBreakers, SYSTEM_ONE_URL } from "@chanlytics/channels";
 import {
   DATA_NOT_INSTRUCTIONS,
-  JUDGE_FACT_KEYS,
   MODEL_PORTS,
   MODEL_ROUTES,
   OPT_OUT_REFUSAL,
@@ -19,6 +18,7 @@ import {
   SYSTEM_ONE_STATE_MAX_CHARS,
   fenceActed,
   injectionQuestion,
+  judgeQuestions,
   judgeShadowSpecs,
   judgeSystemPrompt,
   parseSystemOneResponse,
@@ -366,12 +366,22 @@ test("the judge's batch is a call a place, its state that place's facts and its 
   );
   assert.deepEqual(
     Object.keys(calls[0].questions),
-    ["kind", "right_kind", "independent", "chains"].filter((k) => k in calls[0].questions),
+    Object.keys(judgeQuestions(PLAN)),
+    "the rubric's own keys, in order",
   );
+  assert.ok(Object.keys(calls[0].questions).length >= 2, "and there are criteria to ask");
   assert.ok(calls[0].state.includes("Place 1") && !calls[0].state.includes("Place 2"), "one place's facts");
-  assert.ok(JUDGE_FACT_KEYS.length > 0);
   for (const question of Object.values(calls[0].questions)) {
     assert.equal(question.type, "choice");
     assert.match(question.instructions, /^Judge the place against this criterion: /);
   }
+});
+
+test("the judge's shadow is put a place's facts with its addresses as domains alone: no person's inbox leaves", () => {
+  const [spec] = judgeShadowSpecs(PLAN, [
+    { ...place(1), emails: ["rosa.example@mail.example.com", "hello@studio.example.org"] },
+  ]);
+  assert.ok(!spec.state.includes("rosa.example") && !spec.state.includes("hello@"), "no local part is sent");
+  assert.ok(spec.state.includes("@mail.example.com") && spec.state.includes("@studio.example.org"), "the domains are");
+  assert.ok(spec.state.includes("Place 1"), "the rest of the place's facts are as the judge is shown them");
 });

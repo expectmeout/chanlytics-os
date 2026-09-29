@@ -12,11 +12,15 @@ import { MIN_MS, HOUR_MS } from "../shared/time";
 const CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 /** A currency by its name, after a figure: 45 dollars, 45 euros, 450 pesos, 45 dólares. */
 const NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[oó]lares?|reales?";
+/** A country's word before a currency's name: 45 US dollars, 45 Canadian dollars, 450 Mexican pesos. */
+const COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 /** The numbers a price is spelled with, in English and in Spanish. */
 const EN_NUMBER =
   "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
 const ES_NUMBER =
-  "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-zé]+|veinte|veinti[a-zé]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+  "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-zé]+|veinte|veinti[a-zéáíóú]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+/** "per cent", "percent", "por ciento" and the sign: a share, written any of the ways a reply writes one. */
+const PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 
 // A figure with a currency, in any of the ways a reply writes one -- $45, € 45,
 // 45€, £30, MX$450, USD 45, 45 EUR, 450 MXN, 45 dollars, forty-five dollars,
@@ -27,14 +31,15 @@ const PRICE_PATTERNS: RegExp[] = [
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i",
   ),
   new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i,
 ];
 
@@ -43,13 +48,16 @@ export function violatesNoPrices(text: string): boolean {
 }
 
 // Money the receptionist never decides, in English and Spanish: a refund, a
-// discount, a deposit, a payment plan, financing, a waived fee. Payment
-// methods ("we take cards") are not here: they are a fact, not a term.
+// discount or coupon, a deposit, a payment plan, financing, a waived fee, a
+// thing given free of charge. Payment methods ("we take cards") are not here:
+// they are a fact, not a term.
 const MONEY_PATTERNS: RegExp[] = [
   /\brefund(?:s|ed|ing|able)?\b/i,
   /\breimburs\w*/i,
   /\bmoney back\b/i,
   /\bdiscount(?:s|ed)?\b/i,
+  /\b(?:coupons?|vouchers?|promo(?:s| codes?)?|promotions?)\b/i,
+  /\b(?:free of charge|on the house|no charge|at no (?:extra )?cost)\b/i,
   /\bdeposits?\b/i,
   /\bdown[\s-]payments?\b/i,
   /\bpayment plans?\b/i,
@@ -61,6 +69,9 @@ const MONEY_PATTERNS: RegExp[] = [
   /\bdevoluci[oó]n\b/i,
   /\bdev(?:olv|uelv)\w*\s+(?:el|tu|su)\s+dinero\b/i,
   /\bdescuentos?\b/i,
+  /\bcup[oó]n(?:es)?\b/i,
+  /\bpromoci[oó]n(?:es)?\b/i,
+  /\b(?:sin costo|sin cargo|de cortes[ií]a)\b/i,
   /\brebajas?\b/i,
   /\bdep[oó]sitos?\b/i,
   /\banticipos?\b/i,

@@ -196,7 +196,10 @@ export function judgeUserContent(places: PlaceFacts[]): string {
 
 /**
  * The judge's question put to a second model in shadow, place by place: the state is one place's facts as the judge is
- * shown them, and each criterion of the rubric (judgeQuestions) is a choice among the judge's own three answers.
+ * shown them but for its addresses, which are sent as their domains alone (a person's own inbox at a free-mail domain
+ * counts as theirs, and its name is not for a second processor), and each criterion of the rubric (judgeQuestions) is a
+ * choice among the judge's own three answers. What else leaves is the search's own words: its name, its area and its
+ * criteria, which are the workspace's configuration and no person's.
  */
 export function judgeShadowCalls(
   plan: LeadSearchPlan,
@@ -207,7 +210,12 @@ export function judgeShadowCalls(
   for (const [key, text] of Object.entries(judgeQuestions(plan))) {
     questions[key] = { type: "choice", instructions: `Judge the place against this criterion: ${text}`, criteria };
   }
-  return places.map((p) => ({ ref: p.ref, state: judgeUserContent([p]), questions }));
+  const domainOnly = (email: string) => `@${email.slice(email.lastIndexOf("@") + 1)}`;
+  return places.map((p) => ({
+    ref: p.ref,
+    state: judgeUserContent([{ ...p, emails: p.emails.map(domainOnly) }]),
+    questions,
+  }));
 }
 
 /* ----------------------------------------------------------- the parser -- */

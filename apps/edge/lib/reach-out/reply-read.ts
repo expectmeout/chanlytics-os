@@ -49,7 +49,7 @@ export function replyReader(
       if (ms <= 0) throw new Error("reply_read: no time left for the reader");
       // The reply's intent is also put to a second model in shadow, when it is on (decision 0023): never the person-or-
       // automatic read, which the intake's header claim keeps. Its answer is compared and kept, and never read here.
-      const shadow = startShadow("reply_read", forWhom, [replyReadShadowCall(user)]);
+      const shadow = startShadow("reply_read", forWhom, () => [replyReadShadowCall(user)]);
       let answered: JsonAnswer | null = null;
       try {
         answered = await askJson({

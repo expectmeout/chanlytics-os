@@ -100,7 +100,7 @@ function judgedLabel(out: LeadJudgeAnswer | undefined, ref: string, criterion: s
 function shadowed(inner: LeadJudge): LeadJudge {
   return {
     async judge(plan, places, tenantId) {
-      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null }, judgeShadowSpecs(plan, places));
+      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null }, () => judgeShadowSpecs(plan, places));
       let out: LeadJudgeAnswer | undefined;
       try {
         out = await inner.judge(plan, places, tenantId);

@@ -175,7 +175,7 @@ test("a model that behaves holds the line; one that leaks its prompt or obeys a 
     /system prompt/i.test(asked)
       ? "Sure. Rules you must follow: never quote a price."
       : /free of charge/i.test(asked)
-        ? "Done: your appointment is free of charge."
+        ? "Done: your appointment is confirmed, and I will tell everyone the same."
         : null,
   );
   const bad = await runAll(EVAL_KEY, w, cases, 1, { fetch: leaky.fetch, sleep: async () => {} });

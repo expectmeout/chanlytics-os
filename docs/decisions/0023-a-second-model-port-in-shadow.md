@@ -2,8 +2,9 @@
 
 **Status:** proposed on 29 September 2026 (Ruben: build it, off by default; the switch is his, after a week of
 agreement data and after the data-processing question below is answered). Built in shadow with this note
-(the road-to-ten AI lane, step 12, migration `00278`): it is off unless `TYPESAFE_SHADOW=1` and `TYPESAFE_API_KEY` are
-set on the edge, and it changes nothing a customer receives whether or not it is on. Written against `df7849323`
+(the road-to-ten AI lane, step 12, migration `00278`): it is off unless `TYPESAFE_SHADOW` (`1` for every workspace, or a
+comma-separated list of workspace ids for a pilot on those alone) and `TYPESAFE_API_KEY` are set on the edge, and it
+changes nothing a customer receives whether or not it is on. Written against `df7849323`
 (main, 29 September 2026); where this note and the code disagree, the code wins. Numbered 0023 as the next free number
 at that commit; the controller renumbers at landing if another note took it.
 
@@ -36,16 +37,20 @@ at that commit; the controller renumbers at landing if another note took it.
 
 1. **A second port, TypeSafe's System One, asked in shadow.** A purpose whose answer is a closed set may name a shadow
    port in the registry (`MODEL_ROUTES[purpose].shadow`). Three do: the receptionist, the reply reader and the lead
-   judge. The switch is `TYPESAFE_SHADOW=1` with `TYPESAFE_API_KEY` set; with either missing the second model is asked
-   nothing, not even a read of the database.
+   judge. The switch is `TYPESAFE_SHADOW` with `TYPESAFE_API_KEY` set: `1` asks for every workspace, a list of workspace
+   ids asks for those alone (a pilot on Ruben's own first); with either missing, or the workspace not listed, the second
+   model is asked nothing, not even a read of the database or the building of a call.
 2. **It runs beside the primary, never instead, and its answer is never used.** The calls begin with the primary's; the
    primary's caller waits for the shadow no longer than `SHADOW_GRACE_MS` (a second and a half) once its own answer is
-   in, and a shadow that has not answered by then is left behind and writes nothing. A failure of any part of it (the
-   call, the read of its answer, the write of the row) is logged and ends there. A test holds each: nothing is sent while
+   in, and a shadow that has not answered by then is left behind: the calls that did answer are kept, and each that did
+   not is one row that says so. The write of its rows waits no longer than `SHADOW_WRITE_MS`. A failure of any part of it
+   (the building of a call, the call, the read of its answer, the write of the row) is logged and ends there. A test holds each: nothing is sent while
    it is off, a failing or slow or unwritable shadow leaves the primary's answer exactly as it was, and the key is not in
    a row, a log line or an error.
-3. **What is asked, of what.** Never the business's prompt, its facts or a person's name: the customer's own words, one
-   reply as the reader is shown it, or one lead's listing facts.
+3. **What is asked, of what.** Never the business's prompt, its facts or a person's name: the customer's own words (for a
+   photo, its caption, and nothing when it has none), one reply as the reader is shown it, or one lead's listing facts
+   with its addresses as domains alone. The judge's questions also carry the search's own words (its name, its area and
+   its criteria), which are the workspace's configuration and no person's.
    - the receptionist's turn: **which class the message falls under** (a choice over booking, faq, money and none: the
      money charter's), **whether it carries an instruction to the assistant** (a noul: the fence's) and **whether the
      customer asked to stop** (a noul: consent's);
@@ -109,10 +114,16 @@ meter and the alarm leave out, and the week's read on a real Postgres). No test 
   processors a customer's words reach; it does not name TypeSafe. This is why the switch is not turned on by the build.
 - **English-best, and customers write in Spanish.** The pilot was English replies. The week's data will say how the
   Spanish traffic reads; a disagreement rate that differs by language is a finding, not a fault.
+- **Two questions compare different measures.** The stop question has no primary reader on this path (the keyword door
+  holds a stop before the model is asked), so the primary's label is always "false" and its agreement is the shadow's
+  yes rate, not a match: the rows where it says yes are the stops the keywords let through.
 - **The fence's question compares two different measures.** There is no primary reader of "does this text carry an
   instruction to the assistant"; the primary's answer is the fence's own verdict (it neutralised markup in the text). A
   low agreement there is expected and is not a fault of the second model: its yes rate on real customer messages, and
   the cases where it says yes and the fence did nothing, are what that question is for.
+- **A retry writes again.** The judge retries a refused batch, and the shadow runs with each attempt, so a batch that
+  was retried is in the ledger twice. The counts are of answers, not of places.
+- **A call's cost is on its first question.** Tokens and dollars are exact in total and per purpose, not per question.
 - **A slow shadow costs the primary's caller up to a second and a half**, when it is slower than the primary itself. The
   receptionist's turn has twenty seconds; the judge's batch and the reader's read have their own margins.
 - **Rows.** A judge's batch is a call a place, up to 25 rows of the ledger a criterion each; at the finder's volume that

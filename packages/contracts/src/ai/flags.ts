@@ -85,7 +85,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "TYPESAFE_SHADOW",
     mechanism: "edge_env",
-    does: "'1', with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
+    does: "'1' (every workspace) or a list of workspace ids (a pilot), with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
     owner: "Ruben",
     sunset: "2026-11-30",
   },

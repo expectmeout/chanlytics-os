@@ -109,3 +109,27 @@ test("only a card's key is claimed: no x-via, no key, or a key that is too long 
   assert.equal(runs.n, 6, "every one ran");
   assert.deepEqual(tables.idempotency_keys, []);
 });
+
+test("a press that died holding its key is taken over by the next press once the hold's window has passed, and never before", async () => {
+  const { r, runs } = route();
+  const tables = world();
+  const claimed = (ago) => ({
+    tenant_id: A,
+    key: "card:p-1",
+    route: "POST /api/v1/x",
+    request_hash: "",
+    response: null,
+    created_at: new Date(Date.now() - ago).toISOString(),
+  });
+  // A claim ten seconds old is a press still running: refused, and it stands.
+  tables.idempotency_keys.push(claimed(10_000));
+  await assert.rejects(press(r, tables, "p-1"), (e) => e.code === "conflict");
+  assert.equal(runs.n, 0);
+  // One five minutes old is a press whose request died before it kept a receipt: the next press takes it over and runs.
+  tables.idempotency_keys.length = 0;
+  tables.idempotency_keys.push(claimed(5 * 60_000));
+  assert.deepEqual(await press(r, tables, "p-1"), { ok: true, run: 1 });
+  assert.equal(runs.n, 1);
+  assert.deepEqual(await press(r, tables, "p-1"), { ok: true, run: 1 }, "and now it answers as kept");
+  assert.equal(runs.n, 1);
+});

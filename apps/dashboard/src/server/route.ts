@@ -33,8 +33,14 @@
  * what, so it must load in a test without the build tool's aliases.
  */
 import type { ZodType } from "zod";
-import { AppError, type SpendWords } from "@chanlytics/contracts";
-import { claimIdempotencyKey, keepIdempotencyReceipt, releaseIdempotencyKey, type Json } from "@chanlytics/db";
+import { AppError, MIN_MS, type SpendWords } from "@chanlytics/contracts";
+import {
+  claimIdempotencyKey,
+  keepIdempotencyReceipt,
+  releaseIdempotencyKey,
+  takeIdempotencyKey,
+  type Json,
+} from "@chanlytics/db";
 import {
   memberContext,
   requireRole,
@@ -45,6 +51,7 @@ import {
 } from "./with-route";
 import { takeRate, type RateBucket } from "./rate-limit";
 import { backOffice, type BackOffice } from "./platform/platform";
+import { log } from "./log";
 
 type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;
@@ -213,6 +220,8 @@ function viaJson<T>(value: unknown): T {
 
 /** The most of a card's key the ledger keeps; a longer one is not a card's (a proposal id is twenty characters). */
 const CARD_KEY_MAX = 120;
+/** How long a claim with no receipt is a press still running; past it, its request died and the next press takes over (core's reply key holds the same two minutes). */
+const CARD_HOLD_MS = 2 * MIN_MS;
 
 /**
  * An Ask card's write, once (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
@@ -220,7 +229,9 @@ const CARD_KEY_MAX = 120;
  * commit.ts); the first press claims the key on idempotency_keys, under the prefix `card:` so a route's own use of the
  * same key (a reply's, core's) is apart, and keeps its answer there. A second press, from any tab, is given that answer
  * and changes nothing; one that arrives while the first is still running is refused in words. A write that fails lets
- * the key go, so pressing again tries again. Any other request runs as it always has.
+ * the key go, so pressing again tries again; a request that died holding it (killed mid-write, its receipt never kept)
+ * is taken over by the next press once CARD_HOLD_MS has passed, as core's reply key is, so a card never sticks. Any other
+ * request runs as it always has.
  */
 async function onceForCard<O>(
   ctx: RouteCtx,
@@ -237,7 +248,16 @@ async function onceForCard<O>(
   const claim = await claimIdempotencyKey(ctx.supabase, { tenantId, key, route, requestHash: "", nowIso });
   if (!claim.won) {
     if (claim.held?.response) return viaJson<O>(claim.held.response);
-    throw new AppError("conflict", "This card is being approved already. Its answer arrives in a moment.");
+    // Taken by the stamp it was read at, so of two presses that both read an abandoned claim exactly one takes it.
+    const held = claim.held;
+    const abandoned = held !== null && Date.now() - Date.parse(held.created_at) >= CARD_HOLD_MS;
+    const taken =
+      abandoned && held
+        ? await takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash: "", nowIso, from: held.created_at })
+        : false;
+    if (!taken) {
+      throw new AppError("conflict", "This card is being approved already. Its answer arrives in a moment.");
+    }
   }
   let out: O;
   try {
@@ -247,9 +267,19 @@ async function onceForCard<O>(
     throw e;
   }
   const response = viaJson<Json>(out === undefined ? { ok: true } : out);
-  await keepIdempotencyReceipt(ctx.supabase, { tenantId, key, requestHash: "", response, stamp: nowIso }).catch(
-    () => {},
-  );
+  // The write has happened; a receipt that cannot be kept means a second press runs it again after the hold's window, so
+  // it is said, not swallowed. A key another press took over is not the receipt's to write, and says the same.
+  const kept = await keepIdempotencyReceipt(ctx.supabase, {
+    tenantId,
+    key,
+    requestHash: "",
+    response,
+    stamp: nowIso,
+  }).catch((e: unknown) => {
+    log.error("card_receipt_unkept", { tenant: tenantId, error: e });
+    return true;
+  });
+  if (!kept) log.error("card_receipt_unkept", { tenant: tenantId, error: "the key was taken over" });
   return out;
 }
 

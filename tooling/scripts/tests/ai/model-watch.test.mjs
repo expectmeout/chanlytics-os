@@ -30,6 +30,7 @@ function pager() {
   };
 }
 const world = (failures, purged = 0, faults = {}) => {
+  // What the ledger's rollup returns is the counts alone: a customer's words are in no row of it.
   const tables = { operator_pages: [] };
   const rpcs = {
     ai_failures_hour: () => failures,
@@ -40,14 +41,16 @@ const world = (failures, purged = 0, faults = {}) => {
 const ADDRESSED = { LEAD_TO: "ops@example.com", LEAD_FROM: "alerts@example.com" };
 
 test("a workspace over the line is paged once, in words that name the workspace and the counts and no customer", async () => {
-  const w = world([{ tenant_id: A, failed_calls: 4, brain_errors: 3 }], 12);
+  // A row that carried a customer's words (it never does) would still not put them in the page: only the counts are read.
+  const w = world([{ tenant_id: A, failed_calls: 4, brain_errors: 3, last_text: CUSTOMER }], 12);
   const p = pager();
   const out = await withEnv(ADDRESSED, () => watchModels(w.db, { send: p.send, now: p.now }));
   assert.deepEqual(out, { paged: 1, purged: 12 });
   assert.equal(p.sent.length, 1);
+  // A failed turn is both a call with no answer and a holding reply, so the larger count is what the page says.
   assert.match(
     p.sent[0].subject,
-    /^\[Chanlytics\] The receptionist's model failed 7 times in an hour in one workspace$/,
+    /^\[Chanlytics\] The receptionist's model failed 4 times in an hour in one workspace$/,
   );
   assert.ok(
     p.sent[0].body.includes(`Workspace ${A}: 4 model calls got no answer or no usable one, and 3 receptionist turns`),
@@ -116,5 +119,38 @@ test("nothing over the line pages nobody, and a ledger that cannot be read or pu
   assert.ok(
     lines.some((l) => l.includes("model_failures_unreadable")) &&
       lines.some((l) => l.includes("ai_usage_purge_failed")),
+  );
+});
+
+test("a page that cannot be sent is logged and the next workspace is still paged; only pages that went out are counted", async () => {
+  const w = world([
+    { tenant_id: A, failed_calls: 9, brain_errors: 0 },
+    { tenant_id: B, failed_calls: 6, brain_errors: 0 },
+  ]);
+  const p = pager();
+  let n = 0;
+  const flaky = async (...args) => {
+    n += 1;
+    if (n === 1) throw new Error("the pager is down");
+    return p.send(...args);
+  };
+  const lines = [];
+  const real = console.error;
+  console.error = (...a) => lines.push(a.join(" "));
+  try {
+    const out = await withEnv(ADDRESSED, () => watchModels(w.db, { send: flaky, now: p.now }));
+    assert.equal(out.paged, 1, "one went out; the one whose send threw is not counted");
+  } finally {
+    console.error = real;
+  }
+  assert.equal(p.sent.length, 1);
+  assert.ok(p.sent[0].body.includes(B), "the second workspace was still paged");
+  assert.ok(lines.some((l) => l.includes("operator_page_send_threw")));
+  // A page held back in its window is not a page sent.
+  const again = await withEnv(ADDRESSED, () => watchModels(w.db, { send: p.send, now: p.now }));
+  assert.equal(
+    again.paged,
+    1,
+    "the workspace whose page never went out is paged now; the one paged before is held back",
   );
 });

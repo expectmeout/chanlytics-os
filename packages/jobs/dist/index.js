@@ -298,6 +298,11 @@ var POLICY_CLASS_WORDS = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema = z3.object({
   max_replies_day: z3.number().int().min(1).max(200).optional(),
   pause_hours: z3.number().int().min(1).max(168).optional(),
@@ -908,21 +913,24 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS = 24 * HOUR_MS;
@@ -2577,7 +2585,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
     },
     escalate: {
       type: "boolean",
@@ -8281,6 +8289,11 @@ var POLICY_CLASS_WORDS2 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS2 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema2 = z32.object({
   max_replies_day: z32.number().int().min(1).max(200).optional(),
   pause_hours: z32.number().int().min(1).max(168).optional(),
@@ -8879,21 +8892,24 @@ var WHATSAPP_LANGUAGES2 = [
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES2 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES2 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY2 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER2 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER2 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER2 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT2 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS2 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES2})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES2}|${NAMES2})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY2}(?:${CODES2}|${NAMES2})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER2}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER2})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER2}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER2})*[\s-]+${COUNTRY2}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER2}(?:\s+(?:y\s+)?${ES_NUMBER2})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT2}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER2}(?:[\s-]+${EN_NUMBER2})*\s+${PERCENT2}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT2}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS2 = 24 * HOUR_MS2;
@@ -10543,7 +10559,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA2 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS2],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS2.money}.`
     },
     escalate: {
       type: "boolean",
@@ -12359,6 +12375,11 @@ var POLICY_CLASS_WORDS3 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS3 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema3 = z33.object({
   max_replies_day: z33.number().int().min(1).max(200).optional(),
   pause_hours: z33.number().int().min(1).max(168).optional(),
@@ -12957,21 +12978,24 @@ var WHATSAPP_LANGUAGES3 = [
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES3 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES3 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY3 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER3 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER3 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER3 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT3 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS3 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES3})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES3}|${NAMES3})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY3}(?:${CODES3}|${NAMES3})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER3}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER3})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER3}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER3})*[\s-]+${COUNTRY3}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER3}(?:\s+(?:y\s+)?${ES_NUMBER3})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT3}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER3}(?:[\s-]+${EN_NUMBER3})*\s+${PERCENT3}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT3}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
@@ -14621,7 +14645,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA3 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS3],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS3.money}.`
     },
     escalate: {
       type: "boolean",
@@ -15433,6 +15457,11 @@ var POLICY_CLASS_WORDS22 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS22 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema22 = z322.object({
   max_replies_day: z322.number().int().min(1).max(200).optional(),
   pause_hours: z322.number().int().min(1).max(168).optional(),
@@ -16240,21 +16269,24 @@ var WHATSAPP_LANGUAGES22 = [
 var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES22 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES22 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY22 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER22 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER22 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER22 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT22 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS22 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES22})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES22}|${NAMES22})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY22}(?:${CODES22}|${NAMES22})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER22}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER22})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER22}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER22})*[\s-]+${COUNTRY22}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER22}(?:\s+(?:y\s+)?${ES_NUMBER22})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT22}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER22}(?:[\s-]+${EN_NUMBER22})*\s+${PERCENT22}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT22}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS22 = 24 * HOUR_MS22;
@@ -18300,7 +18332,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA22 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS22],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS22.money}.`
     },
     escalate: {
       type: "boolean",
@@ -19115,6 +19147,11 @@ var POLICY_CLASS_WORDS32 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS32 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema32 = z332.object({
   max_replies_day: z332.number().int().min(1).max(200).optional(),
   pause_hours: z332.number().int().min(1).max(168).optional(),
@@ -19713,21 +19750,24 @@ var WHATSAPP_LANGUAGES32 = [
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES32 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES32 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY32 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER32 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER32 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER32 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT32 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS32 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES32})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES32}|${NAMES32})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY32}(?:${CODES32}|${NAMES32})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER32}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER32})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER32}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER32})*[\s-]+${COUNTRY32}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER32}(?:\s+(?:y\s+)?${ES_NUMBER32})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT32}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER32}(?:[\s-]+${EN_NUMBER32})*\s+${PERCENT32}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT32}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS32 = 24 * HOUR_MS32;
@@ -21378,7 +21418,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA32 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS32],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS32.money}.`
     },
     escalate: {
       type: "boolean",
@@ -23183,6 +23223,11 @@ var POLICY_CLASS_WORDS4 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS4 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema4 = z34.object({
   max_replies_day: z34.number().int().min(1).max(200).optional(),
   pause_hours: z34.number().int().min(1).max(168).optional(),
@@ -23789,21 +23834,24 @@ var WHATSAPP_LANGUAGES4 = [
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
 var CODES4 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES4 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY4 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER4 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER4 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER4 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT4 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS4 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES4})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES4}|${NAMES4})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY4}(?:${CODES4}|${NAMES4})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER4}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER4})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER4}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER4})*[\s-]+${COUNTRY4}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER4}(?:\s+(?:y\s+)?${ES_NUMBER4})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT4}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER4}(?:[\s-]+${EN_NUMBER4})*\s+${PERCENT4}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT4}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS4 = 24 * HOUR_MS4;
@@ -25453,7 +25501,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA4 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS4],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS4.money}.`
     },
     escalate: {
       type: "boolean",

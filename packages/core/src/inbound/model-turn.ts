@@ -4,7 +4,7 @@
  * person rather than a lost message. With no model key the workspace's own greeting goes, labelled a
  * fallback, and the platform is paged.
  */
-import { resolveSystemPrompt, describeNow } from "@chanlytics/contracts";
+import { resolveSystemPrompt, describeNow, shadowWordsOf } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
 import { layerTwo, noModelPlan, NO_MODEL_PAGE } from "./steps";
@@ -129,8 +129,8 @@ export async function modelTurn(
           tenantId: at.tenantId ?? null,
           subjectId: at.ing?.conversation_id ?? null,
           configVersion: rt?.configVersion ?? null,
-          // A second model is put the customer's own words in shadow, when it is on (never a photo's framing).
-          shadowText: bodyText,
+          // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
+          shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
         },
       );
       usage = r.usage;

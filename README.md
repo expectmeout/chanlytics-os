@@ -16,9 +16,14 @@ receptionist is told never to confirm a slot itself: there is no appointments
 table here, and nothing in the product can create, move or cancel one
 (`docs/decisions/0002-appointments-record.md` proposes the record). It does
 not decide money: the money class of the Autonomy matrix is locked to `never`
-by a database trigger, and the prompt says so. It does not quote a price in a
-reply: a deterministic check after generation replaces any reply carrying one
-and hands the thread to a person, whatever the prompt said.
+by a database trigger, the prompt says so, and a deterministic check after
+generation holds any reply that names a refund, a discount, a coupon, a deposit
+or a payment term (`namesMoney`, English and Spanish) whatever intent the model
+gave it. It does not quote a price in a reply: the same kind of check
+(`violatesNoPrices`: every currency, spelled-out amounts, cuts) replaces any
+reply carrying one and hands the thread to a person, whatever the prompt said.
+Every model call, whichever the purpose, goes through one port and one registry
+(`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
 
 **This is live.** Real businesses are in production with real customers on real
 numbers. Treat every change to `apps/edge` and `packages/channels` as something

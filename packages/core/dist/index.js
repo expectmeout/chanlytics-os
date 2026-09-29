@@ -1226,6 +1226,11 @@ var POLICY_CLASS_WORDS = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema = z3.object({
   max_replies_day: z3.number().int().min(1).max(200).optional(),
   pause_hours: z3.number().int().min(1).max(168).optional(),
@@ -1824,21 +1829,24 @@ var WHATSAPP_LANGUAGES = [
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS = 24 * HOUR_MS;
@@ -3488,7 +3496,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
     },
     escalate: {
       type: "boolean",
@@ -4493,7 +4501,7 @@ function policyAskClass(policy, intent) {
   const mode = policy?.[cls]?.mode ?? "auto";
   return mode === "auto" ? null : cls;
 }
-var POLICY_COVERS = {
+var POLICY_COVERS2 = {
   booking: "someone wants to book, reschedule or cancel",
   faq: "Service and pricing questions",
   money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
@@ -4504,16 +4512,16 @@ function policyRules(policy, channel) {
   const voice = channel === "voice";
   if (modeOf("booking") !== "auto") {
     out.push(
-      voice ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
+      voice ? `Booking: when ${POLICY_COVERS2.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS2.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
     );
   }
   if (modeOf("faq") !== "auto") {
     out.push(
-      voice ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
+      voice ? `${POLICY_COVERS2.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS2.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
     );
   }
   out.push(
-    voice ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
+    voice ? `Money: ${POLICY_COVERS2.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS2.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
   );
   return out;
 }
@@ -5705,21 +5713,24 @@ var WHATSAPP_LANGUAGES2 = [
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l) => [l.id.toLowerCase(), l]));
 var CODES2 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES2 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY2 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER2 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER2 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER2 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT2 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS2 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES2})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES2}|${NAMES2})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY2}(?:${CODES2}|${NAMES2})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER2}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER2})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER2}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER2})*[\s-]+${COUNTRY2}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER2}(?:\s+(?:y\s+)?${ES_NUMBER2})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT2}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER2}(?:[\s-]+${EN_NUMBER2})*\s+${PERCENT2}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT2}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 function violatesNoPrices(text) {
@@ -5730,6 +5741,8 @@ var MONEY_PATTERNS = [
   /\breimburs\w*/i,
   /\bmoney back\b/i,
   /\bdiscount(?:s|ed)?\b/i,
+  /\b(?:coupons?|vouchers?|promo(?:s| codes?)?|promotions?)\b/i,
+  /\b(?:free of charge|on the house|no charge|at no (?:extra )?cost)\b/i,
   /\bdeposits?\b/i,
   /\bdown[\s-]payments?\b/i,
   /\bpayment plans?\b/i,
@@ -5741,6 +5754,9 @@ var MONEY_PATTERNS = [
   /\bdevoluci[oó]n\b/i,
   /\bdev(?:olv|uelv)\w*\s+(?:el|tu|su)\s+dinero\b/i,
   /\bdescuentos?\b/i,
+  /\bcup[oó]n(?:es)?\b/i,
+  /\bpromoci[oó]n(?:es)?\b/i,
+  /\b(?:sin costo|sin cargo|de cortes[ií]a)\b/i,
   /\brebajas?\b/i,
   /\bdep[oó]sitos?\b/i,
   /\banticipos?\b/i,
@@ -6453,6 +6469,10 @@ function sha256Hex(text) {
 }
 function judgeOpId(runId, fromOffset, batch) {
   return sha256Hex(`${runId}:${fromOffset}:${batch}`);
+}
+function shadowWordsOf(x) {
+  if (!x.photo) return x.text;
+  return x.caption?.trim() || void 0;
 }
 var MODEL_PRICES2 = {
   [MODELS2.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
@@ -8824,7 +8844,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA2 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS2],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS2.money}.`
     },
     escalate: {
       type: "boolean",
@@ -10199,6 +10219,11 @@ var POLICY_CLASS_WORDS3 = {
     note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
   }
 };
+var POLICY_COVERS3 = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
 var PolicyLimitsSchema3 = z33.object({
   max_replies_day: z33.number().int().min(1).max(200).optional(),
   pause_hours: z33.number().int().min(1).max(168).optional(),
@@ -10797,21 +10822,24 @@ var WHATSAPP_LANGUAGES3 = [
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
 var CODES3 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES3 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY3 = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER3 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER3 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER3 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT3 = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS3 = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES3})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES3}|${NAMES3})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY3}(?:${CODES3}|${NAMES3})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER3}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER3})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER3}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER3})*[\s-]+${COUNTRY3}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER3}(?:\s+(?:y\s+)?${ES_NUMBER3})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT3}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER3}(?:[\s-]+${EN_NUMBER3})*\s+${PERCENT3}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT3}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
@@ -12462,7 +12490,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA3 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS3],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS3.money}.`
     },
     escalate: {
       type: "boolean",
@@ -49794,7 +49822,7 @@ function layerTwo(x) {
       replyText = heldLine("faq", x.language, phone);
     }
     escalate = true;
-    escalationReason = "policy_ask";
+    if (!priceBlocked) escalationReason = "policy_ask";
   }
   return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
 }
@@ -50299,8 +50327,8 @@ ${openings}` : ""}`,
           tenantId: at.tenantId ?? null,
           subjectId: at.ing?.conversation_id ?? null,
           configVersion: rt?.configVersion ?? null,
-          // A second model is put the customer's own words in shadow, when it is on (never a photo's framing).
-          shadowText: bodyText
+          // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
+          shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption })
         }
       );
       usage = r4.usage;

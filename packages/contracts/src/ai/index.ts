@@ -26,6 +26,7 @@ export {
   SHADOW_GRACE_MS,
   SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
+  SHADOW_WRITE_MS,
   judgeShadowSpecs,
   receptionistPrimary,
   receptionistShadowCall,
@@ -33,6 +34,8 @@ export {
   replyReadShadowCall,
   shadowBodies,
   shadowRead,
+  shadowSwitchOn,
+  shadowWordsOf,
 } from "./shadow";
 export type { ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead } from "./shadow";
 export {

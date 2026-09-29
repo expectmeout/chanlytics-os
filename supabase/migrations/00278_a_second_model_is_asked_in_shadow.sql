@@ -140,8 +140,10 @@ as $$
   select coalesce(c.tenant_id, t.tenant_id), coalesce(c.n, 0), coalesce(t.n, 0)
     from calls c
     full join turns t on t.tenant_id = c.tenant_id
-   where coalesce(c.n, 0) + coalesce(t.n, 0) >= greatest(p_min, 1)
-   order by coalesce(c.n, 0) + coalesce(t.n, 0) desc
+   -- The larger of the two, never their sum: one failed receptionist turn is a ledger row AND a brain_error escalation,
+   -- so a sum counts it twice; the larger is the fewest distinct events the hour can have held.
+   where greatest(coalesce(c.n, 0), coalesce(t.n, 0)) >= greatest(p_min, 1)
+   order by greatest(coalesce(c.n, 0), coalesce(t.n, 0)) desc
    limit 50;
 $$;
 
@@ -191,4 +193,4 @@ $$;
 revoke execute on function public.ai_shadow_agreement(integer) from public, anon, authenticated;
 grant execute on function public.ai_shadow_agreement(integer) to service_role;
 comment on function public.ai_shadow_agreement(integer) is
-  'A second model''s agreement with the primary over the last p_days, per purpose, question and port: the answers compared, how many agree, the same among the answers that cleared the confidence line, the calls that failed, and the input tokens and dollars spent. Service role only: shadow rows are the platform''s.';
+  'A second model''s agreement with the primary over the last p_days, per purpose, question and port: the answers compared, how many agree, the same among the answers that cleared the confidence line, the answers that could not be had (a call that failed, or an answer of the wrong kind), and the input tokens and dollars spent. A call''s tokens and dollars are counted once, on its first question, so they are exact in total and per purpose but not per question. Service role only: shadow rows are the platform''s.';

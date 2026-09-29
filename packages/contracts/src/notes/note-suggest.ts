@@ -15,7 +15,7 @@
  *
  * What passes is still only a suggestion: nobody's instructions change until a member presses Keep.
  */
-import { violatesNoPrices } from "../config/policy";
+import { namesMoney, violatesNoPrices } from "../config/policy";
 import { DAY_MS } from "../shared/time";
 import { MODEL_ROUTES } from "../ai/models";
 
@@ -161,8 +161,10 @@ const norm = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+// A note may name no money at all: the money charter's own words (namesMoney) and the price guard (violatesNoPrices)
+// are asked first, and these are the words a note may not use that a reply may (a price is not a note's to keep).
 const MONEY =
-  /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|discount(?:ed|s)?|deal|coupon|promo|voucher|free|refund(?:ed)?|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
+  /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|deal|free|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
 const CONTACT_DETAIL = /https?:\/\/|www\.|@\S|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i;
 const AIMED_AT_US =
   /\b(note that|make a note|write (that )?down|remember (that|this)|put (it|that) in|tell the (owner|manager|boss)|you (told|said|promised)|your (system|rules|policy))\b/i;
@@ -210,7 +212,7 @@ export function checkNoteSuggestion(answer: unknown, turns: readonly NoteTurn[],
   );
   if (!said.includes(q)) return { ok: false, why: "not_their_words" };
   for (const s of [body, quote]) {
-    if (MONEY.test(s) || violatesNoPrices(s)) return { ok: false, why: "money" };
+    if (MONEY.test(s) || namesMoney(s) || violatesNoPrices(s)) return { ok: false, why: "money" };
     if (CONTACT_DETAIL.test(s)) return { ok: false, why: "contact_detail" };
     if (SENSITIVE.test(s)) return { ok: false, why: "sensitive" };
   }

@@ -279,7 +279,7 @@ export async function generateReply(...args: Parameters<typeof answerReply>): Pr
   const shadow =
     words === undefined || !call
       ? null
-      : startShadow("receptionist", { tenantId: call.tenantId, subjectId: call.subjectId }, [
+      : startShadow("receptionist", { tenantId: call.tenantId, subjectId: call.subjectId }, () => [
           receptionistShadowCall(words),
         ]);
   let reply: BrainReply | undefined;

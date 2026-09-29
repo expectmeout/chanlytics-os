@@ -9,17 +9,20 @@
  *     fails is logged and never reaches the customer's path;
  *   - the key is a header and nowhere else: not in a row, not in a log line, not in an error.
  *
+ *   - the switch is '1' for every workspace or a list of workspace ids for a pilot, and a call is built only when it is
+ *     on; a shadow the primary outruns keeps what answered and says so for the rest; a write that hangs is left behind.
+ *
  * No network: both APIs are scripted, and the key is made for the run.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels";
-import { SHADOW_GRACE_MS, judgeQuestions } from "@chanlytics/contracts";
+import { SHADOW_GRACE_MS, SHADOW_WRITE_MS, judgeQuestions, shadowWordsOf } from "@chanlytics/contracts";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 import { logLineOf } from "../_log-lines.mjs";
-import { scripted, answering, json } from "./_model-world.mjs";
+import { scripted, answering, json, status } from "./_model-world.mjs";
 import { INPUT_TOKENS, JEV, aKey, drops, failing, hangs, jev, junk } from "./_system-one-world.mjs";
 
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
@@ -222,14 +225,20 @@ test("a shadow that fails never changes the answer: refused, throttled, overload
     assert.ok(!JSON.stringify(on.lines).includes(KEY), `${name}: not in the log`);
   }
 
-  // A shadow the primary outruns is left behind: the answer is not delayed past the grace, and nothing is written.
+  // A shadow the primary outruns is left behind: the answer is not delayed past the grace, and the call that never
+  // answered is one row that says so.
   resetBreakers();
   const slow = hangs();
   const t0 = Date.now();
   const late = await turn({ api: slow });
   assert.deepEqual(late.reply, off.reply);
   assert.ok(Date.now() - t0 < SHADOW_GRACE_MS + 1_500, "the primary waited the grace and no longer");
-  assert.deepEqual(shadowRows(late.tables), [], "a call abandoned is not a row");
+  assert.deepEqual(
+    shadowRows(late.tables).map((r) => [r.question, r.outcome, r.usd]),
+    [["call", "unreachable", 0]],
+    "a call left behind is a row that says it got no answer",
+  );
+  assert.ok(events(late.lines).some((l) => l.event === "shadow_failed"));
 
   // A ledger that cannot be written: logged, and the answer stands.
   resetBreakers();
@@ -376,4 +385,206 @@ test("the judge's criteria are put to the shadow a place at a time, and its answ
   assert.equal(rows.filter((r) => r.agrees === false).length, 1);
   const cost = rows.reduce((n, r) => n + r.usd, 0);
   assert.equal(Math.round(cost * 1e6) / 1e6, 0.000026, "each call counted once: two calls of 312 input tokens");
+});
+
+/* ------------------------------------------------- what keeps it off the path -- */
+
+test("the switch is '1' for every workspace, or a list of workspace ids for a pilot on those alone", async () => {
+  const OTHER = "bbbbbbbb-0000-4000-8000-000000000002";
+  for (const [value, sends] of [
+    ["1", true],
+    [T, true],
+    [`${OTHER}, ${T.toUpperCase()}`, true],
+    [OTHER, false],
+    [`${OTHER},${OTHER}`, false],
+    ["yes", false],
+    ["", false],
+  ]) {
+    const on = await turn({ env: { TYPESAFE_API_KEY: KEY, TYPESAFE_SHADOW: value } });
+    assert.equal(on.api.calls.length > 0, sends, `TYPESAFE_SHADOW=${JSON.stringify(value)}`);
+    assert.equal(shadowRows(on.tables).length > 0, sends);
+  }
+});
+
+test("a call is built only when the shadow is on, and one that cannot be built is logged and never fails the turn", async () => {
+  const off = await turn({ env: { TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined } });
+  const badWords = async (env) => {
+    const tables = world();
+    primaryFetch = scripted(json(RECORD)).fetch;
+    const api = jev();
+    shadowFetch = api.fetch;
+    // Words that are not text: building the shadow's call over them would throw.
+    const { result, lines } = await logged(() =>
+      withEnv(env, () =>
+        generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
+          tenantId: T,
+          subjectId: C,
+          shadowText: 42,
+        }),
+      ),
+    );
+    return { result, tables, api, lines };
+  };
+  const stillOff = await badWords({ TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined });
+  assert.deepEqual(stillOff.result, off.reply, "off: the words were never looked at");
+  assert.deepEqual(
+    events(stillOff.lines).filter((l) => l.event === "shadow_failed"),
+    [],
+  );
+  const broken = await badWords(ON);
+  assert.deepEqual(broken.result, off.reply, "on: the primary's answer is unchanged");
+  assert.equal(broken.api.calls.length, 0, "nothing was sent for a call that could not be built");
+  assert.ok(events(broken.lines).some((l) => l.event === "shadow_failed"));
+});
+
+test("a primary that fails while the shadow is on fails exactly as it does with the shadow off, and the shadow is still kept", async () => {
+  const run = async (env) => {
+    const tables = world();
+    primaryFetch = scripted(status(400, "the request was refused")).fetch;
+    const api = jev({ money_class: { choice: "money", confidence: 0.9 }, injection: 0.1, stop_request: 0.1 });
+    shadowFetch = api.fetch;
+    let outcome;
+    try {
+      outcome = {
+        returned: await withEnv(env, () =>
+          generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
+            tenantId: T,
+            subjectId: C,
+            shadowText: TEXT,
+          }),
+        ),
+      };
+    } catch (e) {
+      outcome = { threw: e instanceof Error ? e.message : String(e) };
+    }
+    return { outcome, tables, api };
+  };
+  const off = await run({ TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined });
+  const on = await run(ON);
+  assert.deepEqual(on.outcome, off.outcome, "the primary's failure is the same with the shadow on");
+  assert.equal(on.api.calls.length, 1, "the shadow was asked beside it");
+  assert.deepEqual(
+    shadowRows(on.tables).map((r) => [r.question, r.primary_answer, r.agrees]),
+    [
+      ["money_class", null, null],
+      ["injection", "false", true],
+      ["stop_request", "false", true],
+    ],
+    "the primary gave no intent, so there is nothing to compare for the class",
+  );
+});
+
+/** The judge's answer for these places, and the model that gives it. */
+function judgeWorld(refs) {
+  const keys = Object.keys(judgeQuestions(PLAN));
+  const judged = {
+    places: refs.map((ref) => ({
+      ref,
+      criteria: keys.map((key) => ({ key, answer: "pass", facts: ["name"] })),
+      email_index: null,
+      reason: "fits",
+    })),
+  };
+  const tables = world();
+  primaryFetch = answering(async () => ({
+    content: [{ type: "text", text: JSON.stringify(judged) }],
+    stop_reason: "end_turn",
+    usage: { input_tokens: 500, output_tokens: 80 },
+  })).fetch;
+  const judge = (env = ON) =>
+    logged(() =>
+      withEnv({ ...env, APIFY_TOKEN: "apify-token-for-this-file" }, () =>
+        leadWires().judge.judge(PLAN, refs.map(place), T),
+      ),
+    );
+  return { keys, tables, judge };
+}
+
+test("a shadow the primary outruns keeps the calls that answered and says so for the ones that did not", async () => {
+  const { keys, tables, judge } = judgeWorld([1, 2]);
+  const quick = jev();
+  const stuck = hangs();
+  // The second place's call never answers; the first's does at once.
+  shadowFetch = (url, init) =>
+    JSON.parse(init.body).state.includes("Place 2") ? stuck.fetch(url, init) : quick.fetch(url, init);
+  const { result } = await judge();
+  assert.ok(result, "the judge answered: its answer is the judge's alone");
+  const rows = shadowRows(tables);
+  assert.equal(rows.length, keys.length + 1, "the first place's criteria, and one row for the second's call");
+  assert.deepEqual(
+    rows.slice(0, keys.length).map((r) => r.outcome),
+    keys.map(() => "answered"),
+  );
+  assert.deepEqual(
+    rows.slice(keys.length).map((r) => [r.question, r.outcome, r.usd]),
+    [["call", "unreachable", 0]],
+  );
+});
+
+test("no more than five of a judge's calls are in flight at once, and every place is asked", async () => {
+  const refs = Array.from({ length: 12 }, (_, i) => i + 1);
+  const { keys, tables, judge } = judgeWorld(refs);
+  const api = jev();
+  let open = 0;
+  let most = 0;
+  shadowFetch = async (url, init) => {
+    open += 1;
+    most = Math.max(most, open);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    try {
+      return await api.fetch(url, init);
+    } finally {
+      open -= 1;
+    }
+  };
+  await judge();
+  assert.equal(api.calls.length, 12, "every place is asked");
+  assert.ok(most > 1 && most <= 5, `the most in flight was ${most}`);
+  assert.equal(shadowRows(tables).length, 12 * keys.length);
+});
+
+test("a ledger write that hangs is left behind after its own bound, and the reply is neither delayed longer nor changed", async () => {
+  const off = await turn({ env: { TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined } });
+  const tables = world();
+  const real = fakeDb(tables);
+  // Only the shadow's rows hang: the primary's own ledger row, and every read, are the world's.
+  setPg({
+    ...real,
+    from: (table) => {
+      const q = real.from(table);
+      if (table !== "ai_usage") return q;
+      return new Proxy(q, {
+        get: (o, p) => {
+          if (p !== "insert") return typeof o[p] === "function" ? o[p].bind(o) : o[p];
+          return (rows) => ([].concat(rows).some((r) => r.shadow) ? new Promise(() => {}) : o.insert(rows));
+        },
+      });
+    },
+  });
+  primaryFetch = scripted(json(RECORD)).fetch;
+  const api = jev();
+  shadowFetch = api.fetch;
+  const t0 = Date.now();
+  const { result } = await logged(() =>
+    withEnv(ON, () =>
+      generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
+        tenantId: T,
+        subjectId: C,
+        shadowText: TEXT,
+      }),
+    ),
+  );
+  assert.deepEqual(result, off.reply);
+  assert.ok(Date.now() - t0 < SHADOW_WRITE_MS + 1_500, "the write was waited for its bound and no longer");
+  assert.deepEqual(shadowRows(tables), [], "and nothing of it landed");
+});
+
+test("a photo with no caption has no words to put to the shadow, and one with a caption is put the caption alone", () => {
+  assert.equal(shadowWordsOf({ text: "[photo]", photo: true, caption: null }), undefined);
+  assert.equal(shadowWordsOf({ text: "[photo]", photo: true, caption: "   " }), undefined);
+  assert.equal(
+    shadowWordsOf({ text: "[photo]", photo: true, caption: " is this shade too dark? " }),
+    "is this shade too dark?",
+  );
+  assert.equal(shadowWordsOf({ text: "Can I get a refund?", photo: false, caption: "ignored" }), "Can I get a refund?");
 });

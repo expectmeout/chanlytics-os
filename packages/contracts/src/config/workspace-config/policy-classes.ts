@@ -201,7 +201,7 @@ export function bookingHeld(policy: Record<string, { mode: string }> | null | un
  * What each class a customer's message can fall under covers, in the words its prompt line says it (policyRules) and a
  * second model is asked it (policyClassQuestion, in shadow: decision 0023): one text for each rule.
  */
-const POLICY_COVERS = {
+export const POLICY_COVERS = {
   booking: "someone wants to book, reschedule or cancel",
   faq: "Service and pricing questions",
   money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays",

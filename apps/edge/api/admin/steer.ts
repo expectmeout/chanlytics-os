@@ -28,6 +28,7 @@ import {
   describeNow,
   frameSteer,
   violatesNoPrices,
+  namesMoney,
   replyDelayMs,
   fallbackMessages,
 } from "../../lib/packages/contracts.js";
@@ -152,10 +153,15 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     L.error("steer_brain_failed", { error: errField(e) });
     return refuse(502, "brain_failed");
   }
-  // The same second door the handler keeps: a price never goes out, and a
-  // rewrite that would say one leaves the original draft where it was.
+  // The same second door the handler keeps: a price never goes out, nor money a person decides (a refund, a discount,
+  // a deposit), and a rewrite that would say either leaves the original draft where it was. The refusal is one code,
+  // policy_block_price: the two apps read it whichever deploys first.
   if (violatesNoPrices(r.text)) {
     L.warn("steer_policy_block_price", { message_id: messageId });
+    return refuse(409, "policy_block_price");
+  }
+  if (namesMoney(r.text)) {
+    L.warn("steer_policy_block_money", { message_id: messageId });
     return refuse(409, "policy_block_price");
   }
 

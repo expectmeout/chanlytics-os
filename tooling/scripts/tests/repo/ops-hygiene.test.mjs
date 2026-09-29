@@ -82,10 +82,13 @@ test("the nightly evals run on a clock and on demand, only with the eval key, an
   const y = yamlCode(".github/workflows/nightly-evals.yml");
   assert.match(y, /cron: "0 10 \* \* \*"/);
   assert.ok(y.includes("workflow_dispatch:"));
-  assert.ok(
-    y.includes("ANTHROPIC_EVAL_KEY: $" + "{{ secrets.ANTHROPIC_EVAL_KEY }}"),
-    "the key comes into the job's environment once",
+  const given = y.split("ANTHROPIC_EVAL_KEY: $" + "{{ secrets.ANTHROPIC_EVAL_KEY }}").length - 1;
+  assert.equal(
+    given,
+    2,
+    "the key is given to the step that asks whether it is set and the one that asks the model, no other",
   );
+  assert.ok(!/^ {4}env:/m.test(y), "and it is not in the job's environment, where the install's scripts would hold it");
   const secrets = [...y.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
   assert.deepEqual(
     [...new Set(secrets)].sort(),
@@ -99,8 +102,8 @@ test("the nightly evals run on a clock and on demand, only with the eval key, an
   const work = steps.filter((st) => !/^name: Say so when/.test(st));
   assert.ok(work.length >= 5);
   for (const st of work)
-    assert.ok(st.includes("env.ANTHROPIC_EVAL_KEY != ''"), "a step that runs without the key: " + st.split("\n")[0]);
-  assert.ok(steps[0].includes("env.ANTHROPIC_EVAL_KEY == ''") && steps[0].includes("SKIPPED"), "a skip says it is one");
+    assert.ok(st.includes("steps.key.outputs.set == 'true'"), "a step that runs without the key: " + st.split("\n")[0]);
+  assert.ok(steps[0].includes("id: key") && steps[0].includes("SKIPPED"), "a skip says it is one");
   assert.ok(y.includes("permissions:\n  contents: read"));
   // The runner reads the eval key and never the production key (its behaviour is nightly-evals.test.mjs's).
   const runner = readRaw("tooling/scripts/evals/nightly.mjs").replace(/^\s*(\*|\/\/|\/\*).*$/gm, "");

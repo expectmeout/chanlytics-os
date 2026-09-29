@@ -2233,21 +2233,24 @@ function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
 // src/config/policy.ts
 var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
 var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
 var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
 var PRICE_PATTERNS = [
   /[$€£¥₹]\s?\d/,
   /\d\s?[€£]/,
   /\b\d+(?:[.,]\d{1,2})?\s?\$/,
   new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
   new RegExp(
-    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
     "i"
   ),
   new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
-  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
 function violatesNoPrices(text) {
@@ -2258,6 +2261,8 @@ var MONEY_PATTERNS = [
   /\breimburs\w*/i,
   /\bmoney back\b/i,
   /\bdiscount(?:s|ed)?\b/i,
+  /\b(?:coupons?|vouchers?|promo(?:s| codes?)?|promotions?)\b/i,
+  /\b(?:free of charge|on the house|no charge|at no (?:extra )?cost)\b/i,
   /\bdeposits?\b/i,
   /\bdown[\s-]payments?\b/i,
   /\bpayment plans?\b/i,
@@ -2269,6 +2274,9 @@ var MONEY_PATTERNS = [
   /\bdevoluci[oó]n\b/i,
   /\bdev(?:olv|uelv)\w*\s+(?:el|tu|su)\s+dinero\b/i,
   /\bdescuentos?\b/i,
+  /\bcup[oó]n(?:es)?\b/i,
+  /\bpromoci[oó]n(?:es)?\b/i,
+  /\b(?:sin costo|sin cargo|de cortes[ií]a)\b/i,
   /\brebajas?\b/i,
   /\bdep[oó]sitos?\b/i,
   /\banticipos?\b/i,
@@ -3454,7 +3462,12 @@ function judgeShadowCalls(plan, places) {
   for (const [key, text] of Object.entries(judgeQuestions(plan))) {
     questions[key] = { type: "choice", instructions: `Judge the place against this criterion: ${text}`, criteria };
   }
-  return places.map((p) => ({ ref: p.ref, state: judgeUserContent([p]), questions }));
+  const domainOnly = (email) => `@${email.slice(email.lastIndexOf("@") + 1)}`;
+  return places.map((p) => ({
+    ref: p.ref,
+    state: judgeUserContent([{ ...p, emails: p.emails.map(domainOnly) }]),
+    questions
+  }));
 }
 var AnswerSchema = z9.object({
   places: z9.array(
@@ -3647,7 +3660,14 @@ function judgeOpId(runId, fromOffset, batch) {
 var SHADOW_CONFIDENT = 0.8;
 var SHADOW_TIMEOUT_MS = 6e3;
 var SHADOW_GRACE_MS = 1500;
+var SHADOW_WRITE_MS = 1500;
 var SHADOW_CALL = "call";
+function shadowSwitchOn(value, tenantId) {
+  const v = value?.trim();
+  if (!v) return false;
+  if (v === "1") return true;
+  return v.split(",").map((id) => id.trim().toLowerCase()).includes(tenantId.toLowerCase());
+}
 function shadowRead(question, answer) {
   if (!answer || answer.type !== question.type) return null;
   let label;
@@ -3656,6 +3676,7 @@ function shadowRead(question, answer) {
     label = answer.noul >= 0.5 ? "true" : "false";
     confidence = Math.max(answer.noul, 1 - answer.noul);
   } else if (answer.type === "choice") {
+    if (question.type !== "choice" || !Object.hasOwn(question.criteria, answer.choice)) return null;
     label = answer.choice;
     confidence = answer.confidence;
   } else return null;
@@ -3714,6 +3735,10 @@ function receptionistShadowCall(customerText) {
       [q.stop]: stopRequestQuestion()
     }
   };
+}
+function shadowWordsOf(x) {
+  if (!x.photo) return x.text;
+  return x.caption?.trim() || void 0;
 }
 function receptionistPrimary(intent, customerText) {
   const q = SHADOW_QUESTIONS.receptionist;
@@ -3880,7 +3905,7 @@ var FLAGS = [
   {
     name: "TYPESAFE_SHADOW",
     mechanism: "edge_env",
-    does: "'1', with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
+    does: "'1' (every workspace) or a list of workspace ids (a pilot), with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
     owner: "Ruben",
     sunset: "2026-11-30"
   },
@@ -13572,7 +13597,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
     },
     escalate: {
       type: "boolean",
@@ -20726,7 +20751,7 @@ var NOTE_SUGGEST_SCHEMA = {
   additionalProperties: false
 };
 var norm = (s) => s.toLowerCase().normalize("NFKD").replace(/[‘’]/g, "'").replace(/[^\p{L}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim();
-var MONEY = /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|discount(?:ed|s)?|deal|coupon|promo|voucher|free|refund(?:ed)?|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
+var MONEY = /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|deal|free|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
 var CONTACT_DETAIL = /https?:\/\/|www\.|@\S|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i;
 var AIMED_AT_US = /\b(note that|make a note|write (that )?down|remember (that|this)|put (it|that) in|tell the (owner|manager|boss)|you (told|said|promised)|your (system|rules|policy))\b/i;
 var SENSITIVE = /\b(pregnan\w*|cancer|chemo\w*|diabet\w*|depress\w*|anxiety|therap\w*|medicat\w*|surgery|hiv|disab\w*|religio\w*|church|mosque|synagogue|politic\w*|immigra\w*|visa|deport\w*|divorc\w*|custody|arrest\w*|lawsuit|court|bankrupt\w*|unemploy\w*|sexual\w*|gay|lesbian|transgender)\b/i;
@@ -20756,7 +20781,7 @@ function checkNoteSuggestion(answer, turns, known) {
   );
   if (!said.includes(q)) return { ok: false, why: "not_their_words" };
   for (const s of [body, quote]) {
-    if (MONEY.test(s) || violatesNoPrices(s)) return { ok: false, why: "money" };
+    if (MONEY.test(s) || namesMoney(s) || violatesNoPrices(s)) return { ok: false, why: "money" };
     if (CONTACT_DETAIL.test(s)) return { ok: false, why: "contact_detail" };
     if (SENSITIVE.test(s)) return { ok: false, why: "sensitive" };
   }
@@ -30332,6 +30357,7 @@ export {
   SHADOW_GRACE_MS,
   SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
+  SHADOW_WRITE_MS,
   SHORTCUTS,
   SIGNED_BY_MAX,
   SIGNIN_RESEND_COOLDOWN_S,
@@ -31309,6 +31335,8 @@ export {
   shadowBodies,
   shadowPortOf,
   shadowRead,
+  shadowSwitchOn,
+  shadowWordsOf,
   shareWords,
   sheetFootWords,
   shellStatusLine,

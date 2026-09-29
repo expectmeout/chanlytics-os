@@ -14,6 +14,7 @@
  * wrong.
  */
 import { z } from "zod";
+import { POLICY_COVERS } from "./workspace-config/policy-classes";
 
 export const BRAIN_INTENTS = [
   "booking",
@@ -60,8 +61,7 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description:
-        "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge.",
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`,
     },
     escalate: {
       type: "boolean",
