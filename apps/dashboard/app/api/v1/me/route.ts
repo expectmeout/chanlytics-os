@@ -32,7 +32,7 @@ export const PUT = write({
  * holds workspaces or money, which the platform closes first; each refusal is a conflict the page says in its own
  * words. Anything else the door says is not the person's to read: it is logged, and they are told nothing changed.
  * On success the session is ended here too, so the page that asked lands on the sign-in. A workspace the person was
- * the only member of is ended (00248): the door pauses it, and its plan is ended here, through the edge's billing door.
+ * the only member of is ended (00262): the door pauses it, and its plan is ended here, through the edge's billing door.
  */
 const REFUSALS: Record<string, string> = {
   sole_owner: "You are the only owner of a workspace with other members. Make someone else an owner first.",

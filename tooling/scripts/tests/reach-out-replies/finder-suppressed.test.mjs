@@ -53,7 +53,7 @@ test("a place is still found by its own row, and an address row never hides a pl
   assert.deepEqual(
     rpcsSeen(w),
     ["erasure_digests"],
-    "no address asked, so the predicate is not asked; the places' digests are the database's (00249)",
+    "no address asked, so the predicate is not asked; the places' digests are the database's (00263)",
   );
 });
 

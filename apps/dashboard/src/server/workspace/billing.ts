@@ -25,7 +25,7 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
 }
 
 /**
- * The plans of the workspaces a deleted account was the only member of, ended through the edge (00248). Never throws:
+ * The plans of the workspaces a deleted account was the only member of, ended through the edge (00262). Never throws:
  * the account is already gone, and a plan the edge could not end is ended by its next event there (applySubscription).
  */
 export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {

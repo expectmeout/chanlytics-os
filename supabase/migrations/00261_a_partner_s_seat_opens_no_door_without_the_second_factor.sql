@@ -1,4 +1,4 @@
--- 00247 · A partner's seat opens no door until the session showed its second factor.
+-- 00261 · A partner's seat opens no door until the session showed its second factor.
 --
 -- 00218 (decision 0013, M3) hid a partner's seat from row policies and gated is_acting_member and
 -- caller_has_permission on aal2, and said has_permission (the service role's, about any user) was unchanged. But the

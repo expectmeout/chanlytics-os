@@ -1,6 +1,6 @@
 /**
  * The erased, recognised by the digest they left (migrations 00124, 00125;
- * made by the database, 00249 erasure_digests), so the passive doors leave them
+ * made by the database, 00263 erasure_digests), so the passive doors leave them
  * erased.
  *
  * Passive: the calendar import, which makes people from appointments; a call

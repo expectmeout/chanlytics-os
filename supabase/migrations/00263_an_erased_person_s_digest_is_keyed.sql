@@ -1,4 +1,4 @@
--- 00249 · An erased person's digest is keyed with a secret the database alone holds.
+-- 00263 · An erased person's digest is keyed with a secret the database alone holds.
 --
 -- An erasure keeps one digest per identifier (00124 the number, 00125 the address, 00140 the never-again list) so the
 -- passive doors can recognise the person and leave them erased. The digest was sha256 of "<tenant id>:<value>", and a
@@ -42,7 +42,7 @@ begin
     perform vault.create_secret(
       replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
       'erasure_pepper',
-      'The key erased people''s digests are made with (00249). Never rotated in place: the stored digests are keyed with it.');
+      'The key erased people''s digests are made with (00263). Never rotated in place: the stored digests are keyed with it.');
   end if;
 end $$;
 
@@ -55,7 +55,7 @@ insert into public.erasure_keying (id) values (true) on conflict (id) do nothing
 alter table public.erasure_keying enable row level security;
 revoke all on public.erasure_keying from public, anon, authenticated;
 comment on table public.erasure_keying is
-  'When the stored erasure digests were re-keyed (00249 erasure_rekey): null until then, and every digest is the legacy sha256 until then.';
+  'When the stored erasure digests were re-keyed (00263 erasure_rekey): null until then, and every digest is the legacy sha256 until then.';
 
 -- The old digest: the inner half of the keyed one, and the only one there is until the re-key.
 create or replace function public.erasure_digest_legacy(p_tenant_id uuid, p_value text)
@@ -91,35 +91,44 @@ end $$;
 revoke execute on function public.erasure_key(text) from public, anon, authenticated;
 grant execute on function public.erasure_key(text) to service_role;
 
--- The one place a digest is made: legacy until the re-key, keyed after it.
+-- The one place a digest is made: legacy until the re-key, keyed after it. PL/pgSQL, not SQL: a statement that asks it
+-- once a row keeps its plans, where a SQL function called per row was planned again for every row. Measured on
+-- production in a transaction that never committed: 91 µs a row as SQL and 18 as this before the re-key, 127 and 61
+-- after it.
 create or replace function public.erasure_digest(p_tenant_id uuid, p_value text)
 returns text
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
-  select case
-    when p_value is null then null
-    when (select k.keyed_at from public.erasure_keying k where k.id) is null
-      then public.erasure_digest_legacy(p_tenant_id, p_value)
-    else public.erasure_key(public.erasure_digest_legacy(p_tenant_id, p_value))
-  end
-$$;
+declare
+  v_legacy text;
+begin
+  if p_value is null then
+    return null;
+  end if;
+  v_legacy := public.erasure_digest_legacy(p_tenant_id, p_value);
+  if (select k.keyed_at from public.erasure_keying k where k.id) is null then
+    return v_legacy;
+  end if;
+  return public.erasure_key(v_legacy);
+end $$;
 revoke execute on function public.erasure_digest(uuid, text) from public, anon, authenticated;
 grant execute on function public.erasure_digest(uuid, text) to service_role;
 
 -- 00140's digest, now the one above: every statement that calls it keeps its meaning and follows the re-key.
 create or replace function public.lead_suppression_hash(p_tenant_id uuid, p_value text)
 returns text
-language sql
+language plpgsql
 stable
 set search_path = public
 as $$
-  select public.erasure_digest(p_tenant_id, p_value)
-$$;
+begin
+  return public.erasure_digest(p_tenant_id, p_value);
+end $$;
 comment on function public.lead_suppression_hash(uuid, text) is
-  'The erasure digest (00249 erasure_digest): legacy sha256 of "<tenant_id>:<value>" until the re-key, keyed with Vault''s pepper after it.';
+  'The erasure digest (00263 erasure_digest): legacy sha256 of "<tenant_id>:<value>" until the re-key, keyed with Vault''s pepper after it.';
 revoke execute on function public.lead_suppression_hash(uuid, text) from public, anon, authenticated;
 
 -- The same for the edge and the dashboard: one digest per value, in order, null for null.
@@ -245,7 +254,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   if (select k.keyed_at from public.erasure_keying k where k.id) is null then
     return NEW;
@@ -257,7 +266,7 @@ begin
     NEW.hash := public.erasure_key(NEW.hash);
   end if;
   return NEW;
-end $;
+end $$;
 revoke execute on function public.erasure_digest_keyed_on_write() from public, anon, authenticated;
 
 drop trigger if exists contacts_erasure_digest_keyed on public.contacts;
@@ -313,7 +322,7 @@ begin
     raise exception 'A number or an address is needed.' using errcode = '22023';
   end if;
   -- The erased stay erased: a line that names one is left alone (00124, 00125). The digests are the database's own
-  -- (00249 erasure_digest, keyed once the re-key has run): a digest the caller hands in is not read, since only the
+  -- (00263 erasure_digest, keyed once the re-key has run): a digest the caller hands in is not read, since only the
   -- database holds the pepper.
   if (v_phone is not null and exists (
         select 1 from contacts c

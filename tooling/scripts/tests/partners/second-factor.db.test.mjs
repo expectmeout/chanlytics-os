@@ -168,7 +168,7 @@ test("a partner's seat on a session without the code: not visible, not acting, n
 });
 
 test(
-  "the definer doors a session calls straight through PostgREST (00247): a partner's password alone opens none of them, and the session that showed the code opens each as before",
+  "the definer doors a session calls straight through PostgREST (00261): a partner's password alone opens none of them, and the session that showed the code opens each as before",
   { skip },
   async () => {
     const shown = partner.client;

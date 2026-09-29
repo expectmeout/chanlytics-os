@@ -82,7 +82,7 @@ test("a part is normalised before the door sees it, the unreadable are skipped i
       ["+16465550102", "", "Dee"],
     ],
   );
-  // No digest travels (00249): the door makes its own, since only the database holds the pepper that keys it.
+  // No digest travels (00263): the door makes its own, since only the database holds the pepper that keys it.
   assert.ok(
     calls.every((c) => !("p_phone_digest" in c) && !("p_email_digest" in c)),
     "the route computes no digest",

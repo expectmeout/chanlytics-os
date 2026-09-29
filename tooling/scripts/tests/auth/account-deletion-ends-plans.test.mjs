@@ -1,5 +1,5 @@
 /**
- * Deleting your account ends the plans of the workspaces you were the only member of (00248): the door pauses each
+ * Deleting your account ends the plans of the workspaces you were the only member of (00262): the door pauses each
  * and names it, and DELETE /me asks the edge's billing door to end its plan -- so a card whose holder can no longer
  * sign in is charged nothing more. An edge that cannot end one never fails the deletion, which already happened; the
  * plan's next event there ends it (billing-door.test.mjs). The real route runs over the suite's fake database.

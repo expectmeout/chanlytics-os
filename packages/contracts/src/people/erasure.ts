@@ -1,7 +1,7 @@
 /**
  * The LEGACY digest an erased person left behind: sha256 of "<tenant>:<value>".
  *
- * Since 00249 the database makes every digest (erasure_digest, erasure_digests): this one until the re-key has run,
+ * Since 00263 the database makes every digest (erasure_digest, erasure_digests): this one until the re-key has run,
  * and after it the same digest keyed with a pepper only Vault holds, so a dump of the tables no longer lets anyone hash
  * every number to read who asked to be forgotten. Nothing in production computes a digest here any more; the edge and
  * the dashboard ask the database. This stays as the inner half the database keys, which tests use to say what the

@@ -147,7 +147,7 @@ const tables = (over = {}) => ({
   events: [],
   ...over,
 });
-/** Harbor Moving after its last member left (00248): paused and marked. */
+/** Harbor Moving after its last member left (00262): paused and marked. */
 const ENDED = {
   id: A,
   slug: "harbor",
@@ -845,7 +845,7 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
 
 /* ----------------------------------- end ---------------------------------- */
 
-test("end: a workspace its last member left (00248) has its plan ended now and applied at once -- canceled on Stripe, the row says so, and the workspace stays paused; nothing to end is an answer, not a refusal, and Stripe is not asked; a workspace someone is still in is refused", async () => {
+test("end: a workspace its last member left (00262) has its plan ended now and applied at once -- canceled on Stripe, the row says so, and the workspace stays paused; nothing to end is an answer, not a refusal, and Stripe is not asked; a workspace someone is still in is refused", async () => {
   const t = tables({ tenants: [ENDED], billing_accounts: [subscribed({ status: "active" })] });
   use(t);
   const s = stripe({ "subscriptions.cancel": async () => sub({ status: "canceled" }) });
@@ -878,7 +878,7 @@ test("end: a workspace its last member left (00248) has its plan ended now and a
   assert.equal(kept.billing_accounts[0].status, "active");
 });
 
-test("billing never resumes a workspace its last member left, nor rings or records that it did, and a plan still live when its event comes is ended then (00248)", async () => {
+test("billing never resumes a workspace its last member left, nor rings or records that it did, and a plan still live when its event comes is ended then (00262)", async () => {
   const t = tables({ tenants: [ENDED], billing_accounts: [subscribed({ status: "paused" })] });
   use(t);
   const s = stripe({
@@ -901,7 +901,7 @@ test("billing never resumes a workspace its last member left, nor rings or recor
   );
 });
 
-test("no plan is bought, resumed or started for a workspace its last member left (00248): platform_hold, in words, and Stripe is not asked", async () => {
+test("no plan is bought, resumed or started for a workspace its last member left (00262): platform_hold, in words, and Stripe is not asked", async () => {
   for (const [op, r] of [
     ["checkout", row()],
     ["resume", subscribed({ status: "paused" })],

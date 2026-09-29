@@ -1,5 +1,5 @@
 /**
- * The erasure digest keyed with a secret the database alone holds (00249), on a real Postgres. Before the re-key every
+ * The erasure digest keyed with a secret the database alone holds (00263), on a real Postgres. Before the re-key every
  * digest is the legacy sha256 contracts computes, so nothing that exists changes meaning; the keyed digest is 'h1:'
  * and an hmac of the legacy one with Vault's pepper, which no table carries; the re-key keys a workspace's stored
  * digests -- contacts, the never-again list, a reply's undo lists -- once, and a second run changes nothing; and
@@ -41,7 +41,7 @@ const ok = (r, what = "call") => {
  * it put in `seen`, as hex, so the mark it sets is never seen by the suites beside this one.
  */
 function rolledBack(body) {
-  const sql = `do $ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $`;
+  const sql = `do $$ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $$`;
   const r = spawnSync(CLI, ["db", "query", "--local", sql], {
     cwd: ROOT,
     encoding: "utf8",

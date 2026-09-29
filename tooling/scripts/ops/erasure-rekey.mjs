@@ -1,11 +1,11 @@
 /**
- * Re-key the erasure digests (00249) under the prod-script bar: dry-run DEFAULT, a JSONL backup of every row it will
+ * Re-key the erasure digests (00263) under the prod-script bar: dry-run DEFAULT, a JSONL backup of every row it will
  * change before it writes, idempotent, --apply to execute.
  *
  * An erased person leaves a digest of each identifier (contacts.erased_phone_hash and erased_email_hash, the
  * never-again list lead_suppressions.hash, and the hashes Reach out's replies keep for their undo in
  * reach_out_replies.plan). They were sha256 of "<tenant>:<value>", which anyone with a dump and a workspace id could
- * reverse for a phone number in minutes. 00249 keys them: 'h1:' || hmac-sha256(Vault's pepper, the old digest). The
+ * reverse for a phone number in minutes. 00263 keys them: 'h1:' || hmac-sha256(Vault's pepper, the old digest). The
  * pepper never leaves the database, so the re-key is the database's own function (erasure_rekey): this script counts,
  * shows a sample, writes the backup, and asks it to apply. From the moment it has applied, every digest the database
  * makes is keyed (erasure_digest), and until then every one is exactly what it was.
@@ -16,12 +16,12 @@
  * line), then calls erasure_rekey(true), which changes only rows not yet keyed ('h1:'), so a second apply changes
  * nothing; it reads the counts again, and they must be zero. A row written while the re-key ran, by a statement that
  * began before the mark committed, can stay legacy: the script then backs it up and applies once more (from the mark
- * on, 00249's triggers key whatever arrives), and the counts must be zero after that.
+ * on, 00263's triggers key whatever arrives), and the counts must be zero after that.
  *
  * The backup holds the LEGACY digests, which are as good as the numbers they hide: it is for undoing a failed run, not
  * for keeping. Delete it once the counts read zero and the apps are seen answering.
  *
- * Needs 00249 applied: it asks for the function first and stops without it. Run it after the edge and the dashboard
+ * Needs 00263 applied: it asks for the function first and stops without it. Run it after the edge and the dashboard
  * that ask the database for their digests (erasure_digests) have deployed.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -96,10 +96,10 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  // 00249 first: the function that re-keys, or nothing to ask.
+  // 00263 first: the function that re-keys, or nothing to ask.
   const before = await db.rpc("erasure_rekey", { p_apply: false });
   if (before.error) {
-    console.error(`00249 is not applied here: ${before.error.message}`);
+    console.error(`00263 is not applied here: ${before.error.message}`);
     process.exit(1);
   }
   const counts = before.data;

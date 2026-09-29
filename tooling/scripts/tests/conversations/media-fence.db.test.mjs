@@ -1,5 +1,5 @@
 /**
- * A message's media is the edge's to write (00246), on a real Postgres with a real session: a member may queue a reply
+ * A message's media is the edge's to write (00260), on a real Postgres with a real session: a member may queue a reply
  * in their own workspace as they always could, and may not queue one carrying an attachment -- least of all one whose
  * path names another workspace's object, which the dashboard's media route would sign with the service role. The
  * signer's own fence (a path outside the asking workspace is never signed) is proved beside the route, in

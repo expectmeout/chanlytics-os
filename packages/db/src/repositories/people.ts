@@ -81,7 +81,7 @@ export async function everyoneIn(db: Db, tenantId: string): Promise<PersonRowDto
 }
 
 /**
- * The erasure digests of these values in this workspace (00249 erasure_digests): the database's own, since only it
+ * The erasure digests of these values in this workspace (00263 erasure_digests): the database's own, since only it
  * holds the pepper that keys them once the re-key has run. Value → digest, one call for all of them; a value asked
  * twice is asked once. Throws when the database cannot answer: "we could not check" is never "nobody was erased".
  */

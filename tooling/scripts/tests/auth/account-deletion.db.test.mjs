@@ -1,7 +1,7 @@
 /**
  * A person deletes their own account (00190), on a real Postgres with real sessions: the only owner of a workspace
  * with other members is refused by name; a person who is the only member leaves a workspace with nobody in it, kept
- * and ended (00248: paused, marked, its open invitations revoked); a member who is not the only owner goes, and their
+ * and ended (00262: paused, marked, its open invitations revoked); a member who is not the only owner goes, and their
  * phones and marks go with them; the auth user is gone after.
  * Runs against the database `supabase start` builds on this machine, never production.
  */
@@ -99,7 +99,7 @@ test(
     const { data: tenant } = await admin.from("tenants").select("id").eq("id", t).maybeSingle();
     assert.ok(tenant, "the workspace's data stays for the platform to erase");
     const { data: ended } = await admin.from("tenants").select("status, left_empty_at").eq("id", t).single();
-    assert.equal(ended.status, "paused", "and it is ended (00248): its receptionist stops");
+    assert.equal(ended.status, "paused", "and it is ended (00262): its receptionist stops");
     assert.ok(ended.left_empty_at, "marked, so billing never resumes it");
     const { data: invite } = await admin.from("invitations").select("revoked_at").eq("id", invited.data.id).single();
     assert.ok(invite.revoked_at, "and nobody joins it: the invitation it had out is revoked");

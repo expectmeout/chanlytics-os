@@ -104,14 +104,14 @@ async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
   return data;
 }
 
-/** The workspace's switch, and when its last member left it (00248); null for no such workspace. */
+/** The workspace's switch, and when its last member left it (00262); null for no such workspace. */
 async function tenantState(db: Db, tenantId: string): Promise<{ status: string; left_empty_at: string | null } | null> {
   const { data, error } = await db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(error.message);
   return data;
 }
 
-/** Whether the workspace's last member left it (00248): ended, so no plan is bought, resumed or started for it. */
+/** Whether the workspace's last member left it (00262): ended, so no plan is bought, resumed or started for it. */
 async function leftEmpty(db: Db, tenantId: string): Promise<boolean> {
   return !!(await tenantState(db, tenantId))?.left_empty_at;
 }
@@ -207,7 +207,7 @@ export async function applySubscription(
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
   const L = logger({ tenant: row.tenant_id, subscription: sub.id });
   const tenant = await tenantState(db, row.tenant_id);
-  // A workspace its last member left (00248) is ended: billing never resumes it, and a plan still live is ended now.
+  // A workspace its last member left (00262) is ended: billing never resumes it, and a plan still live is ended now.
   const ended = !!tenant?.left_empty_at;
   const facts = subscriptionFacts(sub);
   // The card's mark for the partner sweep (0012): kept apart from the row every member reads, and before the
@@ -307,7 +307,7 @@ function keptEnded(p: BillingPlan): BillingPlan {
 const PLAN_ENDED: ReadonlySet<string> = new Set(["none", "canceled", "incomplete_expired"]);
 
 /**
- * The plan of a workspace its last member left, ended at once (00248): a card whose holder can no longer sign in is
+ * The plan of a workspace its last member left, ended at once (00262): a card whose holder can no longer sign in is
  * charged nothing more. Never throws: the plan's next event asks again (applySubscription), and the log says why.
  */
 async function endLeftEmpty(subscriptionId: string, L: ReturnType<typeof logger>): Promise<void> {
@@ -322,7 +322,7 @@ async function endLeftEmpty(subscriptionId: string, L: ReturnType<typeof logger>
 }
 
 /**
- * A workspace nobody is in any more (delete_my_account, 00248): its plan ended now, and the ending applied at once, so
+ * A workspace nobody is in any more (delete_my_account, 00262): its plan ended now, and the ending applied at once, so
  * a card whose holder can no longer sign in is charged nothing more. Nothing to end is an answer, not a refusal: a
  * workspace with no billing row, a direct one, one with no plan, one whose plan already ended. A workspace someone is
  * still in is refused: its plan is its owner's to end, from Billing.

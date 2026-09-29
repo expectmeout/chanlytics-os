@@ -365,7 +365,7 @@ test("the partner account's doors, its own reads and the boot: refused without t
   const opened = await boot.GET.run(home, session("aal2", world({ partners: [partnerRow] })));
   assert.equal(opened.user.partner.code, "ada");
 
-  // The partner account's own reads (00247 gates the database's answers too): past the second factor for a partner;
+  // The partner account's own reads (00261 gates the database's answers too): past the second factor for a partner;
   // a caller who is no partner is told so, as ever.
   const own = new Request("http://localhost/api/v1/x");
   await assert.rejects(partnerDoor.GET.run(own, session("aal1", world({ partners: [partnerRow] }))), mfa);

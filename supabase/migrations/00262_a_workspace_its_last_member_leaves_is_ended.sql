@@ -1,4 +1,4 @@
--- 00248 · A workspace its last member leaves is ended, not left running.
+-- 00262 · A workspace its last member leaves is ended, not left running.
 --
 -- delete_my_account (00190, 00208, 00210) removes a person's sign-in and memberships and keeps a workspace they alone
 -- were in, for the platform to erase (the phone app's PR 5 design). Nothing else changed for that workspace: its
@@ -20,7 +20,7 @@
 
 alter table public.tenants add column if not exists left_empty_at timestamptz;
 comment on column public.tenants.left_empty_at is
-  'When the workspace''s last member left it (delete_my_account, 00248): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it.';
+  'When the workspace''s last member left it (delete_my_account, 00262): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it.';
 
 create or replace function public.delete_my_account()
 returns jsonb
@@ -65,7 +65,7 @@ begin
     raise exception 'sole_owner' using errcode = 'P0001',
       hint = 'You are the only owner of a workspace with other members. Make someone else an owner first.';
   end if;
-  -- Workspaces that will have nobody left: kept, for the platform to erase, and ended now (00248): the receptionist
+  -- Workspaces that will have nobody left: kept, for the platform to erase, and ended now (00262): the receptionist
   -- stops (paused, as billing pauses one) and the mark tells billing never to resume it; the edge ends its plan.
   select coalesce(array_agg(m.tenant_id), '{}'), count(*) into v_emptied, v_orphaned
   from memberships m

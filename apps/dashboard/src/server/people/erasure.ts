@@ -64,7 +64,7 @@ export function erasureKeys(
  * The first leg of an erasure: the block, written before anything is
  * destroyed. From this moment the wire refuses the person (deliver.ts reads
  * erasing_since beside erased_at), and the tombstone keeps a keyed digest of
- * each identifier the person has (made by the database, 00249) so the calendar
+ * each identifier the person has (made by the database, 00263) so the calendar
  * import, a late call event, or mail from the address do not bring them back.
  * Both identifiers are named by the caller, present or null: a digest that is
  * not written here can never be written, because the erasure removes what it
@@ -77,7 +77,7 @@ export async function beginErasure(
   contactId: string,
   ids: { phone: string | null; email: string | null },
 ): Promise<void> {
-  // The database makes the digests (00249): only it holds the pepper that keys them.
+  // The database makes the digests (00263): only it holds the pepper that keys them.
   const digests = await erasureDigests(
     serviceDb(),
     tenantId,
@@ -101,7 +101,7 @@ export async function beginErasure(
 
 /**
  * The stored objects an erased person's rows name, removed. Only this workspace's own (`<tenant>/…`, inWorkspace): a
- * row that names another workspace's object, which a member could write before 00246, never has it removed here.
+ * row that names another workspace's object, which a member could write before 00260, never has it removed here.
  */
 export async function removeMediaObjects(
   tenantId: string,

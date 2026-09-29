@@ -1,4 +1,4 @@
--- 00246 · A message's media is the edge's to write.
+-- 00260 · A message's media is the edge's to write.
 --
 -- A member may queue an outbound message on the session client (00015, messages_acting_member_insert): as themselves,
 -- outbound, as a person, queued. The policy never said a word about `media`, and the dashboard's media route signs

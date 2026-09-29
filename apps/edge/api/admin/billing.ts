@@ -10,7 +10,7 @@
  *   { op: "resume", tenant_id }                       → a paused subscription resumed, billing from now
  *   { op: "start_now", tenant_id }                    → a free trial's plan started now: charged today, and what the
  *                                                       trial does not cover (a number, texting, leads) opens
- *   { op: "end", tenant_id }                          → a workspace its last member left (00248): its plan ended now;
+ *   { op: "end", tenant_id }                          → a workspace its last member left (00262): its plan ended now;
  *                                                       nothing to end is an answer, not a refusal
  *
  * The secret key lives here and nowhere else. Without it, and the price and

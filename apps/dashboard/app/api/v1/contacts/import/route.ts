@@ -55,7 +55,7 @@ export const POST = write({
       }
       // What the row does not have is sent as empty, which the door reads as none: database.types.ts types the name,
       // the number and the address as strings, as it does set_person_email's address. No digest is sent: the door makes
-      // its own (00249), since only the database holds the pepper. The name is not cut here: the door keeps its first
+      // its own (00263), since only the database holds the pepper. The name is not cut here: the door keeps its first
       // 80 characters, and a cut by code unit could split an emoji in half (csv.ts says the same of the reader).
       const { data, error } = await ctx.supabase.rpc("import_person", {
         p_tenant_id: tenantId,

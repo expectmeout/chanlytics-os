@@ -7,7 +7,7 @@ import { serviceDb } from "../service-db";
  * attachment `<tenant>/<conversation>/<message>.<ext>`, a call's recording `<tenant>/calls/<call>.<ext>`), with no
  * empty, `.` or `..` segment. The bucket is private and the signer holds the service role, so the path on the row is
  * the only thing that says whose the object is: a path that names another workspace is never signed, whatever wrote
- * it (00246 stops a member writing one on a message).
+ * it (00260 stops a member writing one on a message).
  */
 export function inWorkspace(tenantId: string, storagePath: string): boolean {
   const parts = storagePath.split("/");

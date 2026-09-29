@@ -97,7 +97,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = 
 test("an erasure runs its legs in the design's order: the block, the copies, Storage, the rows, then the rest", async () => {
   const { value, steps, removed, tables } = await erase();
   assert.deepEqual(steps, [
-    "rpc:erasure_digests", // the digests the block keeps, the database's own (00249)
+    "rpc:erasure_digests", // the digests the block keeps, the database's own (00263)
     "contacts.update", // the block, with the number still on the row
     "rpc:scrub_ask_for_contact", // the copies keyed on the number, before anything is destroyed
     "jobs.update", // the finished job only
@@ -167,7 +167,7 @@ test("past the rows every leg is best effort, and a late recording is swept and 
   assert.equal(late.value.jobs_canceled, 1);
   assert.deepEqual(late.tables.decisions[0].payload, { leg: "storage_sweep", requested: 1, removed: 1, error: null });
 
-  // A row that names another workspace's object (a member could write one before 00246) never has it removed here.
+  // A row that names another workspace's object (a member could write one before 00260) never has it removed here.
   const THEIRS = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/calls/theirs.mp3";
   const foreign = await erase({
     rpcs: { erase_contact: () => ({ counts: {}, storage_paths: [REC, THEIRS, `${A}/../x.mp3`], jobs_canceled: 0 }) },
