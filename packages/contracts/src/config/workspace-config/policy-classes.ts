@@ -135,19 +135,24 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
 };
 
 /** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
-export function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null {
+export function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | "money" | null {
   if (intent === "booking") return "booking";
   if (intent === "pricing" || intent === "services") return "faq";
+  if (intent === "money") return "money";
   return null;
 }
 
-/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
+/**
+ * The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe.
+ * Money is never the receptionist's, whatever a row says or when none is read: the charter's lock (00102), at runtime.
+ */
 export function policyAskClass(
   policy: Record<string, { mode: string }> | null | undefined,
   intent: string | null | undefined,
-): "booking" | "faq" | null {
+): "booking" | "faq" | "money" | null {
   const cls = policyClassOfIntent(intent);
   if (!cls) return null;
+  if (cls === "money") return cls;
   const mode = policy?.[cls]?.mode ?? "auto";
   return mode === "auto" ? null : cls;
 }
@@ -170,10 +175,12 @@ export function bookingHeld(policy: Record<string, { mode: string }> | null | un
 }
 
 /**
- * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
- * nothing — the profile already tells the receptionist how to book and what
- * it offers. "ask" hands the matter to a person, in words the customer can
- * hear on the phone and read on WhatsApp.
+ * What the Booking, FAQ and Money rows say in the prompt, per channel. "auto"
+ * says nothing — the profile already tells the receptionist how to book and
+ * what it offers. "ask" hands the matter to a person, in words the customer
+ * can hear on the phone and read on WhatsApp. Money is always a person's, so
+ * its line is said on every prompt (defect 5), and layer two holds a reply that
+ * names money whatever the model's record says (policy.ts namesMoney).
  */
 export function policyRules(
   policy: Record<string, { mode: string }> | null | undefined,
@@ -196,6 +203,12 @@ export function policyRules(
         : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.",
     );
   }
+  // The money row is locked to never (the charter), so its rule is said on every prompt, whatever the rows say.
+  out.push(
+    voice
+      ? "Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name."
+      : "Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.",
+  );
   return out;
 }
 

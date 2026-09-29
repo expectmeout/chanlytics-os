@@ -1,21 +1,120 @@
 /**
  * Layer-2 policy enforcement (Blueprint §6): deterministic post-generation
- * checks — prompt text is never the only defense. v1 ships the one hard rule
- * of tenant #1: NO dollar prices, ever.
+ * checks — prompt text is never the only defense. Two hard rules: no price,
+ * in any currency or in words (violatesNoPrices), and no money (namesMoney):
+ * a refund, a discount, a deposit or a payment term is a person's to decide,
+ * whatever the model made of the prompt (the money charter, defect 5).
  */
 
 import { MIN_MS, HOUR_MS } from "../shared/time";
 
-// $45 / $ 45 / 45 dollars / 45 usd / 45 bucks / 45 dólares / 45 pesos —
-// while ignoring bare durations/times the salon bot legitimately says.
+/** A currency by its code, before or after a figure: USD 45, 45 EUR, 450 MXN. */
+const CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+/** A currency by its name, after a figure: 45 dollars, 45 euros, 450 pesos, 45 dólares. */
+const NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[oó]lares?|reales?";
+/** The numbers a price is spelled with, in English and in Spanish. */
+const EN_NUMBER =
+  "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+const ES_NUMBER =
+  "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-zé]+|veinte|veinti[a-zé]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+
+// A figure with a currency, in any of the ways a reply writes one -- $45, € 45,
+// 45€, £30, MX$450, USD 45, 45 EUR, 450 MXN, 45 dollars, forty-five dollars,
+// cuarenta y cinco pesos -- or a cut to one: 20% off, un 15% de descuento,
+// half price. Bare durations and times ("45 minutes", "at 9:30") are not prices.
 const PRICE_PATTERNS: RegExp[] = [
-  /\$\s?\d/,
-  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
-  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i,
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i",
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i,
 ];
 
 export function violatesNoPrices(text: string): boolean {
   return PRICE_PATTERNS.some((p) => p.test(text));
+}
+
+// Money the receptionist never decides, in English and Spanish: a refund, a
+// discount, a deposit, a payment plan, financing, a waived fee. Payment
+// methods ("we take cards") are not here: they are a fact, not a term.
+const MONEY_PATTERNS: RegExp[] = [
+  /\brefund(?:s|ed|ing|able)?\b/i,
+  /\breimburs\w*/i,
+  /\bmoney back\b/i,
+  /\bdiscount(?:s|ed)?\b/i,
+  /\bdeposits?\b/i,
+  /\bdown[\s-]payments?\b/i,
+  /\bpayment plans?\b/i,
+  /\binstall?ments?\b/i,
+  /\bfinanc(?:e|ed|ing)\b/i,
+  /\bpay (?:it )?(?:later|over time|in (?:\d+|two|three|four|six|twelve) (?:payments|installments|months))\b/i,
+  /\bwaiv(?:e|ed|ing) (?:the |your |a |any )?(?:fee|charge|deposit|cost)s?\b/i,
+  /\breembols\w*/i,
+  /\bdevoluci[oó]n\b/i,
+  /\bdevolver(?:te|le|les)? (?:el|tu|su) dinero\b/i,
+  /\bdescuentos?\b/i,
+  /\brebajas?\b/i,
+  /\bdep[oó]sitos?\b/i,
+  /\banticipos?\b/i,
+  /\benganche\b/i,
+  /\bplan(?:es)? de pagos?\b/i,
+  /\ba plazos\b/i,
+  /\bmensualidades\b/i,
+  /\bfinanciamiento\b/i,
+  /\bfinanciaci[oó]n\b/i,
+  /\bmeses sin intereses\b/i,
+];
+
+/**
+ * Whether a reply names money the receptionist may not decide: a refund, a
+ * discount, a deposit or a payment term, in English or Spanish. Layer two
+ * holds such a reply for a person even when the model's intent says it was
+ * about something else; a reply that only says someone will be in touch about
+ * it is held too, and loses nothing: the words it is replaced with say the same.
+ */
+export function namesMoney(text: string): boolean {
+  return MONEY_PATTERNS.some((p) => p.test(text));
+}
+
+/** Why layer two replaced a reply: a price, money, a booking or a service question under "ask". */
+export const HELD_LINE_KINDS = ["price", "money", "booking", "faq"] as const;
+export type HeldLineKind = (typeof HELD_LINE_KINDS)[number];
+
+/**
+ * The words a customer gets instead of a held reply, in the language the
+ * receptionist was answering in (the brain's record says which), in no one
+ * trade's words. English is also what "other" gets: the one the workspace's
+ * own greetings are written in by default.
+ */
+const HELD_LINES: Record<"en" | "es", Record<HeldLineKind, string> & { urgent: (phone: string) => string }> = {
+  en: {
+    price: "Good question! A member of our team will follow up here with the details shortly.",
+    money: "Thanks for asking. A member of our team will get back to you here about that shortly.",
+    booking: "A member of our team will confirm your booking with you shortly.",
+    faq: "A member of our team will get back to you with the details shortly.",
+    urgent: (phone) => ` For anything urgent, call ${phone}.`,
+  },
+  es: {
+    price: "¡Buena pregunta! Alguien de nuestro equipo te responderá aquí con los detalles en breve.",
+    money: "Gracias por preguntar. Alguien de nuestro equipo te responderá aquí sobre eso en breve.",
+    booking: "Alguien de nuestro equipo te confirmará la cita en breve.",
+    faq: "Alguien de nuestro equipo te responderá con los detalles en breve.",
+    urgent: (phone) => ` Si es urgente, llama al ${phone}.`,
+  },
+};
+
+/** The line for a held reply, in the answer's language, with the number to call when there is one. */
+export function heldLine(kind: HeldLineKind, language: string | null | undefined, phone: string | null): string {
+  const words = language === "es" ? HELD_LINES.es : HELD_LINES.en;
+  return `${words[kind]}${phone ? words.urgent(phone) : ""}`;
 }
 
 /* ------------------------------------------- the same rule, said out loud */

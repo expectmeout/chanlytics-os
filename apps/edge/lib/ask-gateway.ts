@@ -10,7 +10,7 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, ASK_MODELS } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, MODELS, MODEL_ROUTES, type ModelPurpose } from "./packages/contracts.js";
 import type { Database } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
@@ -28,9 +28,10 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /**
  * Ask's tokens in the last day, this workspace: input plus output of every usage.ask_tokens event of the last 24
- * hours, summed in one statement (ask_tokens_day, 00240). Read failures count as zero, never as a refusal.
+ * hours, summed in one statement (ask_tokens_day, 00240). A read that fails is not known, and says so (null): the door
+ * holds the turn rather than let a failed count read as a day with nothing spent (the scorecard, 29 September).
  */
-export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
+export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
   const L = logger({ tenant: tenantId });
   try {
     const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
@@ -38,7 +39,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: s
     return num(Number(data));
   } catch (e) {
     L.error("ask_budget_read_failed", { error: errField(e) });
-    return 0;
+    return null;
   }
 }
 
@@ -156,6 +157,14 @@ const EFFORTS = new Set(["low", "medium", "high"]);
 /** What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). */
 export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest", "list_draft"] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
+
+/**
+ * The registry's purpose a gateway purpose is asked as (contracts ai/models.ts): Ask's turn is Ask's route (the template
+ * drafter's rounds come as Ask's too), the lead and list drafts the small JSON route. The route names the fallback.
+ */
+export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
+  return purpose === "ask" ? "ask" : "lead_json";
+}
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const FORMAT_MAX = 8_000;
@@ -183,16 +192,23 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
 }
 
 /**
- * The models a request may name: Ask's profiles (contracts ASK_MODELS, the list the dashboard's ASK_MODEL picks from)
- * and Opus 5, which no caller names as of 25 Sep 2026 (the door's own tests do).
+ * The models a request may name: every model and fallback of the purposes the gateway serves (the registry's routes for
+ * Ask and the small JSON drafts), so the dashboard's ASK_MODEL and JSON_MODEL, and the fallback the port may ask, are
+ * the list, and the two cannot drift apart.
  */
-export const GATEWAY_MODELS = ["claude-opus-5", ...ASK_MODELS] as const;
+export const GATEWAY_MODELS: readonly string[] = [
+  ...new Set(
+    (["ask", "lead_json", "template_draft"] as const).flatMap((p) =>
+      [MODEL_ROUTES[p].model, MODEL_ROUTES[p].fallback].filter((m): m is NonNullable<typeof m> => m !== null),
+    ),
+  ),
+];
 /**
  * What a request that names no model gets: the model every caller ran on before each named its own (Ask its profile,
  * the lead purposes JSON_MODEL). Only a dashboard older than that sends none, and it expects this; Ask's default
  * (contracts ASK_MODEL) moves Ask alone.
  */
-export const GATEWAY_FALLBACK_MODEL = "claude-sonnet-5" as const;
+export const GATEWAY_FALLBACK_MODEL = MODELS.SONNET_5;
 /** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
@@ -209,7 +225,7 @@ export function validateGatewayRequest(
   const r = raw as Partial<GatewayRequest> | null;
   if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
-  if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return badRequest("unknown model");
+  if (!GATEWAY_MODELS.includes(model)) return badRequest("unknown model");
   const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
   const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {

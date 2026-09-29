@@ -111,6 +111,8 @@ export interface InboundRuntime {
   loadFailed: boolean;
   /** The config row EXISTS but does not parse — a mistake somebody can fix. */
   configBroken?: boolean;
+  /** tenant_config.version, stamped on each answer's meta; absent or null when it could not be read. */
+  configVersion?: number | null;
 }
 
 /**
@@ -138,6 +140,19 @@ export interface InboundHandoff {
   who?: string | null;
   /** The conversation the row is about, so the bell can say a thing once. */
   about?: { type: string; id: string } | null;
+}
+
+/**
+ * Who an answer is for: the ledger's row (ai_usage, written by the model port) and the stamp on its meta (the settings'
+ * version its prompt was composed from). The purpose is the receptionist's own unless a draft says otherwise.
+ */
+export interface BrainCall {
+  tenantId: string | null;
+  /** The conversation it answers. */
+  subjectId?: string | null;
+  /** tenant_config.version the prompt was composed from; null when it could not be read. */
+  configVersion?: number | null;
+  purpose?: "receptionist" | "reply_draft";
 }
 
 /** What the model answered, and what the row remembers about it (the edge's brain.ts `BrainReply`). */
@@ -269,6 +284,7 @@ export interface InboundPorts {
       nowNote?: string,
       image?: { mime: string; base64: string },
       steer?: string,
+      call?: BrainCall,
     ): Promise<InboundBrainReply>;
   }>;
   /**

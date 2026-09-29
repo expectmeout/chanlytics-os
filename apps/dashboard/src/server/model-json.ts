@@ -14,17 +14,16 @@
  */
 import "server-only";
 import type { ZodType } from "zod";
-import { AppError, MIN_MS } from "@chanlytics/contracts";
+import { AppError, MIN_MS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
 
 /**
- * The lead purposes' own model, named here so the edge's default (contracts
- * ASK_MODEL, which Ask's profile moves) never moves them: their answers are
- * small JSON at 400–600 max_tokens, tuned on Sonnet 5, and Opus 5.5's thinking
- * cannot be switched off. One name per purpose, as DRAFT_MODEL is the template
+ * The lead purposes' own model, the registry's (contracts MODEL_ROUTES.lead_json), so the edge's default (contracts
+ * ASK_MODEL, which Ask's profile moves) never moves them: their answers are small JSON at 400–600 max_tokens, tuned on
+ * Sonnet 5, and Opus 5.5's thinking cannot be switched off. One route per purpose, as DRAFT_MODEL is the template
  * drafter's (templates.ts).
  */
-export const JSON_MODEL = "claude-sonnet-5";
+export const JSON_MODEL = MODEL_ROUTES.lead_json.model;
 
 /** How long one answer may take unless the caller bounds it: the edge's own door stops at a minute (vercel.json). */
 const MODEL_JSON_TIMEOUT_MS = MIN_MS;

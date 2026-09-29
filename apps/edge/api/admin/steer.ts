@@ -147,6 +147,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
       undefined,
       frameSteer(text),
+      { tenantId: m.tenant_id, subjectId: m.conversation_id, configVersion: rt.configVersion ?? null },
     );
   } catch (e) {
     L.error("steer_brain_failed", { error: errField(e) });

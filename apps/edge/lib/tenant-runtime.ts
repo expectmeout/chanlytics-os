@@ -75,6 +75,8 @@ export interface TenantRuntime {
    *  profile: the receptionist is silent either way, but this one is a
    *  mistake somebody can fix, and the escalation should say so. */
   configBroken?: boolean;
+  /** tenant_config.version the runtime was read at: stamped on every answer's meta (contracts BrainMeta). */
+  configVersion?: number | null;
 }
 
 /** The backstop for what the stamp does not see: credentials in Vault, a channel row. */
@@ -173,7 +175,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
 
   try {
     const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
-      db.from("tenant_config").select("config").eq("tenant_id", routed.tenantId).maybeSingle(),
+      db.from("tenant_config").select("config, version").eq("tenant_id", routed.tenantId).maybeSingle(),
       db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
       // whichever channel happened to route this request.
@@ -250,6 +252,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       },
       paused: tzQ.data?.status === "paused",
       configBroken: !parseResult.ok,
+      configVersion: typeof cfgQ.data?.version === "number" ? cfgQ.data.version : null,
       loadFailed: false,
     };
     cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });

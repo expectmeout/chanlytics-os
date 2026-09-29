@@ -161,6 +161,24 @@ export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
 }
 
 /**
+ * May this workspace spend the platform's model key on what a person asks for (Ask, the drafts, a review's reply, a
+ * note)? The scorecard's category 39: model spend inside billing's taxonomy.
+ *
+ * Between the two predicates above, and on purpose. The model is what the trial is FOR (the first run asks Ask its
+ * first question), so a trialing workspace uses it, inside the day's caps (ASK_TOKENS_DAY, max_llm_tokens_day). A
+ * workspace billing paused, or that 00262 ended when its last member left, or whose plan is over (canceled, unpaid,
+ * incomplete_expired), spends nothing: no Ask, no draft. `direct` is invoiced by hand, as maySpend says.
+ */
+export function mayUseModels(
+  mode: BillingMode,
+  status: BillingStatus,
+  workspace: { paused: boolean; ended: boolean },
+): boolean {
+  if (workspace.paused || workspace.ended) return false;
+  return mode !== "stripe" || receptionistOn(status);
+}
+
+/**
  * What a refusal to spend says the money was FOR.
  *
  * Until the lead finder there was one spending route family and the sentences

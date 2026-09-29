@@ -3,9 +3,11 @@
  * the three things the reply_read job needs from the edge, where the model's key, the spend and the notification door
  * are. The rules are contracts' (reach-out-replies.ts) and the verb is core's (readReply); this asks and tells.
  *
- *   - ask: Haiku (REACH_OUT_MODEL) through the platform's one JSON-model transport (lib/model.ts askJson), with no
- *     retry of its own and a deadline of the check's call time or the job's time left, whichever is sooner. A plain-JSON
- *     second call when the schema format is refused is part of the one read.
+ *   - ask: Haiku (the registry's reply_read route) through the platform's one JSON-model transport (lib/model.ts
+ *     askJson), with no retry of its own on "not now" and a deadline of the check's call time or the job's time left,
+ *     whichever is sooner; an overload is asked once of the route's fallback when that deadline leaves room. A
+ *     plain-JSON second call when the schema format is refused is part of the one read. Each call is written to the
+ *     usage ledger for the reply's workspace (defect 53: the reader kept no usage).
  *   - mayRead: the model's key, the workspace's one reading of whether it may spend (workspaceMaySpend, as the check
  *     asks it), and one read taken from its UTC day (REACH_OUT_READS_PER_DAY, beside the check's attempts). No second
  *     budget rule: a read is spent the way a check's attempt is.
@@ -14,12 +16,7 @@
  *   - draft: the receptionist's draft of an answer (reply-draft.ts, decision 0017).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  REACH_OUT_MODEL,
-  REACH_OUT_READS_PER_DAY,
-  REPLY_READ_MAX_TOKENS,
-  REPLY_SCHEMA,
-} from "../packages/contracts.js";
+import { REACH_OUT_READS_PER_DAY, REPLY_READ_MAX_TOKENS, REPLY_SCHEMA } from "../packages/contracts.js";
 import { takeReplyRead, workspaceMaySpend, type Database } from "../packages/db.js";
 import type { JobContext } from "../packages/jobs.js";
 import { askJson } from "../model.js";
@@ -40,19 +37,19 @@ export function replyReader(
   const now = over.now ?? Date.now;
   return {
     draft: over.draft ?? replyDrafter(db, { now }),
-    ask: async (system, user, deadline) => {
+    ask: async (system, user, deadline, forWhom) => {
       const ms = Math.min(CHECK_CALL_MS, deadline - now());
       if (ms <= 0) throw new Error("reply_read: no time left for the reader");
       const answered = await askJson({
-        model: REACH_OUT_MODEL,
+        purpose: "reply_read",
         system,
         user,
         schema: REPLY_SCHEMA,
         maxTokens: REPLY_READ_MAX_TOKENS,
         plainJsonHint: "Answer with only a JSON object in the shape asked.",
         timeoutMs: ms,
-        maxRetries: 0,
         signal: AbortSignal.timeout(ms),
+        for: forWhom,
       });
       return answered?.answer ?? null;
     },

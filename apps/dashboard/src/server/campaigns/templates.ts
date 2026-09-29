@@ -19,6 +19,7 @@ import {
   templateUntranslatable,
   validateTemplateDraft,
   MIN_MS,
+  MODEL_ROUTES,
   type TemplateCategoryChoice,
   type TemplateDraft,
 } from "@chanlytics/contracts";
@@ -38,7 +39,7 @@ import { log } from "@/server/log";
  * route uses checks the draft, so a draft that would be refused is fixed
  * before the person ever sees it.
  */
-export const DRAFT_MODEL = "claude-sonnet-5";
+export const DRAFT_MODEL = MODEL_ROUTES.template_draft.model;
 
 /** How long a template draft or translation may take: the edge's model door stops at a minute (vercel.json). */
 const DRAFT_TIMEOUT_MS = MIN_MS;

@@ -6,6 +6,7 @@ export type {
   InboundRuntime,
   InboundHandoff,
   InboundBrainReply,
+  BrainCall,
   InboundSink,
   InboundPorts,
 } from "./ports";

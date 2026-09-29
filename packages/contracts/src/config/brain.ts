@@ -18,6 +18,9 @@ import { z } from "zod";
 export const BRAIN_INTENTS = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -30,6 +33,7 @@ export type BrainIntent = (typeof BRAIN_INTENTS)[number];
 export const INTENT_LABELS: Record<BrainIntent, string> = {
   booking: "Booking",
   pricing: "Pricing question",
+  money: "Money question",
   hours: "Hours",
   services: "Services",
   location: "Location",
@@ -56,7 +60,8 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after.",
+      description:
+        "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge.",
     },
     escalate: {
       type: "boolean",
@@ -139,6 +144,12 @@ export function parseBrainOutput(raw: string): { ok: true; value: BrainOutput } 
  * What a message row remembers about its own reasoning. Written by the edge
  * beside source/delay_ms; read back by the Inbox through the meta the DTO
  * already carries.
+ *
+ * Stamped with what it was written from (scorecard move 10): the model that
+ * answered (a fallback's, when it did), the sha256 of the instructions it was
+ * given, and the version of the workspace's settings they were composed from,
+ * so a past reply's prompt can be named and a settings change traced to the
+ * replies after it. Rows from before the stamp carry the model alone.
  */
 export interface BrainMeta {
   intent: BrainIntent;
@@ -147,9 +158,19 @@ export interface BrainMeta {
   facts_used: string[];
   language: (typeof BRAIN_LANGUAGES)[number];
   model: string;
+  /** The first 16 hex of the sha256 of the system prompt the model was given. */
+  prompt_hash?: string;
+  /** tenant_config.version the prompt was composed from; null when it could not be read. */
+  config_version?: number | null;
 }
 
-export function brainMetaOf(out: BrainOutput, model: string): BrainMeta {
+/** What an answer was written from: its prompt's hash and the settings' version. */
+export interface BrainStamp {
+  promptHash: string;
+  configVersion: number | null;
+}
+
+export function brainMetaOf(out: BrainOutput, model: string, stamp?: BrainStamp): BrainMeta {
   return {
     intent: out.intent,
     confidence: Math.round(out.confidence * 100) / 100,
@@ -157,6 +178,7 @@ export function brainMetaOf(out: BrainOutput, model: string): BrainMeta {
     facts_used: out.facts_used,
     language: out.language,
     model,
+    ...(stamp ? { prompt_hash: stamp.promptHash, config_version: stamp.configVersion } : {}),
   };
 }
 

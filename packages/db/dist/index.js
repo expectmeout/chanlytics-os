@@ -13,6 +13,7 @@ var WRITES = {
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
   "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
   "google.reviews": { category: "google", version: 1 },
   "google.unlinked": { category: "google", version: 1 },
   "ingest.allowlist_skip": { category: "ingest", version: 1 },
@@ -45,7 +46,8 @@ var WRITES = {
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },
-  "webhook.delivery": { category: "ingest", version: 1 }
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
 };
 var WABA_WRITE = { category: "system", version: 1 };
 function rowOf(tenantId, kind, subjectType, subjectId, data) {
@@ -68,13 +70,22 @@ async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
   if (error) console.error("emit_event_failed", kind, error);
 }
-
-// src/service-client.ts
-import { createClient } from "@supabase/supabase-js";
-function createServiceClient(cfg) {
-  return createClient(cfg.url, cfg.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
+async function subjectsWith(db, tenantId, kind, subjectIds) {
+  if (!subjectIds.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
+  if (error) throw new Error(`events: ${error.message}`);
+  return new Set((data ?? []).map((r2) => r2.subject_id).filter((id) => typeof id === "string"));
+}
+async function recordActivation(db, tenantId, milestone, via) {
+  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
+  if (error) {
+    console.error("activation_read_failed", milestone, error.message);
+    return false;
+  }
+  if (data && data.length) return false;
+  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
+  if (w.error) console.error("emit_event_failed", "workspace.activated", w.error);
+  return !w.error;
 }
 
 // ../contracts/dist/index.js
@@ -103,6 +114,40 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 z.config({ jitless: true });
+var MODELS = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS = [MODELS.OPUS_5_5, MODELS.OPUS_5, MODELS.SONNET_5, MODELS.HAIKU_4_5];
+var { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
+var RECEPTIONIST_TRY_MS = 2e4;
+var ASK_TRY_MS = 55e3;
+var DRAFT_TRY_MS = 55e3;
+var REVIEW_TRY_MS = 15e3;
+var JUDGE_TRY_MS = 28e3;
+var NOTE_TRY_MS = 2e4;
+var READ_TRY_MS = 8e3;
+var MODEL_ROUTES = {
+  receptionist: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES = {
+  [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
@@ -819,6 +864,12 @@ var ASK_CITATION_KINDS = [
   "domain"
 ];
 var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
+var ASK_MODEL_PROFILES = {
+  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL = MODEL_ROUTES.ask.model;
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1934,6 +1985,25 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -1987,6 +2057,8 @@ var EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -2081,7 +2153,9 @@ var EVENT_KINDS = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2254,6 +2328,9 @@ var PolicyLimitsSchema = z13.object({
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -2272,7 +2349,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -2315,9 +2392,16 @@ var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 var REVIEW_NEWS_MS = 36 * HOUR_MS;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function receptionistOn(status) {
+  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+}
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
   return status === "active";
+}
+function mayUseModels(mode, status, workspace) {
+  if (workspace.paused || workspace.ended) return false;
+  return mode !== "stripe" || receptionistOn(status);
 }
 var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
@@ -2371,6 +2455,7 @@ var OPENING_FACT_KEYS = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
@@ -2407,7 +2492,9 @@ var RETENTION_DAYS = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -2761,6 +2848,7 @@ var KIND_META = {
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -3081,6 +3169,64 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/ai-usage.ts
+async function recordModelUsage(db, row) {
+  const { error } = await db.from("ai_usage").insert(row);
+  if (error) throw new Error(`ai_usage: ${error.message}`);
+}
+async function workspaceMayUseModels(db, tenantId) {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (!tenant.data || !billing.data) return false;
+  return mayUseModels(billing.data.mode, billing.data.status, {
+    paused: tenant.data.status === "paused",
+    ended: !!tenant.data.left_empty_at
+  });
+}
+async function aiFailuresHour(db, min) {
+  const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
+  if (error) throw new Error(`ai_failures_hour: ${error.message}`);
+  return (data ?? []).map((r2) => ({
+    tenant_id: r2.tenant_id,
+    failed_calls: Number(r2.failed_calls) || 0,
+    brain_errors: Number(r2.brain_errors) || 0
+  }));
+}
+async function purgeAiUsage(db) {
+  const { data, error } = await db.rpc("ai_usage_purge", { p_keep: `${RETENTION_DAYS.ai_usage} days` });
+  if (error) throw new Error(`ai_usage_purge: ${error.message}`);
+  return Number(data) || 0;
+}
+async function usageMonth(db, tenantId, month) {
+  const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
+  if (error) throw new Error(`ai_usage_month: ${error.message}`);
+  const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+  return (data ?? []).map((r2) => ({
+    meter: r2.meter,
+    purpose: r2.purpose ?? null,
+    model: r2.model ?? null,
+    uses: n(r2.uses),
+    quantity: n(r2.quantity),
+    input_tokens: n(r2.input_tokens),
+    output_tokens: n(r2.output_tokens),
+    cache_read_tokens: n(r2.cache_read_tokens),
+    cache_write_tokens: n(r2.cache_write_tokens),
+    usd: r2.usd === null || r2.usd === void 0 ? null : n(r2.usd)
+  }));
+}
+
+// src/service-client.ts
+import { createClient } from "@supabase/supabase-js";
+function createServiceClient(cfg) {
+  return createClient(cfg.url, cfg.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -5480,6 +5626,7 @@ export {
   activityTokensOf,
   addToList,
   addressesSuppressed,
+  aiFailuresHour,
   answeredReachOutEmail,
   applyDomainCheck,
   applyReplyReading,
@@ -5577,6 +5724,7 @@ export {
   personReplyMode,
   platformHoldStands,
   playbooksOnList,
+  purgeAiUsage,
   putTenantConfig,
   queuedOutcomes,
   reachOutAudience,
@@ -5596,6 +5744,7 @@ export {
   readLeadOne,
   readThreadState,
   recheckSends,
+  recordActivation,
   recordCallNote,
   recordCarrierOptOut,
   recordCheck,
@@ -5603,6 +5752,7 @@ export {
   recordEmailNo,
   recordEmailStatus,
   recordEvent,
+  recordModelUsage,
   recordOutbound,
   recordPartnerSecondFactorReset,
   recordProviderDomain,
@@ -5652,6 +5802,7 @@ export {
   stampPlaybooksTried,
   stampReachOutStep,
   stuckClaims,
+  subjectsWith,
   subscribeMessagesInserts,
   suppressEmailOf,
   takeCheckAttempt,
@@ -5665,11 +5816,13 @@ export {
   uncheckedSends,
   uncheckedWaiting,
   undoReplyReading,
+  usageMonth,
   watchedTables,
   withdrawEmail,
   withdrawPartnerInvite,
   workspaceAbout,
   workspaceMaySpend,
+  workspaceMayUseModels,
   workspaceNameAndConfig,
   writtenEmail,
   writtenEmails,

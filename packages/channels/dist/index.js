@@ -61,6 +61,7 @@ async function once(provider, url, call2, deps, tries) {
       status: 0,
       text: "",
       json: null,
+      body: null,
       headers: null,
       retryAfterMs: b.openUntil - now,
       error: "breaker_open",
@@ -76,8 +77,24 @@ async function once(provider, url, call2, deps, tries) {
     redirect: call2.redirect
   };
   let a;
+  const bound = AbortSignal.timeout(call2.timeoutMs);
   try {
-    const r2 = await deps.fetch(url, { ...init, signal: AbortSignal.timeout(call2.timeoutMs) });
+    const r2 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
+    if (call2.stream && r2.ok && r2.body) {
+      a = {
+        outcome: "ok",
+        status: r2.status,
+        text: "",
+        json: null,
+        body: r2.body,
+        headers: r2.headers,
+        retryAfterMs: null,
+        error: null,
+        tries
+      };
+      note(provider, a, deps.now());
+      return a;
+    }
     const text = await r2.text();
     let json = null;
     try {
@@ -90,6 +107,7 @@ async function once(provider, url, call2, deps, tries) {
       status: r2.status,
       text,
       json,
+      body: null,
       headers: r2.headers,
       retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
       error: null,
@@ -97,7 +115,7 @@ async function once(provider, url, call2, deps, tries) {
     };
   } catch (e) {
     const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, headers: null, retryAfterMs: null, error, tries };
+    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
   }
   note(provider, a, deps.now());
   return a;
@@ -151,6 +169,60 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 z.config({ jitless: true });
+var MODELS = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS = [MODELS.OPUS_5_5, MODELS.OPUS_5, MODELS.SONNET_5, MODELS.HAIKU_4_5];
+var { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
+var RECEPTIONIST_TRY_MS = 2e4;
+var ASK_TRY_MS = 55e3;
+var DRAFT_TRY_MS = 55e3;
+var REVIEW_TRY_MS = 15e3;
+var JUDGE_TRY_MS = 28e3;
+var NOTE_TRY_MS = 2e4;
+var READ_TRY_MS = 8e3;
+var MODEL_ROUTES = {
+  receptionist: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 }
+};
+function modelRoute(purpose) {
+  return MODEL_ROUTES[purpose];
+}
+function fallbackModel(purpose, asked) {
+  const r2 = modelRoute(purpose);
+  if (!r2.fallback) return null;
+  const next = asked === r2.fallback ? r2.model : r2.fallback;
+  return next === asked ? null : next;
+}
+var NO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+var MODEL_PRICES = {
+  [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
+function usageOf(raw) {
+  const u = raw && typeof raw === "object" ? raw : {};
+  const n = (v) => typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+  return {
+    input: n(u.input_tokens),
+    output: n(u.output_tokens),
+    cacheRead: n(u.cache_read_input_tokens),
+    cacheWrite: n(u.cache_creation_input_tokens)
+  };
+}
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
@@ -807,6 +879,12 @@ var ASK_CITATION_KINDS = [
   "domain"
 ];
 var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
+var ASK_MODEL_PROFILES = {
+  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL = MODEL_ROUTES.ask.model;
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1902,6 +1980,25 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -1955,6 +2052,8 @@ var EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -2049,7 +2148,9 @@ var EVENT_KINDS = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -2226,6 +2327,9 @@ var PolicyLimitsSchema = z13.object({
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -2244,7 +2348,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -2355,6 +2459,7 @@ var OPENING_FACT_KEYS = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
@@ -2414,7 +2519,9 @@ var RETENTION_DAYS = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -2882,6 +2989,7 @@ function companyTypeOf(v) {
 }
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -3208,6 +3316,126 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/anthropic.ts
+var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+var ANTHROPIC_VERSION = "2023-06-01";
+var FALLBACK_FLOOR_MS = 1500;
+function headersFor(key, betas) {
+  return {
+    "content-type": "application/json",
+    "x-api-key": key,
+    "anthropic-version": ANTHROPIC_VERSION,
+    ...betas && betas.length ? { "anthropic-beta": betas.join(",") } : {}
+  };
+}
+function errorOf(a) {
+  const j = a.json;
+  const m = j && typeof j === "object" && j.error && typeof j.error.message === "string" ? j.error.message : null;
+  return m ?? a.error ?? `status ${a.status}`;
+}
+var neverCame = (a) => a.outcome === "unknown";
+function messageOf(json) {
+  const j = json && typeof json === "object" ? json : {};
+  const content = Array.isArray(j.content) ? j.content : [];
+  return {
+    id: typeof j.id === "string" ? j.id : null,
+    model: typeof j.model === "string" ? j.model : null,
+    stop_reason: typeof j.stop_reason === "string" ? j.stop_reason : null,
+    content,
+    usage: j.usage && typeof j.usage === "object" ? j.usage : null
+  };
+}
+function textOf(message) {
+  return message.content.filter((b) => b.type === "text").map((b) => typeof b.text === "string" ? b.text : "").join("");
+}
+function formatRejected(r2) {
+  return r2.outcome === "rejected" && r2.status === 400 && /output_config|output_format|json_schema|schema|format|fallback|beta/i.test(r2.error ?? "");
+}
+function planOf(ask, deps) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+  };
+  const route = modelRoute(ask.purpose);
+  return { route, first: ask.model ?? route.model, started: d.now(), d };
+}
+function tryModel(key, ask, p, model, stream) {
+  const left = ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+  const timeoutMs = Math.max(1, Math.min(ask.timeoutMs ?? p.route.timeoutMs, left));
+  return providerFetch(
+    "anthropic",
+    ANTHROPIC_MESSAGES_URL,
+    {
+      method: "POST",
+      headers: headersFor(key, ask.betas),
+      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...ask.body, model, ...stream ? { stream: true } : {} }),
+      timeoutMs,
+      tries: 1 + Math.max(0, ask.retries ?? p.route.retries),
+      ...Number.isFinite(left) ? { deadlineMs: left } : {},
+      breaker: "count",
+      ...ask.signal ? { signal: ask.signal } : {},
+      ...stream ? { stream: true } : {}
+    },
+    p.d
+  );
+}
+function fallbackFor(ask, p, failed) {
+  if (!neverCame(failed) || ask.signal?.aborted) return null;
+  const next = fallbackModel(ask.purpose, p.first);
+  if (!next) return null;
+  const left = ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+  return left >= FALLBACK_FLOOR_MS ? next : null;
+}
+var failure = (a) => a.outcome === "refused" ? "rejected" : "unreachable";
+async function askModel(key, ask, deps = {}) {
+  const p = planOf(ask, deps);
+  let model = p.first;
+  let a = await tryModel(key, ask, p, model, false);
+  let fellBack = false;
+  const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
+  if (next) {
+    model = next;
+    fellBack = true;
+    a = await tryModel(key, ask, p, model, false);
+  }
+  const base = { asked: p.first, fellBack, status: a.status };
+  if (a.outcome !== "ok") {
+    return {
+      ...base,
+      model,
+      outcome: failure(a),
+      error: errorOf(a),
+      detail: a.text.slice(0, 300),
+      usage: NO_USAGE
+    };
+  }
+  const message = messageOf(a.json);
+  return {
+    ...base,
+    model: message.model ?? model,
+    outcome: "ok",
+    message,
+    usage: usageOf(message.usage),
+    text: textOf(message).trim()
+  };
+}
+async function streamModel(key, ask, deps = {}) {
+  const p = planOf(ask, deps);
+  let model = p.first;
+  let a = await tryModel(key, ask, p, model, true);
+  let fellBack = false;
+  const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
+  if (next) {
+    model = next;
+    fellBack = true;
+    a = await tryModel(key, ask, p, model, true);
+  }
+  const base = { asked: p.first, model, fellBack, status: a.status };
+  if (a.outcome === "ok" && a.body) return { ...base, outcome: "ok", body: a.body, headers: a.headers };
+  return { ...base, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
+}
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -7010,16 +7238,16 @@ function apifyClient(fetchImpl, token) {
 
 // src/leads/lead-judge.ts
 import { createHash } from "crypto";
-var LEAD_JUDGE_MAX_TOKENS = 6e3;
+var LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES.lead_judge.maxTokens;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
-var LEAD_JUDGE_DEFAULT_MODEL = "claude-opus-5";
+var LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES.lead_judge.model;
 function betaRejected(e) {
   const err = e;
   return err?.status === 400 && /fallback|beta|output_config|json_schema|format/i.test(err.message ?? "");
 }
 function leadJudge(client, model, fallbacks) {
   return {
-    async judge(plan, places) {
+    async judge(plan, places, tenantId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
       const requestHash = createHash("sha256").update(`${system}
@@ -7034,11 +7262,12 @@ ${user}`).digest("hex");
       let res;
       try {
         res = await client.beta.messages.create(
-          fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base
+          fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
+          { tenantId }
         );
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
-        res = await client.beta.messages.create(base);
+        res = await client.beta.messages.create(base, { tenantId });
       }
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
@@ -7059,6 +7288,8 @@ ${user}`).digest("hex");
 export {
   A2P_POLICIES,
   A2P_STEPS,
+  ANTHROPIC_MESSAGES_URL,
+  ANTHROPIC_VERSION,
   APIFY_BASE,
   APIFY_RUN_END_EVENTS,
   APIFY_TIMEOUT_MS,
@@ -7129,6 +7360,7 @@ export {
   agentSettingsDrift,
   answerObject,
   apifyClient,
+  askModel,
   assignRequest,
   authorizeUrl,
   availabilityUrl,
@@ -7171,6 +7403,7 @@ export {
   fetchRecording,
   fetchTwilio,
   findMailDomain,
+  formatRejected,
   getAgent,
   getAgentRaw,
   getCall,
@@ -7283,11 +7516,13 @@ export {
   starterEndUserRequest,
   starterProfileRequest,
   stopCall,
+  streamModel,
   stripKey,
   subaccountName,
   submitProfileRequest,
   submitTrustProductRequest,
   supportingDocumentRequest,
+  textOf,
   tokenExchangeRequest,
   tokenRefreshRequest,
   trunkDomain,

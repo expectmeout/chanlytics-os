@@ -197,6 +197,7 @@ async function collectHeld(
         plan,
         toJudge.map((t) => factsOf(t.ref, t.prep.clean)),
         opIdFor(run.id, from, 0),
+        round.tenant_id,
       );
       // The members say the plan's sentence; the judge's own word for the refusal rides the outcome, so the collect's line says why.
       if (judged.refused && judged.why) judgeRefused = judged.why;

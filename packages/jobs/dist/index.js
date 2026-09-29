@@ -181,6 +181,40 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 z.config({ jitless: true });
+var MODELS = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS = [MODELS.OPUS_5_5, MODELS.OPUS_5, MODELS.SONNET_5, MODELS.HAIKU_4_5];
+var { OPUS_5_5, OPUS_5, SONNET_5, HAIKU_4_5 } = MODELS;
+var RECEPTIONIST_TRY_MS = 2e4;
+var ASK_TRY_MS = 55e3;
+var DRAFT_TRY_MS = 55e3;
+var REVIEW_TRY_MS = 15e3;
+var JUDGE_TRY_MS = 28e3;
+var NOTE_TRY_MS = 2e4;
+var READ_TRY_MS = 8e3;
+var MODEL_ROUTES = {
+  receptionist: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES = {
+  [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
@@ -846,6 +880,12 @@ var ASK_CITATION_KINDS = [
   "domain"
 ];
 var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback];
+var ASK_MODEL_PROFILES = {
+  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL = MODEL_ROUTES.ask.model;
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1940,6 +1980,25 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -1993,6 +2052,8 @@ var EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -2087,7 +2148,9 @@ var EVENT_KINDS = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2260,6 +2323,9 @@ var PolicyLimitsSchema = z13.object({
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -2278,7 +2344,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -2373,6 +2439,7 @@ var OPENING_FACT_KEYS = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
@@ -2414,7 +2481,9 @@ var RETENTION_DAYS = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -2712,6 +2781,7 @@ var KIND_META = {
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -8043,6 +8113,40 @@ function handleDeprecatedOptions(options) {
 
 // ../channels/dist/index.js
 z25.config({ jitless: true });
+var MODELS2 = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS2 = [MODELS2.OPUS_5_5, MODELS2.OPUS_5, MODELS2.SONNET_5, MODELS2.HAIKU_4_5];
+var { OPUS_5_5: OPUS_5_52, OPUS_5: OPUS_52, SONNET_5: SONNET_52, HAIKU_4_5: HAIKU_4_52 } = MODELS2;
+var RECEPTIONIST_TRY_MS2 = 2e4;
+var ASK_TRY_MS2 = 55e3;
+var DRAFT_TRY_MS2 = 55e3;
+var REVIEW_TRY_MS2 = 15e3;
+var JUDGE_TRY_MS2 = 28e3;
+var NOTE_TRY_MS2 = 2e4;
+var READ_TRY_MS2 = 8e3;
+var MODEL_ROUTES2 = {
+  receptionist: { model: OPUS_52, fallback: SONNET_52, timeoutMs: RECEPTIONIST_TRY_MS2, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_52, fallback: SONNET_52, timeoutMs: RECEPTIONIST_TRY_MS2, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_52, fallback: SONNET_52, timeoutMs: ASK_TRY_MS2, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_52, fallback: OPUS_52, timeoutMs: DRAFT_TRY_MS2, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_52, fallback: OPUS_52, timeoutMs: DRAFT_TRY_MS2, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_52, fallback: OPUS_52, timeoutMs: REVIEW_TRY_MS2, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_52, fallback: null, timeoutMs: JUDGE_TRY_MS2, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: NOTE_TRY_MS2, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES2 = {
+  [MODELS2.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS2.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS2.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS2.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS2 = 6e4;
 var HOUR_MS2 = 36e5;
 var DAY_MS2 = 864e5;
@@ -8696,6 +8800,12 @@ var ASK_CITATION_KINDS2 = [
   "domain"
 ];
 var ASK_ROW_WORDS2 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS2 = [MODEL_ROUTES2.ask.model, MODEL_ROUTES2.ask.fallback];
+var ASK_MODEL_PROFILES2 = {
+  [MODELS2.OPUS_5_5]: { id: MODELS2.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS2.SONNET_5]: { id: MODELS2.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL2 = MODEL_ROUTES2.ask.model;
 var SWEEP_TICK_MS2 = 5 * MIN_MS2;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -9790,6 +9900,25 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   30 * MIN_MS2
 ];
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES2 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES2 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER2 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER2 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS2 = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES2})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES2}|${NAMES2})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER2}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER2})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER2}(?:\s+(?:y\s+)?${ES_NUMBER2})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS2 = 24 * HOUR_MS2;
 var REPLY_LIMITS2 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -9843,6 +9972,8 @@ var EVENT_KINDS2 = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -9937,7 +10068,9 @@ var EVENT_KINDS2 = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -10110,6 +10243,9 @@ var PolicyLimitsSchema2 = z132.object({
 var BRAIN_INTENTS2 = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -10128,7 +10264,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA2 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS2],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -10223,6 +10359,7 @@ var OPENING_FACT_KEYS2 = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL2 = MODEL_ROUTES2.reach_out_check.model;
 var OPENING_SCHEMA2 = {
   type: "object",
   properties: {
@@ -10267,7 +10404,9 @@ var RETENTION_DAYS2 = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
@@ -10565,6 +10704,7 @@ var KIND_META2 = {
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS2 = 15 * MIN_MS2;
+var NOTE_SUGGEST_MODEL2 = MODEL_ROUTES2.note_suggest.model;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
   type: "object",
@@ -10987,6 +11127,8 @@ var FRESH_SLACK_MS = 2 * DAY_MS2;
 var STATE_TTL_MS = 10 * MIN_MS2;
 var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
+var LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES2.lead_judge.maxTokens;
+var LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES2.lead_judge.model;
 
 // ../core/dist/index.js
 import { z as z27 } from "zod";
@@ -11981,6 +12123,40 @@ var DEFAULT_OPTIONS2 = {
   wordwrap: 80
 };
 z27.config({ jitless: true });
+var MODELS3 = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS3 = [MODELS3.OPUS_5_5, MODELS3.OPUS_5, MODELS3.SONNET_5, MODELS3.HAIKU_4_5];
+var { OPUS_5_5: OPUS_5_53, OPUS_5: OPUS_53, SONNET_5: SONNET_53, HAIKU_4_5: HAIKU_4_53 } = MODELS3;
+var RECEPTIONIST_TRY_MS3 = 2e4;
+var ASK_TRY_MS3 = 55e3;
+var DRAFT_TRY_MS3 = 55e3;
+var REVIEW_TRY_MS3 = 15e3;
+var JUDGE_TRY_MS3 = 28e3;
+var NOTE_TRY_MS3 = 2e4;
+var READ_TRY_MS3 = 8e3;
+var MODEL_ROUTES3 = {
+  receptionist: { model: OPUS_53, fallback: SONNET_53, timeoutMs: RECEPTIONIST_TRY_MS3, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_53, fallback: SONNET_53, timeoutMs: RECEPTIONIST_TRY_MS3, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_53, fallback: SONNET_53, timeoutMs: ASK_TRY_MS3, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_53, fallback: OPUS_53, timeoutMs: DRAFT_TRY_MS3, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_53, fallback: OPUS_53, timeoutMs: DRAFT_TRY_MS3, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_53, fallback: OPUS_53, timeoutMs: REVIEW_TRY_MS3, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_53, fallback: null, timeoutMs: JUDGE_TRY_MS3, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: NOTE_TRY_MS3, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES3 = {
+  [MODELS3.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS3.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS3.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS3.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS3 = 6e4;
 var HOUR_MS3 = 36e5;
 var DAY_MS3 = 864e5;
@@ -12634,6 +12810,12 @@ var ASK_CITATION_KINDS3 = [
   "domain"
 ];
 var ASK_ROW_WORDS3 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS3 = [MODEL_ROUTES3.ask.model, MODEL_ROUTES3.ask.fallback];
+var ASK_MODEL_PROFILES3 = {
+  [MODELS3.OPUS_5_5]: { id: MODELS3.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS3.SONNET_5]: { id: MODELS3.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL3 = MODEL_ROUTES3.ask.model;
 var SWEEP_TICK_MS3 = 5 * MIN_MS3;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -13728,6 +13910,25 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   30 * MIN_MS3
 ];
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES3 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES3 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER3 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER3 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS3 = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES3})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES3}|${NAMES3})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER3}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER3})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER3}(?:\s+(?:y\s+)?${ES_NUMBER3})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS3 = 24 * HOUR_MS3;
 var REPLY_LIMITS3 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -13781,6 +13982,8 @@ var EVENT_KINDS3 = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -13875,7 +14078,9 @@ var EVENT_KINDS3 = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -14048,6 +14253,9 @@ var PolicyLimitsSchema3 = z133.object({
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -14066,7 +14274,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA3 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS3],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -14161,6 +14369,7 @@ var OPENING_FACT_KEYS3 = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL3 = MODEL_ROUTES3.reach_out_check.model;
 var OPENING_SCHEMA3 = {
   type: "object",
   properties: {
@@ -14205,7 +14414,9 @@ var RETENTION_DAYS3 = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
@@ -14503,6 +14714,7 @@ var KIND_META3 = {
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS3 = 15 * MIN_MS3;
+var NOTE_SUGGEST_MODEL3 = MODEL_ROUTES3.note_suggest.model;
 var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA3 = {
   type: "object",
@@ -14918,7 +15130,43 @@ var FRESH_SLACK_MS2 = 2 * DAY_MS3;
 var STATE_TTL_MS2 = 10 * MIN_MS3;
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
+var LEAD_JUDGE_MAX_TOKENS2 = MODEL_ROUTES3.lead_judge.maxTokens;
+var LEAD_JUDGE_DEFAULT_MODEL2 = MODEL_ROUTES3.lead_judge.model;
 z252.config({ jitless: true });
+var MODELS22 = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS22 = [MODELS22.OPUS_5_5, MODELS22.OPUS_5, MODELS22.SONNET_5, MODELS22.HAIKU_4_5];
+var { OPUS_5_5: OPUS_5_522, OPUS_5: OPUS_522, SONNET_5: SONNET_522, HAIKU_4_5: HAIKU_4_522 } = MODELS22;
+var RECEPTIONIST_TRY_MS22 = 2e4;
+var ASK_TRY_MS22 = 55e3;
+var DRAFT_TRY_MS22 = 55e3;
+var REVIEW_TRY_MS22 = 15e3;
+var JUDGE_TRY_MS22 = 28e3;
+var NOTE_TRY_MS22 = 2e4;
+var READ_TRY_MS22 = 8e3;
+var MODEL_ROUTES22 = {
+  receptionist: { model: OPUS_522, fallback: SONNET_522, timeoutMs: RECEPTIONIST_TRY_MS22, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_522, fallback: SONNET_522, timeoutMs: RECEPTIONIST_TRY_MS22, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_522, fallback: SONNET_522, timeoutMs: ASK_TRY_MS22, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_522, fallback: OPUS_522, timeoutMs: DRAFT_TRY_MS22, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_522, fallback: OPUS_522, timeoutMs: DRAFT_TRY_MS22, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_522, fallback: OPUS_522, timeoutMs: REVIEW_TRY_MS22, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_522, fallback: null, timeoutMs: JUDGE_TRY_MS22, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_522, fallback: SONNET_522, timeoutMs: NOTE_TRY_MS22, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_522, fallback: SONNET_522, timeoutMs: READ_TRY_MS22, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_522, fallback: SONNET_522, timeoutMs: READ_TRY_MS22, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES22 = {
+  [MODELS22.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS22.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS22.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS22.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 function zoneParts(tz, at3) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -15740,6 +15988,12 @@ var ASK_CITATION_KINDS22 = [
   "domain"
 ];
 var ASK_ROW_WORDS22 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS22 = [MODEL_ROUTES22.ask.model, MODEL_ROUTES22.ask.fallback];
+var ASK_MODEL_PROFILES22 = {
+  [MODELS22.OPUS_5_5]: { id: MODELS22.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS22.SONNET_5]: { id: MODELS22.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL22 = MODEL_ROUTES22.ask.model;
 var SWEEP_TICK_MS22 = 5 * MIN_MS22;
 var PLAYBOOK_TRIGGERS22 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -16921,6 +17175,25 @@ function zoneMidnight(tz, key) {
   return localToUtcMs(tz, y, m, d, 0, 0);
 }
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES22 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES22 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER22 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER22 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS22 = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES22})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES22}|${NAMES22})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER22}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER22})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER22}(?:\s+(?:y\s+)?${ES_NUMBER22})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS22 = 24 * HOUR_MS22;
 var REPLY_LIMITS22 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -16974,6 +17247,8 @@ var EVENT_KINDS22 = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -17068,7 +17343,9 @@ var EVENT_KINDS22 = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
@@ -17241,6 +17518,9 @@ var PolicyLimitsSchema22 = z1322.object({
 var BRAIN_INTENTS22 = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -17259,7 +17539,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA22 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS22],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -17364,6 +17644,7 @@ var OPENING_FACT_KEYS22 = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL22 = MODEL_ROUTES22.reach_out_check.model;
 var OPENING_SCHEMA22 = {
   type: "object",
   properties: {
@@ -17736,7 +18017,9 @@ var RETENTION_DAYS22 = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
 var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
@@ -18070,6 +18353,7 @@ var KIND_META22 = {
   instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS22 = 15 * MIN_MS22;
+var NOTE_SUGGEST_MODEL22 = MODEL_ROUTES22.note_suggest.model;
 var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA22 = {
   type: "object",
@@ -18420,6 +18704,7 @@ var WRITES = {
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
   "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
   "google.reviews": { category: "google", version: 1 },
   "google.unlinked": { category: "google", version: 1 },
   "ingest.allowlist_skip": { category: "ingest", version: 1 },
@@ -18452,7 +18737,8 @@ var WRITES = {
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },
-  "webhook.delivery": { category: "ingest", version: 1 }
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
 };
 var WABA_WRITE = { category: "system", version: 1 };
 function rowOf(tenantId, kind, subjectType, subjectId, data) {
@@ -18476,6 +18762,40 @@ async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
   if (error) console.error("emit_event_failed", kind, error);
 }
 z272.config({ jitless: true });
+var MODELS32 = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS32 = [MODELS32.OPUS_5_5, MODELS32.OPUS_5, MODELS32.SONNET_5, MODELS32.HAIKU_4_5];
+var { OPUS_5_5: OPUS_5_532, OPUS_5: OPUS_532, SONNET_5: SONNET_532, HAIKU_4_5: HAIKU_4_532 } = MODELS32;
+var RECEPTIONIST_TRY_MS32 = 2e4;
+var ASK_TRY_MS32 = 55e3;
+var DRAFT_TRY_MS32 = 55e3;
+var REVIEW_TRY_MS32 = 15e3;
+var JUDGE_TRY_MS32 = 28e3;
+var NOTE_TRY_MS32 = 2e4;
+var READ_TRY_MS32 = 8e3;
+var MODEL_ROUTES32 = {
+  receptionist: { model: OPUS_532, fallback: SONNET_532, timeoutMs: RECEPTIONIST_TRY_MS32, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_532, fallback: SONNET_532, timeoutMs: RECEPTIONIST_TRY_MS32, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_532, fallback: SONNET_532, timeoutMs: ASK_TRY_MS32, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_532, fallback: OPUS_532, timeoutMs: DRAFT_TRY_MS32, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_532, fallback: OPUS_532, timeoutMs: DRAFT_TRY_MS32, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_532, fallback: OPUS_532, timeoutMs: REVIEW_TRY_MS32, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_532, fallback: null, timeoutMs: JUDGE_TRY_MS32, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_532, fallback: SONNET_532, timeoutMs: NOTE_TRY_MS32, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_532, fallback: SONNET_532, timeoutMs: READ_TRY_MS32, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_532, fallback: SONNET_532, timeoutMs: READ_TRY_MS32, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES32 = {
+  [MODELS32.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS32.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS32.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS32.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS32 = 6e4;
 var HOUR_MS32 = 36e5;
 var DAY_MS32 = 864e5;
@@ -19129,6 +19449,12 @@ var ASK_CITATION_KINDS32 = [
   "domain"
 ];
 var ASK_ROW_WORDS32 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS32 = [MODEL_ROUTES32.ask.model, MODEL_ROUTES32.ask.fallback];
+var ASK_MODEL_PROFILES32 = {
+  [MODELS32.OPUS_5_5]: { id: MODELS32.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS32.SONNET_5]: { id: MODELS32.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL32 = MODEL_ROUTES32.ask.model;
 var SWEEP_TICK_MS32 = 5 * MIN_MS32;
 var PLAYBOOK_TRIGGERS32 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -20224,6 +20550,25 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   30 * MIN_MS32
 ];
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES32 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES32 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER32 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER32 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS32 = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES32})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES32}|${NAMES32})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER32}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER32})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER32}(?:\s+(?:y\s+)?${ES_NUMBER32})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS32 = 24 * HOUR_MS32;
 var REPLY_LIMITS32 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -20277,6 +20622,8 @@ var EVENT_KINDS32 = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -20371,7 +20718,9 @@ var EVENT_KINDS32 = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES32 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS32 = [
@@ -20544,6 +20893,9 @@ var PolicyLimitsSchema32 = z1332.object({
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -20562,7 +20914,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA32 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS32],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -20657,6 +21009,7 @@ var OPENING_FACT_KEYS32 = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL32 = MODEL_ROUTES32.reach_out_check.model;
 var OPENING_SCHEMA32 = {
   type: "object",
   properties: {
@@ -20693,7 +21046,9 @@ var RETENTION_DAYS32 = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
 var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
@@ -20991,6 +21346,7 @@ var KIND_META32 = {
   instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS32 = 15 * MIN_MS32;
+var NOTE_SUGGEST_MODEL32 = MODEL_ROUTES32.note_suggest.model;
 var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA32 = {
   type: "object",
@@ -22321,6 +22677,7 @@ async function backOff(ports, b, cmd, timezone) {
 }
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
+var JUDGE_TIMEOUT_MS = MODEL_ROUTES22.lead_judge.timeoutMs;
 var DEADLINE_MARGIN_MS = 8e3;
 var UNKNOWN_START_GRACE_MS = 10 * MIN_MS22;
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
@@ -22369,6 +22726,7 @@ var WRITES2 = {
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
   "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
   "google.reviews": { category: "google", version: 1 },
   "google.unlinked": { category: "google", version: 1 },
   "ingest.allowlist_skip": { category: "ingest", version: 1 },
@@ -22401,7 +22759,8 @@ var WRITES2 = {
   "usage.llm_tokens": { category: "usage", version: 1 },
   "voice.provisioned": { category: "setup", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },
-  "webhook.delivery": { category: "ingest", version: 1 }
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
 };
 var WABA_WRITE2 = { category: "system", version: 1 };
 function rowOf2(tenantId, kind, subjectType, subjectId, data) {
@@ -22421,6 +22780,40 @@ async function recordEvent2(db, tenantId, kind, subjectType, subjectId, data) {
   return { error: error?.message ?? null };
 }
 z29.config({ jitless: true });
+var MODELS4 = {
+  OPUS_5_5: "claude-opus-5-5",
+  OPUS_5: "claude-opus-5",
+  SONNET_5: "claude-sonnet-5",
+  HAIKU_4_5: "claude-haiku-4-5-20251001"
+};
+var MODEL_IDS4 = [MODELS4.OPUS_5_5, MODELS4.OPUS_5, MODELS4.SONNET_5, MODELS4.HAIKU_4_5];
+var { OPUS_5_5: OPUS_5_54, OPUS_5: OPUS_54, SONNET_5: SONNET_54, HAIKU_4_5: HAIKU_4_54 } = MODELS4;
+var RECEPTIONIST_TRY_MS4 = 2e4;
+var ASK_TRY_MS4 = 55e3;
+var DRAFT_TRY_MS4 = 55e3;
+var REVIEW_TRY_MS4 = 15e3;
+var JUDGE_TRY_MS4 = 28e3;
+var NOTE_TRY_MS4 = 2e4;
+var READ_TRY_MS4 = 8e3;
+var MODEL_ROUTES4 = {
+  receptionist: { model: OPUS_54, fallback: SONNET_54, timeoutMs: RECEPTIONIST_TRY_MS4, retries: 1, maxTokens: 900 },
+  reply_draft: { model: OPUS_54, fallback: SONNET_54, timeoutMs: RECEPTIONIST_TRY_MS4, retries: 1, maxTokens: 900 },
+  ask: { model: OPUS_5_54, fallback: SONNET_54, timeoutMs: ASK_TRY_MS4, retries: 0, maxTokens: 4e3 },
+  lead_json: { model: SONNET_54, fallback: OPUS_54, timeoutMs: DRAFT_TRY_MS4, retries: 0, maxTokens: 2e3 },
+  template_draft: { model: SONNET_54, fallback: OPUS_54, timeoutMs: DRAFT_TRY_MS4, retries: 0, maxTokens: 900 },
+  review_reply: { model: SONNET_54, fallback: OPUS_54, timeoutMs: REVIEW_TRY_MS4, retries: 1, maxTokens: 300 },
+  // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
+  lead_judge: { model: OPUS_54, fallback: null, timeoutMs: JUDGE_TRY_MS4, retries: 0, maxTokens: 6e3 },
+  note_suggest: { model: HAIKU_4_54, fallback: SONNET_54, timeoutMs: NOTE_TRY_MS4, retries: 1, maxTokens: 300 },
+  reach_out_check: { model: HAIKU_4_54, fallback: SONNET_54, timeoutMs: READ_TRY_MS4, retries: 0, maxTokens: 400 },
+  reply_read: { model: HAIKU_4_54, fallback: SONNET_54, timeoutMs: READ_TRY_MS4, retries: 0, maxTokens: 400 }
+};
+var MODEL_PRICES4 = {
+  [MODELS4.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  [MODELS4.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+  [MODELS4.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS4.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+};
 var MIN_MS4 = 6e4;
 var HOUR_MS4 = 36e5;
 var DAY_MS4 = 864e5;
@@ -23082,6 +23475,12 @@ var ASK_CITATION_KINDS4 = [
   "domain"
 ];
 var ASK_ROW_WORDS4 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+var ASK_MODELS4 = [MODEL_ROUTES4.ask.model, MODEL_ROUTES4.ask.fallback];
+var ASK_MODEL_PROFILES4 = {
+  [MODELS4.OPUS_5_5]: { id: MODELS4.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS4.SONNET_5]: { id: MODELS4.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL4 = MODEL_ROUTES4.ask.model;
 var SWEEP_TICK_MS4 = 5 * MIN_MS4;
 var PLAYBOOK_TRIGGERS4 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -24176,6 +24575,25 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   30 * MIN_MS4
 ];
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CODES4 = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES4 = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var EN_NUMBER4 = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER4 = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|[a-z]+cientos|mil)";
+var PRICE_PATTERNS4 = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES4})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?(?:${CODES4}|${NAMES4})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER4}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER4})*[\s-]+(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER4}(?:\s+(?:y\s+)?${ES_NUMBER4})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  /\b\d{1,3}\s?%\s?(?:off|discount|de descuento|descuento|menos)\b/i,
+  /\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?%/i,
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
 var WA_WINDOW_MS4 = 24 * HOUR_MS4;
 var REPLY_LIMITS4 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
@@ -24229,6 +24647,8 @@ var EVENT_KINDS4 = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -24323,7 +24743,9 @@ var EVENT_KINDS4 = [
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone"
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated"
 ];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS4 = [
@@ -24496,6 +24918,9 @@ var PolicyLimitsSchema4 = z134.object({
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
   "hours",
   "services",
   "location",
@@ -24514,7 +24939,7 @@ var BRAIN_OUTPUT_JSON_SCHEMA4 = {
     intent: {
       type: "string",
       enum: [...BRAIN_INTENTS4],
-      description: "What the customer is after."
+      description: "What the customer is after. money: a refund, a discount, a deposit, a payment plan, or any negotiation of a price or a charge."
     },
     escalate: {
       type: "boolean",
@@ -24609,6 +25034,7 @@ var OPENING_FACT_KEYS4 = [
   "about",
   "why_it_fits"
 ];
+var REACH_OUT_MODEL4 = MODEL_ROUTES4.reach_out_check.model;
 var OPENING_SCHEMA4 = {
   type: "object",
   properties: {
@@ -24645,7 +25071,9 @@ var RETENTION_DAYS4 = {
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
-  page_vitals: 30
+  page_vitals: 30,
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
 var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
@@ -24943,6 +25371,7 @@ var KIND_META4 = {
   instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
 var CALL_ACTIVITY_STALE_MS4 = 15 * MIN_MS4;
+var NOTE_SUGGEST_MODEL4 = MODEL_ROUTES4.note_suggest.model;
 var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA4 = {
   type: "object",
@@ -25815,7 +26244,7 @@ async function replyRead(ctx, job) {
         return row ? keptReadingOf(row) : null;
       },
       mayRead: (tenantId, at) => replies.mayRead(tenantId, new Date(at)),
-      ask: (system, user) => replies.ask(system, user, ctx.deadline),
+      ask: (system, user) => replies.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: messageId }),
       apply: (tenantId, id, p) => applyReplyReading(db, {
         ...where(tenantId, id),
         reading: {

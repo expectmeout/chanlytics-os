@@ -118,7 +118,10 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote);
+      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, {
+        tenantId,
+        configVersion: rt.configVersion ?? null,
+      });
       results.push({
         id: c.id,
         ok: true,

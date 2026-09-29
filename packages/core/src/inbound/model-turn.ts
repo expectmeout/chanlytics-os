@@ -94,6 +94,14 @@ export async function modelTurn(
         // idea what day it was.
         `${describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
         photo ?? undefined,
+        undefined,
+        // Who it is for: the model port writes the call to the usage ledger and stamps the meta with the settings'
+        // version the prompt was composed from.
+        {
+          tenantId: at.tenantId ?? null,
+          subjectId: at.ing?.conversation_id ?? null,
+          configVersion: rt?.configVersion ?? null,
+        },
       );
       replyText = r.text;
       escalate = r.escalate;
@@ -112,9 +120,11 @@ export async function modelTurn(
         brainCfg,
         policy: rt?.policy,
         intent: brainMeta?.intent ?? null,
+        language: brainMeta?.language ?? null,
         known: rt?.known,
       });
       if (two.priceBlocked) L.warn("policy_block_price");
+      if (two.moneyHeld) L.info("wa_policy_money", { intent: brainMeta?.intent ?? null });
       if (two.askClass)
         L.info("wa_policy_ask", { class: two.askClass, intent: brainMeta?.intent ?? null, complied: two.complied });
       replyText = two.replyText;

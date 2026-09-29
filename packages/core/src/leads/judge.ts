@@ -6,7 +6,13 @@
  * could not read these". A 429, a 5xx or no answer throws, and the ledger's
  * waits retry the job.
  */
-import { judgeOpId, type JudgePlaceAnswer, type LeadSearchPlan, type PlaceFacts } from "@chanlytics/contracts";
+import {
+  judgeOpId,
+  MODEL_ROUTES,
+  type JudgePlaceAnswer,
+  type LeadSearchPlan,
+  type PlaceFacts,
+} from "@chanlytics/contracts";
 import type { LeadJudge } from "@chanlytics/channels";
 import type { CleanPlace } from "./clean";
 import type { CollectJudgment } from "./ports";
@@ -14,12 +20,11 @@ import type { CollectJudgment } from "./ports";
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
 /**
- * How long one judge call may take, said once here: apps/edge/lib/leads/lead-wires.ts
- * binds it on the client (with no retry of the SDK's own, so this is the real
- * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
- * started with less time left than it may take.
+ * How long one judge call may take: the registry's route for the judge (contracts MODEL_ROUTES.lead_judge), which the
+ * model port bounds each call by (no retry, no fallback: an overload is the ledger's retry), and the runner's
+ * JUDGE_MARGIN_MS covers it, so a call is never started with less time left than it may take.
  */
-export const JUDGE_TIMEOUT_MS = 28_000;
+export const JUDGE_TIMEOUT_MS: number = MODEL_ROUTES.lead_judge.timeoutMs;
 
 /**
  * Why 28 and not more. A collect is claimed up to CLAIM_FOR_MS (20s) into a
@@ -79,11 +84,13 @@ export async function judgeBatch(
   plan: LeadSearchPlan,
   places: PlaceFacts[],
   opId: string,
+  /** The search's workspace: the usage ledger's row for each call. */
+  tenantId?: string,
 ): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const a = await judge.judge(plan, places);
+    const a = await judge.judge(plan, places, tenantId);
     if ("refused" in a) {
       last = a;
       continue;

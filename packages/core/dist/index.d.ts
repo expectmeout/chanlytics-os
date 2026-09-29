@@ -2352,12 +2352,11 @@ declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", te
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
 declare const FACT_MAX = 120;
 /**
- * How long one judge call may take, said once here: apps/edge/lib/leads/lead-wires.ts
- * binds it on the client (with no retry of the SDK's own, so this is the real
- * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
- * started with less time left than it may take.
+ * How long one judge call may take: the registry's route for the judge (contracts MODEL_ROUTES.lead_judge), which the
+ * model port bounds each call by (no retry, no fallback: an overload is the ledger's retry), and the runner's
+ * JUDGE_MARGIN_MS covers it, so a call is never started with less time left than it may take.
  */
-declare const JUDGE_TIMEOUT_MS = 28000;
+declare const JUDGE_TIMEOUT_MS: number;
 /**
  * Why 28 and not more. A collect is claimed up to CLAIM_FOR_MS (20s) into a
  * tick and handed a deadline LEAD_YIELD_AT_MS (52s) from the tick's start
@@ -2383,7 +2382,9 @@ interface JudgedBatch {
 }
 declare function opIdFor(runId: string, fromOffset: number, batch: number): string;
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
-declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string): Promise<JudgedBatch>;
+declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string, 
+/** The search's workspace: the usage ledger's row for each call. */
+tenantId?: string): Promise<JudgedBatch>;
 
 /**
  * How much a round asks the provider for, and what each run may charge (PRD
@@ -2517,7 +2518,7 @@ declare const DEADLINE_MARGIN_MS = 8000;
  * guards buys nothing -- the function is killed mid-call, the page is never
  * committed, and the batch is paid for twice when the job is tried again.
  */
-declare const JUDGE_MARGIN_MS = 28000;
+declare const JUDGE_MARGIN_MS: number;
 /** An unknown start with no run at the provider after this long is failed. */
 declare const UNKNOWN_START_GRACE_MS: number;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
@@ -2892,6 +2893,8 @@ interface InboundRuntime {
     loadFailed: boolean;
     /** The config row EXISTS but does not parse — a mistake somebody can fix. */
     configBroken?: boolean;
+    /** tenant_config.version, stamped on each answer's meta; absent or null when it could not be read. */
+    configVersion?: number | null;
 }
 /**
  * Everything about a handoff other than the words: who is told, on which wire
@@ -2921,6 +2924,18 @@ interface InboundHandoff {
         type: string;
         id: string;
     } | null;
+}
+/**
+ * Who an answer is for: the ledger's row (ai_usage, written by the model port) and the stamp on its meta (the settings'
+ * version its prompt was composed from). The purpose is the receptionist's own unless a draft says otherwise.
+ */
+interface BrainCall {
+    tenantId: string | null;
+    /** The conversation it answers. */
+    subjectId?: string | null;
+    /** tenant_config.version the prompt was composed from; null when it could not be read. */
+    configVersion?: number | null;
+    purpose?: "receptionist" | "reply_draft";
 }
 /** What the model answered, and what the row remembers about it (the edge's brain.ts `BrainReply`). */
 interface InboundBrainReply {
@@ -3020,7 +3035,7 @@ interface InboundPorts {
         generateReply(history: ThreadTurn[], userText: string, systemPrompt: string, fallbackText: string, leadNote?: string, nowNote?: string, image?: {
             mime: string;
             base64: string;
-        }, steer?: string): Promise<InboundBrainReply>;
+        }, steer?: string, call?: BrainCall): Promise<InboundBrainReply>;
     }>;
     /**
      * A logger FACTORY, not a logger: the verb binds the tenant once, where it
@@ -3185,6 +3200,8 @@ interface LayerTwoIn {
         mode: string;
     }> | null | undefined;
     intent: string | null;
+    /** The language the model answered in (its record's), so a replaced reply is said in it. */
+    language?: string | null;
     /** What the platform knows independently of what was typed; the number to call resolves over both. */
     known?: KnownFacts | null;
 }
@@ -3194,18 +3211,24 @@ interface LayerTwoOut {
     escalationReason: string;
     /** A price in the draft blocked the send outright. */
     priceBlocked: boolean;
-    /** The class under "ask" this reply fell into, if any. */
-    askClass: "booking" | "faq" | null;
+    /** Money in the draft or in the model's intent: a person answers (the charter). */
+    moneyHeld: boolean;
+    /** The class under "ask" (or money's "never") this reply fell into, if any. */
+    askClass: "booking" | "faq" | "money" | null;
     /** Whether the model had already done what the prompt asked (null when no class applied). */
     complied: boolean | null;
 }
 /**
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
- * defense. A price in the draft blocks the send outright. Under "ask", a
- * booking or a service/pricing question is a person's to answer: a reply
- * that still carries the booking link, or still answers, is replaced with
- * the handoff line; one that complied keeps its words. Either way the
- * thread is a person's now, and the Inbox says why.
+ * defense. A price in the draft blocks the send outright. Money -- a refund, a
+ * discount, a deposit, a payment term, named in the draft or read as the
+ * model's intent -- is a person's, whatever the model's record says (the
+ * charter's locked row). Under "ask", a booking or a service/pricing question
+ * is a person's to answer: a reply that still carries the booking link, or
+ * still answers, is replaced with the handoff line; one that complied keeps
+ * its words. Every replacement is said in the answer's language
+ * (contracts heldLine). Either way the thread is a person's now, and the Inbox
+ * says why.
  */
 declare function layerTwo(x: LayerTwoIn): LayerTwoOut;
 /**
@@ -3315,4 +3338,4 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
  */
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

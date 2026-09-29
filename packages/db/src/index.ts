@@ -1,6 +1,8 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export { emitEvent, recordEvent } from "./events";
+export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
 export type { EmittedKind, EventData } from "./events";
+export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
+export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { createServiceClient } from "./service-client";
 export type { ServiceClientConfig } from "./service-client";
 export {

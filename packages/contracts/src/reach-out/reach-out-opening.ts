@@ -5,8 +5,8 @@
  * (reach-out-words.ts checkOpening) reads the writer's answer before the reader does.
  *
  * Haiku, the smallest model: an opening is one sentence from a short record, and each email costs at most four calls
- * (two, and two more on its one rewrite). The id is the notes sweep's (note-suggest.ts NOTE_SUGGEST_MODEL): one model
- * for the platform's small reads.
+ * (two, and two more on its one rewrite). The id is the registry's (ai/models.ts MODEL_ROUTES.reach_out_check), the
+ * same one the notes sweep and the reply reader ask: one model for the platform's small reads, written once.
  */
 import {
   ANGLE_WORDS_MAX,
@@ -19,8 +19,9 @@ import {
   type OpeningRecord,
 } from "./reach-out-words";
 import { languageBase } from "../templates/template-languages";
+import { MODEL_ROUTES } from "../ai/models";
 
-export const REACH_OUT_MODEL = "claude-haiku-4-5-20251001";
+export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
 export const OPENING_SCHEMA = {
   type: "object",

@@ -17,9 +17,10 @@
  */
 import { violatesNoPrices } from "../config/policy";
 import { DAY_MS } from "../shared/time";
+import { MODEL_ROUTES } from "../ai/models";
 
-/** The smallest model: a yes-or-nothing read of one conversation. */
-export const NOTE_SUGGEST_MODEL = "claude-haiku-4-5-20251001";
+/** The smallest model: a yes-or-nothing read of one conversation (the registry's, ai/models.ts). */
+export const NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
 
 export const NOTE_SUGGEST_LIMITS = {
   /** A call shorter than this is a wrong number, a hang-up or a quick question. */
