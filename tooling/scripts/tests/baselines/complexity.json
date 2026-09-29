@@ -40,7 +40,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 172,
+    "lines": 154,
     "branches": 11,
     "depth": 1
   },
@@ -295,13 +295,13 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CrPanel#1": {
-    "lines": 113,
+    "lines": 109,
     "branches": 37,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileReal#1": {
     "lines": 515,
-    "branches": 80,
+    "branches": 78,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileSeed#1": {
@@ -328,11 +328,6 @@
     "lines": 268,
     "branches": 94,
     "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-live.jsx::NowPlayingRail#1": {
-    "lines": 188,
-    "branches": 13,
-    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
     "lines": 300,
@@ -390,7 +385,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadHeader#1": {
-    "lines": 181,
+    "lines": 176,
     "branches": 71,
     "depth": 0
   },
@@ -466,7 +461,7 @@
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleBulkBar#1": {
     "lines": 323,
-    "branches": 89,
+    "branches": 88,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleRail#1": {
@@ -490,7 +485,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::usePlPlace#1": {
-    "lines": 192,
+    "lines": 182,
     "branches": 6,
     "depth": 1
   },

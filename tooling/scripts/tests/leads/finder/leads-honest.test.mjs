@@ -459,7 +459,7 @@ for (const k of [
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
   "PL_WINDOW_ROWS",
-  "plRowWindow",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.

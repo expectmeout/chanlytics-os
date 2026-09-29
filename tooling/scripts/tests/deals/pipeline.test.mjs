@@ -867,7 +867,7 @@ for (const k of [
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
   "PL_WINDOW_ROWS",
-  "plRowWindow",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // In the order both lists load them (manifest.ts, Chanlytics.html): the peek and the board before the Pipeline, the

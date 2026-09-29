@@ -385,6 +385,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");

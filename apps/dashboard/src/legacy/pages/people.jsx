@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, PL_FIRST_ROWS, plRowWindow, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, useSurface, mayAtLeast */
+   PL_NO_SEL, PL_FIRST_ROWS, usePlRowWindow, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, useSurface, mayAtLeast */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -2411,9 +2411,9 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
   // hovered row does (clients.css).
   const [cursor, setCursor] = useState(null);
-  // The rows drawn: a window of a long list (people-table.jsx plRowWindow). A place to put back needs every row.
-  const [placed] = useState(() => { const at = plPlaceLoad(page, view); return !!(at && (at.top || at.cursor)); });
-  const { budget: rowBudget, reach } = plRowWindow({ placed, windowed, count: ids.length });
+  // The rows drawn: a window of a long list (people-table.jsx usePlRowWindow), reaching a place that is to be put back.
+  const [place] = useState(() => plPlaceLoad(page, view));
+  const { budget: rowBudget, reach } = usePlRowWindow({ place, windowed, ids });
   React.useEffect(() => { setCursor((c) => (c && ids.includes(c) ? c : null)); }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveCursor = (step) => {
     // A row the cursor walks to is drawn: the window reaches past it, so the row is there to take focus.

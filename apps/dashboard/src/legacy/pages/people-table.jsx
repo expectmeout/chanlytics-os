@@ -137,22 +137,32 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
 };
 
 // The rows drawn: all of them, or a window and, at its foot, a row with nothing in it that is watched so the window grows
-// before the foot is reached (plRowWindow).
+// before the foot is reached (usePlRowWindow).
 const plWindowRows = (rows, budget, row, span) => (budget < rows.length
   ? [...rows.slice(0, budget).map(row), <tr key="pl-more" id="pl-more" className="pl-more" aria-hidden="true"><td colSpan={span} /></tr>]
   : rows.map(row));
 
+// The rows a fresh mount draws first: the first few; where a place is to be put back, enough to reach it -- a step past
+// the cursor's row, and a step past what the scroll's height holds at 40px a row, shorter than any row (a desk's are 45);
+// and every row of a table in sections.
+const plStartRows = (place, windowed, ids) => {
+  if (!place || !(place.top || place.cursor)) return PL_FIRST_ROWS;
+  if (!windowed) return Infinity;
+  return Math.max(PL_WINDOW_ROWS, ids.indexOf(place.cursor) + PL_WINDOW_STEP, Math.ceil((place.top || 0) / 40) + PL_WINDOW_STEP);
+};
+
 /**
  * How many rows the table draws (`budget`, its prop) for a page's life: the first rows only (PL_FIRST_ROWS) and a window
  * of them a frame later, grown by a step each time the window's foot (#pl-more) comes within a screen's height of the
- * screen, and to reach a row the cursor walks to (`reach(index)`). A fresh mount draws every row where a place is to be put
- * back (a scroll, a cursor: `placed`), as does a table in sections (`windowed` false: the Pipeline's groups), and a browser
- * that cannot watch a foot. The switch between People and Leads is a remount, and the rows were most of what it waited on
- * (measured on the salon: a 250 ms draw of 96 leads, 125 ms with the first 24); a keystroke in the search box redrew
- * all 500 of them (85 ms). The budget is the mount's: a view change inside the page never narrows it.
+ * screen, and to reach a row the cursor walks to (`reach(index)`). A table in sections draws every row (`windowed` false:
+ * the Pipeline's groups), and so does a browser that cannot watch a foot. The switch between People and Leads is a
+ * remount, and the rows were most of what it waited on (measured on the salon: a 250 ms draw of 96 leads, 125 ms with the
+ * first 24); a keystroke in the search box redrew all 500 of them (85 ms). The budget is the mount's: a view change
+ * inside the page never narrows it. `place`: what the tab kept of this view (a cursor, a scroll), to be put back.
  */
-const plRowWindow = ({ placed, windowed, count }) => {
-  const [budget, setBudget] = React.useState(() => (placed ? Infinity : PL_FIRST_ROWS));
+const usePlRowWindow = ({ place, windowed, ids }) => {
+  const count = ids.length;
+  const [budget, setBudget] = React.useState(() => plStartRows(place, windowed, ids));
   React.useEffect(() => {
     if (budget === Infinity) return undefined;
     const lift = () => setBudget((b) => (windowed ? Math.max(b, PL_WINDOW_ROWS) : Infinity));
@@ -250,4 +260,4 @@ const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = nu
   </div>
 );
 
-Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL, PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP, plRowWindow });
+Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL, PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP, usePlRowWindow });

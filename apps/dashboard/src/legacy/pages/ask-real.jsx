@@ -311,7 +311,7 @@ const useArFocus = ({ H, open, doomed, live, active, view, quick, inputRef, dial
   // tap on the field asks for it (S10).
   H.useAskFocus(inputRef, open && !doomed && !arPhone(), [open, live, active, doomed, view, quick]);
   H.useAskFocus(dialogRef, open && arPhone(), [open]);
-  useArEffect(() => (open && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open]);
+  useArEffect(() => (open && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open, dialogRef]);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.
   useArEffect(() => {
     if (talk.listening || !typing.current) return;

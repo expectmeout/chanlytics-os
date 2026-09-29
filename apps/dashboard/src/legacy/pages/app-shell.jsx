@@ -469,7 +469,7 @@ const usePageFocus = (routeKey, routeLoading) => {
     const first = handled.current === null;
     handled.current = routeKey;
     if (!first) focusPage(false);
-  }, [routeKey, routeLoading]);
+  }, [routeKey, routeLoading, handled]);
 };
 
 /**

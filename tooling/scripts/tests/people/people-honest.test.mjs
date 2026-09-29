@@ -402,7 +402,7 @@ for (const k of [
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
   "PL_WINDOW_ROWS",
-  "plRowWindow",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
@@ -3816,6 +3816,32 @@ test("a long list draws a window of its rows: its foot is watched and grows the 
       "the row the cursor walked to past the window is there to hold it",
     );
     assert.ok(rowsOf(tree) >= past, "the window reached it");
+
+    // A place to put back is reached, not every row: a cursor's row and a step past it, a scroll's height and a step past it.
+    const { installTabMemory, clearTabMemory } =
+      await import("../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+    installTabMemory(globalThis.window);
+    try {
+      clearTabMemory();
+      await freshPage({ people: everyone });
+      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: "p700", top: 0 });
+      cells = [];
+      assert.equal(
+        rowsOf(draw()),
+        699 + globalThis.window.PL_WINDOW_STEP,
+        "a cursor on the 700th (index 699): a step past its index, not a thousand",
+      );
+      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: null, top: 20000 });
+      cells = [];
+      assert.equal(
+        rowsOf(draw()),
+        20000 / 40 + globalThis.window.PL_WINDOW_STEP,
+        "a scroll of 20,000px at 40px a row: as many rows and a step more",
+      );
+    } finally {
+      clearTabMemory();
+      delete globalThis.window.__tabMemory;
+    }
 
     // No way to watch a foot, no window: every row, as before.
     delete globalThis.IntersectionObserver;
