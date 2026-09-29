@@ -28,7 +28,7 @@ const USER = "u1";
 const member = (id, user_id, role) => ({ id, tenant_id: A, user_id, role, created_at: "2026-01-01T00:00:00Z" });
 
 /** One database for both clients (the caller's and the platform's), a fake mail, and the ledger. */
-function world(over = {}, { known = {}, mailError = null } = {}) {
+function world(over = {}, { known = {}, mailError = null, faults = {} } = {}) {
   const tables = {
     memberships: [member("m1", USER, "owner"), member("m2", "u2", "viewer")],
     invitations: [],
@@ -36,7 +36,7 @@ function world(over = {}, { known = {}, mailError = null } = {}) {
     ...over,
   };
   const mails = [];
-  const db = fakeDb(tables, {}, { lookup_user_for_invite: (a) => known[a.p_email] ?? null });
+  const db = fakeDb(tables, faults, { lookup_user_for_invite: (a) => known[a.p_email] ?? null });
   const svc = {
     ...db,
     auth: {
@@ -195,6 +195,34 @@ test("a removal: an open invitation is revoked; nobody removes themself; the las
     "the row is gone; the ledger is the only record of what it said",
   );
   await refused(removeMember(w.ctx(), A, "m9", USER, w.svc), "not_found", 404, "That person is not on this team.");
+});
+
+test("two owners changed at once: the count before the write passes both, and the database's refusal says the same words", async () => {
+  // Two owners: each request counts two and writes. The second write is refused at the end of its transaction by
+  // 00267's trigger (P0001, last_owner), and the owner reads the words the count would have said, not a 500.
+  const lastOwner = {
+    code: "P0001",
+    message: "last_owner",
+    hint: "This is the only owner. Promote someone else first.",
+  };
+  const owners = { memberships: [member("m1", USER, "owner"), member("m2", "u2", "owner")] };
+  for (const [op, write] of [
+    ["delete", (w) => removeMember(w.ctx(), A, "m2", USER, w.svc)],
+    ["update", (w) => setMemberRole(w.ctx(), A, "m2", "viewer", w.svc)],
+  ]) {
+    const w = world(structuredClone(owners), { faults: { [`memberships.${op}`]: lastOwner } });
+    await refused(write(w), "conflict", 409, "This is the only owner. Promote someone else first.");
+    assert.equal(w.tables.decisions.length, 0, `a refused ${op} leaves no ledger row`);
+  }
+  // Any other failure of the write is not a conflict, and not worded as one.
+  const w = world(structuredClone(owners), {
+    faults: { "memberships.delete": { code: "57014", message: "canceled" } },
+  });
+  await assert.rejects(removeMember(w.ctx(), A, "m2", USER, w.svc), (e) => {
+    assert.equal(e.code, undefined, "a plain error, for the route's own answer");
+    assert.equal(e.message, "canceled");
+    return true;
+  });
 });
 
 test("an invitation's state on the Team card: pending with its expiry, expiring today, expired, and no date at all", () => {
