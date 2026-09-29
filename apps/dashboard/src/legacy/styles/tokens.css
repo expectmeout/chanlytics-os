@@ -120,6 +120,9 @@
   --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-full: 999px;
+  /* A circle, whatever the box's size: a face, a dot. --radius-full rounds a wide box into a capsule, this into an
+     ellipse; on a square box the two are one circle. The stylesheets still write 50% by hand for it (step 2.2). */
+  --radius-circle: 50%;
 
   /* ---------- Motion ---------- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -295,6 +298,9 @@
   --surface-pop-radius: var(--radius-lg);
   --surface-pop-depth: var(--shadow-lg);
   --surface-scrim: oklch(from var(--bg) l c h / 0.6);
+  /* The ink's wash, behind what takes the screen: a sheet from a phone's bottom edge, the bell's panel on a phone, a
+     dialog. --surface-scrim fades the page behind a desk's side sheet. */
+  --surface-scrim-modal: oklch(from var(--ink) l c h / 0.35);
 }
 
 /* ============================================================

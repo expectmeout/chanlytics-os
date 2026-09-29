@@ -14,7 +14,8 @@
  *
  * `record` starts the e2e harness (tooling/scripts/e2e-harness/server.mjs) for each of its records at one fixed
  * moment, and opens each route of PAGES and each scene of SCENES (a route and a press or two, for what is drawn only
- * after one: a menu, a confirm, a toast, a sheet, a tooltip) at a desk width and at a phone's with a coarse pointer,
+ * after one: a menu, a confirm, a toast, a sheet, a fold, a combobox's list, a control in its hovered, focused, picked
+ * or on state, a tooltip) at a desk width and at a phone's with a coarse pointer,
  * in the dark theme and the light one. Every animation and transition is stopped before the page draws, and the
  * page's clock stands still: it moves only when the recorder steps it, the same simulated seconds on every route, so
  * what a timer draws is in every recording or in none. Then it writes every element's edges and every computed
@@ -52,7 +53,8 @@ const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
 /**
  * The harness's records and the routes each is opened at (the address after `#/`). The salon draws the mockup's
  * pages, a seeded person and every Settings pane; the pipeline the real People, Pipeline and person's page; the
- * nightly its empty Business pane (its other pages are the salon's own, element for element).
+ * nightly its empty Business pane (its other pages are the salon's own, element for element); the kit its gallery,
+ * which draws every class of the kit (e2e-harness/kit-gallery.mjs) and has no routes, so its one is a name.
  */
 export const PAGES = {
   salon: [
@@ -65,12 +67,18 @@ export const PAGES = {
   ],
   pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
   nightly: ["today", "admin"],
+  kit: ["kit"],
 };
 
 /**
  * What is drawn only after a press, each recorded as a page of its own: the record and route it opens, its presses
- * (`click`, `hover` or `focus` on the first element a selector finds), and what must then be on screen. A record's
- * scenes run after its routes, in this order: the tooltip's node stays in the page once made, so it goes last.
+ * (`click`, `hover` or `focus` on the first element a selector finds, or `key`, the key named third pressed there),
+ * and what must then be on screen. A record's scenes run after its routes, in this order: the tooltip's node stays in
+ * the page once made, so it goes last.
+ *
+ * Most of the kit is drawn only in a state: the record kit's fold in place on a desk (the person's page) and as a
+ * sheet (Settings › Business, and every fold on a phone), a combobox's list, a segmented control with its picked
+ * segment, a switch that is on, a menu's danger item under the pointer, and a button focused as a keyboard focuses it.
  */
 export const SCENES = {
   "a menu": {
@@ -97,11 +105,54 @@ export const SCENES = {
     ],
     sees: ".pp-toast",
   },
+  "a fold in place": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["click", '[data-testid="rec-row-act-person-receptionist"]']],
+    sees: '[data-testid="rec-fold-person-receptionist"]',
+  },
+  "a danger item under the pointer": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [
+      ["click", '[data-testid="person-more"]'],
+      ["hover", ".more-menu .more-item.danger"],
+    ],
+    sees: ".more-menu .more-item.danger",
+  },
+  // Focused by a key, as a keyboard focuses it: once the pointer has pressed anything, `focus` alone is not :focus-visible.
+  "a focused button": {
+    record: "pipeline",
+    route: PERSON,
+    steps: [["key", '[data-testid="person-open-thread"]', "Shift"]],
+    sees: '[data-testid="person-open-thread"]:focus-visible',
+  },
   "a record sheet": {
     record: "salon",
     route: "admin",
     steps: [["click", '[data-testid="rec-row-act-services"]']],
     sees: ".rec-sheet",
+  },
+  "a combobox open in a fold": {
+    record: "salon",
+    route: "admin",
+    steps: [
+      ["click", '[data-testid="rec-row-act-languages"]'],
+      ["key", '[data-testid="rec-fold-languages"] .rec-combo-input', "ArrowDown"],
+    ],
+    sees: '[data-testid="rec-fold-languages"] .rec-combo-list',
+  },
+  "a segmented control": {
+    record: "salon",
+    route: "admin",
+    steps: [["click", '[data-testid="rec-row-act-phone_display"]']],
+    sees: '[data-testid="rec-inline-phone_display"] .rec-seg-btn[aria-checked="true"]',
+  },
+  "a switch that is on": {
+    record: "salon",
+    route: "admin",
+    steps: [["click", '[data-testid="rec-row-act-guardrails"]']],
+    sees: '[data-testid="rec-fold-guardrails"] .rec-switch[aria-checked="true"]',
   },
   "a tooltip": { record: "salon", route: "today", steps: [["hover", ".tb-bell"]], sees: ".ui-tip.show" },
 };
@@ -116,9 +167,10 @@ export const THEMES = ["dark", "light"];
 
 /**
  * The longhands the browser resolves from layout, not from the rules (CSSOM's resolved values): an element's are its
- * edges, so they are not read again, and a pseudo-element has no edges, so its are.
+ * edges, so they are not read again, and a pseudo-element has no edges, so its are. The kit's gallery spec holds a
+ * pseudo-element's to the same tolerance.
  */
-const LAID_OUT = (
+export const LAID_OUT = (
   "width height inline-size block-size top right bottom left inset-block-start inset-block-end inset-inline-start " +
   "inset-inline-end margin-top margin-right margin-bottom margin-left margin-block-start margin-block-end " +
   "margin-inline-start margin-inline-end transform-origin perspective-origin grid-template-columns grid-template-rows"
@@ -168,8 +220,8 @@ const LOAD_TIMEOUT_MS = 60_000;
 const LIMIT = 25;
 const RULE_SHOWN = 160;
 
-/** Stops what moves, before the page draws: animations, transitions and the caret. */
-const STILL =
+/** Stops what moves, before the page draws: animations, transitions and the caret. The kit's gallery spec adds it too. */
+export const STILL =
   "*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }";
 
 /** The planted fault self-test uses: one token, one step. */
@@ -308,6 +360,35 @@ function sheetName(url) {
   return u.pathname.replace(/^\/w\/[^/]+\//, "").replace(/^\//, "");
 }
 
+/** What a page draws with, whose request refuses the page when it does not come in, by the browser's word for it. */
+const DRAWN_WITH = new Set(["stylesheet", "font"]);
+
+/**
+ * Why a request refuses the page it was made for, or null. A stylesheet or a font that did not load, or answered with
+ * an error (4xx or 5xx), leaves the page drawn without its rules or in a fallback face, and a recording of it is a
+ * recording of some other page: step 2.1 met it, when kit.css failed in one context and the run recorded 16,818
+ * differences instead of refusing. A redirect is on its way to an answer, which is judged in its turn, so it passes.
+ * `type` is the browser's word for what was asked (Playwright's `resourceType()`), and a request for anything else is
+ * not judged here; `failure` is why one never answered, `status` what one answered.
+ */
+export function loadRefusal({ url, type, status = null, failure = null }) {
+  if (!DRAWN_WITH.has(type)) return null;
+  const what = `the ${type} ${sheetName(url) ?? url}`;
+  if (failure !== null) return `${what} did not load (${failure})`;
+  return status >= 400 ? `${what} answered ${status}` : null;
+}
+
+/** Refuses the page, through `errors`, for each stylesheet or font that did not load or answered with an error. */
+function watchLoads(page, errors) {
+  const refuse = (why) => why && errors.push(why);
+  page.on("response", (r) =>
+    refuse(loadRefusal({ url: r.url(), type: r.request().resourceType(), status: r.status() })),
+  );
+  page.on("requestfailed", (r) =>
+    refuse(loadRefusal({ url: r.url(), type: r.resourceType(), failure: r.failure()?.errorText ?? "no answer" })),
+  );
+}
+
 /**
  * The page's requests, counted from before it opens, and a wait from now until none has been in flight for QUIET_MS:
  * so what a step's timers asked for, and what its answers asked for in turn, lands before the next step's timers.
@@ -352,9 +433,12 @@ async function settle(page, quiet, what, seconds = SETTLE_SECONDS) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** Throws unless the page drew what it opened: a root, no "No surface at …" card, the theme asked for, no error. */
+/**
+ * Throws unless the page drew what it opened: a root, no "No surface at …" card, the theme asked for, and nothing in
+ * `errors`, where an error the page threw and a stylesheet or a font that did not come in are each a sentence.
+ */
 async function refuseUndrawn(page, what, theme, errors) {
-  if (errors.length) throw new Error(`${what}: the page threw: ${errors[0]}`);
+  if (errors.length) throw new Error(`${what}: ${errors[0]}`);
   const why = await page.evaluate((asked) => {
     const root = document.getElementById("root");
     if (!root || !root.firstElementChild) return "#root is empty: the page never drew";
@@ -369,11 +453,18 @@ async function refuseUndrawn(page, what, theme, errors) {
 /** Opens a route in the page that is already open: the shell follows its hash. */
 const go = (page, route) => page.evaluate((r) => (location.hash = `#/${r}`), route);
 
-/** One press of a scene, on the first element its selector finds. */
-async function press(page, [act, selector], what) {
+/** One press of a scene, on the first element its selector finds: a `key` press names its key third. */
+async function press(page, [act, selector, key], what) {
   const target = page.locator(selector).first();
-  const acts = { click: () => target.click(), hover: () => target.hover(), focus: () => target.focus() };
-  if (!acts[act]) throw new Error(`${what}: a scene presses by click, hover or focus, not ${act}`);
+  const acts = {
+    click: () => target.click(),
+    hover: () => target.hover(),
+    focus: () => target.focus(),
+    key: () => target.press(key),
+  };
+  if (!acts[act] || (act === "key") !== (key !== undefined)) {
+    throw new Error(`${what}: a scene presses by click, hover, focus or key (with its key), not ${act} ${key ?? ""}`);
+  }
   try {
     await acts[act]();
   } catch (e) {
@@ -408,7 +499,8 @@ async function recordContext(browser, job) {
     const page = await context.newPage();
     page.setDefaultTimeout(PRESS_TIMEOUT_MS);
     const errors = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("pageerror", (e) => errors.push(`the page threw: ${e.message}`));
+    watchLoads(page, errors);
     const quiet = watchNetwork(page);
     await page.clock.install({ time: FIXED_NOW - CLOCK_LEAD_MS });
     await page.clock.pauseAt(FIXED_NOW);

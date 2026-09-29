@@ -42,10 +42,10 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 118,
-    "radius": 42,
-    "shadow": 13,
-    "colour": 13,
+    "font": 101,
+    "radius": 37,
+    "shadow": 8,
+    "colour": 11,
     "blur": 1
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {
@@ -144,6 +144,13 @@
     "radius": 3,
     "shadow": 0,
     "colour": 0,
+    "blur": 0
+  },
+  "apps/dashboard/src/surfaces/kit/kit.css": {
+    "font": 17,
+    "radius": 5,
+    "shadow": 5,
+    "colour": 2,
     "blur": 0
   }
 }

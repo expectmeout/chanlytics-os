@@ -37,7 +37,7 @@ import {
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
-import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture } from "../../e2e-harness/server.mjs";
+import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
 
 const NOW = Date.parse("2026-09-22T09:00:00Z");
 const LEGACY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../apps/dashboard/src/legacy");
@@ -64,7 +64,24 @@ test("the salon record reaches the branches the nightly's data cannot: a list at
   assert.equal(p.languages.length, PROFILE_LIMITS.languages - 1, "one Add must fill the languages list");
   assert.equal(new Set(p.languages).size, p.languages.length, "each language once, whatever the cap is");
   assert.ok(p.services.length > 1 && Object.keys(p.hours).length === 7);
-  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline"]);
+  assert.deepEqual(SCENARIOS, ["nightly", "salon", "pipeline", "kit"]);
+});
+
+test("the kit record's page is the kit's gallery, and every other record's the mockup with its fixture first", () => {
+  for (const name of SCENARIOS) {
+    const record = scenario(name, NOW);
+    const page = pageOf(record);
+    const gallery = name === "kit";
+    assert.equal(record.gallery === true, gallery, `${name}: only the kit record draws the gallery`);
+    assert.equal(page.includes('class="gx-entry"'), gallery, `${name}: the gallery's entries`);
+    assert.equal(page.includes("/_hx/fixture.js"), !gallery, `${name}: the fixture, which the gallery never runs`);
+    assert.ok(page.includes("/_hx/app.css"), `${name}: the app's own rules, on every record's page`);
+  }
+  // No workspace of its own: the nightly's record, so every read the harness answers is the nightly's.
+  const { name: kit, gallery, ...asKit } = scenario("kit", NOW);
+  const { name: nightly, ...asNightly } = scenario("nightly", NOW);
+  assert.deepEqual([kit, nightly, gallery], ["kit", "nightly", true]);
+  assert.deepEqual(asKit, asNightly);
 });
 
 /**
