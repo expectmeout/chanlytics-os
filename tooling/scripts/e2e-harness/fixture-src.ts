@@ -34,6 +34,7 @@ import { setStatus } from "@/legacy-bridge/surface-status";
 import { pipelineHelpers } from "@/legacy-bridge/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
 import { installNotifications } from "@/legacy-bridge/notifications";
+import { installAsk } from "@/legacy-bridge/ask";
 
 interface Scenario {
   name: string;
@@ -207,6 +208,8 @@ w.__SETUP = {
   vm: C.setupSteps({ ...(setupDto as any), later: [] }),
   fetchedAt: Date.now(),
 };
+// The first run's rules and words, which setup.ts publishes beside Setup: without them #/start draws its empty root.
+w.__firstRun = C.FIRST_RUN_HELPERS;
 w.__POLICIES = {
   rows: [
     { class: "faq", mode: "auto", limits: {} },
@@ -223,6 +226,17 @@ w.__TEMPLATES_ALL = S.templates ?? [];
 // settings.jsx to PaneIntegrationsReal -- so a hand-built row would draw a pane no spec here opens, out of a shape
 // the product does not use. The channels reach the page where the page reads them: in the facts, resolved above.
 
+/* ---- In a browser, at the workspace's own address ----
+ * As a signed-in tab is: every read names its workspace by the slug in the path (workspace.ts getActiveWorkspace), and
+ * one that named none would be refused as the app is (choose_workspace), which sends the tab home. People's reads and
+ * Ask's both go out from here. Replaced before the document loads another file, whose paths the server maps. Only in
+ * a browser: the harness's own test runs this bundle in a bare context too, with no fetch and no history.
+ */
+const inBrowser = typeof w.fetch === "function" && !!w.location && !!w.history;
+if (inBrowser && !w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
+  w.history.replaceState(w.history.state, "", `/w/${WORKSPACE.slug}/${w.location.search}${w.location.hash}`);
+}
+
 /* ---- People, real, where the record has people (the pipeline scenario) ----
  * The app's own pieces over the harness's own answers (server.mjs peopleAnswer): the People surface booted by the
  * runner, the profile's courier, the registry that says which surfaces are real, and the route gate LegacyApp.tsx
@@ -231,13 +245,8 @@ w.__TEMPLATES_ALL = S.templates ?? [];
  * Pipeline's helpers are the ones seed-globals.ts publishes (pipeline-helpers.ts). A record with no people changes
  * nothing: People stays the seeded page, and the Settings specs see the harness they always did.
  */
-// Only in a browser: the harness's own test runs this bundle in a bare context, with no fetch to read People by.
-if (S.people && typeof w.fetch === "function" && w.location && w.history) {
-  // At the workspace's own address, as a signed-in tab is: every read names its workspace by the slug in the path
-  // (workspace.ts getActiveWorkspace). Replaced before the document loads another file, whose paths the server maps.
-  if (!w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
-    w.history.replaceState(w.history.state, "", `/w/${WORKSPACE.slug}/${w.location.search}${w.location.hash}`);
-  }
+// Only in a browser (above).
+if (S.people && inBrowser) {
   installTabMemory(w as unknown as Window);
   installSurfaceRegistry();
   installPeopleCourier();
@@ -264,6 +273,14 @@ if (S.people && typeof w.fetch === "function" && w.location && w.history) {
   // No live feed here: nothing writes, so there is nothing to hear.
   startSurfaces([peopleOverride], () => () => {});
 }
+
+/* ---- Ask ----
+ * The Line over whatever the page holds (legacy-bridge/ask.ts installAsk, as LegacyApp.tsx installs it), so ⌘K opens
+ * it on a spec's page, the first run's among them (Ask Rewired, Phase 7). Its reads answer as the harness answers any
+ * route it does not serve, and a question is a POST, which the harness refuses: a spec that asks one stops it in the
+ * browser first. Only in a browser, as People's are.
+ */
+if (inBrowser) installAsk(w as unknown as Window);
 
 /* ---- the bell ----
  * The kept rows as the notifications surface publishes them, and the app's own bell over them (legacy-bridge/

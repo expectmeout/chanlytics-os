@@ -36,6 +36,7 @@ const ASK_TEXT = {
           live: "Live",
           reports: "Reports",
           settings: "Settings",
+          start: "setting up",
         }[surface] || "this page"
       }`,
     earlier: "Earlier",
@@ -117,6 +118,7 @@ const ASK_TEXT = {
           live: "En vivo",
           reports: "Informes",
           settings: "Ajustes",
+          start: "la configuración",
         }[surface] || "esta página"
       }`,
     earlier: "Anteriores",

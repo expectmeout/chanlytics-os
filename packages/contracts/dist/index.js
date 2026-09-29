@@ -2746,14 +2746,40 @@ var ASK_PAGES = [
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // What the receptionist knows lives in Business details; the Memory pane says so and points here.
+  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
+  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
+  // its name lands here too, never on that pane (#417).
   {
     label: "Receptionist memory",
     to: "admin/workspace",
     kind: "page",
-    sub: "hours, services and notes, in Business details"
+    sub: "hours, services and notes, in Business details",
+    also: ["ai memory"]
   }
 ];
+var PIPELINE = {
+  label: "Pipeline",
+  to: "clients/pipeline",
+  kind: "page",
+  sub: "your deals, by stage",
+  also: ["deals"]
+};
+var BACK_OFFICE = {
+  label: "Back office",
+  to: "admin/platform",
+  kind: "page",
+  sub: "every workspace, for Chanlytics staff"
+};
+function askPages(has3) {
+  const out = [];
+  for (const p of ASK_PAGES) {
+    out.push(p);
+    if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+  }
+  if (has3.platformAdmin) out.push(BACK_OFFICE);
+  return out;
+}
 function askJump(query, index, limit = 6) {
   const s = query.trim().toLowerCase();
   if (s.length < 2 || s.split(/\s+/).length > 3 || /[?¿]$/.test(s)) return [];
@@ -2775,8 +2801,7 @@ function askJump(query, index, limit = 6) {
 var CHIPS_OF = {
   pipeline: "people",
   calendar: "other",
-  campaigns: "other",
-  start: "other"
+  campaigns: "other"
 };
 var T = {
   en: {
@@ -2794,6 +2819,7 @@ var T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
@@ -2829,6 +2855,7 @@ var T = {
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
     proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    setupLeft: "\xBFQu\xE9 falta por configurar?",
     moreLike: "Encuentra m\xE1s como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
@@ -2849,6 +2876,26 @@ var T = {
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
+};
+var PAGE_QUESTIONS = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"]
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"]
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"]
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"]
+  ]
 };
 function clipWords(s, cap2) {
   const w = s.replace(/\s+/g, " ").trim();
@@ -2879,34 +2926,8 @@ function buildAskSuggestions(input) {
   if (input.liveNow > 0) add(t.live, "ask", "phone");
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  switch (at3) {
-    case "today":
-      add(t.brief, "ask", "sparkle");
-      add(t.who, "ask", "users");
-      break;
-    case "inbox":
-      add(t.who, "ask", "users");
-      add(t.rules, "ask", "shield");
-      break;
-    case "people":
-      add(t.who, "ask", "users");
-      break;
-    case "leads":
-      break;
-    case "reports":
-      add(t.week, "ask", "trending-up");
-      break;
-    case "settings":
-      add(t.rules, "ask", "shield");
-      add(t.hours, "ask", "clock");
-      break;
-    case "live":
-    case "conversations":
-      add(t.calls, "ask", "phone", input.missedToday > 0);
-      break;
-    default:
-      break;
-  }
+  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
+  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
   if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
@@ -3085,6 +3106,7 @@ var ASK_PAGE_ROUTES = [
   "inbox",
   "clients",
   "clients/leads",
+  "clients/pipeline",
   "segments",
   "conversations",
   "live",
@@ -3101,7 +3123,9 @@ var ASK_PAGE_ROUTES = [
   "admin/integrations",
   "admin/billing",
   "admin/activity",
-  "admin/profile"
+  "admin/profile",
+  "admin/partner",
+  "admin/platform"
 ];
 var PAGE_PREFIX = /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
@@ -29757,6 +29781,7 @@ export {
   askIntent,
   askJump,
   askModelProfile,
+  askPages,
   askUndoOpen,
   attentionOf,
   attentionRow,

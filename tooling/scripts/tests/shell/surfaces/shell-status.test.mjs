@@ -1224,6 +1224,75 @@ test("the look travels as the theme does: stamped beside it on every root the sh
   }
 });
 
+test("the first run keeps Ask: the palette is drawn over the step, closed, and the shell's ⌘K and appAsk open it and its close closes it; nothing else of the chrome, no door (Ask Rewired, Phase 7)", () => {
+  shell.installShell(win);
+  const keptState = win.__surfaceState;
+  delete win.__surfaceState;
+  win.FirstRun = "FirstRun";
+  const draw = () => {
+    frames.begin();
+    globalThis.ShellStatusBar = win.ShellStatusBar;
+    return win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+  };
+  const bars = (tree) => {
+    const out = [];
+    walk(tree, (n) => {
+      if (n.type === "AskBar") out.push(n);
+    });
+    return out;
+  };
+  try {
+    deep = false;
+    cells = [];
+    win.location.hash = "#/start/phone";
+    // The shell's own keys, as this draw installs them (an earlier draw's handlers are its own).
+    const before = new Set(heard.get("keydown") ?? []);
+    let tree = draw();
+    const keys = [...(heard.get("keydown") ?? [])].filter((fn) => !before.has(fn));
+    assert.equal(tree.props.className, "fr-shell", "the first run, full screen");
+    const kids = tree.props.children.filter((k) => k && typeof k === "object");
+    assert.deepEqual(
+      kids.map((k) => k.type),
+      ["FirstRun", "AskBar"],
+      "the step, then the palette over it",
+    );
+    assert.equal(kids[0].props.param, "phone");
+    assert.equal(kids[1].props.open, false, "closed until asked");
+    for (const fn of keys) fn({ type: "keydown", key: "k", metaKey: true, target: null, preventDefault() {} });
+    tree = draw();
+    assert.deepEqual(
+      bars(tree).map((b) => b.props.open),
+      [true],
+      "⌘K opens the Line over the step",
+    );
+    assert.equal(tree.props.className, "fr-shell", "and the first run stays under it");
+    bars(tree)[0].props.onClose();
+    tree = draw();
+    assert.equal(bars(tree)[0].props.open, false, "its close closes it");
+    win.appAsk();
+    assert.equal(bars(draw())[0].props.open, true, "askAbout's door (appAsk) opens it too");
+    for (const type of ["Sidebar", "Topbar", "ShortcutsSheet"])
+      assert.equal(
+        find(tree, (n) => n.type === type),
+        undefined,
+        `no ${type} on the first run`,
+      );
+    assert.equal(
+      find(tree, (n) => n.props?.["data-testid"] === "phone-ask"),
+      undefined,
+      "no door: the first run draws no chrome, and no key is drawn outside the ? sheet",
+    );
+    // Everywhere else the chrome draws it once, as it always has.
+    cells = [];
+    win.location.hash = "#/today";
+    assert.equal(bars(draw()).length, 1, "Today: the one palette, in the chrome");
+  } finally {
+    deep = true;
+    delete win.FirstRun;
+    if (keptState !== undefined) win.__surfaceState = keptState;
+  }
+});
+
 test("People has no tab strip on a real workspace -- its one real tab is People, and Lists and Leads are views of it; the demo keeps its seeded Deal board, over every view (N24)", async () => {
   await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
   const tabsAt = (param) => {
