@@ -2,7 +2,8 @@
   "about": [
     "The kit's class names (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4 and decision 4): the house's own, with no prefix, so a page that draws one keeps its class.",
     "Started with the families §3.4 lists, as components.css and record.css name them on 28 September 2026: .btn*, .pill*, .chip*, .tally*, .mark, .avatar*, .empty*, .more-*, .confirm*, .field-error*, .pp-toast*, .ui-tip, .stabs* and the record kit's .rec-*. Their rules move into kit.css with step 2.1; a new primitive's name joins with its rules.",
-    "The measures read this list (tooling/scripts/tests/_css.mjs): a name here is a primitive in any stylesheet but kit.css. Every name is one a stylesheet of the dashboard names, and a primitive by its words or declared in kit.css; every class kit.css declares is here (tests/styles/kit-css.test.mjs)."
+    "The measures read this list (tooling/scripts/tests/_css.mjs): a name here is a primitive in any stylesheet but kit.css. Every name is one a stylesheet of the dashboard names, and a primitive by its words or declared in kit.css; every class kit.css declares is here (tests/styles/kit-css.test.mjs).",
+    "Modifiers are the other classes kit.css names, which draw nothing of their own: a primitive's state or variant written as a word of its own (.btn.danger, .ui-tip.show, .stabs-tab.active, .more-menu.align-right, .escape, .placed, .up), and what another part of the house draws inside one (the Icon's .icon, a key's .kbd, a hand-drawn .dot). A page's .active or .danger is its own, so the measures read the classes alone, and a modifier is a class kit.css declares and no primitive by its words (tests/styles/kit-css.test.mjs)."
   ],
   "classes": [
     "avatar",
@@ -40,6 +41,8 @@
     "empty-words",
     "field-error",
     "field-error-words",
+    "input",
+    "live-dot",
     "mark",
     "more-backdrop",
     "more-divider",
@@ -154,5 +157,6 @@
     "tally-icon",
     "tally-warn",
     "ui-tip"
-  ]
+  ],
+  "modifiers": ["active", "align-left", "align-right", "danger", "dot", "escape", "icon", "kbd", "placed", "show", "up"]
 }

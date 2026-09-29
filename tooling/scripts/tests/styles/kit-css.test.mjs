@@ -5,11 +5,13 @@
  * - The registry and the stylesheet agree. Every class kit.css declares is listed, and every listed name is a class a
  *   stylesheet of the dashboard names and a primitive by its own words, or else one kit.css declares: the measures
  *   count a listed name as a primitive whatever its words (_css.mjs), so a name only the registry makes a primitive
- *   must be the kit's.
+ *   must be the kit's. A class kit.css names that draws nothing of its own (a state such as .btn.danger, the Icon's
+ *   .icon inside a button) is listed apart, as a modifier, which the measures never read: a page's own .danger or
+ *   .active is not a primitive. A modifier is one kit.css declares, and no primitive by its words.
  * - One phone breakpoint. Every width an @media in kit.css names is 900px, the phone as (max-width: 900px) and the
  *   desk as (width > 900px). A query that names no width (reduced motion, reduced transparency: §3.1) is no breakpoint.
  *
- * kit.css holds no rules until step 2.1, so each check also runs on fixtures, where it must find what it looks for.
+ * Each check also runs on fixtures, where it must find what it looks for.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,37 +23,49 @@ import { repoFiles } from "../_ast.mjs";
 import { ROOT } from "../_source.mjs";
 
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
-const listed = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8")).classes;
+const registry = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8"));
+const listed = registry.classes;
+const modifiers = registry.modifiers;
 
 /** A primitive by its words and the house's kit prefixes, the registry left out. */
 const byItsWords = isPrimitiveClassFor(new Set());
 
-/** Where the registry and the kit's stylesheet disagree: a class kit.css declares and the list lacks, and a listed name
- *  that is a primitive only because it is listed, though kit.css does not declare it. */
-const disagreements = (names, declared) => ({
-  unlisted: declared.filter((name) => !names.includes(name)),
+/** Where the registry and the kit's stylesheet disagree: a class kit.css declares and neither list has; a listed name
+ *  that is a primitive only because it is listed, though kit.css does not declare it; and a modifier kit.css does not
+ *  declare, or one that is a primitive by its words or listed as one too. */
+const disagreements = (names, declared, apart = []) => ({
+  unlisted: declared.filter((name) => !names.includes(name) && !apart.includes(name)),
   unearned: names.filter((name) => !byItsWords(name) && !declared.includes(name)),
+  misfiled: apart.filter((name) => !declared.includes(name) || byItsWords(name) || names.includes(name)),
 });
 
 test("the registry lists each name once, and each is a class a stylesheet of the dashboard names", () => {
-  assert.ok(listed.length > 0, `${KIT_REGISTRY} was read`);
-  assert.equal(new Set(listed).size, listed.length, "each name once");
+  assert.ok(listed.length > 0 && Array.isArray(modifiers), `${KIT_REGISTRY} was read`);
+  const all = [...listed, ...modifiers];
+  assert.equal(new Set(all).size, all.length, "each name once");
   const named = new Set(
     repoFiles(["apps/dashboard"], { keep: /\.css$/ }).flatMap((f) => Object.keys(cssOf(f).classes)),
   );
   assert.deepEqual(
-    listed.filter((name) => !named.has(name)),
+    all.filter((name) => !named.has(name)),
     [],
     "a name no stylesheet of the dashboard names is a slip in the list",
   );
 });
 
 test("the registry and kit.css agree: a class kit.css declares is listed, and a listed name is a primitive by its words or kit.css's", () => {
-  assert.deepEqual(disagreements(listed, Object.keys(cssOf(KIT_CSS).classes)), { unlisted: [], unearned: [] });
-  // The checks, where each must find something: a kit class left out of the list, and a name only the list makes one.
-  assert.deepEqual(disagreements(["btn"], ["btn", "btn-glass"]), { unlisted: ["btn-glass"], unearned: [] });
-  assert.deepEqual(disagreements(["btn", "frame-rim"], ["btn"]), { unlisted: [], unearned: ["frame-rim"] });
-  assert.deepEqual(disagreements(["btn", "frame-rim"], ["btn", "frame-rim"]), { unlisted: [], unearned: [] });
+  const none = { unlisted: [], unearned: [], misfiled: [] };
+  assert.deepEqual(disagreements(listed, Object.keys(cssOf(KIT_CSS).classes), modifiers), none);
+  // The checks, where each must find something: a kit class left out of the list, a name only the list makes one, a
+  // state kit.css names that no list has, and a modifier that is a primitive, listed twice, or named by no rule.
+  assert.deepEqual(disagreements(["btn"], ["btn", "btn-glass"]), { ...none, unlisted: ["btn-glass"] });
+  assert.deepEqual(disagreements(["btn", "frame-rim"], ["btn"]), { ...none, unearned: ["frame-rim"] });
+  assert.deepEqual(disagreements(["btn", "frame-rim"], ["btn", "frame-rim"]), none);
+  assert.deepEqual(disagreements(["btn"], ["btn", "danger"]), { ...none, unlisted: ["danger"] });
+  assert.deepEqual(disagreements(["btn"], ["btn", "danger"], ["danger"]), none);
+  assert.deepEqual(disagreements(["btn"], ["btn", "chip"], ["chip"]), { ...none, misfiled: ["chip"] });
+  assert.deepEqual(disagreements(["btn"], ["btn"], ["btn"]), { ...none, misfiled: ["btn"] });
+  assert.deepEqual(disagreements(["btn"], ["btn"], ["danger"]), { ...none, misfiled: ["danger"] });
 });
 
 const isObject = (n) => n !== null && typeof n === "object";

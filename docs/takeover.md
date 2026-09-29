@@ -42,15 +42,15 @@ copies                               52   of 14 names
 as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    76   in 37 files
-literal style values               1093   in 21 stylesheets
-primitives outside the kit         2569   selectors naming 964 classes
+literal style values               1093   in 22 stylesheets
+primitives outside the kit         2155   selectors naming 864 classes
 inline style props                  285   in 48 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     156
-source-text reads in tests          823
+source-text reads in tests          824
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      972   the shell included
-workspace route CSS, KB gzipped     123
+workspace route CSS, KB gzipped     125
 ```
 
 <!-- measured:end -->
