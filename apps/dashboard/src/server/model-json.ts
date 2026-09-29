@@ -62,6 +62,8 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
     if (e instanceof GatewayRefused) {
       if (e.refusal.kind === "budget")
         throw new AppError("rate_limited", `Today's assistant budget is spent, so the ${what} waits until tomorrow.`);
+      if (e.refusal.kind === "paused")
+        throw new AppError("payment_required", `The ${what} waits while this workspace is paused.`);
       throw new AppError("upstream_anthropic", `The ${what} is not available here right now.`, 503);
     }
     throw e;

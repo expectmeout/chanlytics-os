@@ -148,3 +148,50 @@ export function aiUsageBodyOf(call: {
     subject_id: call.subjectId ?? null,
   };
 }
+
+/** A workspace's month of metered use as the Usage read answers it (GET usage): each meter's lines and the totals. */
+export interface UsageMonthDto {
+  /** YYYY-MM. */
+  month: string;
+  /** One line per meter, purpose and model (ai_usage_month, 00276). */
+  lines: Array<{
+    meter: "model" | "voice_seconds" | "wa_conversation";
+    purpose: string | null;
+    model: string | null;
+    uses: number;
+    quantity: number;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    usd: number | null;
+  }>;
+  /** The model calls' list-price dollars, summed; null when none was priced. */
+  model_usd: number | null;
+  model_calls: number;
+  model_tokens: number;
+  voice_seconds: number;
+  wa_conversations: number;
+}
+
+/** The month's totals from its lines: what an owner reads first. */
+export function usageMonthOf(month: string, lines: UsageMonthDto["lines"]): UsageMonthDto {
+  const models = lines.filter((l) => l.meter === "model");
+  const priced = models.filter((l) => l.usd !== null);
+  const sum = (xs: typeof lines, f: (l: UsageMonthDto["lines"][number]) => number) => xs.reduce((n, l) => n + f(l), 0);
+  return {
+    month,
+    lines,
+    model_usd: priced.length ? Math.round(sum(priced, (l) => l.usd ?? 0) * 10_000) / 10_000 : null,
+    model_calls: sum(models, (l) => l.uses),
+    model_tokens: sum(models, (l) => l.quantity),
+    voice_seconds: sum(
+      lines.filter((l) => l.meter === "voice_seconds"),
+      (l) => l.quantity,
+    ),
+    wa_conversations: sum(
+      lines.filter((l) => l.meter === "wa_conversation"),
+      (l) => l.uses,
+    ),
+  };
+}

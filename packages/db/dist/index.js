@@ -148,6 +148,21 @@ var MODEL_PRICES = {
   [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
+function defang(text2) {
+  return text2.replace(/</g, "\u2039").replace(/>/g, "\u203A");
+}
+function fenced(tag, text2) {
+  return `<${tag}>
+${defang(text2)}
+</${tag}>`;
+}
+var PROFILE_NAME_MAX = 60;
+function promptSafeName(name) {
+  if (typeof name !== "string") return null;
+  const flat = defang(name).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!flat) return null;
+  return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
+}
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
@@ -4762,7 +4777,8 @@ function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC"
 function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
-  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  const name = promptSafeName(lead.name);
+  bits.push(name ? `Name on record: ${fenced("profile_name", name)}` : "No name on record.");
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {

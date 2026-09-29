@@ -205,6 +205,10 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
         : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
     case "no_key":
       return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "paused":
+      return es
+        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."

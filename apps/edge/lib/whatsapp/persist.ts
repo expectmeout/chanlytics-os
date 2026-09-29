@@ -15,6 +15,7 @@ import {
   markProcessed,
   pauseConversation,
   emitEvent,
+  recordActivation,
   readThreadState,
   type IngestResult,
 } from "../packages/db.js";
@@ -347,7 +348,13 @@ export function pgSink(
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
-      on ? pgSafe("usage", () => recordTokens(db!, tenantId!, ing!.conversation_id, u)) : Promise.resolve(),
+      on
+        ? pgSafe("usage", async () => {
+            await recordTokens(db!, tenantId!, ing!.conversation_id, u);
+            // The receptionist's first answer to a customer (not a held draft): the funnel's second milestone.
+            if (u.held == null) await recordActivation(db!, tenantId!, "first_reply", "receptionist");
+          })
+        : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can
      *  alert once per hold rather than once per message. Undefined when

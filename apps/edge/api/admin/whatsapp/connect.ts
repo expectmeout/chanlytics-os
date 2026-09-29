@@ -18,7 +18,7 @@
 import { json, refuse } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
-import { emitEvent } from "../../../lib/packages/db.js";
+import { emitEvent, recordActivation } from "../../../lib/packages/db.js";
 import type { Json } from "../../../lib/packages/db.js";
 import {
   alreadyRegistered,
@@ -220,6 +220,8 @@ export async function POST(request: Request): Promise<Response> {
     verified_name: config.verified_name,
     by: userId,
   }).catch(() => {});
+  // The workspace's first line that answers: the funnel's first milestone (a phone line is the other door).
+  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
   return json(200, {
     ok: true,

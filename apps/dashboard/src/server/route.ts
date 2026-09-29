@@ -34,6 +34,7 @@
  */
 import type { ZodType } from "zod";
 import { AppError, type SpendWords } from "@chanlytics/contracts";
+import { claimIdempotencyKey, keepIdempotencyReceipt, releaseIdempotencyKey, type Json } from "@chanlytics/db";
 import {
   memberContext,
   requireRole,
@@ -205,6 +206,48 @@ interface Spec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
+/** The most of a card's key the ledger keeps; a longer one is not a card's (a proposal id is twenty characters). */
+const CARD_KEY_MAX = 120;
+
+/**
+ * An Ask card's write, once (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
+ * twice"). A card's commit names its proposal id as its idempotency key and says it is Ask's (legacy-bridge/ask
+ * commit.ts); the first press claims the key on idempotency_keys, under the prefix `card:` so a route's own use of the
+ * same key (a reply's, core's) is apart, and keeps its answer there. A second press, from any tab, is given that answer
+ * and changes nothing; one that arrives while the first is still running is refused in words. A write that fails lets
+ * the key go, so pressing again tries again. Any other request runs as it always has.
+ */
+async function onceForCard<O>(
+  ctx: RouteCtx,
+  member: Pick<MemberContext, "tenantId"> | null,
+  req: Request,
+  run: () => Promise<O>,
+): Promise<O> {
+  const raw = (req.headers.get("idempotency-key") ?? "").trim();
+  if (!member || req.headers.get("x-via") !== "ask" || !raw || raw.length > CARD_KEY_MAX) return run();
+  const tenantId = member.tenantId;
+  const key = `card:${raw}`;
+  const nowIso = new Date().toISOString();
+  const route = `${req.method} ${new URL(req.url).pathname}`.slice(0, 200);
+  const claim = await claimIdempotencyKey(ctx.supabase, { tenantId, key, route, requestHash: "", nowIso });
+  if (!claim.won) {
+    if (claim.held?.response) return claim.held.response as unknown as O;
+    throw new AppError("conflict", "This card is being approved already. Its answer arrives in a moment.");
+  }
+  let out: O;
+  try {
+    out = await run();
+  } catch (e) {
+    await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(() => {});
+    throw e;
+  }
+  const response = (out === undefined ? { ok: true } : out) as unknown as Json;
+  await keepIdempotencyReceipt(ctx.supabase, { tenantId, key, requestHash: "", response, stamp: nowIso }).catch(
+    () => {},
+  );
+  return out;
+}
+
 function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>) {
   const policy: Policy = Object.freeze({
     kind,
@@ -237,7 +280,8 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
-    return spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
+    const handle = () => spec.handle({ ctx, req, input, ...given } as unknown as Call<S, I>);
+    return kind === "write" ? onceForCard(ctx, member, req, handle) : handle();
   };
 
   const handler = Object.assign(
