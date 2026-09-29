@@ -88,6 +88,11 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Directories over 20 modules: `legacy-bridge` 55 → 56 (`device-prefs.ts`, the interface kit's step 1.6)                                                                                         | What a device keeps (the theme, the look, the rail) is read, changed and stamped by one pure module, so theme-boot.test.mjs runs the app's own reading against the head's script and LegacyApp, the bridge's host, only holds it; it sits beside `theme-color.ts`, the other half of what that script does                                                      | The shell leaves (decision 0015), and its host with it                                                                       |
 | `Sidebar` +1 line, no branch (the interface kit, step 1.6: 209 → 210)                                                                                                                          | The look's pair, `look, onLook`, is handed down to the account menu beside the theme's, on one line and with no default: the shell always passes both, and the menu draws no Look while it is not offered. The function is at its cap, and splitting the sidebar is not this step's                                                                             | The account foot becomes a component of its own, or the shell leaves (decision 0015)                                         |
 | Tree shape: `packages/contracts/src/shared` 20 → 21 modules (Road to Ten: the three `*.type-test.ts` beside the modules they prove, #1304, and `edge-errors.ts`, the edge's closed set, #1303) | A type test sits beside its module by rule (CLAUDE.md, "Where new code goes"), and the edge's codes belong with contracts' shared words; the two landed two minutes apart, each green alone at 20                                                                                                                                                               | `shared/` grouped by what its modules hold (identity, the envelope, the sets, the words), the organization track's next wave |
+| `LeadsScope` +1 line, no branch (Reach out, Part 6)                                                                                                                                            | The strip a reach-out writes to the open search draws under the finder's own: one line, `{p.reachOutStrip}`, the element built in `leadsListProps` (leads-real.jsx), which holds the test, so the function takes no branch                                                                                                                                      |
+| `LeadPeekInfo` +1 line, no branch (Reach out, Part 6)                                                                                                                                          | The peek's reach-out block under the fit: one line, `{on.reachOut}`, the element built with the peek's acts in `LeadPeekActions`, which holds the test, so the function takes no branch                                                                                                                                                                         |
+| Window publishers +2 (Reach out, Part 6): `Object.assign(window, …)` in `reach-out-leads.jsx` and `reach-out-report.jsx`                                                                       | Leads' strip, the Stage line's hook and the peek's block, and Reports' Reach-outs section, are files of their own in `pages/reach-out/`, so neither Leads' pinned functions nor `ReportsSections` grows; the legacy tree shares a component between files only through window                                                                                   |
+| Window global readers (Reach out, Part 6): `__reachOuts` +1, `__replies` +1                                                                                                                    | The strip, the lines and the peek's block read the chains' verbs and words the bridge already publishes, and the peek's undo is the Inbox's own (`__replies.undo`). No new name                                                                                                                                                                                 |
+| Workspace route JS 972.4 → 982.4 KB gzipped (Reach out, Part 6, #1325; the CSS stays in its band)                                                                                              | Main measured 976.1 KB inside the 1% band; Part 6 adds 6.3 KB: Reports' Reach-outs, Leads' strip, Stage line and peek story, a person's reach-out rows, and their view models in contracts. The shell imports every page at once and contracts is one bundle, so no module boundary keeps them off the route                                                    | The shell's exit, one surface at a time (0015), which loads a page's code when it opens                                      |
 
 ## The numbers
 
@@ -101,7 +106,7 @@ functions over the limit            182   of which over 200 lines: 43
 files over 800 lines                 13
 directories over 20 modules           5
 window globals                      200   names
-window publishers                   446   sites in 164 files
+window publishers                   448   sites in 166 files
 copies                               52   of 14 names
 as unknown as                       221
 table names outside packages/db     527
@@ -113,7 +118,7 @@ wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
 source-text reads in tests          822
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
-workspace route JS, KB gzipped      972   the shell included
+workspace route JS, KB gzipped      982   the shell included
 workspace route CSS, KB gzipped     123
 ```
 

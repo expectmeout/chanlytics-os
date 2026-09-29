@@ -17,6 +17,8 @@ import {
   type BookingReportVM,
   toDealReportVM,
   type DealReportVM,
+  toReachOutReportVM,
+  type ReachOutReportVM,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "../surface-data";
 
@@ -56,6 +58,11 @@ export interface ReportsSurface {
   booking: BookingReportVM;
   /** Deals: one cohort and the stock; present only where a deal was ever recorded (0004). */
   deals: DealReportVM;
+  /**
+   * What the reach-outs wrote and what came back over the same period (Reach out Part 6, H3); null when that read failed,
+   * absent where nothing reads it (the demo): the section then draws nothing of its own.
+   */
+  reachOuts?: ReachOutReportVM | null;
   /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
   facts: ReportFactVM[];
   days: number;
@@ -89,14 +96,17 @@ export const reportsOverride: SurfaceOverride = {
   debounceMs: 800,
   apply: async () => {
     const days = reportDays;
-    const [data, campaigns] = await Promise.all([
+    const [data, campaigns, reachOuts] = await Promise.all([
       read("GET reports", { query: { days: String(days) } }),
       // The offers' numbers are their own read. A failure there used to fail
       // the whole surface -- the page went blank, and its own "could not be
       // read" line could never render (the audit's D9). Null is its state.
       read("GET reports/campaigns", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
+      // The reach-outs' are too (Part 6): their section says it could not read them, and the rest stands.
+      read("GET reports/reach-outs", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
     ]);
     if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
+    if (reachOuts instanceof Error) console.error("reports_reach_outs_fetch_failed", reachOuts.message);
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
     if (days !== reportDays) return;
@@ -107,6 +117,7 @@ export const reportsOverride: SurfaceOverride = {
       booking: toBookingReportVM(data.booking),
       // The period's name is the report's, so the two sentences never disagree about the range.
       deals: toDealReportVM(data.deals, vm.rangeLabel),
+      reachOuts: reachOuts instanceof Error ? null : toReachOutReportVM(reachOuts.report),
       days,
       fetchedAt: Date.now(),
     };

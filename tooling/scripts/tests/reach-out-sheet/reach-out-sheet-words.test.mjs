@@ -347,7 +347,19 @@ const CHAIN = {
 };
 const REPORT = {
   steps: [
-    { id: "r", n: 0, written: 44, delivered: 42, wrote_back: 5, said_no: 3, bounced: 2, waiting: 0, held: 0 },
+    {
+      id: "r",
+      n: 0,
+      written: 44,
+      delivered: 42,
+      wrote_back: 5,
+      interested: 2,
+      booked: 1,
+      said_no: 3,
+      bounced: 2,
+      waiting: 0,
+      held: 0,
+    },
     { id: "n", n: 1, written: 28, delivered: 28, wrote_back: 3, said_no: 1, bounced: 0, waiting: 5, held: 0 },
   ],
   runs: [{ id: "b", step_id: "r", run_for: "2026-09-24", state: "sent", planned: 30, written: 30, held: 0 }],
@@ -361,14 +373,37 @@ test("the Playbooks row and its open row say what the database holds, no more (R
   );
   const w = chainReportWordsOf(CHAIN, REPORT, { ...REACH, ready: 0 }, { host: "chanlytics-mail.example", share: 30 });
   assert.deepEqual(w.reaches, { n: 44, of: "of 160 on the search" });
-  assert.deepEqual(w.head, ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"]);
-  assert.deepEqual(w.table[0], ["Your email", "Day one, in their hours", "44", "42 (95%)", "5 (11%)", "3", "2"]);
+  assert.deepEqual(w.head, [
+    "Step",
+    "When",
+    "Written",
+    "Delivered",
+    "Wrote back",
+    "Interested",
+    "Booked",
+    "Said no",
+    "Bounced",
+  ]);
+  assert.deepEqual(w.table[0], [
+    "Your email",
+    "Day one, in their hours",
+    "44",
+    "42 (95%)",
+    "5 (11%)",
+    "2",
+    "1",
+    "3",
+    "2",
+  ]);
+  // A step read before 00241 has no interested or booked: unknown, never a zero (Part 6, H7).
   assert.deepEqual(w.table[1], [
     "A short nudge",
     "After 4 days with nothing back",
     "28",
     "28 (100%)",
     "3 (11%)",
+    "—",
+    "—",
     "1",
     "0",
   ]);
@@ -378,7 +413,7 @@ test("the Playbooks row and its open row say what the database holds, no more (R
   );
   assert.deepEqual(w.history[0], { id: "b", text: "Sep 24 · 30 written" });
   assert.deepEqual([w.canRemove, w.remove], [false, null], "one that wrote is paused, never removed");
-  assert.equal(w.stopOne, "To stop writing to one business, mark its lead Said no or Not a fit.");
+  assert.equal(w.stopOne, "To stop writing to one business, open its lead and press Stop writing to them.");
   const fresh = chainReportWordsOf(
     CHAIN,
     {

@@ -18,6 +18,8 @@ export interface OutreachLeadFacts {
   wroteBack: boolean;
   /** An automatic out-of-office whose day is still ahead (00226, G8): the chain waits for it. */
   away: boolean;
+  /** Its owner stopped writing to this lead (00241, Part 6's H10). Absent from an older read: not stopped. */
+  stopped?: boolean;
 }
 
 export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null {
@@ -33,6 +35,8 @@ export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null 
   if (f.wroteBack) return "outreach_wrote_back";
   // An automatic out-of-office (00226): the send is skipped, and the step takes the lead back after the day it names.
   if (f.away) return "outreach_away";
+  // Its owner pressed Stop writing to them (00241): the email is skipped, never waited on.
+  if (f.stopped) return "outreach_stopped";
   return null;
 }
 

@@ -219,6 +219,8 @@ const ReportsPage = () => {
         </div>
         <div className="rpt-body" data-dims aria-busy={busy ? "true" : "false"}>
           <ReportsSections R={R} pick={pick} />
+          {/* What the reach-outs wrote and what came back (Reach out Part 6, H3): a section of its own, after Campaigns. */}
+          {window.RptReachOuts ? <window.RptReachOuts R={R} /> : null}
           <GoogleSection days={R.days} />
         </div>
       </div>

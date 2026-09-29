@@ -2,7 +2,8 @@
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
 shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) shipped 27–28 Sep (§6, twelve PRs; N1–N6);
-Part 6 (what comes back) next. The eight decisions in §9 were approved 25 Sep ·
+Part 6 (what comes back) shipped 28–29 Sep (§6, #1325; H1–H12); Part 7 (bring your own list) next. The eight decisions
+in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -487,11 +488,40 @@ makes the dated step the hand-to-you and "write again in January" need (today on
   it waits for no approval. The chain's report counts `handed` apart from `written`, so a hand step is never where a
   lead's answer is counted.
 
+**As built (Part 6; 00241).** **The day's numbers at 6 PM** (H12) are a line in the bell, a notification of kind
+`reach_out_day` with no push and no email: "Today's reach-outs", then what was written, who wrote back and how many
+were interested, the noes, the bounces and what waits for a say, with its door to Playbooks. The hourly playbooks sweep
+writes it from 18:00 in each workspace's zone, on a day a reach-out wrote, heard back or holds an email for its owner,
+through one service-role read, `reach_out_day_due`, which leaves out a workspace already told that day, so it goes
+once. Settings › Notifications' Reach-outs group has the row, "The day's numbers", and the card no longer says every
+alert is an email.
+
 ### 4.10 Reports
 
 Campaigns › Reports gains, per reach-out and per step: written, delivered, wrote back, interested, booked, said no,
 bounced; replies by angle; sends by domain with delivered, bounced and complaint rates and the domain's state; written by
 day. The sources table shows each step on its own line. No opens or clicks anywhere.
+
+**As built (Part 6; 00241).**
+- **What each number counts** (H1). Written is an email that left (`sent`, or `failed` by a receipt after it left,
+  00179's `email_left`: the clock settles a fast bounce failed, and it was still written); delivered, of them, delivered
+  or read; wrote back is the send door's own reading (`outreach_wrote_back`); interested is a reading of the lead's reply
+  by a person's words, not undone, of intent interested or a question (an automatic reply changes nothing); booked is `leads.booked_at`; said no is the lead's `closed_reason`; bounced is the provider's
+  bounce. Each lead is counted once, at the last email that wrote to it, as the chain's report always counted wrote back.
+- **Booked is stamped on the lead, whatever its stage** (H2). `reach_out_booked` (00227's, re-created) stamps
+  `leads.booked_at` once, the start of the first appointment seen after an email of the reach-out left, for a lead Talking
+  already as for one still being written to, and converts only a ready or nurture lead, as before: a business that wrote
+  back and then booked is the usual path, and a second conversion never happens.
+- **Reports has a section of its own, Reach-outs, after Campaigns** (H3), since Campaigns' numbers are the broadcasts'
+  recipients, which a reach-out never writes: from written to booked; replies by angle (the eight most written, the rest
+  as one, and how many had no opening); by domain (sent, landed, permanent bounces and complaints as rates, the domain's
+  state now, a removed domain's mail on one line); written day by day; and each reach-out with each step on its own line.
+  One member read, `reach_out_report(workspace, days)`, over Reports' own period (7, 30 or 90 days in the workspace's
+  zone), `GET /api/v1/reports/reach-outs`, drawn by `pages/reach-out/reach-out-report.jsx`. A workspace with no
+  reach-out draws nothing of it; a read that failed says so, and the rest of the page stands.
+- **Playbooks' open row** counts interested and booked per step, and its written counts an email that left, as Reports
+  does (`reach_out_chain_report`, 00228's, re-created); a report read before 00241 says neither, as unknown, never as a
+  zero.
 
 ### 4.11 What the UI shows
 
@@ -553,6 +583,30 @@ On the surfaces as they stand; the canvas draws each.
   last step, with their words held to 280 characters; Playbooks' open row names such a step "N handed to you". Part 4's
   line above, that *another step* offers another email only, held until this part and is superseded.
 - ***Leads while it writes*** (the Stage detail line that reads `resume_at`, the undo on the lead) is still Part 6's.
+
+**As built (Part 6; 00241).**
+- **Leads while it writes** (H8). An open search whose reach-out writes draws a strip under the finder's own, the finder's
+  strip itself: how many it has written to, today's count of the day's share (the chain row's `chainPaceOf`), the next
+  email and who it goes to, the domain, how many wait for a say, and How it's going, a run that waits, and Pause or
+  Resume. The Stage column now sits beside the name (still off by default, chosen in Columns), and it and a phone's card
+  say where each business stands: written and nudged, wrote back and what it meant, not now until a day
+  (`leads.resume_at`), said no, bounced, booked, away until, stopped, planned for, held for your say (contracts
+  `reachOutLineOf`). One member read, `reach_out_search_lines(workspace, search)`, at most 2,000 lines, read when the
+  search opens, again at most every thirty seconds as the leads are read again, and after a door moves something.
+- **The peek's block** (H9): the lead's emails, each from its domain with its angle and what became of it, its replies
+  as read, what is planned next, and three doors: Read what went out (the person's thread), Stop writing to them, and
+  Read as no · undo while the reading may be undone (Part 5's door and route). One member read,
+  `reach_out_lead_timeline(workspace, lead)`, `GET /api/v1/reach-outs/leads?lead=`.
+- **Stop writing to them** (H10) is an acting member's door, `reach_out_lead_stop`, `POST
+  /api/v1/reach-outs/leads/:id/stop`: it stamps `leads.reach_out_stopped_at`, skips the lead's planned and held emails in
+  live runs (`owner_stopped`), and the stop is then one fact the send door reads (`outreach_lead_facts.stopped`, the
+  refusal `outreach_stopped`, a skip and never a wait) and the next step's followers leave out. The lead is not closed:
+  stopping is not a no. No event is written; the stop is on the lead and each skipped send.
+- **A person's page** (H11) reads the same story through the lead it came from (`leadOfPerson` carries it as
+  `PersonLeadDto.reach_out`): each reach-out email is named for its chain and step, with its angle, its domain and what
+  became of it; their reply says how it was read; a Found row says where the business was found, with Open the lead; and
+  the About rail says the reach-out and where they stand in it. The hero's line stays the thread's flag.
+
 
 ### 4.12 Failure handling
 
@@ -649,7 +703,10 @@ Each to 100% before the next, and each shippable in either deploy order unless s
      chain go on, not `away` in their own words and not `not_now` (N1; §4.7 already said "Not now: the chain stops").
      Only an automatic out-of-office pauses, through a fact of its own (`away`, 00226), not through `wrote_back`.
      `wrote_back` was widened once, in its one place: an automatic reply read as no or wrong person counts (00222).
-6. **What comes back:** Reports by step, angle and domain; the person page's rows. 1 PR.
+6. **Built 28–29 Sep 2026 in one PR (#1325, 00241).** **What comes back:** Reports by step, angle and domain; interested and
+   booked on the chain's row; Leads while it writes (the strip, the Stage line, the peek's story, Stop writing to them,
+   the undo on the lead); a person's rows; and the day's numbers at 6 PM, a line in the bell (§4.9).
+   `docs/superpowers/plans/2026-09-28-reach-out-part-6-what-comes-back.md` has the decisions (H1–H12) and what was built.
 7. **Later:** bring your own list (leads from a CSV, checked first, as a search). 1 PR.
 
 Then the PRD's Part 1 (customers' channels) and the rest of its order.

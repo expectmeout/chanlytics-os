@@ -85,7 +85,20 @@ const chainOf = (over = {}, next = {}) => ({
 });
 const REPORT = (over = {}) => ({
   steps: [
-    { id: ROOT, n: 0, written: 44, delivered: 42, wrote_back: 5, said_no: 3, bounced: 2, waiting: 0, held: 0 },
+    {
+      id: ROOT,
+      n: 0,
+      written: 44,
+      delivered: 42,
+      wrote_back: 5,
+      interested: 2,
+      booked: 1,
+      said_no: 3,
+      bounced: 2,
+      waiting: 0,
+      held: 0,
+    },
+    // A report read before 00241 says nothing of interested or booked: the row says it does not know, never a zero.
     { id: "n1", n: 1, written: 28, delivered: 28, wrote_back: 3, said_no: 1, bounced: 0, waiting: 5, held: 2 },
   ],
   runs: [
@@ -174,16 +187,29 @@ test("the open row is the report's: its steps counted, its sentence, its runs, t
     /Your email → after 4 days, nothing back → A short nudge · Stops for anyone who writes back, books or says no\./,
   );
   const cells = all(byTestId(tree, "ro-steps"), (n) => n.type === "td" || n.type === "th").map(textOf);
-  assert.deepEqual(cells.slice(0, 7), ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"]);
-  assert.deepEqual(cells.slice(7, 14), [
+  assert.deepEqual(cells.slice(0, 9), [
+    "Step",
+    "When",
+    "Written",
+    "Delivered",
+    "Wrote back",
+    "Interested",
+    "Booked",
+    "Said no",
+    "Bounced",
+  ]);
+  assert.deepEqual(cells.slice(9, 18), [
     "Your email",
     "Day one, in their hours",
     "44",
     "42 (95%)",
     "5 (11%)",
+    "2",
+    "1",
     "3",
     "2",
   ]);
+  assert.deepEqual(cells.slice(18, 27).slice(5, 7), ["—", "—"]);
   assert.match(
     textOf(byTestId(tree, "ro-sentence")),
     /^30 a day from harbor-mail\.example, one every 12 minutes in each business's hours\. 72 written; 8 wrote back; 4 said no; 2 bounced and their addresses were dropped\. 2 wait for your say\.$/,
@@ -197,7 +223,7 @@ test("the open row is the report's: its steps counted, its sentence, its runs, t
   ]);
   assert.equal(
     textOf(byTestId(tree, "ro-stop-one")),
-    "To stop writing to one business, mark its lead Said no or Not a fit.",
+    "To stop writing to one business, open its lead and press Stop writing to them.",
   );
   assert.equal(byTestId(tree, "ro-remove"), null, "one that wrote is paused, never removed (R16)");
 });

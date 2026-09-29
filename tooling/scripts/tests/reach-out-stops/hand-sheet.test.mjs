@@ -162,6 +162,8 @@ test("the open row reads a call by its kind and what it handed as handed to you"
     "—",
     "—",
     "—",
+    "—",
+    "—",
   ]);
   assert.deepEqual(w.table[0].slice(0, 3), ["Your email", "Day one, in their hours", "40"]);
   assert.match(w.sentence, /40 written; 9 handed to you; 4 wrote back/);

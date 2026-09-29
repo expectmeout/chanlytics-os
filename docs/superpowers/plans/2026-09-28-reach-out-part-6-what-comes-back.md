@@ -39,12 +39,12 @@ Contracts turn each read into words, in two new modules: `reports/reach-out-repo
 - An edge ahead of the dashboard writes the 6 PM line, which the bell draws with the alert's look until the dashboard knows the kind.
 - The send door's new fact, `stopped`, reads as absent (false) on an edge that predates it. Until then the stop holds through the door's skip of the lead's planned and held sends and through the followers, both of which are SQL.
 
-**As built.** Filled when PR 2 merges.
+**As built.** PR 2's note, under its heading, says what departed from its tasks and why.
 
 | PR  | Pull request | Migration | What it shipped |
 | --- | ------------ | --------- | --------------- |
-| 1   | this PR      | —         | The plan        |
-| 2   |              | 00241     |                 |
+| 1   | #1321        | —         | The plan        |
+| 2   | #1325        | 00241     | Reports' Reach-outs, the chain row's interested and booked, Leads while it writes, a person's rows, the 6 PM line |
 
 PR 2 runs this sequence:
 1. Branch from `main` after this plan merges.
@@ -290,6 +290,43 @@ None open for this part. Still his from before: D14 (a support address), the col
 - The peek shows a lead's emails, and can stop the chain for that business.
 - A person's page names the reach-out's emails and how each reply was read.
 - At 6 PM the bell says the day's numbers.
+
+> **As built** (28 Sep 2026, on `main` at `00e310ef`, which the branch merged, after one combined review whose findings
+> are folded in below). What departed from the tasks, and why:
+>
+> - **Written is an email that left, spelled once (00179's `email_left`).** The review found that the clock settles a
+>   send whose email bounced before it was read sent as `failed` with no `sent_at` (`lib/reach-out/clock.ts:139-141`),
+>   so counting `state = 'sent'` lost exactly the fast hard bounces from Written and Bounced. Every count here, and the
+>   chain's report (its steps' and its runs' written), now reads a send as written when it is `sent`, or `failed` with
+>   an email that left, dated by when it left (`email_sent_at`). Part 4's chain-report test moves with it (4 written,
+>   not 3: the bounce left too).
+> - **Interested is a person's.** A reading of an automatic reply as interested changes nothing (`automaticPlan`), so
+>   the chain's report, Reports, the lines and the 6 PM line all leave `auto_reply` out.
+> - **What a reading did is its door's record.** The lead's story and a person's rows read the reading's own plan
+>   (`reach_out_replies.plan`: stops, convert, saidNo) rather than work its effects out again, so an automatic reply that
+>   changed nothing says "nothing changed".
+> - **A skip's words are the run's.** `skippedReasonWords` (`reach-out-approval.ts`) is exported, falls back to the
+>   refusals' short words (`HELD_REASONS`), and the story reads it: one set of words for why a send was skipped.
+> - **The stop** takes its lead's row lock only after the caller is known to act in its workspace; its confirm says "No
+>   reach-out writes to them again". A test at the door proves a stopped lead's email is refused `outreach_stopped`, a
+>   skip, and that a database before 00241 answers without the fact.
+> - **"Bounced · address dropped"** only when the lead's address is invalid (a permanent bounce, C11); any other bounce
+>   says "Bounced" and the day. The lines carry the lead's `email_state`.
+> - **The About rail** says the stage too ("Salons in Miami · Talking · wrote back Thu · a question").
+> - **Reports' sources table** has a Bounced column, as §4.10 lists.
+> - **The 6 PM line** is due from 18:00 on, not at 18 only: a sweep that failed at its 18:05 is made good at 19:05, and
+>   the told-today check still sends it once. It reads a page of 50 at a time, at most ten pages, inside the sweep's
+>   fifty seconds.
+> - **The strip** says "nothing more planned yet" when no email is planned, and never shows the last search's reach-out
+>   while the next one is read.
+> - **Deploy order.** 00241 went to production first. Both apps deploy from the merge; for the minutes an older edge
+>   runs, a stopped lead's email already claimed or queued is not refused at the door (it reads no `stopped`), while
+>   its planned and held emails are skipped and no later step reaches it, both in SQL.
+> - **Checks.** The workspace route's JavaScript rises past its 1% band: main measured 976.1 KB gzipped, this adds 6.3 KB,
+>   and the budget goes 972.4 → 982.4 KB with its row under "Rises" in `docs/debt.md` (the shell imports every page at
+>   once and contracts is one bundle, so nothing keeps the new pages off the route).
+>   `LeadsScope` and `LeadPeekInfo` rose by one line each and the window publishers by two, each with its row under
+>   "Rises" in `docs/debt.md`.
 
 ### Task 2.1: The migration
 

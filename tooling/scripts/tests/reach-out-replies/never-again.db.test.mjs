@@ -767,8 +767,8 @@ const SOURCES = {
   lead_set_stage: ["00142", "create or replace function public.lead_set_stage("],
 };
 
-/** The migration that re-creates a function after 00220, whose own suite holds it to 00220's body. */
-const LATER = { outreach_lead_facts: "00226" };
+/** The migration that re-creates a function last, after 00220, whose own suite holds it to the body before it. */
+const LATER = { outreach_lead_facts: "00241" };
 
 test("every function re-created whole is its source's body but for the lines it meant to change", { skip }, () => {
   const now = migration("00220");

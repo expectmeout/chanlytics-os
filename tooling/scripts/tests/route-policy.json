@@ -1052,6 +1052,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/reach-outs": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports": {
       "kind": "read",
       "scope": "workspace",
@@ -1358,6 +1365,20 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "GET reach-outs/leads": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-outs/leads/[id]/stop": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
       "spend": false
     },
     "GET reach-outs": {

@@ -455,6 +455,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           </div>
           <p className="pk-fit" data-testid="peek-fit">{vm.fit.sentence}</p>
         </div>
+        {on.reachOut}
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
             <button type="button" className="btn btn-sm" data-testid="peek-keep" onClick={() => on.onKeep(vm.id)} {...window.gate("find", "keep this lead")}>{W.keep}</button>
@@ -714,6 +715,8 @@ const LeadPeekActions = (p) => {
     },
     onSaidSent: async () => { p.setArmed(null); await post({ kind: "emailed" }, "Not marked"); },
     onNotYet: () => p.setArmed(null),
+    // A reach-out's story with this lead and its doors (Reach out Part 6, H9), drawn in the body under the fit.
+    reachOut: window.LeadReachOut ? <window.LeadReachOut key={vm.id} lead={vm} flash={p.flash} /> : null,
   };
 };
 

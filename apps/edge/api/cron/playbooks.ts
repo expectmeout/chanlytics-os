@@ -20,13 +20,19 @@ import {
 } from "../../lib/ops/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { tellReachOutDays } from "../../lib/reach-out/day-numbers.js";
 import { stampPlaybooksTried, stampReachOutStep } from "../../lib/packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
 export const REACH_OUT_YIELD_AT_MS = 40_000;
+/** When the day's reach-out lines at 6 PM stop being written for the tick: inside the function's sixty seconds. */
+const REACH_OUT_DAY_UNTIL_MS = 50_000;
 
-type SweepCounts = Record<"tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining", number>;
+type SweepCounts = Record<
+  "tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining" | "told",
+  number
+>;
 
 /** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
 interface Tick {
@@ -163,6 +169,7 @@ export async function POST(request: Request): Promise<Response> {
     off: 0,
     failed: 0,
     remaining: page.remaining,
+    told: 0,
   };
   const tick: Tick = { db, now, L, out, started };
   await runMoments(tick, page);
@@ -173,6 +180,8 @@ export async function POST(request: Request): Promise<Response> {
   });
   out.remaining += reach.remaining;
   await runReachOuts(tick, reach);
+  // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
+  out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);
 
   // `remaining` counts what was DUE and beyond the two pages, judged in the
   // database in each workspace's own zone (00245), and the reach-out steps a

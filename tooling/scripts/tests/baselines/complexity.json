@@ -420,7 +420,7 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-peek.jsx::LeadPeekInfo#1": {
-    "lines": 169,
+    "lines": 170,
     "branches": 26,
     "depth": 0
   },
@@ -430,7 +430,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
-    "lines": 326,
+    "lines": 327,
     "branches": 62,
     "depth": 0
   },

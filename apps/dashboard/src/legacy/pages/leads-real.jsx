@@ -14,21 +14,25 @@ const ldValuesPref = () => { try { return !!window.localStorage && window.localS
 // cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
 // sort or a search drew it again. `stageShown` is whether the Stage column is drawn: then it says each lead's state,
 // and the name's tag gives way (leads-cells.jsx ldBusinessCell), so a row says it once.
-const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows, stageShown = false) => {
+// `reachOut` is the open search's reach-out lines (Reach out Part 6, H8): the Stage cell says where each lead stands.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows, stageShown = false, reachOut = null) => {
   const k = kept.current;
-  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows && k.stageShown === stageShown) return k.ctx;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows && k.stageShown === stageShown && k.reachOut === reachOut) return k.ctx;
   const door = (name) => (id) => acts.current[name](id);
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
-    values, mixedFits, hasCenter, canFind, peopleRows, stageShown,
+    values, mixedFits, hasCenter, canFind, peopleRows, stageShown, reachOut,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
     // The row under a pointer or a finger, or reached by Tab (people-table.jsx): its photo is asked for before a press.
     onWarm: door("onWarm"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
-  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, stageShown, ctx };
+  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, stageShown, reachOut, ctx };
   return ctx;
 };
+
+/** Where reach-out-leads.jsx is not loaded (a harness that leaves it out), no search has a reach-out writing. */
+const ldNoReachOut = () => null;
 
 // The owner's own clipboard and the owner's own phone: a lead is emailed from their inbox and called from their
 // handset, and nothing is sent from here (PRD 0.4).
@@ -602,6 +606,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
   const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
   const openSearch = acts.searchById(leadView.searchId);
+  // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
+  const reachOut = (window.useReachOutLeads || ldNoReachOut)(openSearch ? openSearch.id : null);
   // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
   const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
   // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
@@ -611,17 +617,17 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   leadCellActs.current = { onWarm: warmLeadPhoto, onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: acts.copyLead, onCopyPhone: acts.copyPhone, onLogCall: acts.logLeadCall, onKeep: acts.keepLead, onExclude: acts.excludeLead, onPutBack: acts.putBackLead };
   // Whether the Stage column is drawn: then it says each lead's state, and the name's tag does not say it again.
   const stageShown = columns.some((c) => c.key === "stage");
-  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown, reachOut);
   const routes = leadRailRoutes({ leadView, nav, searchById: acts.searchById });
   const strip = leadStripActs({ openSearch, ...acts, ...finderActs, ...searches, ...routes, setSortBy, setSortDir, ...st });
-  const p = { ...controls, ...st, ...acts, ...finderActs, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, closePeek, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads };
+  const p = { ...controls, ...st, ...acts, ...finderActs, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, closePeek, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads, reachOut };
   return <LeadsScope {...leadsListProps(p)} {...leadsBandProps(p)} {...leadsBulkProps(p)} {...leadsPeekProps(p)} {...leadsFootProps(p)} />;
 };
 
 /* ---------------------------------------------------- what LeadsScope is handed, in its order */
 // The rail, the list's head and the table.
 const leadsListProps = (p) => {
-  const { leads, rail, listsOpen, setListsOpen, standing, leadView, openSearch, ldStrip, leadShown, rowBudget, phone, viewLanded, columns, colOptions, colsOpen, colsButton, setColsOpen, pickColumn, cellCtxLeads, sortBy, sortDir, onSort, q, setQ, searchRef, searchOpen, setSearchOpen, scrollRef, scrolledX, setScrolledX, filtered, setChip, setFitChip, goto } = p;
+  const { leads, rail, listsOpen, setListsOpen, standing, leadView, openSearch, ldStrip, leadShown, rowBudget, phone, viewLanded, columns, colOptions, colsOpen, colsButton, setColsOpen, pickColumn, cellCtxLeads, sortBy, sortDir, onSort, q, setQ, searchRef, searchOpen, setSearchOpen, scrollRef, scrolledX, setScrolledX, filtered, setChip, setFitChip, goto, reachOut } = p;
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
   // bar never shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
@@ -631,6 +637,7 @@ const leadsListProps = (p) => {
     surface: leads, rail, railLabel, railCount, listTitle: openList ? openList.label : "All leads",
     listsOpen, onLists: () => setListsOpen(true), onCloseLists: () => setListsOpen(false),
     standing, view: leadView, search: openSearch, strip: ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null,
+    reachOutStrip: openSearch && reachOut && window.ReachOutLeadsStrip ? <window.ReachOutLeadsStrip leads={reachOut} /> : null,
     rows: leadShown, rowBudget, phone,
     // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
     // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking

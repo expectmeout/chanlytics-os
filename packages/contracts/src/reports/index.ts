@@ -48,3 +48,17 @@ export type {
 } from "./reports";
 export { reportFacts } from "./report-facts";
 export type { ReportFactVM } from "./report-facts";
+export { toReachOutReportVM, reachOutDayWords } from "./reach-out-report";
+export type {
+  ReachOutReportCounts,
+  ReachOutReportStepDto,
+  ReachOutReportChainDto,
+  ReachOutReportDomainDto,
+  ReachOutReportDto,
+  ReachOutFunnelRow,
+  ReachOutAngleRow,
+  ReachOutDomainRow,
+  ReachOutSourceRow,
+  ReachOutReportVM,
+  ReachOutDayNumbers,
+} from "./reach-out-report";

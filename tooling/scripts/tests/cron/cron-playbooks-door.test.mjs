@@ -164,6 +164,8 @@ function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
       backlog.push(a);
       return ticks;
     },
+    // The day's reach-out numbers at 6 PM (Part 6, H12): nobody's 6 PM here unless a test says so.
+    reach_out_day_due: () => [],
     ...rpcs,
   });
   setPg(db);
@@ -228,6 +230,7 @@ const counts = (over) => ({
   off: 0,
   failed: 0,
   remaining: 0,
+  told: 0,
   ...over,
 });
 

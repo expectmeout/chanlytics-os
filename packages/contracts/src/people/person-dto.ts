@@ -13,6 +13,7 @@ import type { DealDto } from "../deals/deal-vm";
 import type { DealPaceDto } from "../deals/deal-waits";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
+import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
 
 /* --------------------------------- DTOs ---------------------------------- */
 
@@ -199,6 +200,11 @@ export interface PersonLeadDto {
   id: string;
   business_name: string;
   found_at: string;
+  /**
+   * What a reach-out wrote to the lead and what came back (Reach out Part 6, H11; 00241 reach_out_lead_timeline); null
+   * when it could not be read, absent from a server before it.
+   */
+  reach_out?: ReachOutLeadTimelineDto | null;
 }
 
 /** One run on a person's page: what it was, when, and what became of it. */
