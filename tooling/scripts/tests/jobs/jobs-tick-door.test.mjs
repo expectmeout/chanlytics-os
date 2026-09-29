@@ -598,6 +598,25 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
   assert.equal(L.tables.jobs[3].tenant_id, lineless.T, "that workspace's, nobody else's");
 });
 
+test("two replies waiting on one unreadable vault page the platform once: the pager's quiet holds per channel", async () => {
+  const L = ledger();
+  const blip = L.workspace({ whatsapp: "unreadable" });
+  blip.queue({ to: "+13475550106", body: "See you at 3" });
+  blip.queue({ to: "+13475550107", body: "See you at 4" });
+  await listening(async () => {
+    assert.deepEqual(await answer(await knock()), [
+      200,
+      { ok: true, claimed: 2, done: 2, failed: 0, gaveUp: 0, deferred: 0 },
+    ]);
+  });
+  assert.deepEqual(
+    L.left().mail.map((m) => m.subject),
+    ["[Chanlytics] whatsapp: a workspace's credentials could not be read"],
+    "one page for both",
+  );
+  assert.equal(L.tables.jobs.filter((j) => j.tenant_id === blip.T && j.kind === "outbound_send").length, 4);
+});
+
 test("a texting line the vault did not answer for is not a workspace with no line: the text stays queued for a fresh job, nobody is flagged or told, and nothing goes to the carrier", async () => {
   const L = ledger();
   const blip = L.workspace({ whatsapp: false, texting: "unreadable" });

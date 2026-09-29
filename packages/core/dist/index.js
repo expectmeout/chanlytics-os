@@ -13025,18 +13025,18 @@ async function resendWhenBound(ports, cmd, channel, e) {
       `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
       { cause: e }
     );
+  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
   await ports.page?.(
     `wire_unavailable:${channel}`,
     `${channel}: a workspace's credentials could not be read`,
     `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS2)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
-  );
-  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  )?.catch(() => void 0);
 }
 async function sayItFailed(ports, cmd, f) {
   const p = cmd.payload;
   const { msg, channel, to, out } = f;
   await pageTheProvider(ports, cmd, f);
-  if (channel === "email" && isCampaignEmail(msg?.email)) return;
+  if (channel === "email" && isCampaignEmail(msg.email)) return;
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
   await ports.escalate(
@@ -13076,12 +13076,11 @@ async function pageTheProvider(ports, cmd, f) {
 function causeOf(out, channel) {
   const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
+  return out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
-  return cause;
 }
 
 // src/messages/provision-line.ts
@@ -13317,6 +13316,7 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 var BROADCAST_STALL_RETRY_MS = 6e4;
+var BROADCAST_CHANNEL = "whatsapp";
 function wireIsDown(out) {
   return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || out.reason === "provider" && (out.status === 401 || out.status === 403);
 }
@@ -13338,10 +13338,15 @@ async function mayGoNow(ports, b) {
     });
     return false;
   }
-  const unbound = await ports.wireUnavailable();
+  const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
     await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    await ports.page?.(
+      `wire_unavailable:${BROADCAST_CHANNEL}`,
+      `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
+      `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`
+    )?.catch(() => void 0);
     return false;
   }
   return true;

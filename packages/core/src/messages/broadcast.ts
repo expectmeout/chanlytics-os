@@ -29,6 +29,9 @@ import type {
  */
 export const BROADCAST_STALL_RETRY_MS = 60_000;
 
+/** The one wire a broadcast goes out on: the door is asked with it, and so is whether it could be bound. */
+const BROADCAST_CHANNEL = "whatsapp";
+
 /**
  * A failure of the wire itself rather than of one person's send: no
  * credentials, no wire for the channel in this runtime, or a provider
@@ -79,10 +82,18 @@ async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<bo
     });
     return false;
   }
-  const unbound = await ports.wireUnavailable();
+  const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
     await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    // The platform hears it, as a reply's wait is heard (sendQueued): a store that stays unreadable is its condition.
+    await ports
+      .page?.(
+        `wire_unavailable:${BROADCAST_CHANNEL}`,
+        `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
+        `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`,
+      )
+      ?.catch(() => undefined);
     return false;
   }
   return true;

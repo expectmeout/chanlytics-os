@@ -37,7 +37,7 @@ type CredentialsRead<C> = {
  */
 interface WireUnavailable {
     unavailable: true;
-    /** The read's own words, for the log and the pager; never shown to an owner. */
+    /** The read's own words, for the log and the pager; an owner meets them only if every wait is spent (sendQueued). */
     error: string;
 }
 declare const wireUnavailable: (error: string) => WireUnavailable;
@@ -814,7 +814,9 @@ interface BroadcastBatchPorts {
      * sent or skipped (00182), never back to queued, so a wire known to be unbound claims nobody and the batch waits.
      * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
      */
-    wireUnavailable(): Promise<string | null>;
+    wireUnavailable(channel: "whatsapp"): Promise<string | null>;
+    /** The platform's own pager, for a wire that could not be bound: said once per six hours by the pager's own quiet. */
+    page?(key: string, subject: string, body: string): Promise<unknown>;
     /** How many are still queued; throws when it cannot be counted. */
     remaining(id: string): Promise<number>;
     /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */

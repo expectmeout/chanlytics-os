@@ -499,9 +499,9 @@ test("a wire that could not be bound is tried again as a fresh job, the row stil
   const down = () => fakes({ deliver: new WireUnavailableError("whatsapp", "vault unavailable") });
   const first = down();
   await core.sendQueued(first.ports, send());
-  assert.deepEqual(first.ops(), ["deliver", "page", "retry"]);
+  assert.deepEqual(first.ops(), ["deliver", "retry", "page"], "the fresh job first, then the page");
   assert.deepEqual(
-    first.log[2],
+    first.log[1],
     [
       "retry",
       new Date(NOW + core.SEND_RETRY_WAITS_MS[0]),
@@ -509,16 +509,25 @@ test("a wire that could not be bound is tried again as a fresh job, the row stil
     ],
     "the whole payload travels, plus how many fresh jobs this one already is the result of",
   );
-  assert.equal(first.log[1][1], "wire_unavailable:whatsapp", "the platform's condition, under its own key");
-  assert.match(first.log[1][3], /vault unavailable/);
-  assert.ok(!/not connected|reconnect/i.test(first.log[1][2] + first.log[1][3]), "nobody is told the number is off");
+  assert.equal(first.log[2][1], "wire_unavailable:whatsapp", "the platform's condition, under its own key");
+  assert.match(first.log[2][3], /vault unavailable/);
+  assert.ok(!/not connected|reconnect/i.test(first.log[2][2] + first.log[2][3]), "nobody is told the number is off");
 
   // Each fresh job waits longer than the one before it.
   const third = down();
   await core.sendQueued(third.ports, send({ resumes: 2 }));
-  assert.deepEqual(third.log.at(-1).slice(0, 2), ["retry", new Date(NOW + core.SEND_RETRY_WAITS_MS[2])]);
-  assert.equal(third.log.at(-1)[2].resumes, 3);
+  const retried = third.log.find((l) => l[0] === "retry");
+  assert.deepEqual(retried.slice(0, 2), ["retry", new Date(NOW + core.SEND_RETRY_WAITS_MS[2])]);
+  assert.equal(retried[2].resumes, 3);
   assert.ok(core.SEND_RETRY_WAITS_MS[2] > core.SEND_RETRY_WAITS_MS[0]);
+
+  // A pager that throws takes nothing from the reply: the fresh job is already on the ledger, and the verb returns.
+  const loud = fakes({
+    deliver: new WireUnavailableError("whatsapp", "vault unavailable"),
+    page: new Error("the pager's table did not answer"),
+  });
+  await core.sendQueued(loud.ports, send());
+  assert.deepEqual(loud.ops(), ["deliver", "retry", "page"]);
 
   // A runtime without a pager still tries again.
   const quiet = fakes({ deliver: new WireUnavailableError("sms", "connection reset"), page: ABSENT });

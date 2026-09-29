@@ -110,12 +110,16 @@ async function resendWhenBound(
       `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
       { cause: e },
     );
-  await ports.page?.(
-    `wire_unavailable:${channel}`,
-    `${channel}: a workspace's credentials could not be read`,
-    `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
-  );
+  // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must
+  // not turn a reply that is waiting into one that failed.
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  await ports
+    .page?.(
+      `wire_unavailable:${channel}`,
+      `${channel}: a workspace's credentials could not be read`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
+    )
+    ?.catch(() => undefined);
 }
 
 /** What a failed send owes: the platform paged for its own conditions, the thread flagged and the owner told. */
@@ -135,7 +139,7 @@ async function sayItFailed(ports: SendQueuedPorts, cmd: SendQueuedCommand, f: Fa
   // A campaign's email that failed (a reach-out, a broadcast) is its run's to report, once, and its row already says
   // it: never a flag on a thread nobody there wrote on, or an owner alert per email of a run. The one predicate the
   // receipt and a job that died ask too (contracts isCampaignEmail).
-  if (channel === "email" && isCampaignEmail(msg?.email)) return;
+  if (channel === "email" && isCampaignEmail(msg.email)) return;
   // The wire could not carry it: the thread is flagged for a person and the
   // owner told, in words that say whose reply it was and what stopped it --
   // a number with no credentials is not "HTTP 503". A refusal needs neither;
@@ -208,23 +212,21 @@ function causeOf(out: FailedSend["out"], channel: Channel): string {
       : channel === "whatsapp"
         ? "the WhatsApp number is not connected"
         : `the ${channel} channel is not connected`;
-  const cause =
-    out.reason === "no_credentials"
-      ? notConnected
-      : out.reason === "no_sender_for_channel"
-        ? `this runtime has no ${channel} line`
-        : out.reason === "wire_unreadable"
-          ? "the thread could not be read at the wire"
-          : limit === "daily" || limit === "monthly"
-            ? "the mail provider's sending limit is used up for now"
-            : limit === "rate"
-              ? "the mail provider asked us to slow down"
-              : limit === "in_flight"
-                ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
-                : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-                  // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-                  out.status === 0
-                  ? "it never reached the provider"
-                  : `HTTP ${out.status}`;
-  return cause;
+  return out.reason === "no_credentials"
+    ? notConnected
+    : out.reason === "no_sender_for_channel"
+      ? `this runtime has no ${channel} line`
+      : out.reason === "wire_unreadable"
+        ? "the thread could not be read at the wire"
+        : limit === "daily" || limit === "monthly"
+          ? "the mail provider's sending limit is used up for now"
+          : limit === "rate"
+            ? "the mail provider asked us to slow down"
+            : limit === "in_flight"
+              ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
+              : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+                // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+                out.status === 0
+                ? "it never reached the provider"
+                : `HTTP ${out.status}`;
 }

@@ -3,7 +3,7 @@
  * Part 2.5), which re-exports its public names.
  */
 import { parseTenantConfig } from "@chanlytics/contracts";
-import { deliver, isWireUnavailable, sendBroadcastBatch } from "@chanlytics/core";
+import { deliver, isWireUnavailable, sendBroadcastBatch, type BroadcastBatchPorts } from "@chanlytics/core";
 import { type Database, resolveOutboundTarget } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
@@ -45,15 +45,21 @@ function withTemplate<T extends { template_name: string | null; template_languag
   return template_name && template_language ? { ...row, template_name, template_language } : null;
 }
 
-/** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 /**
- * A broadcast goes by WhatsApp: why the tick could not bind that wire for this tenant (the credentials read failed on
- * the edge), or null. A wire that is null is a number that carries none, and the door's to refuse.
+ * Why the tick could not bind this channel's wire for this tenant (the credentials read failed on the edge), or null. A
+ * wire that is null is a number that carries none, and the door's to refuse.
  */
-function whatsappUnbound(ctx: JobContext): string | null {
-  const wire = ctx.wire.whatsapp;
+function wireUnbound(ctx: JobContext, channel: "whatsapp"): string | null {
+  const wire = ctx.wire[channel];
   return isWireUnavailable(wire) ? wire.error : null;
 }
+
+/** The wire's ports: why a channel's wire could not be bound, and the platform's pager when this runtime holds one. */
+function wirePorts(ctx: JobContext): Pick<BroadcastBatchPorts, "wireUnavailable" | "page"> {
+  return { wireUnavailable: async (channel) => wireUnbound(ctx, channel), ...(ctx.page ? { page: ctx.page } : {}) };
+}
+
+/** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as { broadcast_id: string; waits?: unknown };
@@ -185,7 +191,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
-      wireUnavailable: async () => whatsappUnbound(ctx),
+      ...wirePorts(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
       // cancel reads, so a failed read here would abandon a half-sent broadcast

@@ -140,10 +140,11 @@ const row = (over = {}) => ({
   ...over,
 });
 /** The database the doors will find, and the vault answering the channel's credentials. */
-function use({ channels = [channel()], templates = [] } = {}, faults = {}) {
+function use({ channels = [channel()], templates = [] } = {}, faults = {}, rpcs = {}) {
   const tables = { tenant_channels: channels, templates };
   const db = fakeDb(tables, faults, {
     get_channel_credentials: ({ p_channel_id }) => ({ access_token: `${TOKEN}-for-${p_channel_id}`, phone_id: PHONE }),
+    ...rpcs,
   });
   setPg(db);
   return { tables, db };
@@ -281,6 +282,20 @@ test("create, the door: the knock, the workspace rule, no database; what Meta wo
       await answer(await knockCreate(draft())),
       [503, { ok: false, error: "no_token" }],
       "a channel without its own credentials gets none -- never the environment's",
+    );
+    use(
+      {},
+      {},
+      {
+        get_channel_credentials: () => {
+          throw new Error("vault unavailable");
+        },
+      },
+    );
+    assert.deepEqual(
+      await answer(await knockCreate(draft())),
+      [503, { ok: false, error: "no_token" }],
+      "credentials the vault could not read just now are a 503 too: this door is tried again by hand",
     );
   } finally {
     net.restore();

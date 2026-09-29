@@ -39,7 +39,7 @@ export type CredentialsRead<C> =
  */
 export interface WireUnavailable {
   unavailable: true;
-  /** The read's own words, for the log and the pager; never shown to an owner. */
+  /** The read's own words, for the log and the pager; an owner meets them only if every wait is spent (sendQueued). */
   error: string;
 }
 export const wireUnavailable = (error: string): WireUnavailable => ({ unavailable: true, error });
