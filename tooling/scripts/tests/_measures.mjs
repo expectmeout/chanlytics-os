@@ -550,5 +550,5 @@ export const UNCHECKED_INDEX = {
   file: "unchecked-index.json",
   measure: uncheckedIndexReads,
   advice:
-    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which casts.json counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file.",
+    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which casts.json counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file. Every error the flag's program reports is counted, so typecheck first: an error of another kind reads here as a read.",
 };

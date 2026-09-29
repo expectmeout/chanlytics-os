@@ -46,6 +46,7 @@ import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
 import config, {
   FUNCTION_LIMITS,
+  HELD_TYPED,
   KIT_PENDING,
   LIMITED_TREES,
   rawElementsRule,
@@ -428,6 +429,18 @@ function candidateTrees() {
 }
 
 const isHeld = (tree) => LIMITED_TREES.some((t) => tree === t || tree.startsWith(`${t}/`));
+
+// A typed rule is a warning only while the lint baseline holds a finding of it (eslint.config.mjs, HELD_TYPED): the
+// change that banks its last finding makes it an error, as a tree joins LIMITED_TREES with its last entry.
+test("a typed rule is held as a warning only while the lint baseline holds a finding of it", () => {
+  const held = new Set(Object.values(readBaseline("lint-warnings.json") ?? {}).flatMap((rules) => Object.keys(rules)));
+  assert.ok(HELD_TYPED.length > 0 && held.size > 0, "the list and the baseline were read");
+  assert.deepEqual(
+    HELD_TYPED.filter((rule) => !held.has(rule)),
+    [],
+    "the baseline holds none of these: take each out of HELD_TYPED, and the rule is an error from now on",
+  );
+});
 
 test("a tree joins LIMITED_TREES in the change that banks its last entry: every candidate tree the ratchet has emptied is held", () => {
   const trees = candidateTrees();

@@ -53,7 +53,7 @@ type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unkn
 
 export function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C {
   const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]>;
-  const profile = { ...(brain.profile ?? {}) };
+  const profile = { ...((brain.profile ?? {}) as Record<string, unknown>) };
   switch (change.op) {
     case "add_closure": {
       const closures = [...((profile.closures as unknown[]) ?? [])];

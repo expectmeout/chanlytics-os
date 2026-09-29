@@ -90,10 +90,12 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * The typed rules with findings when they arrived (29 September 2026), held by the lint baseline until each reaches
  * zero. no-unnecessary-type-assertion is among them though its autofix ran: it removed every assertion tsc agreed
  * changed nothing (each project typechecks after it), and what it still reports is either in a file another lane was
- * rewriting that day (Ask's server, routes and bridge, the kit's components, the Retell availability door, the
- * policies route), left for that lane, or an assertion that gives a generic its type, which the rule misreads as
- * doing nothing: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the assertion, and without it the body is
- * `unknown`. Those leave as the routes declare their `input`. no-misused-promises holds one, a route context's params
+ * rewriting that day (Ask's server, routes, bridge and contracts, the kit's components, the Retell availability door,
+ * the policies route, the edge-token doors, the jobs handlers), left for that lane, or an assertion the rule misreads
+ * as doing nothing. One gives a generic its type: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the
+ * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
+ * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
+ * lint-boundaries.test.mjs fails a held rule the baseline no longer holds, so the last one banked turns it an error. no-misused-promises holds one, a route context's params
  * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
  */
 export const HELD_TYPED = [
@@ -409,8 +411,8 @@ export default [
     rules: {
       ...OUR_TYPED_TS_RULES,
       // A floating promise in a webhook means work that silently did not happen
-      // before the lambda froze. Without type information the base rule cannot
-      // see async calls, so this is the reachable subset.
+      // before the lambda froze: no-floating-promises sees it with types, and
+      // this catches a write that races the await before it.
       "require-atomic-updates": "error",
       // Every line the edge logs is one JSON object with a level, an event and
       // whatever context is bound (lib/log.ts). A bare console call is a line

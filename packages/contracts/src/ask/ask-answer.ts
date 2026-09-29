@@ -116,7 +116,7 @@ export function answerText(a: AskAnswer): string {
  * opens the thread its payload names, as a thread card does.
  */
 export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: p.payload ?? {} };
+  const card = { payload: (p.payload ?? {}) as Record<string, unknown> };
   return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
 }
 

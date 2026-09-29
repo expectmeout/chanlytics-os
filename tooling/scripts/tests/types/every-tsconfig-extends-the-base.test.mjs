@@ -70,6 +70,27 @@ test("no project loosens the base: each check resolves to the base's value, noUn
   assert.deepEqual(off, [], "a check the base sets is the project's too: fix what it finds rather than turn it off");
 });
 
+// `strict` is a family, and a project could keep `strict: true` and turn one of its members off beside it.
+const STRICT_FAMILY = [
+  "alwaysStrict",
+  "noImplicitAny",
+  "noImplicitThis",
+  "strictBindCallApply",
+  "strictBuiltinIteratorReturn",
+  "strictFunctionTypes",
+  "strictNullChecks",
+  "strictPropertyInitialization",
+  "useUnknownInCatchVariables",
+];
+
+test("no project turns off one of strict's own checks beside it", () => {
+  const off = projects.flatMap(({ project, tsconfig }) => {
+    const options = resolvedConfig(tsconfig).options;
+    return STRICT_FAMILY.filter((flag) => options[flag] === false).map((flag) => `${project}: ${flag} is false`);
+  });
+  assert.deepEqual(off, [], "strict means all of it: fix what the check finds rather than turn it off");
+});
+
 test("a project that waits on noUncheckedIndexedAccess says so in its own tsconfig, where the measure reads it", () => {
   for (const { project, tsconfig } of waitingProjects()) {
     const own = ts.readConfigFile(tsconfig, ts.sys.readFile).config.compilerOptions ?? {};
