@@ -5,6 +5,7 @@ import { AppError } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { recordDecision } from "../verbs";
 import { serviceDb } from "../service-db";
+import { log } from "@/server/log";
 
 /* ---- E1 team operations (Session A) --------------------------------------
    The ONLY file that touches auth.admin. Every function takes a tenantId the
@@ -76,7 +77,7 @@ async function noteTeamChange(
   try {
     await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);
   } catch (e) {
-    console.error("team_audit_failed", verb, e instanceof Error ? e.message : String(e));
+    log.error("team_audit_failed", { verb, error: e });
   }
 }
 

@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import type { LineDto } from "@chanlytics/contracts";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeConfigured, type EdgeAnswer } from "../edge";
 import { deployment } from "../deployment";
 import { MIN_MS } from "@chanlytics/contracts";
 
@@ -59,11 +59,6 @@ export async function linesFor(db: SupabaseClient<Database>, tenantId: string): 
   }));
 }
 
-export interface EdgeAnswer {
-  status: number;
-  body: Record<string, unknown> | null;
-}
-
 /** How long a lines verb waits on the edge unless its caller says: buy, register, retry and the platform's line actions. */
 export const EDGE_LINES_TIMEOUT_MS = MIN_MS;
 
@@ -85,23 +80,10 @@ export async function edgeLines(body: Record<string, unknown>, timeoutMs = EDGE_
   // resolves. `status` stays gated deliberately: a deployment that may not buy
   // should report itself not ready, which is what Setup already says well.
   if (!deployment.providersLive && body.op !== "record") return { status: 503, body: { ok: false, error: "preview" } };
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/lines`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/lines", {
-        workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
-      }),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const parsed = (await r.json().catch(() => null)) as unknown;
-    return {
-      status: r.status,
-      body: parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null,
-    };
-  } catch (e) {
-    return { status: 503, body: { ok: false, error: e instanceof Error ? e.message : String(e) } };
-  }
+  return callEdge("/api/admin/lines", body, {
+    workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    timeoutMs,
+  });
 }
 
 interface LinesStatus {

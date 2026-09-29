@@ -15,10 +15,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import {
+  answerObject,
   runA2PSaga,
   LOW_VOLUME_USECASE,
   encodeForm,
   brandTypeFor,
+  twilioRequest,
   type A2PPorts,
   type A2PRequest,
   type A2PResult,
@@ -306,24 +308,13 @@ function recordAsFiled(o: Filing): BusinessRecord {
 /** The saga's one way to Twilio: a request made as the subaccount, and what Twilio answered, parsed once. */
 function subaccountSend(sub: ProviderAccount): A2PPorts["send"] {
   const send = async (req: A2PRequest) => {
-    const acct = sub;
-    const r = await fetch(req.url, {
-      method: req.method,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${acct.sid}:${acct.token}`).toString("base64")}`,
-        ...(req.form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
-      },
-      body: req.form ? encodeForm(req.form) : undefined,
-      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
+    const r = await twilioRequest(sub, req.method, req.url, {
+      ...(req.form ? { form: encodeForm(req.form) } : {}),
+      timeoutMs: TWILIO_TIMEOUT_MS,
     });
-    const text = await r.text();
-    let body: Record<string, unknown> | null;
-    try {
-      const parsed = JSON.parse(text) as unknown;
-      body = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-    } catch {
-      body = text ? { text: text.slice(0, 300) } : null;
-    }
+    // No answer at all throws, as the bare fetch it replaces did: the saga records the step as failed and tries it again.
+    if (r.status === 0) throw new Error(`twilio: ${r.error ?? "no answer"}`);
+    const body = answerObject(r) ?? (r.json === null && r.text ? { text: r.text.slice(0, 300) } : null);
     return { status: r.status, body };
   };
   return send;

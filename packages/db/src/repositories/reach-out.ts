@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
+import { recordEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
@@ -591,16 +592,9 @@ export async function leadWritten(
   if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
   // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
   if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
-  const said = { by: "reach_out", send_id: p.sendId } as unknown as Json;
-  const { error: e3 } = await db.from("events").insert({
-    tenant_id: p.tenantId,
-    kind: "lead.emailed",
-    category: "lead",
-    subject_type: "lead",
-    subject_id: p.leadId,
-    data: said,
-  });
-  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  const said = { by: "reach_out" as const, send_id: p.sendId };
+  const { error: e3 } = await recordEvent(db, p.tenantId, "lead.emailed", "lead", p.leadId, said);
+  if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
   return true;
 }
 

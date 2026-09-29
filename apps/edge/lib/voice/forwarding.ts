@@ -88,7 +88,7 @@ export async function markForwardingVerified(
         route: "admin/setup",
         about: { type: "line", id: row.id },
       });
-      await emitEvent(db, tenantId, "line.forwarding_verified", "setup", "line", row.id, {
+      await emitEvent(db, tenantId, "line.forwarding_verified", "line", row.id, {
         from: call.fromE164,
         call_id: call.callId,
         proof,

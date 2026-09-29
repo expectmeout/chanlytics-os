@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASK_MAX_TOKENS, ASK_MODELS } from "./packages/contracts.js";
-import type { Database, Json } from "./packages/db.js";
+import type { Database } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
 
@@ -56,7 +56,7 @@ export async function recordAskUsage(
 ): Promise<void> {
   const L = logger({ tenant: tenantId });
   try {
-    await emitEvent(db, tenantId, ASK_USAGE_KIND, "usage", "user", userId, data as unknown as Json);
+    await emitEvent(db, tenantId, ASK_USAGE_KIND, "user", userId, { ...data });
   } catch (e) {
     L.error("ask_usage_write_failed", { error: errField(e) });
   }

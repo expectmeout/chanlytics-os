@@ -1,6 +1,7 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
+import { log } from "@/server/log";
 
 /** A note to the platform mailbox gives up after this; a failure is logged, not surfaced. */
 const TELL_TIMEOUT_MS = 8000;
@@ -13,22 +14,14 @@ const TELL_TIMEOUT_MS = 8000;
  */
 export async function tellPlatformOfSetupRequest(tenantId: string, what: string, by: string | null): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/setup-request`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/setup-request", { workspace: tenantId }),
-      body: JSON.stringify({ tenant_id: tenantId, what, by }),
-      signal: AbortSignal.timeout(TELL_TIMEOUT_MS),
-    });
-    if (!r.ok) console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, status: r.status }));
-    return r.ok;
-  } catch (e) {
-    console.error(
-      "setup_request_tell_failed",
-      JSON.stringify({ tenant: tenantId, what, error: e instanceof Error ? e.message : String(e) }),
-    );
-    return false;
-  }
+  const r = await callEdge(
+    "/api/admin/setup-request",
+    { tenant_id: tenantId, what, by },
+    { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
+  );
+  if (!edgeAnswered(r))
+    log.error("setup_request_tell_failed", { tenant: tenantId, what, status: r.status, error: r.body?.error });
+  return edgeAnswered(r);
 }
 
 /**
@@ -38,20 +31,12 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
  */
 export async function tellOwnerLive(tenantId: string): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/you-are-live`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/you-are-live", { workspace: tenantId }),
-      body: JSON.stringify({ tenant_id: tenantId }),
-      signal: AbortSignal.timeout(TELL_TIMEOUT_MS),
-    });
-    if (!r.ok) console.error("you_are_live_tell_failed", JSON.stringify({ tenant: tenantId, status: r.status }));
-    return r.ok;
-  } catch (e) {
-    console.error(
-      "you_are_live_tell_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
-    return false;
-  }
+  const r = await callEdge(
+    "/api/admin/you-are-live",
+    { tenant_id: tenantId },
+    { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
+  );
+  if (!edgeAnswered(r))
+    log.error("you_are_live_tell_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
+  return edgeAnswered(r);
 }

@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { signUnsubscribeToken } from "@chanlytics/channels";
+import { asText } from "../_log-lines.mjs";
 
 const SECRET = "the-unsubscribe-secret-for-this-file";
 process.env.UNSUBSCRIBE_SECRET = SECRET;
@@ -88,7 +89,7 @@ test("a link this secret did not make is refused before the database is asked, a
   const said = [];
   const was = console.warn;
   const clock = Date.now;
-  console.warn = (...a) => said.push(a.map(String).join(" "));
+  console.warn = (...a) => said.push(asText(a));
   // Clear of any line an earlier test said: the window is the module's, one minute per event.
   const at = clock() + 10 * 60_000;
   try {
@@ -252,7 +253,7 @@ test("with no secret the door cannot tell a link from a guess, says so without a
   const w = world();
   const said = [];
   const was = console.error;
-  console.error = (...a) => said.push(a.map(String).join(" "));
+  console.error = (...a) => said.push(asText(a));
   delete process.env.UNSUBSCRIBE_SECRET;
   try {
     const g = await get();

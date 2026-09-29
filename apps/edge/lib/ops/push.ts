@@ -14,6 +14,7 @@
 import type { PushMessage } from "../packages/contracts.js";
 import type { PushPort, PushReceipt } from "../packages/jobs.js";
 import { env } from "../env.js";
+import { providerFetch, type ProviderReply } from "../packages/channels.js";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 export const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
@@ -66,27 +67,35 @@ function experienceGroups(detail: string): Set<string>[] {
 }
 
 export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
-  const post = (url: string, body: unknown): Promise<Response> => {
+  const post = async (url: string, body: unknown): Promise<ProviderReply> => {
     const token = env.EXPO_ACCESS_TOKEN;
-    return fetchImpl(url, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    const r = await providerFetch(
+      "expo",
+      url,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+        timeoutMs: TIMEOUT_MS,
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+      { fetch: fetchImpl },
+    );
+    // No answer at all throws, as the bare fetch it replaces did: the batch's own catch says what it means.
+    if (r.status === 0) throw new Error(r.error ?? "no answer");
+    return r;
   };
-  const text = (r: Response) => r.text().catch(() => "");
+  const text = (r: ProviderReply) => r.text;
 
   return {
     async send(messages: PushMessage[]): Promise<PushReceipt[]> {
       const receipts: PushReceipt[] = [];
       for (let i = 0; i < messages.length; i += PUSH_BATCH) {
         const batch = messages.slice(i, i + PUSH_BATCH);
-        let r: Response;
+        let r: ProviderReply;
         try {
           r = await post(EXPO_PUSH_URL, batch);
         } catch (e) {
@@ -94,8 +103,8 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
           receipts.push(...refused(messages.slice(i), `push_rejected ${e instanceof Error ? e.message : String(e)}`));
           break;
         }
-        if (r.ok) {
-          receipts.push(...ticketsOf(batch, (await r.json()) as { data?: ExpoTicket[] }));
+        if (r.outcome === "ok") {
+          receipts.push(...ticketsOf(batch, r.json as { data?: ExpoTicket[] }));
           continue;
         }
         const detail = await text(r);
@@ -110,7 +119,7 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
             sub.forEach((m) => grouped.add(m.to));
             if (!sub.length) continue;
             const rr = await post(EXPO_PUSH_URL, sub).catch(() => null);
-            if (rr?.ok) receipts.push(...ticketsOf(sub, (await rr.json()) as { data?: ExpoTicket[] }));
+            if (rr?.outcome === "ok") receipts.push(...ticketsOf(sub, rr.json as { data?: ExpoTicket[] }));
             else receipts.push(...refused(sub, `push_rejected ${rr ? rr.status : "unreachable"}`));
           }
           receipts.push(
@@ -133,11 +142,11 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
       for (let i = 0; i < ids.length; i += RECEIPTS_BATCH) {
         const batch = ids.slice(i, i + RECEIPTS_BATCH);
         const r = await post(EXPO_RECEIPTS_URL, { ids: batch });
-        if (!r.ok) {
+        if (r.outcome !== "ok") {
           const detail = await text(r);
           throw new Error(`push_receipts_rejected ${r.status} ${detail.slice(0, 200)}`.trim());
         }
-        const { data } = (await r.json()) as { data?: Record<string, ExpoReceipt> };
+        const { data } = (r.json ?? {}) as { data?: Record<string, ExpoReceipt> };
         for (const [id, rc] of Object.entries(data ?? {})) {
           out[id] =
             rc.status === "ok"

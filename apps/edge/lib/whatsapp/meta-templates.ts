@@ -13,6 +13,7 @@
  */
 import type { SchemaSet, TemplateStatus } from "../packages/contracts.js";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
+import { answerObject, providerFetch } from "../packages/channels.js";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -56,21 +57,20 @@ export async function listTemplates(
   let url: string | null =
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${META_TEMPLATES_PAGE}`;
   for (let page = 0; url && page < MAX_PAGES; page++) {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
-      });
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-    }
-    const body = (await res.json().catch(() => null)) as {
+    const res = await providerFetch("meta", url, {
+      headers: { authorization: `Bearer ${token}` },
+      timeoutMs: GRAPH_TIMEOUT_MS,
+      idempotent: true,
+      tries: 2,
+    });
+    if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+    const body = answerObject(res) as {
       data?: MetaTemplate[];
       paging?: { next?: string };
       error?: { message?: string };
     } | null;
-    if (!res.ok || !body) return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
+    if (res.outcome !== "ok" || !body)
+      return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
     out.push(...(body.data ?? []));
     url = body.paging?.next ?? null;
   }
@@ -197,9 +197,10 @@ export async function createTemplate(
 ): Promise<
   { ok: true; data: { id: string; status: string; category?: string } } | { ok: false; error: string; status: number }
 > {
-  let res: Response;
-  try {
-    res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`, {
+  const res = await providerFetch(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`,
+    {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({
@@ -209,18 +210,17 @@ export async function createTemplate(
         components: t.components,
         allow_category_change: true,
       }),
-      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-  }
-  const body = (await res.json().catch(() => null)) as {
+      timeoutMs: CREATE_TIMEOUT_MS,
+    },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res) as {
     id?: string;
     status?: string;
     category?: string;
     error?: { message?: string; error_user_msg?: string };
   } | null;
-  if (!res.ok || !body?.id)
+  if (res.outcome !== "ok" || !body?.id)
     return {
       ok: false,
       error: body?.error?.error_user_msg ?? body?.error?.message ?? `HTTP ${res.status}`,
@@ -246,21 +246,14 @@ export async function deleteTemplate(
   hsmId: string,
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const qs = new URLSearchParams({ name, hsm_id: hsmId });
-  let res: Response;
-  try {
-    res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`,
-      {
-        method: "DELETE",
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
-      },
-    );
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
-  }
-  const body = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
-  if (!res.ok || !body?.success)
+  const res = await providerFetch(
+    "meta",
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`,
+    { method: "DELETE", headers: { authorization: `Bearer ${token}` }, timeoutMs: GRAPH_TIMEOUT_MS },
+  );
+  if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
+  const body = answerObject(res) as { success?: boolean; error?: { message?: string } } | null;
+  if (res.outcome !== "ok" || !body?.success)
     return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
   return { ok: true };
 }

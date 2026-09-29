@@ -17,6 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const settings = await import(at("apps/dashboard/app/api/v1/settings/route.ts"));
 const policies = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
 const record = await import(at("apps/dashboard/app/api/v1/business-record/route.ts"));
@@ -48,14 +49,21 @@ const both = (harbor, bayside) => [
   membership(A, harbor, "harbor", "2026-01-01T00:00:00Z"),
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
-const ctxFor = (tables, params = {}, rpcs = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs),
-  userId: USER,
-  email: "ada@example.com",
-  // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
-  aal: "aal2",
-  params,
-});
+/**
+ * A member's session over these tables, and the service role over the same ones: the ledger's rows (settings.changed,
+ * policy.changed) are written as the service role, since a session may not insert into events.
+ */
+const ctxFor = (tables, params = {}, rpcs = {}) => (
+  setServiceClient(fakeDb(tables, {}, rpcs)),
+  {
+    supabase: fakeDb(tables, {}, rpcs),
+    userId: USER,
+    email: "ada@example.com",
+    // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
+    aal: "aal2",
+    params,
+  }
+);
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const send = (method, body, q = "") =>
   new Request(`http://localhost/api/v1/x${q}`, {

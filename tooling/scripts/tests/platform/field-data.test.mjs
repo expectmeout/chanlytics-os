@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { asEventAndJson } from "../_log-lines.mjs";
 import {
   PAGE_VITALS,
   PAGE_VITALS_MIN_LOADS,
@@ -127,7 +128,7 @@ test("a report the table could not take is kept by nobody and refused to nobody"
   setServiceClient(fakeDb({}, {}, { note_page_vitals: raise("PGRST202", "Could not find the function") }));
   const said = [];
   const warn = console.warn;
-  console.warn = (...args) => said.push(args);
+  console.warn = (...args) => said.push(asEventAndJson(args));
   try {
     const out = await vitalsRoute.POST.run(post({ page: "today", vitals: [load(1, "TTFB", 180)] }), ctxFor());
     assert.deepEqual(out, { kept: 0 });

@@ -50,7 +50,10 @@ import type { Database, Json } from "@chanlytics/db";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
 import { serviceDb } from "@/server/service-db";
 import { deployment } from "@/server/deployment";
-import { edgeHeaders, edgeUrl } from "@/server/edge";
+import { callEdge, edgeAnswered } from "@/server/edge";
+
+/** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
+const PREVIEW_TIMEOUT_MS = 35_000;
 import { tenantFacts } from "@/server/tenant";
 
 interface PgError {
@@ -421,14 +424,14 @@ export async function previewReachOut(
   body: Record<string, unknown>,
 ): Promise<ReachOutPreviewOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/reach-out-preview`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/reach-out-preview", { workspace: tenantId, user: userId }),
-    body: JSON.stringify({ ...body, tenant_id: tenantId, user_id: userId }),
-  }).catch(() => null);
-  if (!r) return { ok: false, reason: "edge_unreachable" };
-  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; preview?: unknown; error?: string };
-  return r.ok && j.ok && j.preview
+  const r = await callEdge(
+    "/api/admin/reach-out-preview",
+    { ...body, tenant_id: tenantId, user_id: userId },
+    { workspace: tenantId, user: userId, timeoutMs: PREVIEW_TIMEOUT_MS },
+  );
+  if (r.status === 503 && r.body?.error === "edge_unreachable") return { ok: false, reason: "edge_unreachable" };
+  const j = (r.body ?? {}) as { ok?: boolean; preview?: unknown; error?: string };
+  return edgeAnswered(r) && j.ok && j.preview
     ? { ok: true, preview: j.preview }
     : { ok: false, reason: j.error ?? `edge ${r.status}` };
 }

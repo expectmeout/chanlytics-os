@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode } from "../_source.mjs";
+import { asText } from "../_log-lines.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { takeRate, resetRates, RATE, memoryStore, postgresStore, memoryByConfiguration, setRateStore } = await import(
@@ -46,7 +47,7 @@ test("the limit is per person per bucket, refuses with 429 and a retry hint, and
 function capture() {
   const lines = [];
   const real = console.error;
-  console.error = (...a) => lines.push(a.map(String).join(" "));
+  console.error = (...a) => lines.push(asText(a));
   return {
     lines,
     restore: () => {

@@ -971,6 +971,124 @@ var DEFAULT_OPTIONS = {
 };
 
 // ../channels/dist/index.js
+var BREAKER_FAILURES = 5;
+var BREAKER_OPEN_MS = 3e4;
+var RETRY_BASE_MS = 250;
+var RETRY_WAIT_CAP_MS = 2e3;
+var breakers = /* @__PURE__ */ new Map();
+var NEVER_LEFT = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function outcomeOfStatus(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 408 || status === 429) return "retryable";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+function outcomeOfThrow(e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
+  const cause = err.cause;
+  const code = typeof cause?.code === "string" ? cause.code : err.code;
+  const words22 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
+  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words22 };
+}
+function retryAfterOf(header, now = Date.now()) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
+function note(provider, a, now) {
+  if (a.error === "breaker_open") return;
+  if (!isFault(a)) {
+    breakers.delete(provider);
+    return;
+  }
+  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
+  b.failures += 1;
+  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
+  breakers.set(provider, b);
+}
+async function once(provider, url, call2, deps, tries) {
+  const now = deps.now();
+  const b = breakers.get(provider);
+  if (b && b.openUntil > now && call2.breaker !== "count") {
+    const held = {
+      outcome: "retryable",
+      status: 0,
+      text: "",
+      json: null,
+      headers: null,
+      retryAfterMs: b.openUntil - now,
+      error: "breaker_open",
+      tries: tries - 1
+    };
+    return held;
+  }
+  const init = {
+    method: call2.method,
+    headers: call2.headers,
+    body: call2.body,
+    cache: call2.cache,
+    redirect: call2.redirect
+  };
+  let a;
+  try {
+    const r22 = await deps.fetch(url, { ...init, signal: AbortSignal.timeout(call2.timeoutMs) });
+    const text = await r22.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    a = {
+      outcome: outcomeOfStatus(r22.status),
+      status: r22.status,
+      text,
+      json,
+      headers: r22.headers,
+      retryAfterMs: retryAfterOf(r22.headers.get("retry-after"), deps.now()),
+      error: null,
+      tries
+    };
+  } catch (e) {
+    const { outcome, error } = outcomeOfThrow(e);
+    a = { outcome, status: 0, text: "", json: null, headers: null, retryAfterMs: null, error, tries };
+  }
+  note(provider, a, deps.now());
+  return a;
+}
+async function providerFetch(provider, url, call2, deps = {}) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms2) => new Promise((resolve) => setTimeout(resolve, ms2)))
+  };
+  const started = d.now();
+  const max = Math.max(1, Math.floor(call2.tries ?? 1));
+  for (let n = 1; ; n++) {
+    const a = await once(provider, url, call2, d, n);
+    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
+    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
+    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
+    if (wait + call2.timeoutMs > left) return a;
+    await d.sleep(wait);
+  }
+}
+function answerObject(a) {
+  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
+}
 z.config({ jitless: true });
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -3816,25 +3934,27 @@ var PARTNER_INVITE_WORDS = {
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
-  try {
-    const r22 = await fetch(`${GRAPH}/${cfg.phoneId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS)
-    });
-    const out = await r22.json().catch(() => ({}));
-    return {
-      ok: r22.ok,
-      wamid: out.messages?.[0]?.id ?? null,
-      status: r22.status,
-      errorBody: r22.ok ? void 0 : JSON.stringify(out).slice(0, 200),
-      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
-      code: !r22.ok && typeof out.error?.code === "number" ? out.error.code : null
-    };
-  } catch (e) {
-    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
-  }
+  const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeoutMs: SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count"
+  });
+  if (a.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: a.error ?? "no answer", outcome: a.outcome };
+  const out = answerObject(a) ?? {};
+  const ok2 = a.outcome === "ok";
+  const sent = {
+    ok: ok2,
+    wamid: out.messages?.[0]?.id ?? null,
+    status: a.status,
+    errorBody: ok2 ? void 0 : JSON.stringify(out).slice(0, 200),
+    // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+    code: !ok2 && typeof out.error?.code === "number" ? out.error.code : null
+  };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : a.outcome };
 }
 var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
 function graphThrottled(r22) {
@@ -3959,36 +4079,32 @@ function waitAskedMs(h) {
   return null;
 }
 async function resendRequest(cfg, method, path, opts = {}) {
-  try {
-    const r22 = await fetch(`${RESEND_API}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
-        ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
-      },
-      ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-      signal: AbortSignal.timeout(opts.timeoutMs ?? SEND_TIMEOUT_MS2)
-    });
-    const raw = await r22.text().catch(() => "");
-    let json = null;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch {
-      json = null;
-    }
-    return { status: r22.status, json, raw, headers: r22.headers, timedOut: false };
-  } catch (e) {
-    const name = e?.name;
-    const timedOut = name === "TimeoutError" || name === "AbortError";
-    return {
-      status: 0,
-      json: null,
-      raw: e instanceof Error ? e.message : String(e),
-      headers: null,
-      timedOut
-    };
-  }
+  const a = await providerFetch("resend", `${RESEND_API}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${cfg.apiKey}`,
+      ...opts.body !== void 0 ? { "Content-Type": "application/json" } : {},
+      ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
+    },
+    ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2,
+    breaker: opts.breaker ?? "hold"
+  });
+  return {
+    status: a.status,
+    json: a.json,
+    raw: a.status === 0 ? a.error ?? "" : a.text,
+    headers: a.headers,
+    timedOut: a.error === "timeout",
+    outcome: a.outcome
+  };
+}
+function emailOutcome(result, answered2) {
+  const limit = resendLimitOf(result);
+  if (limit === "rate") return "retryable";
+  if (limit === "in_flight") return "unknown";
+  if (limit === "daily" || limit === "monthly") return "refused";
+  return answered2;
 }
 function paceAskedMs(h) {
   if (!h || h.get("ratelimit-remaining")?.trim() !== "0") return null;
@@ -3997,11 +4113,16 @@ function paceAskedMs(h) {
 }
 async function postEmail(cfg, request, timeoutMs) {
   const { idempotency_key, ...body } = request;
-  const a = await resendRequest(cfg, "POST", "/emails", { body, timeoutMs, idempotencyKey: idempotency_key });
+  const a = await resendRequest(cfg, "POST", "/emails", {
+    body,
+    timeoutMs,
+    idempotencyKey: idempotency_key,
+    breaker: "count"
+  });
   if (a.status >= 200 && a.status < 300) {
     const id = a.json?.id;
     return {
-      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status },
+      result: { ok: true, wamid: typeof id === "string" ? id : null, status: a.status, outcome: "ok" },
       waitMs: null,
       paceMs: paceAskedMs(a.headers),
       timedOut: false
@@ -4009,13 +4130,14 @@ async function postEmail(cfg, request, timeoutMs) {
   }
   if (a.status === 0)
     return {
-      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw },
+      result: { ok: false, wamid: null, status: 0, errorBody: a.timedOut ? "timeout" : a.raw, outcome: a.outcome },
       waitMs: null,
       paceMs: null,
       timedOut: a.timedOut
     };
+  const refused = { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) };
   return {
-    result: { ok: false, wamid: null, status: a.status, errorBody: a.raw.slice(0, 500) },
+    result: { ...refused, outcome: emailOutcome(refused, a.outcome) },
     waitMs: a.headers ? waitAskedMs(a.headers) : null,
     paceMs: null,
     timedOut: false
@@ -4036,7 +4158,7 @@ async function sendEmail(cfg, request, opts = {}) {
     const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
-      return { ok: false, wamid: null, status: 0, errorBody: "timeout" };
+      return { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
     return paced(second);
   }
   const limit = resendLimitOf(first.result);
@@ -9551,6 +9673,75 @@ import { z as z213 } from "zod";
 import { z as z223 } from "zod";
 import { z as z233 } from "zod";
 import { z as z243 } from "zod";
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data
+  };
+}
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
+  if (error) console.error("emit_event_failed", kind, error);
+}
 z27.config({ jitless: true });
 var MIN_MS3 = 6e4;
 var HOUR_MS3 = 36e5;
@@ -12396,7 +12587,7 @@ async function recordCarrierOptOut(db, p) {
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
 }
 async function recordOutbound(db, p) {
@@ -12422,20 +12613,9 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
-}
-async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
-  });
-  if (error) console.error("emit_event_failed", kind, error.message);
 }
 async function stampEmailLeftAs(db, p) {
   const { data, error } = await db.rpc("stamp_email_left_as", {
@@ -12500,6 +12680,21 @@ var WireUnavailableError = class extends Error {
 function isWireUnavailableError(e) {
   return e instanceof Error && e.name === "WireUnavailableError";
 }
+var NotTakenError = class extends Error {
+  channel;
+  status;
+  errorBody;
+  constructor(channel, sent) {
+    super(`deliver: the ${channel} provider did not take it (${sent.status || "no answer"}: ${sent.errorBody ?? ""})`);
+    this.name = "NotTakenError";
+    this.channel = channel;
+    this.status = sent.status;
+    this.errorBody = sent.errorBody ?? null;
+  }
+};
+function isNotTakenError(e) {
+  return e instanceof Error && e.name === "NotTakenError";
+}
 function whatsappSender(cfg) {
   if (!cfg) return null;
   return (to, p) => {
@@ -12545,12 +12740,14 @@ async function putOnWire(wire, d, asReply) {
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
+  const sent = await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {},
     ...reply
   });
+  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
+  return sent;
 }
 
 // src/deliver.ts
@@ -12681,7 +12878,7 @@ async function overtakenByHuman(db, d) {
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
-  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
@@ -12808,7 +13005,7 @@ async function deliver(ports, d) {
   const failure = {
     http_status: sent.status,
     body: sent.errorBody ?? null,
-    ...d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}
+    ...sent.outcome === "unknown" ? { outcome: "unknown" } : {}
   };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
@@ -12834,16 +13031,17 @@ async function deliver(ports, d) {
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedRefusal(d.channel, sent)
+    ...namedFailure(d.channel, sent)
   };
 }
-function namedRefusal(channel, sent) {
+function namedFailure(channel, sent) {
   if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true } : {};
   if (channel === "email") {
     const limit = resendLimitOf(sent);
-    return limit ? { limit } : {};
+    return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -13177,6 +13375,7 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
+  const resumes = resumesOf(p);
   let out;
   try {
     out = await ports.deliver({
@@ -13196,26 +13395,33 @@ async function sendQueued(ports, cmd) {
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
       ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
       ...msg.leadId ? { leadId: msg.leadId } : {},
-      messageId: p.message_id
+      messageId: p.message_id,
+      holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e) {
-    if (!isWireUnavailableError(e)) throw e;
-    await resendWhenBound(ports, cmd, channel, e);
+    if (isWireUnavailableError(e)) await resendLater(ports, cmd, channel, e);
+    else if (isNotTakenError(e)) await resendLater(ports, cmd, channel, e);
+    else throw e;
     return;
   }
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
 }
-async function resendWhenBound(ports, cmd, channel, e) {
+function resumesOf(p) {
+  return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+}
+async function resendLater(ports, cmd, channel, e) {
   const p = cmd.payload;
-  const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+  const resumes = resumesOf(p);
   const wait = SEND_RETRY_WAITS_MS[resumes];
+  const unbound = isWireUnavailableError(e);
   if (wait === void 0)
     throw new Error(
-      `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e.message})`,
+      `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e.message})`,
       { cause: e }
     );
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  if (!unbound) return;
   await ports.page?.(
     `wire_unavailable:${channel}`,
     `${channel}: a workspace's credentials could not be read`,
@@ -13267,9 +13473,10 @@ function causeOf(out, channel) {
   const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   return out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
-    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // Status 0 is no answer at all: no answer in time or a connection dropped after it left (it may have
+    // gone), a connection that never opened, or the email wire refusing a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+    out.status === 0 && out.mayHaveGone ? "the provider did not answer, so it may have gone; check the thread before sending it again" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
 }
 
@@ -49871,6 +50078,7 @@ export {
   NEEDS_UNTIL,
   NO_LOCATION_REASON,
   NO_MODEL_PAGE,
+  NotTakenError,
   OUT_OF_AREA_REASON,
   PAGE_ITEMS,
   PAGE_READ_ALLOWANCE_MS,
@@ -49926,6 +50134,7 @@ export {
   ingestEmail,
   isAgainRun,
   isFreeMail2 as isFreeMail,
+  isNotTakenError,
   isThreadUnknown,
   isVisionMime,
   isWireUnavailable,

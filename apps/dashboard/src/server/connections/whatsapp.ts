@@ -1,6 +1,12 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { edgeHeaders, edgeUrl } from "../edge";
+import { MIN_MS } from "@chanlytics/contracts";
+import { callEdge, edgeAnswered } from "../edge";
+
+/** What the browser needs to start signup is read from the edge's environment: a second's work. */
+const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;
+/** A connect is several Graph calls in a row (exchange, read back, subscribe, register): a minute. */
+const CONNECT_TIMEOUT_MS = MIN_MS;
 
 /* ---- Connect your WhatsApp: the edge holds the app secret and does the exchange ---- */
 
@@ -16,30 +22,22 @@ interface SignupConfig {
 export async function whatsappSignupConfig(): Promise<SignupConfig> {
   if (!deployment.providersLive)
     return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview" };
-  try {
-    const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/signup-config`, {
-      headers: edgeHeaders("/api/admin/whatsapp/signup-config"),
-      cache: "no-store",
-    });
-    const j = (await r.json().catch(() => null)) as (SignupConfig & { ok?: boolean }) | null;
-    if (!r.ok || !j?.ok)
-      return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: `edge ${r.status}` };
-    return {
-      app_id: j.app_id,
-      config_id: j.config_id,
-      graph_version: j.graph_version,
-      ready: j.ready,
-      reason: j.reason,
-    };
-  } catch (e) {
-    return {
-      app_id: null,
-      config_id: null,
-      graph_version: "v25.0",
-      ready: false,
-      reason: e instanceof Error ? e.message : "unreachable",
-    };
+  const r = await callEdge("/api/admin/whatsapp/signup-config", null, {
+    method: "GET",
+    timeoutMs: SIGNUP_CONFIG_TIMEOUT_MS,
+  });
+  const j = r.body as (SignupConfig & { ok?: boolean }) | null;
+  if (!edgeAnswered(r) || !j?.ok) {
+    const said = typeof r.body?.detail === "string" && r.status >= 503 ? r.body.detail : `edge ${r.status}`;
+    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: said };
   }
+  return {
+    app_id: j.app_id,
+    config_id: j.config_id,
+    graph_version: j.graph_version,
+    ready: j.ready,
+    reason: j.reason,
+  };
 }
 
 type ConnectOutcome =
@@ -60,12 +58,12 @@ export async function connectWhatsApp(
   body: { code: string; phone_number_id: string; waba_id: string },
 ): Promise<ConnectOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/whatsapp/connect`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/whatsapp/connect", { workspace: tenantId, user: userId }),
-    body: JSON.stringify({ tenant_id: tenantId, user_id: userId, ...body }),
-  });
-  const j = (await r.json().catch(() => ({}))) as {
+  const r = await callEdge(
+    "/api/admin/whatsapp/connect",
+    { tenant_id: tenantId, user_id: userId, ...body },
+    { workspace: tenantId, user: userId, timeoutMs: CONNECT_TIMEOUT_MS },
+  );
+  const j = (r.body ?? {}) as {
     ok?: boolean;
     channel_id?: string;
     number_e164?: string | null;
@@ -75,7 +73,7 @@ export async function connectWhatsApp(
     error?: string;
     detail?: string;
   };
-  if (r.ok && j.ok && j.channel_id) {
+  if (edgeAnswered(r) && j.ok && j.channel_id) {
     return {
       ok: true,
       channelId: j.channel_id,

@@ -18406,6 +18406,75 @@ var PARTNER_INVITE_WORDS22 = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data
+  };
+}
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
+  if (error) console.error("emit_event_failed", kind, error);
+}
 z272.config({ jitless: true });
 var MIN_MS32 = 6e4;
 var HOUR_MS32 = 36e5;
@@ -21251,7 +21320,7 @@ async function recordCarrierOptOut(db, p) {
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
 }
 async function recordOutbound(db, p) {
@@ -21277,20 +21346,9 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
-}
-async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
-  });
-  if (error) console.error("emit_event_failed", kind, error.message);
 }
 async function stampEmailLeftAs(db, p) {
   const { data, error } = await db.rpc("stamp_email_left_as", {
@@ -21352,6 +21410,21 @@ var WireUnavailableError = class extends Error {
 function isWireUnavailableError(e2) {
   return e2 instanceof Error && e2.name === "WireUnavailableError";
 }
+var NotTakenError = class extends Error {
+  channel;
+  status;
+  errorBody;
+  constructor(channel, sent) {
+    super(`deliver: the ${channel} provider did not take it (${sent.status || "no answer"}: ${sent.errorBody ?? ""})`);
+    this.name = "NotTakenError";
+    this.channel = channel;
+    this.status = sent.status;
+    this.errorBody = sent.errorBody ?? null;
+  }
+};
+function isNotTakenError(e2) {
+  return e2 instanceof Error && e2.name === "NotTakenError";
+}
 async function putOnWire(wire, d, asReply) {
   const send = wire[d.channel];
   if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
@@ -21360,12 +21433,14 @@ async function putOnWire(wire, d, asReply) {
   if (send === null)
     return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
   const reply = d.email && asReply ? { reply: true, ownEmail: d.ownEmail } : {};
-  return send(d.to, {
+  const sent = await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {},
     ...reply
   });
+  if (!sent.ok && sent.outcome === "retryable" && d.holdIfNotTaken) throw new NotTakenError(d.channel, sent);
+  return sent;
 }
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
@@ -21494,7 +21569,7 @@ async function overtakenByHuman(db, d) {
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
-  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+  return emitEvent(db, d.tenantId, kind, "message", messageId, data);
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
@@ -21621,7 +21696,7 @@ async function deliver(ports, d) {
   const failure = {
     http_status: sent.status,
     body: sent.errorBody ?? null,
-    ...d.channel === "email" && sent.status === 0 && sent.errorBody === "timeout" ? { outcome: "unknown" } : {}
+    ...sent.outcome === "unknown" ? { outcome: "unknown" } : {}
   };
   let messageId = d.messageId ?? null;
   if (d.messageId) {
@@ -21647,16 +21722,17 @@ async function deliver(ports, d) {
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...namedRefusal(d.channel, sent)
+    ...namedFailure(d.channel, sent)
   };
 }
-function namedRefusal(channel, sent) {
+function namedFailure(channel, sent) {
   if (sent.reason) return {};
+  const gone = sent.outcome === "unknown" ? { mayHaveGone: true } : {};
   if (channel === "email") {
     const limit = resendLimitOf(sent);
-    return limit ? { limit } : {};
+    return limit ? { limit, ...gone } : gone;
   }
-  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true, ...gone } : gone;
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -21690,6 +21766,7 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
+  const resumes = resumesOf(p);
   let out;
   try {
     out = await ports.deliver({
@@ -21709,26 +21786,33 @@ async function sendQueued(ports, cmd) {
       // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
       ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
       ...msg.leadId ? { leadId: msg.leadId } : {},
-      messageId: p.message_id
+      messageId: p.message_id,
+      holdIfNotTaken: resumes < SEND_RETRY_WAITS_MS.length
     });
   } catch (e2) {
-    if (!isWireUnavailableError(e2)) throw e2;
-    await resendWhenBound(ports, cmd, channel, e2);
+    if (isWireUnavailableError(e2)) await resendLater(ports, cmd, channel, e2);
+    else if (isNotTakenError(e2)) await resendLater(ports, cmd, channel, e2);
+    else throw e2;
     return;
   }
   if (out.outcome !== "failed") return;
   await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
 }
-async function resendWhenBound(ports, cmd, channel, e2) {
+function resumesOf(p) {
+  return typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+}
+async function resendLater(ports, cmd, channel, e2) {
   const p = cmd.payload;
-  const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+  const resumes = resumesOf(p);
   const wait = SEND_RETRY_WAITS_MS[resumes];
+  const unbound = isWireUnavailableError(e2);
   if (wait === void 0)
     throw new Error(
-      `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e2.message})`,
+      `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e2.message})`,
       { cause: e2 }
     );
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+  if (!unbound) return;
   await ports.page?.(
     `wire_unavailable:${channel}`,
     `${channel}: a workspace's credentials could not be read`,
@@ -21780,9 +21864,10 @@ function causeOf(out, channel) {
   const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   return out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
-    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // Status 0 is no answer at all: no answer in time or a connection dropped after it left (it may have
+    // gone), a connection that never opened, or the email wire refusing a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
-    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+    out.status === 0 && out.mayHaveGone ? "the provider did not answer, so it may have gone; check the thread before sending it again" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
 }
 async function provisionLine(ports, cmd) {
@@ -22270,6 +22355,71 @@ import { z as z214 } from "zod";
 import { z as z224 } from "zod";
 import { z as z234 } from "zod";
 import { z as z244 } from "zod";
+var WRITES2 = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE2 = { category: "system", version: 1 };
+function rowOf2(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES2 ? WRITES2[kind] : WABA_WRITE2;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data
+  };
+}
+async function recordEvent2(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await db.from("events").insert(rowOf2(tenantId, kind, subjectType, subjectId, data));
+  return { error: error?.message ?? null };
+}
 z29.config({ jitless: true });
 var MIN_MS4 = 6e4;
 var HOUR_MS4 = 36e5;
@@ -25502,17 +25652,8 @@ async function broadcastSend(ctx, job) {
           "broadcast_send: cannot close the broadcast",
           await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending")
         );
-        must(
-          "broadcast_send: cannot record the broadcast's tally",
-          await db.from("events").insert({
-            tenant_id: job.tenant_id,
-            kind: "broadcast.sent",
-            category: "message",
-            subject_type: "broadcast",
-            subject_id: id,
-            data: tally
-          })
-        );
+        const told = await recordEvent2(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally);
+        if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
       },
       alert: ctx.alert,
       now: Date.now,
@@ -25973,7 +26114,7 @@ async function noteMailboxTrouble(db, tenantId, mailboxId) {
   }
   return { mailbox: data && data.length > 0 ? "marked" : "gone" };
 }
-function resumesOf(payload) {
+function resumesOf2(payload) {
   if (typeof payload !== "object" || payload === null) return 0;
   const v = payload.resumes;
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
@@ -26040,7 +26181,7 @@ async function settleJob(db, job, certain) {
     const live = await db.from("jobs").select("id", { count: "exact", head: true }).eq("tenant_id", job.tenant_id).eq("kind", "broadcast_send").eq("payload->>broadcast_id", broadcastId).in("state", ["scheduled", "fired"]).neq("id", job.id);
     if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
     if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
-    const resumes = resumesOf(job.payload);
+    const resumes = resumesOf2(job.payload);
     if (resumes >= MAX_RESUMES)
       return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
         reached,

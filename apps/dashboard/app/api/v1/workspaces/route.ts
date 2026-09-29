@@ -14,6 +14,7 @@ import { acceptOpenInvites } from "@/server/workspace/team";
 import { getOpenHandovers, getOwnPartner } from "@chanlytics/db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
+import { log } from "@/server/log";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
 interface WorkspaceRow {
@@ -100,7 +101,7 @@ export const GET = read({
     // opens anything else, the create screen included. None on a database 00214 has not reached; a failed read is
     // logged and reads as none, because the boot must not fail for it.
     const open = await getOpenHandovers(supabase);
-    if (open.error) console.error("handovers_unread", JSON.stringify({ error: open.error.slice(0, 200) }));
+    if (open.error) log.error("handovers_unread", { error: open.error.slice(0, 200) });
     const handovers = open.handovers;
 
     // Accept any open invitation for this address, then re-read. Self-healing:

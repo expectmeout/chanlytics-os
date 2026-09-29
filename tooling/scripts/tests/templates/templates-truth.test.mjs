@@ -91,7 +91,7 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(r.includes("no_waba:") && r.includes("meta_failed:"));
   const svc = readCode("apps/dashboard/src/server/campaigns/meta-templates.ts");
-  assert.ok(svc.includes("`${edgeUrl()}/api/admin/whatsapp/templates-sync`"));
+  assert.ok(svc.includes('"/api/admin/whatsapp/templates-sync"'));
   // `?all=1` is Settings' read and the composer still sees approved only: RUN through the route in
   // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in
   // readers.test.mjs. The columns moved with the body, to the reader.

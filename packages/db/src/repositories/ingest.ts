@@ -4,9 +4,9 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EventKind } from "@chanlytics/contracts";
 import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing, HOUR_MS } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { emitEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
 
@@ -148,7 +148,7 @@ export async function recordCarrierOptOut(
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", p.contactId, change);
   return true;
 }
 
@@ -216,7 +216,7 @@ export async function recordOutbound(
   await Promise.all([
     db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", p.conversationId),
     status === "sent"
-      ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
+      ? emitEvent(db, p.tenantId, "message.sent", "message", data.id, { sender: p.sender })
       : Promise.resolve(),
   ]);
   return data.id;
@@ -531,24 +531,4 @@ export async function pauseConversation(
   const { error: wErr } = await withdraw;
   if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
   return true;
-}
-
-export async function emitEvent(
-  db: Db,
-  tenantId: string,
-  kind: EventKind,
-  category: string,
-  subjectType: string | null,
-  subjectId: string | null,
-  data: Json = {},
-): Promise<void> {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data,
-  });
-  if (error) console.error("emit_event_failed", kind, error.message);
 }

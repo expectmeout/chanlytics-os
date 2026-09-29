@@ -4,7 +4,7 @@
  * campaign replaced (a new vetting fee). Each asks the pre-flight in
  * a2p-register.ts before anything at the carrier is touched.
  */
-import { deleteCampaignRequest, updateCampaignRequest, encodeForm } from "../packages/channels.js";
+import { deleteCampaignRequest, updateCampaignRequest, encodeForm, twilioRequest } from "../packages/channels.js";
 import type { EdgeErrorCode } from "../packages/contracts.js";
 import { lineAccount } from "../sms/sms.js";
 import { logger } from "../log.js";
@@ -64,13 +64,9 @@ export async function unfileMockRegistration(
     const sub = await lineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
-    const r = await fetch(req.url, {
-      method: req.method,
-      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
-      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
-    }).catch(() => null);
-    const gone = !!r && (r.ok || r.status === 404);
-    L.info("a2p.mock_campaign_deleted", { status: r?.status ?? 0, ok: gone });
+    const r = await twilioRequest(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
+    const gone = r.outcome === "ok" || r.status === 404;
+    L.info("a2p.mock_campaign_deleted", { status: r.status, ok: gone });
     // NOT best effort. A campaign left on the service makes the real POST fail
     // one step later with a message about the wrong thing, and the row by then
     // says nothing is filed. 404 is the state we were asking for; anything else
@@ -177,18 +173,13 @@ export async function resubmitRejectedCampaign(
     privacyPolicyUrl: facts.privacyPolicyUrl,
     termsUrl: facts.termsUrl,
   });
-  const r = await fetch(req.url, {
-    method: req.method,
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: encodeForm(req.form ?? {}),
-    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
-  }).catch(() => null);
-  if (!r || !r.ok) {
-    const detail = r ? (await r.text().catch(() => "")).slice(0, 200) : "no answer";
-    L.error("a2p.campaign_resubmit_refused", { status: r?.status ?? 0, detail });
+  const r = await twilioRequest(sub, req.method, req.url, {
+    form: encodeForm(req.form ?? {}),
+    timeoutMs: TWILIO_TIMEOUT_MS,
+  });
+  if (r.outcome !== "ok") {
+    const detail = r.status ? r.text.slice(0, 200) : "no answer";
+    L.error("a2p.campaign_resubmit_refused", { status: r.status, detail });
     return {
       ok: false,
       error: "provider_refused",
@@ -250,20 +241,16 @@ export async function replaceRejectedCampaign(
     const sub = await lineAccount(db, line).catch(() => null);
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
-    const r = await fetch(req.url, {
-      method: req.method,
-      headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
-      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
-    }).catch(() => null);
-    const gone = !!r && (r.ok || r.status === 404);
-    L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone, campaign: line.campaign_sid });
+    const r = await twilioRequest(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
+    const gone = r.outcome === "ok" || r.status === 404;
+    L.info("a2p.rejected_campaign_deleted", { status: r.status, ok: gone, campaign: line.campaign_sid });
     // A campaign left on the service makes the new POST fail one step later
     // with a message about the wrong thing. 404 is the state asked for.
     if (!gone)
       return {
         ok: false,
         error: "provider_refused",
-        detail: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})`,
+        detail: `the rejected campaign would not come off (HTTP ${r.status})`,
       };
   }
   // `single()` is the row count: a write that changed nothing errors here

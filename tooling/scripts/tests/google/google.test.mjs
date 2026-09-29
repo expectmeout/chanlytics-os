@@ -834,7 +834,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
-    server.includes('edgeHeaders("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),
+    server.includes('callEdge("/api/admin/google"') && server.includes("now - googleReadyCache.at < READY_TTL_MS"),
   );
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
   const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
@@ -880,8 +880,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     "the listing row keeps its verbs' names",
   );
   assert.ok(
-    /console\.error\(\s*"google_search_failed"/.test(search) &&
-      !/typeof b\.error === "string" \? b\.error :/.test(search),
+    /log\.error\(\s*"google_search_failed"/.test(search) && !/typeof b\.error === "string" \? b\.error :/.test(search),
     "Google's words go to the log, not the owner",
   );
   assert.ok(

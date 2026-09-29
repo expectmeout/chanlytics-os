@@ -10,6 +10,7 @@
  */
 import { randomInt } from "node:crypto";
 import { E164 } from "@chanlytics/contracts";
+import type { SendOutcome } from "../provider-fetch";
 
 export type LineProviderName = "twilio" | "dry";
 
@@ -104,6 +105,8 @@ export interface SmsSendResult {
   status: number;
   /** The provider's error code when refused: 21610 = the person opted out at the carrier, 30034 = the line is not registered yet. */
   code: number | null;
+  /** What the send came to (provider-fetch SendOutcome), when the provider's port said. */
+  outcome?: SendOutcome;
 }
 
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */

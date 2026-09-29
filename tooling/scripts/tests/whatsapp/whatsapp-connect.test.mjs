@@ -102,8 +102,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
     "a preview never connects a real number",
   );
   assert.ok(
-    svc.includes("`${edgeUrl()}/api/admin/whatsapp/connect`") &&
-      svc.includes("`${edgeUrl()}/api/admin/whatsapp/signup-config`"),
+    svc.includes('"/api/admin/whatsapp/connect"') && svc.includes('callEdge("/api/admin/whatsapp/signup-config"'),
   );
   const sr = readCode("apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts");
   assert.ok(sr.includes("canConnect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready"));

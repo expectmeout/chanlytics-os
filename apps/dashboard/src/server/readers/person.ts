@@ -28,6 +28,7 @@ import { personNotesRead, stepFor } from "../people/person-notes";
 import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
 import * as facts from "./facts";
+import { log } from "@/server/log";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
 const PERSON_MESSAGES = 2000;
@@ -127,10 +128,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         () => null,
       ),
     ).catch((e: unknown) => {
-      console.error(
-        "person_visits_failed",
-        JSON.stringify({ contact: id, error: e instanceof Error ? e.message : String(e) }),
-      );
+      log.error("person_visits_failed", { contact: id, error: e instanceof Error ? e.message : String(e) });
       return null;
     });
     // Their notes and the team a note can be for (0007), read beside everything else; never fatal either.

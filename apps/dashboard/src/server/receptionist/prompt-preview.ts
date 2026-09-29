@@ -13,6 +13,7 @@ import {
 import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { loadFeed } from "@/server/ask/openings";
+import { log } from "@/server/log";
 
 /**
  * What the receptionist is told, composed HERE for the Business pane.
@@ -103,10 +104,10 @@ export async function openingsBlock(
     });
     return describeOpenings(openings, cfg.tz, { daysAhead, hasBookingLink: offersBookingLink(cfg.brain) });
   } catch (e) {
-    console.error(
-      "prompt_preview_openings_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("prompt_preview_openings_failed", {
+      tenant: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }
@@ -132,10 +133,10 @@ export async function promptPreview(
   try {
     policy = Object.fromEntries((await listPolicies(ctx.supabase, tenantId)).map((p) => [p.class, { mode: p.mode }]));
   } catch (e) {
-    console.error(
-      "prompt_preview_policy_unreadable",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("prompt_preview_policy_unreadable", {
+      tenant: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
   const openings = await openingsBlock(tenantId, { url: cfg.calendarUrl, brain, tz }, now);
@@ -143,10 +144,7 @@ export async function promptPreview(
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {
     // A config the composer refuses is a real answer, and the card says nothing rather than something else.
-    console.error(
-      "prompt_preview_refused",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("prompt_preview_refused", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

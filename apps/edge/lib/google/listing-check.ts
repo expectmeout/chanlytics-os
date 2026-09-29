@@ -131,7 +131,7 @@ export async function checkListing(
     });
   }
   if (plan.fresh.length || plan.counted) {
-    await emitEvent(db, row.tenant_id, "google.reviews", "google", "listing", null, {
+    await emitEvent(db, row.tenant_id, "google.reviews", "listing", null, {
       source: "places",
       fresh: plan.fresh.length,
       counted: plan.counted,

@@ -18,7 +18,11 @@
  *
  * Vercel captures stdout per invocation, so one JSON object per line is the
  * whole transport. No dependency, no shipping, no sampling.
+ *
+ * The correlation id is the request's (bindRequestId): a door the dashboard calls names its request with the
+ * dashboard's own id (channels requestIdOf), so a click's lines in both apps' logs are one search.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { LogEvent } from "./log-events.js";
 
 export type { LogEvent };
@@ -32,17 +36,31 @@ type LogLevel = "info" | "warn" | "error";
  */
 export type LogContext = Record<string, unknown>;
 
+/** The request this invocation serves, once a door has named it. */
+const serving = new AsyncLocalStorage<{ id: string }>();
+
+/**
+ * Name the request this invocation serves: every line logged after it, in this handler and whatever it awaits, carries
+ * `request_id`. Called where a door has read its request (admin-auth's authorizeAdmin); synchronous, so the name holds
+ * for the rest of the handler that called it.
+ */
+export function bindRequestId(id: string): void {
+  serving.enterWith({ id });
+}
+
 function emit(level: LogLevel, event: string, fields: LogContext): void {
   // Undefined keys are dropped rather than serialised as null: a field that is
   // absent because it does not apply should not read as a field that is known
   // to be empty.
   const payload: Record<string, unknown> = { level, event };
+  const id = serving.getStore()?.id;
+  if (id) payload.request_id = id;
   for (const [k, v] of Object.entries(fields)) {
     if (v === undefined) continue;
     // The envelope's two keys are the logger's own. A field named `event` once
     // replaced a line's name with the id it named, and nothing could grep for
     // the line; such a field rides under `<key>_field` instead.
-    payload[k === "event" || k === "level" ? `${k}_field` : k] = v;
+    payload[k === "event" || k === "level" || k === "request_id" ? `${k}_field` : k] = v;
   }
   const line = JSON.stringify(payload);
   if (level === "error") console.error(line);

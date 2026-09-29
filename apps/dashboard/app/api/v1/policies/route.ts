@@ -10,7 +10,10 @@ import {
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { listPolicies, setPolicyMode } from "@chanlytics/db";
+import { listPolicies, recordEvent, setPolicyMode } from "@chanlytics/db";
+import { log } from "@/server/log";
+import { serviceDb } from "@/server/service-db";
+import type { RouteContext } from "@/server/with-route";
 import { load, readerContext } from "@/server/readers";
 import { autonomy } from "@/server/readers/autonomy";
 
@@ -23,6 +26,29 @@ export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), autonomy, undefined)).data,
 });
+
+/**
+ * The change, in the ledger every other consequential act lands in: the class, the mode, which limits moved -- never
+ * their values -- who, and whether a card was tapped. Best effort, as the settings audit is: a ledger row that failed
+ * to write must not fail the change that landed, and is logged under the name it always had. As the service role: a
+ * session may not insert into events, so it never landed.
+ */
+async function recordPolicyChanged(
+  ctx: RouteContext,
+  tenantId: string,
+  cls: string,
+  mode: string,
+  fields: string[],
+): Promise<void> {
+  const { error } = await recordEvent(serviceDb(), tenantId, "policy.changed", "workspace", tenantId, {
+    class: cls,
+    mode,
+    fields,
+    by: ctx.userId,
+    ...(ctx.via ? { via: ctx.via } : {}),
+  });
+  if (error) log.error("policy_event_failed", { error });
+}
 
 /** Each dial's refusal, said once: by the schema for a value that is not a number, below for one out of its range. */
 const DIAL_WORDS = {
@@ -188,23 +214,7 @@ export const PUT = write({
     try {
       const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);
       if (!row) throw new AppError("not_found", "Policy row not found.", 404);
-      // The change, in the ledger every other consequential act lands in: the
-      // class, the mode, which limits moved -- never their values -- who, and
-      // whether a card was tapped. Best effort, as the settings audit is: a
-      // ledger row that failed to write must not fail the change that landed.
-      await ctx.supabase
-        .from("events")
-        .insert({
-          tenant_id: member.tenantId,
-          kind: "policy.changed",
-          category: "system",
-          subject_type: "workspace",
-          subject_id: member.tenantId,
-          data: { class: cls, mode, fields: Object.keys(limits), by: ctx.userId, ...(ctx.via ? { via: ctx.via } : {}) },
-        })
-        .then(({ error }) => {
-          if (error) console.error("policy_event_failed", error.message);
-        });
+      await recordPolicyChanged(ctx, member.tenantId, cls, mode, Object.keys(limits));
       return { policy: row };
     } catch (e) {
       if (e instanceof AppError) throw e;

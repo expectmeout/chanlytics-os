@@ -45,6 +45,7 @@ import { createBroadcastPorts, templateValuePorts } from "@/server/ports/campaig
 import { everyone } from "@/server/people/people";
 import { sellsByOf } from "@/server/people/deals";
 import { lazily, type Lazy } from "@/server/lazy";
+import { log } from "@/server/log";
 
 /**
  * Playbooks, read and checked.
@@ -286,10 +287,7 @@ export async function triggerPools(
   try {
     rows = await (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people));
   } catch (e) {
-    console.error(
-      "playbook_pools_people_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("playbook_pools_people_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return {
       pools: Object.fromEntries(MOMENT_TRIGGERS.map((t) => [t.id, null])),
       calendar: "none",
@@ -298,10 +296,7 @@ export async function triggerPools(
     };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now, from.known).catch((e: unknown) => {
-    console.error(
-      "playbook_pools_visits_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("playbook_pools_visits_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
@@ -316,10 +311,10 @@ export async function triggerPools(
   // unreadable, the moment is not counted.
   const followUps = deals.on
     ? await proposalFollowUps(ctx, tenantId, now).catch((e: unknown) => {
-        console.error(
-          "playbook_pools_follow_ups_failed",
-          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-        );
+        log.error("playbook_pools_follow_ups_failed", {
+          tenant: tenantId,
+          error: e instanceof Error ? e.message : String(e),
+        });
         return null;
       })
     : new Map<string, number>();
@@ -398,10 +393,7 @@ export async function triggerPools(
       pools[`list:${l.id}`] = m && m.state === "ok" ? count("saved_list", m.ids) : null;
     }
   } catch (e) {
-    console.error(
-      "playbook_pools_lists_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("playbook_pools_lists_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
   }
   return { pools, calendar, lists, people };
 }

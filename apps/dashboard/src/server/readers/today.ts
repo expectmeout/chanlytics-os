@@ -6,6 +6,7 @@ import { conversations } from "./conversations";
 import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
+import { log } from "@/server/log";
 
 interface TodayRead {
   metrics: MetricsSummaryDto;
@@ -42,11 +43,11 @@ export const today: Reader<undefined, TodayRead> = {
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
       load(rc, calls, {}).catch((err: unknown) => {
-        console.error("today_calls_fetch_failed", err instanceof Error ? err.message : err);
+        log.error("today_calls_fetch_failed", { error: err });
         return null;
       }),
       load(rc, searches, undefined).catch((err: unknown) => {
-        console.error("today_searches_fetch_failed", err instanceof Error ? err.message : err);
+        log.error("today_searches_fetch_failed", { error: err });
         return null;
       }),
     ]);

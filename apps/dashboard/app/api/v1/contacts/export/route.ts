@@ -5,6 +5,7 @@ import { tenantFacts } from "@/server/tenant";
 import { audiencePool, poolList } from "@/server/people/audience";
 import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 /**
  * GET /api/v1/contacts/export — everyone, as a CSV, for the business's own
@@ -42,16 +43,12 @@ export const GET = read({
     } else {
       people = await everyone(ctx, member.tenantId);
     }
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "export.people",
-        user: ctx.userId,
-        tenant: member.tenantId,
-        rows: people.length,
-        ...(list ? { list: list.token } : {}),
-      }),
-    );
+    log.info("export.people", {
+      user: ctx.userId,
+      tenant: member.tenantId,
+      rows: people.length,
+      ...(list ? { list: list.token } : {}),
+    });
     // On the ledger, as erasure is: who took a copy of everyone, or of one list, and when.
     await recordDecision(ctx, member.tenantId, "workspace", member.tenantId, "export", {
       what: "people",

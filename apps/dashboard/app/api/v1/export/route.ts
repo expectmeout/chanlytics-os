@@ -6,6 +6,7 @@ import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/
 import { attachmentStream, dateTag, safeName } from "@/server/export/export";
 import { BUNDLE_PAGE, consentChangeOf, workspaceBundle, type BundleReaders } from "@/server/export/export-bundle";
 import { recordDecision } from "@/server/verbs";
+import { log } from "@/server/log";
 
 /**
  * GET /api/v1/export -- everything the workspace holds, as one JSON file:
@@ -93,7 +94,7 @@ export const GET = read({
     };
     const { name, timezone } = await tenantFacts(supabase, tenantId);
     const now = new Date();
-    console.log(JSON.stringify({ level: "info", event: "export.workspace", user: userId, tenant: tenantId }));
+    log.info("export.workspace", { user: userId, tenant: tenantId });
     // On the ledger before the first byte: the copy exists once this returns.
     await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "workspace" });
     return attachmentStream(

@@ -288,7 +288,7 @@ export async function POST(request: Request): Promise<Response> {
       // this one was a line on stdout, so "she says she never got the link" had
       // no answer. The door's own kind, naming the thread rather than a message,
       // because the gate refused before any row existed to name.
-      await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
+      await emitEvent(db, routed.tenantId, "message.send_blocked", "conversation", contact.conversationId, {
         reason: gate.refusal,
         source: VOICE_SEND_SOURCE,
         channel: "whatsapp",

@@ -14,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
+import { log } from "@/server/log";
 
 /**
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
@@ -37,10 +38,7 @@ export function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfi
   if (r.ok) return { cfg: r.config, lostCalendar: false };
   const named = (raw as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
   const lostCalendar = typeof named === "string" && named.trim() !== "";
-  console.error(
-    "tenant_config_unreadable",
-    JSON.stringify({ tenant: tenantId, lostCalendar, issues: r.issues.slice(0, 8) }),
-  );
+  log.error("tenant_config_unreadable", { tenant: tenantId, lostCalendar, issues: r.issues.slice(0, 8) });
   return { cfg: null, lostCalendar };
 }
 

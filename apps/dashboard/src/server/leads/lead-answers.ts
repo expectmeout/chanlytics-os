@@ -11,6 +11,7 @@ import {
   type LeadSearchPlan,
   placesToAsk,
 } from "@chanlytics/contracts";
+import { log } from "@/server/log";
 
 export interface DoorAnswer {
   error?: string;
@@ -128,7 +129,7 @@ export function refusalOf(a: DoorAnswer): AppError | null {
       // A door said something this build has no sentence for. The owner gets
       // one plain sentence rather than a de-underscored word out of the
       // database; the code goes to the log, where it can be looked up.
-      console.warn("lead_door_refusal_unknown", JSON.stringify({ error: String(a.error).slice(0, 80) }));
+      log.warn("lead_door_refusal_unknown", { error: String(a.error).slice(0, 80) });
       return new AppError(
         "conflict",
         "Something about this search stopped that from going through. Reload and try again.",

@@ -202,7 +202,7 @@ async function link(c: GoogleCall): Promise<Response> {
   await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
   // The link reads the listing's website too, for the booking page it names: the only read that does.
   const read = await checkListing(c.db, saved.data, c.tz, "read");
-  await emitEvent(c.db, c.tenantId, "google.linked", "google", "listing", null, {
+  await emitEvent(c.db, c.tenantId, "google.linked", "listing", null, {
     place_id: details.place_id,
     name: details.name,
     by: c.userId,
@@ -279,7 +279,7 @@ async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow
   if (!row) return json(200, { ok: true, removed: false });
   const del = await c.db.from("google_listings").delete().eq("tenant_id", c.tenantId);
   if (del.error) return refuse(500, "write_failed", del.error.message);
-  await emitEvent(c.db, c.tenantId, "google.unlinked", "google", "listing", null, {
+  await emitEvent(c.db, c.tenantId, "google.unlinked", "listing", null, {
     place_id: row.place_id,
     name: row.name,
     had_profile: !!conn,

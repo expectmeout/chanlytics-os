@@ -1,6 +1,9 @@
 import "server-only";
 import { deployment } from "../deployment";
-import { edgeHeaders, edgeUrl } from "../edge";
+import { callEdge, edgeAnswered } from "../edge";
+
+/** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */
+const LIVE_CALL_TIMEOUT_MS = 15_000;
 
 /**
  * Whisper to the phone receptionist mid-call, through the edge — the
@@ -14,13 +17,13 @@ export async function whisperLiveCall(
   trigger: boolean,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/whisper`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/whisper"),
-    body: JSON.stringify({ call_id: retellCallId, text, trigger }),
-  });
-  if (r.ok) return { ok: true };
-  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  const r = await callEdge(
+    "/api/admin/whisper",
+    { call_id: retellCallId, text, trigger },
+    { timeoutMs: LIVE_CALL_TIMEOUT_MS },
+  );
+  if (edgeAnswered(r)) return { ok: true };
+  const j = (r.body ?? {}) as { error?: string; status?: number };
   return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
 }
 
@@ -32,13 +35,9 @@ export async function whisperLiveCall(
  */
 export async function stopLiveCall(retellCallId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/stop-call`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/stop-call"),
-    body: JSON.stringify({ call_id: retellCallId }),
-  });
-  if (r.ok) return { ok: true };
-  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  const r = await callEdge("/api/admin/stop-call", { call_id: retellCallId }, { timeoutMs: LIVE_CALL_TIMEOUT_MS });
+  if (edgeAnswered(r)) return { ok: true };
+  const j = (r.body ?? {}) as { error?: string; status?: number };
   return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
 }
 
@@ -52,12 +51,12 @@ export async function handOverLiveCall(
   line: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await fetch(`${edgeUrl()}/api/admin/hand-over`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/hand-over"),
-    body: JSON.stringify({ call_id: retellCallId, line }),
-  });
-  if (r.ok) return { ok: true };
-  const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+  const r = await callEdge(
+    "/api/admin/hand-over",
+    { call_id: retellCallId, line },
+    { timeoutMs: LIVE_CALL_TIMEOUT_MS },
+  );
+  if (edgeAnswered(r)) return { ok: true };
+  const j = (r.body ?? {}) as { error?: string; status?: number };
   return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
 }

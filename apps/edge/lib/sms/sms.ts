@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
 import type { LineSecrets, ProviderAccount, SendResult } from "../packages/channels.js";
-import { smsStatusUrl, smsRefusalOf } from "../packages/channels.js";
+import { answerObject, smsStatusUrl, smsRefusalOf, twilioRequest } from "../packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "../lines/lines.js";
 import { logger, errField } from "../log.js";
 import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
@@ -86,25 +86,29 @@ export async function refreshLineToken(
   if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider" };
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   const master = choice.master;
-  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${line.subaccount_sid}.json`, {
-    headers: { Authorization: `Basic ${Buffer.from(`${master.sid}:${master.token}`).toString("base64")}` },
-    signal: AbortSignal.timeout(SUBACCOUNT_READ_TIMEOUT_MS),
-  }).catch(() => null);
-  if (!r || !r.ok) {
+  const r = await twilioRequest(
+    master,
+    "GET",
+    `https://api.twilio.com/2010-04-01/Accounts/${line.subaccount_sid}.json`,
+    {
+      timeoutMs: SUBACCOUNT_READ_TIMEOUT_MS,
+    },
+  );
+  if (r.outcome !== "ok") {
     // The MASTER credentials are wrong, which is a different and worse fault:
     // nothing can be provisioned either. Said in those words so whoever reads
     // the log is not sent looking at the subaccount.
     L.error("line_token_refresh_refused", {
-      status: r?.status ?? 0,
+      status: r.status,
       note: "the platform's own Twilio credentials were refused",
     });
     return {
       ok: false,
       error: "provider_unauthorized",
-      detail: `the provider refused the platform's credentials (HTTP ${r?.status ?? 0})`,
+      detail: `the provider refused the platform's credentials (HTTP ${r.status})`,
     };
   }
-  const body = (await r.json().catch(() => null)) as { auth_token?: unknown } | null;
+  const body = answerObject(r) as { auth_token?: unknown } | null;
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
   if (!token)
     return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
@@ -153,6 +157,7 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
         status: r.status,
         code: r.code,
         errorBody: r.ok ? undefined : `Twilio ${r.code ?? r.status}`,
+        ...(r.outcome ? { outcome: r.outcome } : {}),
       };
     },
   };

@@ -9,6 +9,7 @@ import {
 import { getTenantConfig } from "@chanlytics/db";
 import { edgeGoogle } from "@/server/connections/google";
 import { tenantFacts } from "@/server/tenant";
+import { log } from "@/server/log";
 
 /**
  * POST /api/v1/google/search — {query?}: what Google finds for the
@@ -52,15 +53,12 @@ export const POST = write({
       throw new AppError("conflict", "Finding listings is not available here yet.", 409);
     if (a.status !== 200 || b.ok !== true) {
       // Google's words (a refused key, a disabled API) are for the log; the owner hears that the search did not happen and that we know.
-      console.error(
-        "google_search_failed",
-        JSON.stringify({
-          tenant: member.tenantId,
-          status: a.status,
-          error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
-          detail: typeof b.detail === "string" ? b.detail.slice(0, 300) : null,
-        }),
-      );
+      log.error("google_search_failed", {
+        tenant: member.tenantId,
+        status: a.status,
+        error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
+        detail: typeof b.detail === "string" ? b.detail.slice(0, 300) : null,
+      });
       throw new AppError(
         "internal",
         "Google could not be searched just now. Try again in a minute; if it keeps failing, Chanlytics has been told.",
