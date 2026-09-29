@@ -16,8 +16,9 @@ import {
   type CampaignReportDto,
   type BookingReportDto,
   HOUR_MS,
+  sumOf,
 } from "@chanlytics/contracts";
-import type { ReportsSurface } from "./surface-data";
+import type { ReportsSurface } from "./surfaces/reports";
 
 const ZONE = "America/New_York";
 const SPAN = 180;
@@ -75,7 +76,6 @@ const hourOf = (r: number): number => {
   return 23;
 };
 
-const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
 const tally = (xs: readonly string[]): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const x of xs) out[x] = (out[x] ?? 0) + 1;
@@ -153,10 +153,10 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
   const cur = span.slice(-n);
   const prev = span.slice(0, n);
   const channels = (xs: readonly SampleDay[]) => ({
-    whatsapp: sum(xs.map((d) => d.whatsapp)),
-    voice: sum(xs.map((d) => d.report.calls)),
-    email: sum(xs.map((d) => d.email)),
-    sms: sum(xs.map((d) => d.sms)),
+    whatsapp: sumOf(xs.map((d) => d.whatsapp)),
+    voice: sumOf(xs.map((d) => d.report.calls)),
+    email: sumOf(xs.map((d) => d.email)),
+    sms: sumOf(xs.map((d) => d.sms)),
     instagram: 0,
   });
   const hours = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
@@ -173,7 +173,7 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
     reasons: tally(cur.flatMap((d) => d.reasons)),
     reply_seconds: cur.flatMap((d) => d.replies).sort((a, b) => a - b),
     sentiments: tally(cur.flatMap((d) => d.moods)),
-    voicemail: sum(cur.map((d) => d.voicemail)),
+    voicemail: sumOf(cur.map((d) => d.voicemail)),
     replies: cur.flatMap((d) => d.replies.map((s) => ({ day: d.report.day, s }))),
     channels: { current: channels(cur), previous: channels(prev) },
     hours,
@@ -183,7 +183,7 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
 function campaignDto(all: readonly SampleDay[], n: number, today: string): CampaignReportDto {
   const span = all.slice(-2 * n);
   const cur = span.slice(-n);
-  const total = (k: "sent" | "delivered" | "read" | "replied") => sum(cur.map((d) => d.campaign[k]));
+  const total = (k: "sent" | "delivered" | "read" | "replied") => sumOf(cur.map((d) => d.campaign[k]));
   const t = { sent: total("sent"), delivered: total("delivered"), read: total("read"), replied: total("replied") };
   const runs = cur.filter((d) => d.campaign.sent > 0).length;
   const at = (hoursAgo: number) => new Date(Date.parse(`${today}T15:00:00Z`) - hoursAgo * HOUR_MS).toISOString();
@@ -238,7 +238,7 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
 }
 
 function bookingDto(all: readonly SampleDay[], n: number): BookingReportDto {
-  const asked = Math.max(1, Math.round(sum(all.slice(-n).map((d) => d.report.conversations)) * 0.45));
+  const asked = Math.max(1, Math.round(sumOf(all.slice(-n).map((d) => d.report.conversations)) * 0.45));
   return { calendar: "ok", days: n, asked, booked: Math.round(asked * 0.45) };
 }
 
@@ -247,13 +247,13 @@ const todayIn = (zone: string): string =>
     new Date(),
   );
 
-const kept = new Map<string, ReportsSurface>();
+const keptReports = new Map<string, ReportsSurface>();
 
 /** The demo's report for 7, 30 or 90 days (anything else is 30) as of `today`, a YYYY-MM-DD key in the business's zone. */
 export function reportsSample(days: number, today: string = todayIn(ZONE)): ReportsSurface {
   const n = days === 7 || days === 90 ? days : 30;
   const key = `${n}:${today}`;
-  const hit = kept.get(key);
+  const hit = keptReports.get(key);
   if (hit) return hit;
   const all = business(today);
   const vm = toReportVM(reportDto(all, n, today));
@@ -268,6 +268,6 @@ export function reportsSample(days: number, today: string = todayIn(ZONE)): Repo
     days: n,
     fetchedAt: 0,
   };
-  kept.set(key, surface);
+  keptReports.set(key, surface);
   return surface;
 }

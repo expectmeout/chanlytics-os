@@ -33,7 +33,7 @@ const ROW = {
 installPartner(globalThis.window);
 await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
 /** The workspaces read, answered by the test. */
-let workspacesSay = { ok: true, vm: { rows: [], summary: "No workspace has come through your link yet." } };
+let workspacesSay = { ok: true, vm: { rows: [], summary: "No workspace has you as its partner yet." } };
 const opened = [];
 globalThis.window.__partner.workspaces = async () => workspacesSay;
 globalThis.window.__partner.open = (id) => opened.push(id);
@@ -114,7 +114,7 @@ test("a partner: the link on this origin, the row's share, the ledger's sums, an
   );
   assert.equal(textOf(byTestId(tree, "partner-payable")), "$50.00 payable.");
   assert.equal(textOf(byTestId(tree, "partner-paid")), "$0.00 paid to date.", "a zero is said as a zero");
-  assert.equal(textOf(byTestId(tree, "partner-brought")), "2 workspaces came through your link.");
+  assert.equal(textOf(byTestId(tree, "partner-brought")), "2 workspaces have you as their partner.");
   assert.equal(byTestId(tree, "partner-standing"), null);
 });
 
@@ -232,7 +232,7 @@ test("the daily letter (0014): a switch showing what is kept, pressed through th
 
 /* ------------------------------------------------------------ a workspace set up for a business (0016) */
 
-const EMPTY = { summary: "No workspace has come through your link yet.", rows: [] };
+const EMPTY = { summary: "No workspace has you as its partner yet.", rows: [] };
 const waitingRow = (over = {}) => ({
   tenantId: "t9",
   name: "Luna Studio",
@@ -427,4 +427,299 @@ test("two-step sign-in: on says so; a project without it switched on says that; 
   tree = redraw();
   assert.match(textOf(byTestId(tree, "partner-second-factor-failed")), /offline/);
   assert.equal(byTestId(tree, "partner-second-factor-start"), null, "never offered on a guess");
+});
+
+/* ------------------------------------------------------------ a workspace asks a partner (0020) */
+
+/** An answer, then the card's own read again: two turns of the stub React before the tree says what was read. */
+const reread = async (paint) => {
+  await settle();
+  paint();
+  await settle();
+  return paint();
+};
+
+test("the partner's pane: the workspaces asking for them, Join goes in and says what it earns, Decline takes it away", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
+  let rows = [
+    { workspaceId: "t1", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
+    { workspaceId: "t2", sentence: "Bayside asks you to be its partner. Open until Oct 12." },
+  ];
+  const answered = [];
+  globalThis.window.__partner.invitations = async () => ({ ok: true, rows });
+  globalThis.window.__partner.answer = async (id, join) => {
+    answered.push([id, join]);
+    rows = rows.filter((r) => r.workspaceId !== id);
+    return { ok: true, message: join ? "You're Harbor's partner." : "" };
+  };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.ok(byTestId(tree, "partner-invitations"));
+  assert.match(textOf(byTestId(tree, "partner-invitation-t1")), /Harbor asks you to be its partner/);
+  press(byTestId(tree, "partner-invitation-join-t1"));
+  tree = await reread(redraw);
+  assert.equal(flashes.at(-1).tone, "ok");
+  assert.equal(byTestId(tree, "partner-invitation-t1"), null, "read again: gone once answered");
+  press(byTestId(tree, "partner-invitation-decline-t2"));
+  tree = await reread(redraw);
+  assert.deepEqual(answered, [
+    ["t1", true],
+    ["t2", false],
+  ]);
+  assert.equal(byTestId(tree, "partner-invitations"), null, "none asking: no card");
+});
+
+test("the partner's pane: a read of who is asking that failed says so with a retry, never an empty list", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  let fails = true;
+  globalThis.window.__partner.invitations = async () =>
+    fails ? { ok: false, message: "offline" } : { ok: true, rows: [{ workspaceId: "t3", sentence: "Harbor asks." }] };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.ok(byTestId(tree, "partner-invitations-failed"));
+  fails = false;
+  press(byTestId(tree, "partner-invitations-failed-retry"));
+  tree = await reread(redraw);
+  assert.equal(byTestId(tree, "partner-invitations-failed"), null);
+  assert.ok(byTestId(tree, "partner-invitation-t3"), "read again: who is asking");
+});
+
+test("Team: the owner asks a partner by code and may take it back; anyone else sees no card", async () => {
+  globalThis.window.TeamSection = () => null;
+  const W = globalThis.window.__partner.inviteWords;
+  let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  const asked = [];
+  globalThis.window.__partner.team = {
+    read: async () => ({ ok: true, vm: card }),
+    invite: async (code) => {
+      asked.push(code);
+      if (code === "nobody") return { ok: false, message: "No active partner has that code." };
+      card = { state: "waiting", sentence: "Waiting for ada-co to accept.", canInvite: false, canWithdraw: true };
+      return { ok: true, sent: true };
+    },
+    withdraw: async () => {
+      asked.push("withdraw");
+      card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+      return { ok: true, message: "" };
+    },
+  };
+  const drawTeam = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner.Team, { flash }));
+  fresh();
+  drawTeam();
+  await settle();
+  let tree = drawTeam();
+  assert.equal(textOf(byTestId(tree, "team-partner")).includes(W.intro), true);
+  assert.equal(byTestId(tree, "team-partner-ask").props.disabled, true, "nothing to send before a code");
+  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "nobody" } });
+  await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+  tree = await reread(drawTeam);
+  assert.equal(textOf(byTestId(tree, "team-partner-error")), "No active partner has that code.");
+  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "https://app.chanlytics.com/p/ada-co" } });
+  await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+  tree = await reread(drawTeam);
+  assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for ada-co to accept.");
+  assert.equal(byTestId(tree, "team-partner-form"), null, "nobody else asked while one waits");
+  press(byTestId(tree, "team-partner-withdraw"));
+  tree = await reread(drawTeam);
+  assert.ok(byTestId(tree, "team-partner-form"));
+  assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
+
+  globalThis.window.__partner.team = {
+    ...globalThis.window.__partner.team,
+    read: async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." }),
+  };
+  fresh();
+  drawTeam();
+  await settle();
+  assert.equal(byTestId(drawTeam(), "team-partner"), null, "an operator's Team has no partner card");
+});
+
+test("Team: an owner's View as another role sees no card, as that role would; the ask is the team's gate; an email that did not go says how to send it again; a refusal reads the card again", async () => {
+  globalThis.window.TeamSection = () => null;
+  const W = globalThis.window.__partner.inviteWords;
+  let reads = 0;
+  let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  globalThis.window.__partner.team = {
+    read: async () => {
+      reads += 1;
+      return { ok: true, vm: card };
+    },
+    invite: async (code) => {
+      if (code === "late") {
+        // The ask was kept, and the answer never came back: the card must show it waiting, not the form again.
+        card = { state: "waiting", sentence: "Waiting for late to accept.", canInvite: false, canWithdraw: true };
+        return { ok: false, message: "We could not reach Chanlytics." };
+      }
+      card = { state: "waiting", sentence: "Waiting for ada-co to accept.", canInvite: false, canWithdraw: true };
+      return { ok: true, sent: false };
+    },
+    withdraw: async () => {
+      card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+      return { ok: true, message: "" };
+    },
+  };
+  const drawTeam = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner.Team, { flash }));
+  const store = { viewAsRole: "viewer", can: () => false, myRole: () => "viewer" };
+  globalThis.window.ST_STORE = store;
+  try {
+    fresh();
+    drawTeam();
+    await settle();
+    assert.equal(byTestId(drawTeam(), "team-partner"), null, "a viewer sees no card, so View as a viewer does not");
+    // Back to the owner: View as says so, and the card is there.
+    Object.assign(store, { viewAsRole: null, can: () => true, myRole: () => "owner" });
+    globalThis.window.dispatchEvent(new Event("team:changed"));
+    let tree = drawTeam();
+    assert.ok(byTestId(tree, "team-partner"));
+    assert.equal(byTestId(tree, "team-partner-ask").props["data-gated"], undefined, "the owner's ask is not gated");
+    // A role without the team's permission is gated at the button, in the shell's own way.
+    store.can = () => false;
+    assert.equal(byTestId(drawTeam(), "team-partner-ask").props["data-gated"], "");
+    store.can = () => true;
+
+    byTestId(tree, "team-partner-code").props.onChange({ target: { value: "ada-co" } });
+    await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+    tree = await reread(drawTeam);
+    assert.equal(textOf(flashes.at(-1).msg), W.notSent, "the email that did not go, in contracts' words");
+    assert.match(W.notSent, /take it back and ask again/, "and how to send it again");
+    press(byTestId(tree, "team-partner-withdraw"));
+    tree = await reread(drawTeam);
+
+    const before = reads;
+    byTestId(tree, "team-partner-code").props.onChange({ target: { value: "late" } });
+    await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+    tree = await reread(drawTeam);
+    assert.equal(reads, before + 1, "a refusal reads the card again");
+    assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for late to accept.");
+    assert.equal(byTestId(tree, "team-partner-form"), null, "an ask that was kept offers no second press");
+  } finally {
+    delete globalThis.window.ST_STORE;
+  }
+});
+
+test("the partner's pane: an answered invitation leaves the list at once, so it takes no second press while the list is read again", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  const rows = [{ workspaceId: "t4", sentence: "Harbor asks you to be its partner. Open until Oct 11." }];
+  let first = true;
+  let release;
+  // The first read answers; the one after the join waits, as a slow network would.
+  globalThis.window.__partner.invitations = () => {
+    if (first) {
+      first = false;
+      return Promise.resolve({ ok: true, rows });
+    }
+    return new Promise((r) => (release = () => r({ ok: true, rows: [] })));
+  };
+  const answered = [];
+  globalThis.window.__partner.answer = async (id, join) => {
+    answered.push([id, join]);
+    return { ok: true, message: "You're Harbor's partner." };
+  };
+  draw();
+  await settle();
+  let tree = redraw();
+  press(byTestId(tree, "partner-invitation-join-t4"));
+  await settle();
+  tree = redraw();
+  assert.equal(byTestId(tree, "partner-invitation-t4"), null, "gone before the list is read again");
+  assert.deepEqual(answered, [["t4", true]]);
+  release();
+  await settle();
+});
+
+test("over the real bridge: who is asking, joining and declining, and the owner's card, each at its route and said in contracts' words", async () => {
+  // The tests above answer for the bridge; this one runs it, over a network the test answers.
+  installPartner(globalThis.window);
+  const json = (status, body) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const calls = [];
+  let owner = true;
+  const realFetch = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init = {}) => {
+    const key = `${init.method ?? "GET"} ${String(url).split("?")[0]}`;
+    calls.push(init.body ? `${key} ${init.body}` : key);
+    switch (key) {
+      case "GET /api/v1/partner/invitations":
+        return json(200, {
+          ok: true,
+          data: {
+            invitations: [
+              {
+                workspaceId: "t9",
+                workspace: "Harbor",
+                sentAt: "2026-09-27T12:00:00Z",
+                expiresAt: "2026-10-11T12:00:00Z",
+              },
+            ],
+          },
+        });
+      case "POST /api/v1/partner/invitations/t9/accept":
+        return json(200, { ok: true, data: { workspace: { id: "t9", slug: "harbor", name: "Harbor" }, earns: false } });
+      case "POST /api/v1/partner/invitations/t9/decline":
+        return json(200, { ok: true, data: { declined: true } });
+      case "GET /api/v1/team/partner":
+        return owner
+          ? json(200, {
+              ok: true,
+              data: {
+                partner: null,
+                invitation: {
+                  code: "ada-co",
+                  sentAt: "2026-09-27T12:00:00Z",
+                  expiresAt: "2099-10-11T12:00:00Z",
+                  declinedAt: null,
+                },
+              },
+            })
+          : json(403, { ok: false, error: { code: "forbidden", message: "Only an owner can do this." } });
+      case "POST /api/v1/team/partner":
+        return json(200, { ok: true, data: { code: "ada-co", expiresAt: "2099-10-11T12:00:00Z", sent: false } });
+      case "DELETE /api/v1/team/partner":
+        return json(200, { ok: true, data: { withdrawn: true } });
+      default:
+        return json(404, { ok: false, error: { code: "not_found", message: `no ${key}` } });
+    }
+  };
+  try {
+    const P = globalThis.window.__partner;
+    const asking = await P.invitations();
+    assert.equal(asking.ok, true);
+    assert.deepEqual(asking.rows, [
+      { workspaceId: "t9", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
+    ]);
+    const joined = await P.answer("t9", true);
+    assert.deepEqual(joined, {
+      ok: true,
+      message:
+        "You're Harbor's partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.",
+    });
+    assert.deepEqual(await P.answer("t9", false), { ok: true, message: "" });
+
+    const card = await P.team.read();
+    assert.equal(card.ok, true);
+    assert.equal(card.vm.state, "waiting");
+    assert.equal(card.vm.canWithdraw, true);
+    assert.deepEqual(await P.team.invite("ada-co"), { ok: true, sent: false });
+    assert.deepEqual(await P.team.withdraw(), { ok: true, message: "" });
+    owner = false;
+    const refused = await P.team.read();
+    assert.deepEqual([refused.ok, refused.code], [false, "forbidden"], "the refusal's code, which hides the card");
+    assert.deepEqual(calls, [
+      "GET /api/v1/partner/invitations",
+      "POST /api/v1/partner/invitations/t9/accept",
+      "POST /api/v1/partner/invitations/t9/decline",
+      "GET /api/v1/team/partner",
+      'POST /api/v1/team/partner {"code":"ada-co"}',
+      "DELETE /api/v1/team/partner",
+      "GET /api/v1/team/partner",
+    ]);
+  } finally {
+    globalThis.window.fetch = realFetch;
+  }
 });

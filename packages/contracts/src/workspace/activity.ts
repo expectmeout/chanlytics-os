@@ -1,5 +1,6 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "../shared/enums";
-import { LEAD_ENDING_WORDS, type LeadRoundEnding } from "../leads/lead-search";
+import { LEAD_ENDING_WORDS } from "../leads/search/endings";
+import type { LeadRoundEnding } from "../leads/search/sets";
 import { domainHoldWords } from "../email/sending-domains";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import type { Tone } from "../shell/tone";
@@ -192,9 +193,9 @@ function humanize(kind: string): string {
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` · ${tail}` : ""}`;
 }
 
-const str = (o: Record<string, unknown>, k: string): string | null =>
+const textAt = (o: Record<string, unknown>, k: string): string | null =>
   typeof o[k] === "string" && (o[k] as string) ? (o[k] as string) : null;
-const num = (o: Record<string, unknown>, k: string): number | null =>
+const numberAt = (o: Record<string, unknown>, k: string): number | null =>
   typeof o[k] === "number" ? (o[k] as number) : null;
 
 /**
@@ -202,7 +203,7 @@ const num = (o: Record<string, unknown>, k: string): number | null =>
  * words. A part that stopped at a fault says so, or it would read as a clean import.
  */
 function importWords(p: Record<string, unknown>): string {
-  const n = (k: string) => num(p, k) ?? 0;
+  const n = (k: string) => numberAt(p, k) ?? 0;
   const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
   const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
   return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
@@ -222,11 +223,11 @@ const CONVERTED_HOW: Record<string, string> = {
  */
 function readingWords(kind: string, p: Record<string, unknown>, base: string): string {
   if (kind === "lead.converted") {
-    const how = CONVERTED_HOW[str(p, "how") ?? ""];
+    const how = CONVERTED_HOW[textAt(p, "how") ?? ""];
     return how ? `${base} · ${how}` : base;
   }
-  const who = str(p, "business") ?? "A business";
-  if (str(p, "unread")) return `${who} wrote back · not read yet`;
+  const who = textAt(p, "business") ?? "A business";
+  if (textAt(p, "unread")) return `${who} wrote back · not read yet`;
   return isReplyIntent(p.intent) && p.intent !== "other"
     ? `${who} wrote back · ${REPLY_INTENT_WORDS[p.intent]}`
     : `${who} wrote back`;
@@ -251,14 +252,14 @@ export function activityWords(kind: string, payload: unknown): string {
   // A take-over on a call is the Inbox's verb with a different subject: the
   // receptionist passed the caller to the business's own line.
   const base =
-    kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : (WORDS[kind] ?? humanize(kind));
+    kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : (WORDS[kind] ?? humanize(kind));
   // A kind whose sentence is its own, not the kind's words and a field or two.
   const whole = WHOLE_SENTENCE.get(kind);
   if (whole) return whole(p, base);
   const bits: string[] = [];
   switch (kind) {
     case "take_over": {
-      if (str(p, "how") === "transfer") bits.push("passed to the business's line");
+      if (textAt(p, "how") === "transfer") bits.push("passed to the business's line");
       break;
     }
     case "sending_domain.added":
@@ -267,21 +268,21 @@ export function activityWords(kind: string, payload: unknown): string {
     case "sending_domain.released":
     case "sending_domain.resumed":
     case "sending_domain.removed": {
-      const host = str(p, "host");
+      const host = textAt(p, "host");
       if (host) bits.push(host);
-      const why = str(p, "why");
+      const why = textAt(p, "why");
       if (kind === "sending_domain.held" && why) bits.push(domainHoldWords(why));
       break;
     }
     case "consent_change":
     case "contact.consent_changed": {
       const purpose =
-        str(p, "purpose") === "marketing"
+        textAt(p, "purpose") === "marketing"
           ? "offers"
-          : str(p, "purpose") === "email_marketing"
+          : textAt(p, "purpose") === "email_marketing"
             ? "marketing email"
             : "messages about their visit";
-      const consent = str(p, "consent");
+      const consent = textAt(p, "consent");
       bits.push(
         consent === "opted_in"
           ? `yes to ${purpose}`
@@ -289,41 +290,41 @@ export function activityWords(kind: string, payload: unknown): string {
             ? `no to ${purpose}`
             : `${purpose}: not asked`,
       );
-      const source = str(p, "source");
+      const source = textAt(p, "source");
       if (source && source !== "operator") bits.push(source.replace(/_/g, " "));
       break;
     }
     case "change_role": {
-      const role = str(p, "role") ?? str(p, "to");
+      const role = textAt(p, "role") ?? textAt(p, "to");
       if (role) bits.push(`to ${role}`);
       break;
     }
     case "export": {
-      const what = str(p, "what");
+      const what = textAt(p, "what");
       if (what) bits.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = num(p, "rows");
+      const rows = numberAt(p, "rows");
       if (rows !== null) bits.push(`${rows} rows`);
       break;
     }
     case "pause_agent":
     case "resume_agent": {
-      const mode = str(p, "receptionist_mode");
+      const mode = textAt(p, "receptionist_mode");
       if (mode) bits.push(mode === "inherit" ? "follows the workspace" : mode);
-      const batch = num(p, "batch");
+      const batch = numberAt(p, "batch");
       if (batch) bits.push(`one of ${batch}`);
       break;
     }
     case "send_broadcast": {
-      const name = str(p, "name");
+      const name = textAt(p, "name");
       if (name) bits.push(name);
-      const n = num(p, "recipients");
+      const n = numberAt(p, "recipients");
       if (n !== null) bits.push(`${n} people`);
       if (p.approved === true) bits.push("approved by hand");
       break;
     }
     case "broadcast.sent": {
-      const sent = num(p, "sent");
-      const held = num(p, "held");
+      const sent = numberAt(p, "sent");
+      const held = numberAt(p, "held");
       if (sent !== null) bits.push(`${sent} got it`);
       if (held) bits.push(`${held} held`);
       break;
@@ -336,27 +337,27 @@ export function activityWords(kind: string, payload: unknown): string {
       break;
     }
     case "policy.changed": {
-      const cls = str(p, "class");
-      const mode = str(p, "mode");
+      const cls = textAt(p, "class");
+      const mode = textAt(p, "mode");
       if (cls) bits.push(cls);
       if (mode) bits.push(mode);
       break;
     }
     case "line.texting_rejected":
     case "line.failed": {
-      const why = str(p, "error") ?? str(p, "reason");
+      const why = textAt(p, "error") ?? textAt(p, "reason");
       if (why) bits.push(why.slice(0, 80));
       break;
     }
     case "platform.acted": {
-      const action = str(p, "action");
+      const action = textAt(p, "action");
       if (action) bits.push(action);
       break;
     }
     case "playbook.run": {
-      const outcome = str(p, "outcome");
+      const outcome = textAt(p, "outcome");
       if (outcome) bits.push(outcome);
-      const n = num(p, "recipients") ?? num(p, "count");
+      const n = numberAt(p, "recipients") ?? numberAt(p, "count");
       if (n !== null) bits.push(`${n} people`);
       break;
     }
@@ -365,12 +366,12 @@ export function activityWords(kind: string, payload: unknown): string {
       // moment this row is, and an ended one says why in the words the rest of
       // the product already uses for the nine endings. What it cost is the
       // workspace's business, not the log's.
-      const state = str(p, "state");
+      const state = textAt(p, "state");
       if (state === "ended") {
         bits.push("finished");
-        const ending = str(p, "ending");
+        const ending = textAt(p, "ending");
         if (ending && ending in LEAD_ENDING_WORDS) bits.push(LEAD_ENDING_WORDS[ending as LeadRoundEnding]);
-        const counted = num(p, "counted");
+        const counted = numberAt(p, "counted");
         if (counted !== null) bits.push(`${counted} found`);
       } else if (state) {
         bits.push(
@@ -386,9 +387,9 @@ export function activityWords(kind: string, payload: unknown): string {
     case "lead.no_card": {
       // An ask no source card covers, kept as demand: what was asked for, in
       // the owner's own words, and never a place.
-      const card = str(p, "card");
+      const card = textAt(p, "card");
       if (card) bits.push(card.replace(/_/g, " "));
-      const asked = str(p, "asked");
+      const asked = textAt(p, "asked");
       if (asked) bits.push(asked.slice(0, 80));
       break;
     }

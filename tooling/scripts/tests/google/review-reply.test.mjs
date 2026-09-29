@@ -224,7 +224,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "the constraint is found by what it says",
   );
 
-  const lib = readCode("apps/edge/lib/google/google.ts");
+  // The answers (review-answers.ts) and the sync that calls them (profile-sync.ts).
+  const lib = ["review-answers", "profile-sync"].map((m) => readCode(`apps/edge/lib/google/${m}.ts`)).join("\n");
   assert.ok(
     lib.includes("export async function reviewReplyMode(") &&
       lib.includes("reviewReplyModeOf(await listPolicies(db, tenantId))"),
@@ -280,5 +281,5 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
       reports.includes('data-testid="google-reply-drafted"'),
   );
   assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} />") && reports.includes("vm.reply.words"));
-  assert.ok(readRaw("e2e/settings-autonomy.spec.ts").includes("toHaveCount(7)"));
+  assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(7)"));
 });

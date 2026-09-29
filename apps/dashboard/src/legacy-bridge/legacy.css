@@ -1,6 +1,8 @@
-/* The 20 legacy stylesheets in the EXACT Chanlytics.html cascade order —
-   Next.js does not guarantee cross-import CSS order, so one entry file does. */
+/* The tokens, the kit and the shell's stylesheets, in the EXACT order Chanlytics.html
+   links them (repo/legacy-harness.test.mjs holds the two to one list) — Next.js does
+   not guarantee cross-import CSS order, so one entry file does. */
 @import "../legacy/styles/tokens.css";
+@import "../surfaces/kit/kit.css";
 @import "../legacy/styles/components.css";
 @import "../legacy/styles/dashboard.css";
 @import "../legacy/styles/dashboard-a-v2.css";

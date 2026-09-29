@@ -19,7 +19,7 @@ import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEED
 import { agoWords } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run";
 
@@ -277,15 +277,38 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   }
 }
 
-export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
-  const out: ConnectionRow[] = [];
+/**
+ * What the rows are drawn from, found once: the channel rows that speak for WhatsApp and the phone, the workspace's
+ * own line (the phone row and the texting row both read it), Google's connection and listing (the listing's verb
+ * reads the connection), and the clock.
+ */
+interface ConnectionFacts {
+  nowMs: number;
+  wa: ChannelVM | null;
+  voice: ChannelVM | null;
+  own: LineDto | null;
+  connection: GoogleConnectionDto | null;
+  listing: GoogleListingDto | null;
+}
+
+function connectionFactsOf(i: ConnectionInputs, nowMs: number): ConnectionFacts {
   // `channelFor`, not `.find`: a workspace that released a line keeps its disabled
   // voice row beside the new active one, and an arbitrary pick between them draws
   // "Off" over a channel that is answering.
   const channel = (kind: string) => channelFor(i.channels, kind);
+  return {
+    nowMs,
+    wa: channel("whatsapp"),
+    voice: channel("voice"),
+    own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
+    connection: i.google?.connection ?? null,
+    listing: i.google?.listing ?? null,
+  };
+}
 
-  // WhatsApp: the channel row when there is one; Meta's door when there is not.
-  const wa = channel("whatsapp");
+/** WhatsApp: the channel row when there is one; Meta's door when there is not. */
+function whatsappRow(i: ConnectionInputs, { wa }: ConnectionFacts): Draft {
+  const base = { kind: "whatsapp" as const, icon: "chat", title: "WhatsApp Business" };
   if (wa) {
     // What Meta has said about the number, in the words Broadcasts, Playbooks
     // and the assistant already use: a flagged number is exactly the "joined
@@ -293,311 +316,256 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: wa.number,
-        state: !wa.on ? "off" : flagged ? "attention" : "connected",
-        stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
-        sentence: `${wa.healthLabel}${health}`,
-        verb: { label: "Templates", to: "messages", who: "operator" },
-      }),
-    );
-  } else if (i.whatsapp === undefined) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Checking whether Chanlytics can connect a number…",
-        verb: null,
-      }),
-    );
-  } else if (i.whatsapp?.ready) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence:
-          "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
-        verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
-      }),
-    );
-  } else {
-    const why =
-      i.whatsapp?.reason === "no_config_id"
-        ? " — the Embedded Signup configuration is missing on the Chanlytics side"
-        : i.whatsapp?.reason === "preview"
-          ? " — only on the production dashboard"
-          : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
-        verb: null,
-      }),
-    );
+    return {
+      ...base,
+      detail: wa.number,
+      state: !wa.on ? "off" : flagged ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
+      sentence: `${wa.healthLabel}${health}`,
+      verb: { label: "Templates", to: "messages", who: "operator" },
+    };
   }
-
-  // The phone line: the voice channel, or where getting one stands.
-  const voice = channel("voice");
-  const own = i.lines.rows.find((l) => l.provider !== "carrier") ?? null;
-  if (voice) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: voice.number,
-        state: voice.on ? "connected" : "off",
-        stateWords: voice.on ? "On" : "Off",
-        sentence: voice.healthLabel,
-        verb: null,
-      }),
-    );
-  } else if (own && own.voice_state === "provisioning") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Setting up — ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
-        verb: null,
-      }),
-    );
-  } else if (own && own.voice_state === "failed") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
-        verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" },
-      }),
-    );
-  } else if (i.lineRequestedAt) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
-        verb: null,
-      }),
-    );
-  } else if (i.lines.ready) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" },
-      }),
-    );
-  } else {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" },
-      }),
-    );
-  }
-
-  out.push(row(smsStateRow(own, nowMs)));
-
-  // Google: the owner's Business Profile, then the public listing.
-  const g = i.google;
-  const c = g?.connection ?? null;
-  const l = g?.listing ?? null;
-  if (c && c.location_name) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: c.location_title,
-        state: c.sync_error ? "attention" : "connected",
-        stateWords: c.sync_error ? "Could not sync" : "Connected",
-        sentence: connectionWords(c, nowMs),
-        verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
-      }),
-    );
-  } else if (c) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "waiting_you",
-        stateWords: "Waiting on you",
-        sentence: `${connectionWords(c, nowMs)}.`,
-        verb: null,
-        body: "google_choose",
-      }),
-    );
-  } else if (g?.ready.profile) {
-    const note = googleAudienceWords(g.ready.audience);
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
-        verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" },
-      }),
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
-        verb: null,
-      }),
-    );
-  }
-
-  if (l) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: l.address,
-        state: l.check_error ? "attention" : "connected",
-        stateWords: l.check_error ? "Could not be read" : "Watched",
-        sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
-        verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" },
-      }),
-    );
-  } else if (g?.ready.places) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "none",
-        stateWords: "Not watched",
-        sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
-      }),
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Your public listing on Google Maps, read once a day for new reviews.",
-        verb: null,
-      }),
-    );
-  }
-
-  // The calendar: the feed the receptionist reads today.
-  const cal = i.calendar?.state ?? "none";
-  if (cal === "ok") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "connected",
-        stateWords: CALENDAR_FEED_WORDS.ok,
-        sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Open Calendar", to: "calendar", who: "operator" },
-      }),
-    );
-  } else if (cal === "unavailable") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "attention",
-        stateWords: CALENDAR_FEED_WORDS.unavailable,
-        sentence: "Your calendar could not be read. Check the address in Settings › Business.",
-        verb: { label: "Check the address", to: "admin/workspace", who: "owner" },
-      }),
-    );
-  } else {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: null,
-        state: "none",
-        stateWords: CALENDAR_FEED_WORDS.none,
-        sentence:
-          "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Paste the address", to: "admin/workspace", who: "owner" },
-      }),
-    );
-  }
-
-  out.push(
-    row({
-      kind: "instagram",
-      icon: "instagram",
-      title: "Instagram",
+  if (i.whatsapp === undefined) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Checking whether Chanlytics can connect a number…",
       verb: null,
-    }),
-  );
-  // Email: the workspace's address when it has one, the form that makes one when this deployment has the
-  // channel, and "later" where it does not. The receptionist does not answer email yet, and the row says so
-  // rather than promising what Connections used to ("an address the receptionist answers").
+    };
+  }
+  if (i.whatsapp?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence:
+        "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
+      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" },
+    };
+  }
+  const why =
+    i.whatsapp?.reason === "no_config_id"
+      ? " — the Embedded Signup configuration is missing on the Chanlytics side"
+      : i.whatsapp?.reason === "preview"
+        ? " — only on the production dashboard"
+        : "";
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
+    verb: null,
+  };
+}
+
+/** The phone line: the voice channel, or where getting one stands. */
+function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): Draft {
+  const base = { kind: "phone" as const, icon: "phone", title: "Phone line" };
+  if (voice) {
+    return {
+      ...base,
+      detail: voice.number,
+      state: voice.on ? "connected" : "off",
+      stateWords: voice.on ? "On" : "Off",
+      sentence: voice.healthLabel,
+      verb: null,
+    };
+  }
+  if (own && own.voice_state === "provisioning") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Setting up — ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
+      verb: null,
+    };
+  }
+  if (own && own.voice_state === "failed") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+      verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" },
+    };
+  }
+  if (i.lineRequestedAt) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
+      verb: null,
+    };
+  }
+  if (i.lines.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Get a number the receptionist answers, or keep the one you have.",
+      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: "We set up your phone line with you.",
+    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" },
+  };
+}
+
+/** Texting: where the workspace's own line stands with the carriers. */
+function smsRow(_i: ConnectionInputs, { own, nowMs }: ConnectionFacts): Draft {
+  return smsStateRow(own, nowMs);
+}
+
+/** Google: the owner's Business Profile, then the public listing (googleListingRow). */
+function googleProfileRow(i: ConnectionInputs, { connection: c, nowMs }: ConnectionFacts): Draft {
+  const g = i.google;
+  const base = { kind: "google_profile" as const, icon: "shield", title: "Google Business Profile" };
+  if (c && c.location_name) {
+    return {
+      ...base,
+      detail: c.location_title,
+      state: c.sync_error ? "attention" : "connected",
+      stateWords: c.sync_error ? "Could not sync" : "Connected",
+      sentence: connectionWords(c, nowMs),
+      verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" },
+    };
+  }
+  if (c) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_you",
+      stateWords: "Waiting on you",
+      sentence: `${connectionWords(c, nowMs)}.`,
+      verb: null,
+      body: "google_choose",
+    };
+  }
+  if (g?.ready.profile) {
+    const note = googleAudienceWords(g.ready.audience);
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
+    verb: null,
+  };
+}
+
+/** Google's public listing: watched once it is found; with the Business Profile connected, a read is a sync. */
+function googleListingRow(i: ConnectionInputs, { connection: c, listing: l, nowMs }: ConnectionFacts): Draft {
+  const g = i.google;
+  const base = { kind: "google_listing" as const, icon: "star", title: "Your listing on Google" };
+  if (l) {
+    return {
+      ...base,
+      detail: l.address,
+      state: l.check_error ? "attention" : "connected",
+      stateWords: l.check_error ? "Could not be read" : "Watched",
+      sentence: `${listingLine(l)} · ${checkedWords(l, nowMs)}`,
+      verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" },
+    };
+  }
+  if (g?.ready.places) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not watched",
+      sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Your public listing on Google Maps, read once a day for new reviews.",
+    verb: null,
+  };
+}
+
+/** The calendar: the feed the receptionist reads today. */
+function calendarRow(i: ConnectionInputs): Draft {
+  const cal = i.calendar?.state ?? "none";
+  const base = { kind: "calendar" as const, icon: "calendar", title: "Calendar" };
+  if (cal === "ok") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "connected",
+      stateWords: CALENDAR_FEED_WORDS.ok,
+      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      verb: { label: "Open Calendar", to: "calendar", who: "operator" },
+    };
+  }
+  if (cal === "unavailable") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "attention",
+      stateWords: CALENDAR_FEED_WORDS.unavailable,
+      sentence: "Your calendar could not be read. Check the address in Settings › Business.",
+      verb: { label: "Check the address", to: "admin/workspace", who: "owner" },
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: CALENDAR_FEED_WORDS.none,
+    sentence:
+      "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" },
+  };
+}
+
+/** Instagram: not built yet, so always later. */
+function instagramRow(): Draft {
+  return {
+    kind: "instagram",
+    icon: "instagram",
+    title: "Instagram",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    verb: null,
+  };
+}
+
+/**
+ * Email: the workspace's address when it has one, the form that makes one when this deployment has the
+ * channel, and "later" where it does not. The receptionist does not answer email yet, and the row says so
+ * rather than promising what Connections used to ("an address the receptionist answers").
+ */
+function emailRow(i: ConnectionInputs, { nowMs }: ConnectionFacts): Draft {
+  const base = { kind: "email" as const, icon: "mail", title: "Email" };
   const mailbox = i.email?.mailbox ?? null;
   if (mailbox) {
     const last = mailbox.last_received_at
@@ -611,65 +579,74 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
     // A domain held below it is said here too: an owner looking at "On" would not look further.
     const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: mailbox.address,
-        state: mailbox.last_error || heldDomains ? "attention" : "connected",
-        stateWords: mailbox.last_error
-          ? "Waiting on us"
-          : heldDomains
-            ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
-            : "On",
-        sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-        verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-        body: "email_setup",
-      }),
-    );
-  } else if (i.email?.ready) {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "none",
-        stateWords: "Not set up",
-        sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-        verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-        body: "email_setup",
-      }),
-    );
-  } else {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "An address customers write to, answered from your Inbox.",
-        verb: null,
-      }),
-    );
+    return {
+      ...base,
+      detail: mailbox.address,
+      state: mailbox.last_error || heldDomains ? "attention" : "connected",
+      stateWords: mailbox.last_error
+        ? "Waiting on us"
+        : heldDomains
+          ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
+          : "On",
+      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
+      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
+      body: "email_setup",
+    };
   }
-  out.push(
-    row({
-      kind: "deposits",
-      icon: "money",
-      title: "Deposits",
+  if (i.email?.ready) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Deposits and payments taken by the receptionist.",
-      verb: null,
-    }),
-  );
+      state: "none",
+      stateWords: "Not set up",
+      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
+      body: "email_setup",
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "An address customers write to, answered from your Inbox.",
+    verb: null,
+  };
+}
 
-  return out.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+/** Deposits: not built yet, so always later. */
+function depositsRow(): Draft {
+  return {
+    kind: "deposits",
+    icon: "money",
+    title: "Deposits",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Deposits and payments taken by the receptionist.",
+    verb: null,
+  };
+}
+
+type ConnectionRowBuilder = (i: ConnectionInputs, facts: ConnectionFacts) => Draft;
+
+/** One builder per connection, in the page's order (ORDER): each says where this workspace stands with it. */
+const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
+  whatsappRow,
+  phoneRow,
+  smsRow,
+  googleProfileRow,
+  googleListingRow,
+  calendarRow,
+  instagramRow,
+  emailRow,
+  depositsRow,
+];
+
+/** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
+export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): ConnectionRow[] {
+  const facts = connectionFactsOf(i, nowMs);
+  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
 
 export const CONNECTION_GROUP_WORDS: Record<

@@ -543,6 +543,19 @@ test("a no's reach (N6): the other address always, the domain only when it is th
 
   const byIsp = readingPlan(reading("no"), ctx({ leadAddress: "joe@isp.example", replyFrom: "joe@isp.example" }));
   assert.equal(byIsp.suppressDomain, null, "one person's no never closes a shared ISP");
+  // A lead keeps only its website's host, so what the finder saw of the whole address rides beside it (00237): a
+  // page under the host never closes the host; a root does; a lead found before it was kept reads by its host alone.
+  assert.equal(ownedDomainOf("joe@isp.example", "isp.example", false), null, "the finder saw a page under the host");
+  assert.equal(ownedDomainOf("sam@owndomain.example", "owndomain.example", true), "owndomain.example");
+  assert.equal(ownedDomainOf("sam@owndomain.example", "owndomain.example", null), "owndomain.example");
+  const onPage = { leadAddress: "joe@isp.example", replyFrom: "joe@isp.example", leadWebsite: "isp.example" };
+  assert.equal(readingPlan(reading("no"), ctx({ ...onPage, leadWebsiteRoot: false })).suppressDomain, null);
+  assert.equal(readingPlan(reading("no"), ctx({ ...onPage, leadWebsiteRoot: true })).suppressDomain, "isp.example");
+  assert.deepEqual(
+    readingPlan(reading("no"), ctx({ ...onPage, leadWebsiteRoot: false })).suppressFrom,
+    readingPlan(reading("no"), ctx({ ...onPage, leadWebsiteRoot: true })).suppressFrom,
+    "the addresses themselves are closed either way",
+  );
   assert.equal(byIsp.suppressFrom, null, "the lead's own address is the consent door's");
   const other = readingPlan(
     reading("no"),

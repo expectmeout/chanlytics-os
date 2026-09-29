@@ -5,14 +5,14 @@
  * tab's globals from the SAME scenario object (the server injects it into the bundle), so the spec and the page
  * cannot disagree the way two hand-built copies would.
  *
- *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/e2e-workspace.mjs rather than
+ *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/ops/e2e-workspace.mjs rather than
  *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
  *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
  *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
  *              every fold opens on nothing.
  *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
- *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people.spec.ts's
+ *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people/people.spec.ts's
  *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
@@ -30,7 +30,7 @@ import {
   newReceptionistDefaults,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
+import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../ops/e2e-workspace.mjs";
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };

@@ -13,7 +13,7 @@
  * and the role door has been checked there. The provider key lives here, so
  * this is where the provider is spoken to. Body: { call_id }.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { stopCall } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
@@ -24,7 +24,7 @@ const L = logger();
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/stop-call");
   if (!auth.ok) return auth.response;
-  if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
+  if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
   let body: { call_id?: string } = {};
   try {
@@ -33,7 +33,7 @@ export async function POST(request: Request): Promise<Response> {
     /* below */
   }
   const callId = String(body.call_id || "");
-  if (!/^call_[A-Za-z0-9]{8,}$/.test(callId)) return json(400, { ok: false, error: "call_id required" });
+  if (!/^call_[A-Za-z0-9]{8,}$/.test(callId)) return refuse(400, "bad_request", "call_id required");
 
   const r = await stopCall({ apiKey: env.RETELL_API_KEY }, callId);
   L.info("admin_stop_call", { call_id: callId, ok: r.ok, status: r.status });

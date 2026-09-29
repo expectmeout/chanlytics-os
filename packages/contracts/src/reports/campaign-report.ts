@@ -10,7 +10,8 @@
  */
 import { REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
 import { REPORT_RANGES, dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
-import { templateTitle } from "../templates/template-library";
+import { templateTitle } from "../templates/template-titles";
+import { sumOf } from "../shared/numbers";
 
 export interface CampaignDayDto {
   day: string;
@@ -103,7 +104,6 @@ export interface CampaignReportVM {
   lines: { funnel: string; sent: string | null };
 }
 
-const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
 const pct = (n: number, d: number): number | null => (d ? Math.round((n / d) * 100) : null);
 const WHEN = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
@@ -123,22 +123,22 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     optOuts: d.opt_outs,
   }));
   const tot = {
-    sent: sum(current.map((d) => d.sent)),
-    delivered: sum(current.map((d) => d.delivered)),
-    replied: sum(current.map((d) => d.replied)),
-    optIns: sum(current.map((d) => d.opt_ins)),
-    optOuts: sum(current.map((d) => d.opt_outs)),
+    sent: sumOf(current.map((d) => d.sent)),
+    delivered: sumOf(current.map((d) => d.delivered)),
+    replied: sumOf(current.map((d) => d.replied)),
+    optIns: sumOf(current.map((d) => d.opt_ins)),
+    optOuts: sumOf(current.map((d) => d.opt_outs)),
   };
   const prev = {
-    sent: sum(previous.map((d) => d.sent)),
-    delivered: sum(previous.map((d) => d.delivered)),
-    replied: sum(previous.map((d) => d.replied)),
-    optIns: sum(previous.map((d) => d.opt_ins)),
-    optOuts: sum(previous.map((d) => d.opt_outs)),
+    sent: sumOf(previous.map((d) => d.sent)),
+    delivered: sumOf(previous.map((d) => d.delivered)),
+    replied: sumOf(previous.map((d) => d.replied)),
+    optIns: sumOf(previous.map((d) => d.opt_ins)),
+    optOuts: sumOf(previous.map((d) => d.opt_outs)),
   };
   const noun = `${days} days`;
   const rawSources = dto.sources ?? [];
-  const sends = sum(rawSources.map((s) => s.runs));
+  const sends = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
   const sources: CampaignSourceVM[] = rawSources.map((s) => ({
     id: s.id,

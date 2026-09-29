@@ -1,0 +1,126 @@
+import { test, expect } from "@playwright/test";
+import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+
+/**
+ * The sidebar's chrome on a real workspace: the account menu with who you
+ * are and the theme (and no look yet), the workspace menu, the rail on ⌘B
+ * that survives a reload, the shortcuts sheet on "?", and no floating pill
+ * anywhere. The device's preferences are put back afterwards.
+ */
+test.describe("sidebar on a real workspace", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+
+  test("account menu, theme, workspace menu, rail, sheet", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("today-queue")).toBeVisible();
+    const prefsBefore = await page.evaluate(() => localStorage.getItem("chanlytics-os-prefs"));
+    try {
+      await expect(page.locator(".bridge-pill")).toHaveCount(0);
+
+      // The account menu: who you are, the role, the theme.
+      await page.getByTestId("sb-account").click();
+      const me = page.getByTestId("sb-account-menu");
+      await expect(me).toBeVisible();
+      // The address this run signed in as, not a literal: session.ts mints the
+      // session for E2E_USER_EMAIL, and asserting anything else is a spec
+      // checking a different person than the one it logged in.
+      await expect(me.getByTestId("sb-me")).toContainText(process.env.E2E_USER_EMAIL!);
+      await expect(me.getByTestId("sb-me-role")).toHaveText("Owner");
+      await expect(me.getByTestId("sb-signout")).toHaveText("Sign out");
+      await me.getByTestId("sb-theme-light").click();
+      await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "light");
+      await me.getByTestId("sb-theme-dark").click();
+      await expect(page.locator(".app-root")).toHaveAttribute("data-theme", "dark");
+      // The look travels as the theme does: Classic on a device that has chosen none, on the document and on the
+      // shell's root alike. The menu offers no Look until Glass is drawn (contracts LOOK_OFFERED, the interface kit's
+      // step 5.5, which turns this over with it).
+      await expect(page.locator("html")).toHaveAttribute("data-look", "classic");
+      await expect(page.locator(".app-root")).toHaveAttribute("data-look", "classic");
+      await expect(me.getByRole("radiogroup", { name: "Look" })).toHaveCount(0);
+      await expect(me.getByTestId("sb-look-glass")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(me).toHaveCount(0);
+
+      // The workspace menu: the one being viewed, checked, with the role.
+      await page.getByTestId("sb-workspace").click();
+      const ws = page.getByTestId("sb-workspace-menu");
+      await expect(ws).toBeVisible();
+      const items = ws.getByTestId("sb-ws-item");
+      // However many there are, exactly one is current. An absolute count
+      // assumed this account owned a single workspace; self-serve sign-up
+      // makes a second one ordinary, and workspace-create.spec.ts makes one
+      // on purpose. What the sidebar promises is that one is marked, and it
+      // is the one whose role is shown.
+      await expect(items.first()).toBeVisible();
+      const active = ws.locator('[data-testid="sb-ws-item"][aria-checked="true"]');
+      await expect(active).toHaveCount(1);
+      await expect(active).toContainText("Owner");
+      await page.keyboard.press("Escape");
+
+      // The rail: ⌘B folds it, the preference survives a reload, ⌘B opens it.
+      await page.keyboard.press("Control+b");
+      await expect(page.getByTestId("sidebar")).toHaveClass(/collapsed/);
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+      await expect(page.getByTestId("sidebar")).toHaveClass(/collapsed/);
+      await page.getByTestId("sb-collapse").click();
+      await expect(page.getByTestId("sidebar")).not.toHaveClass(/collapsed/);
+
+      // The sheet on "?", closed on Escape.
+      await page.keyboard.press("?");
+      await expect(page.getByTestId("shortcuts-sheet")).toBeVisible();
+      await expect(page.getByTestId("shortcuts-sheet")).toContainText("Ask Chanlytics");
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("shortcuts-sheet")).toHaveCount(0);
+    } finally {
+      await page.evaluate((p) => {
+        if (p === null) localStorage.removeItem("chanlytics-os-prefs");
+        else localStorage.setItem("chanlytics-os-prefs", p);
+      }, prefsBefore);
+    }
+  });
+
+  /**
+   * Conversations and Live read the same table the Inbox does (surface-data.ts
+   * inboxOverride / conversationsOverride both GET conversations), so they are
+   * views of it rather than places of their own. In a real browser, on a real
+   * workspace -- where demoOnly items are filtered out and a node render of the
+   * rail cannot see that filtering.
+   */
+  test("the Inbox is one door: Conversations and Live are its views, and the rail lights one item", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+
+    // Seven places on a real workspace (Agents is demo-only), and Conversations
+    // is not one of them. Counted rather than spelled out: a nav item carries a
+    // hint and a badge inside it, and this promise is about which places exist.
+    const rail = page.getByTestId("sidebar");
+    await expect(rail.locator(".nav-item")).toHaveCount(7);
+    await expect(rail.locator(".nav-item", { hasText: "Conversations" })).toHaveCount(0);
+    for (const place of ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports", "Settings"]) {
+      await expect(rail.locator(".nav-item", { hasText: place })).toHaveCount(1);
+    }
+
+    for (const [hash, tab] of [
+      ["/#/inbox", "Needs you"],
+      ["/#/conversations", "Conversations"],
+      ["/#/live", "Live"],
+    ] as const) {
+      await page.goto(hash);
+      await page.waitForLoadState("networkidle");
+      const strip = page.locator(".stabs");
+      await expect(strip.locator(".stabs-tab")).toHaveCount(3);
+      await expect(strip.locator(".stabs-tab.active")).toHaveText(new RegExp(`^${tab}`));
+      // One item lit on the rail, and it is the Inbox -- every one of these
+      // routes used to light a second nav item of its own.
+      const lit = rail.locator(".nav-item.active");
+      await expect(lit).toHaveCount(1);
+      await expect(lit).toContainText("Inbox");
+    }
+  });
+});

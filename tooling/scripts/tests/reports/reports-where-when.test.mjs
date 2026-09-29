@@ -123,6 +123,28 @@ test("a count is compared in counts, and only against a period someone reached t
   );
 });
 
+test("each counted tile sets its own count beside the same count the period before", () => {
+  // The week before: 7 messages, 1 escalation, 4 calls and 5 new people, four different counts.
+  const before = [{ escalations: 1, calls: 2 }, { calls: 2, new_contacts: 3 }, { new_contacts: 2 }];
+  const vm = toReportVM(dto({ series: dto().series.map((d, i) => ({ ...d, ...before[i] })) }));
+  const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
+  const ids = ["messages", "needed", "calls", "people"];
+  assert.deepEqual(
+    ids.map((id) => by[id].compare),
+    ["up from 7", "up from 1", "down from 4", "down from 5"],
+  );
+  assert.deepEqual(
+    ids.map((id) => by[id].delta),
+    [
+      { text: "+143% vs prior 7 days", tone: "pos" },
+      { text: "+200% vs prior 7 days", tone: "neg" },
+      { text: "-25% vs prior 7 days", tone: "neg" },
+      { text: "-60% vs prior 7 days", tone: "neg" },
+    ],
+    "more escalations is worse; fewer calls and new people are too",
+  );
+});
+
 test("the answered share and the one before, as fractions of the answered", () => {
   const vm = toReportVM(dto());
   assert.equal(vm.answered.share, 13 / 17);

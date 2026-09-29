@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts/phone-app";
 
 /**
  * A phone without a network sees this, not a blank page: Apple's 2.1 and a person's patience both ask for it.

@@ -17,8 +17,8 @@ import {
   type ListNeed,
   type ListRule,
 } from "./list-rules";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/deals";
-import type { PersonRowVM } from "./people";
+import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
+import type { PersonRowVM } from "./person-row";
 
 /* ------------------------------------------------------------------ the reference */
 

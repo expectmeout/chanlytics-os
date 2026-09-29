@@ -39,7 +39,7 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts";
-import { peopleVisits, type ZoneAndSettings } from "@/server/calendar/calendar";
+import { peopleVisits, type ZoneAndSettings } from "@/server/calendar/people-visits";
 import { archivedListWords } from "@/server/people/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/ports/campaign-ports";
 import { everyone } from "@/server/people/people";
@@ -178,6 +178,8 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   const p = pb.data;
   if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !number || !out)
     return null;
+  // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
+  if (!p.template_name || !p.template_language) return null;
   const tpl = await ctx.supabase
     .from("templates")
     .select("meta_status, category")

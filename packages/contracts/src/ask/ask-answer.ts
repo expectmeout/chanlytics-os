@@ -4,17 +4,10 @@
  * band, the answers that need no model, and the model's own, which it writes as structured output (ASK_ANSWER_FORMAT,
  * answer-format.ts) and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
-import {
-  ASK_CAPS,
-  FOLLOWUP_ECHO,
-  cleanAnswer,
-  navigateLabel,
-  sameQuestion,
-  type AskLanguage,
-  type AskMessageVM,
-  type AskProposal,
-  type FastCall,
-} from "./ask";
+import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
+import { FOLLOWUP_ECHO, cleanAnswer, navigateLabel, sameQuestion } from "./answer-text";
+import type { AskLanguage } from "./ask-language";
+import type { FastCall } from "./ask-fast-paths";
 import {
   ASK_CITATION_KINDS,
   citationRoute,
@@ -89,8 +82,11 @@ export const ASK_ANSWER_CAPS = {
   question: 90,
 } as const;
 
-/** One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. */
-const clip = (s: string | null | undefined, n: number) => {
+/**
+ * One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. Every part of an
+ * answer is cut by it, and so is every part of an earlier answer's line in a cold turn's history (server/ask/prompt.ts).
+ */
+export const clip = (s: string | null | undefined, n: number) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
   if (t.length <= n) return t;
   const cut = t.slice(0, n - 1);

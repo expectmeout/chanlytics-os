@@ -72,7 +72,7 @@ export interface TemplateDraftInput {
    * booking link. STATIC on purpose: a button whose URL takes a value needs a
    * parameter at send time, and `sendTemplate` puts the body on the wire and
    * nothing else, so such a template is refused by Meta for every recipient
-   * (template-library.ts templateBlocked). A fixed link needs no parameter, so
+   * (template-parts.ts templateBlocked). A fixed link needs no parameter, so
    * this one sends exactly as it is written.
    */
   button?: { text: string; url: string } | null;
@@ -382,7 +382,8 @@ export interface TemplateUseSource {
   playbooks: readonly {
     id: string;
     name: string;
-    template_name: string;
+    /** Null for a hand step (Reach out, 00228), which sends no template. */
+    template_name: string | null;
     state?: string | null;
     runs?: string | null;
   }[];
@@ -391,7 +392,7 @@ export interface TemplateUseSource {
    * run `pending_approval` is how a playbook comes to be waiting on the owner.
    */
   broadcasts: readonly {
-    template_name: string;
+    template_name: string | null;
     playbook_id?: string | null;
     name?: string | null;
     state?: string | null;
@@ -421,7 +422,7 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
   }
   // Newest first, so the two it names are the two a person remembers sending.
   const byHand = src.broadcasts
-    .filter((b) => b.template_name && !b.playbook_id)
+    .filter((b): b is typeof b & { template_name: string } => !!b.template_name && !b.playbook_id)
     .slice()
     .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
   for (const b of byHand) {
@@ -507,7 +508,7 @@ export interface TemplateSends {
 
 export interface TemplateSendSource {
   /** Every broadcast -- one a person sent, or a playbook's run -- and the template it sent. */
-  runs: readonly { id: string; template_name: string }[];
+  runs: readonly { id: string; template_name: string | null }[];
   /** The people on those runs (`broadcast_recipients`). Only the ones in state `sent` went out. */
   recipients: readonly { broadcast_id: string; state: string; sent_at: string | null }[];
   /** What the Inbox sent on a template (`messages.template_name`). Only the ones WhatsApp took -- a wamid -- went out. */

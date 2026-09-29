@@ -1,8 +1,8 @@
 /**
- * The chrome's own words and rules: the theme, the sidebar's two states, the
- * workspace hotkeys, the one status line the shell owes the person, and the
- * shortcuts sheet. Pure, so the sidebar, the shell and a test read the same
- * thing.
+ * The chrome's own words and rules: the theme and the look, the sidebar's two
+ * states, the workspace hotkeys, the one status line the shell owes the person,
+ * and the shortcuts sheet. Pure, so the sidebar, the shell and a test read the
+ * same thing.
  */
 import { PAUSED_WORDS } from "../workspace/billing";
 
@@ -46,7 +46,36 @@ export const DEFAULT_THEME_PREF: ThemePref = "dark";
 /** A device's stored preference as the app keeps it: anything unknown is the default, never System. */
 export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) ? stored : DEFAULT_THEME_PREF);
 
-/** Where this device keeps its preferences, the theme among them (LegacyApp.tsx loadPrefs). */
+/**
+ * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
+ * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Classic is the app as it is drawn today;
+ * Glass is the canvases'. It travels as the theme does: kept on this device in the same stored object, stamped as
+ * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
+ * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
+ * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
+ */
+export type LookPref = "classic" | "glass";
+
+export const LOOK_OPTIONS: ReadonlyArray<{ id: LookPref; label: string }> = [
+  { id: "classic", label: "Classic" },
+  { id: "glass", label: "Glass" },
+];
+
+export const isLookPref = (v: unknown): v is LookPref => v === "classic" || v === "glass";
+
+/** The look of a device that has chosen nothing, or holds one this build no longer knows. */
+export const DEFAULT_LOOK_PREF: LookPref = "classic";
+
+/** A device's stored look as the app keeps it: anything unknown is the default. */
+export const lookPrefOf = (stored: unknown): LookPref => (isLookPref(stored) ? stored : DEFAULT_LOOK_PREF);
+
+/**
+ * Whether the account menu offers the look to members. Not yet: the menu draws no Look until Glass is drawn (the
+ * plan's step 5.5), and a device paints the look it keeps, which is the default unless it was set by hand.
+ */
+export const LOOK_OFFERED: boolean = false;
+
+/** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 
 /**
@@ -87,16 +116,24 @@ export const THEME_COLOR_META = 'meta[name="theme-color"]';
  * bars follow the theme the page resolved, here and in the app (paintThemeColor); the meta the markup shipped is
  * what a device running no script keeps, which is the theme that document also keeps. The attribute is stamped
  * before any meta is touched, so a document that somehow has no head still paints in the right theme.
+ *
+ * The look rides with the theme: the same stored object's `look`, as lookPrefOf reads it, stamped as data-look beside
+ * data-theme, so a `[data-look]` rule holds from the first frame rather than from the mount. Each is read on its own:
+ * a value one of them does not know leaves the other standing.
  */
 export function themeBootScript(): string {
   const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
+  const looks = JSON.stringify(LOOK_OPTIONS.map((o) => o.id));
   return [
     "try{",
-    `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
-    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
+    `var p=${JSON.stringify(DEFAULT_THEME_PREF)},k=${JSON.stringify(DEFAULT_LOOK_PREF)};`,
+    `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");`,
+    `if(s&&${known}.indexOf(s.theme)>=0)p=s.theme;`,
+    `if(s&&${looks}.indexOf(s.look)>=0)k=s.look}catch(e){}`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
     'var t=p==="system"?(d?"dark":"light"):p;',
     "document.documentElement.dataset.theme=t;",
+    "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
     `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,

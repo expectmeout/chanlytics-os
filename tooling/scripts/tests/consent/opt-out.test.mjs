@@ -165,21 +165,14 @@ test("the patterns are anchored and case-insensitive", () => {
 /* ---- the edge routes on KIND, not on the storage column ---- */
 {
   const { readCode } = await import("../_source.mjs");
-  const edgeSrc = readCode("packages/core/src/inbound/answer.ts");
+  // The gates that route on KIND (gates.ts) and the one that answers a late message (reply-gates.ts).
+  const edgeSrc = ["gates", "reply-gates"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
 
-  test("a reaction or a system notice ends the request without an ack", () => {
-    // The bug this pins: a customer tapping a thumbs-up got "sorry, I can't
-    // read that", the receptionist muted itself for 24h, an escalation opened
-    // and the owner was emailed. The check must come BEFORE the unreadable
-    // branch or it never runs.
-    const quiet = edgeSrc.indexOf('n.kind === "reaction"');
-    // The condition gained a "not a photo the receptionist looked at" guard
-    // in front of it; the branch itself, and its place, are unchanged.
-    const unreadable = edgeSrc.indexOf('(n.type !== "text" || !n.body)');
-    assert.ok(quiet > -1, "reactions must be handled by kind");
-    assert.ok(unreadable > -1, "the unreadable branch must still exist");
-    assert.ok(quiet < unreadable, "handle the no-request kinds before the unreadable branch");
-  });
+  // A reaction or a system notice ends the request without an ack, before the
+  // unreadable branch or never: a customer tapping a thumbs-up got "sorry, I
+  // can't read that", the receptionist muted itself for 24h, an escalation
+  // opened and the owner was emailed. RUN, order and all, in
+  // whatsapp/inbound-executed.test.mjs ("a thumbs-up or a system notice").
 
   test("a location or contact card escalates WITHOUT the cannot-read apology", () => {
     // Both are legible to a person and normalizeInbound already wrote them as

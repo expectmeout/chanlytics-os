@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import { AppError, sendingDomainDtoOf, type SendingDomainDto } from "@chanlytics/contracts";
+import { AppError, sendingDomainDtoOf, type EdgeErrorCode, type SendingDomainDto } from "@chanlytics/contracts";
 import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
 import { deployment } from "../deployment";
 import type { EdgeAnswer } from "./lines";
@@ -51,7 +51,7 @@ async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_000): P
   }
 }
 
-let readyCache: { at: number; ready: boolean } | null = null;
+let domainsReadyCache: { at: number; ready: boolean } | null = null;
 /** A "not ready" answer is kept briefly: a key set a minute ago must not hide the block for five. */
 const NOT_READY_TTL_MS = 30_000;
 
@@ -60,20 +60,25 @@ const NOT_READY_TTL_MS = 30_000;
  * lines' and Google's readiness are; an unreachable edge is not ready, so nothing draws a verb that cannot work.
  */
 export async function domainsReadiness(now = Date.now()): Promise<boolean> {
-  if (readyCache && now - readyCache.at < (readyCache.ready ? READY_TTL_MS : NOT_READY_TTL_MS)) return readyCache.ready;
+  if (domainsReadyCache && now - domainsReadyCache.at < (domainsReadyCache.ready ? READY_TTL_MS : NOT_READY_TTL_MS))
+    return domainsReadyCache.ready;
   const a = await edgeDomains({ op: "status" }, 4_000);
   const ready = a.status === 200 && a.body?.ok === true && a.body?.ready === true;
-  readyCache = { at: now, ready };
+  domainsReadyCache = { at: now, ready };
   return ready;
 }
 
 /** For tests, and for a route that must not read a stale answer. */
 export function forgetDomainsReadiness(): void {
-  readyCache = null;
+  domainsReadyCache = null;
 }
 
-/** The edge's refusals, in the owner's words; the door's own sentence when it gave one. */
-function refusal(a: EdgeAnswer, doing: string): AppError {
+/**
+ * The edge's refusals, in the owner's words; the door's own sentence when it gave one. Each case the edge answers is
+ * one of its codes (contracts' EdgeErrorCode), so a code it renames or drops stops this compiling; `preview` is this
+ * module's own (edgeDomains).
+ */
+function edgeRefusal(a: EdgeAnswer, doing: string): AppError {
   const b = a.body ?? {};
   const error = typeof b.error === "string" ? b.error : "failed";
   const said = typeof b.message === "string" && b.message.trim() ? b.message.trim() : null;
@@ -81,20 +86,20 @@ function refusal(a: EdgeAnswer, doing: string): AppError {
     // Not the domain typed: the mail account behind it is not here. Its own code, so a form says it in a toast.
     case "preview":
       return new AppError("upstream_email", "Domains can't be added or checked from a preview.", 503);
-    case "no_cold_key":
+    case "no_cold_key" satisfies EdgeErrorCode:
       return new AppError("upstream_email", "Sending from your own domain isn't switched on here yet.", 503);
-    case "invalid":
+    case "invalid" satisfies EdgeErrorCode:
       return new AppError("validation", said ?? "That can't be a domain to send from.", 400);
     // Resume's three (00176) are conflicts too: a hold the records lift, a domain not held, a row that moved; and a hold
     // that is the platform's to lift, or a domain removed while so held (D16).
-    case "too_many":
-    case "host_taken":
-    case "dns_hold":
-    case "not_held":
-    case "moved":
-    case "platform_hold":
+    case "too_many" satisfies EdgeErrorCode:
+    case "host_taken" satisfies EdgeErrorCode:
+    case "dns_hold" satisfies EdgeErrorCode:
+    case "not_held" satisfies EdgeErrorCode:
+    case "moved" satisfies EdgeErrorCode:
+    case "platform_hold" satisfies EdgeErrorCode:
       return new AppError("conflict", said ?? "That domain can't be added.", 409);
-    case "not_found":
+    case "not_found" satisfies EdgeErrorCode:
       return new AppError("not_found", "That domain isn't this workspace's.", 404);
     default:
       return new AppError("internal", said ?? `The domain could not be ${doing}. Try again in a minute.`, 502);
@@ -114,7 +119,7 @@ export async function addSendingDomain(
     from_local: input.fromLocal,
     from_name: input.fromName,
   });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "added");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "added");
   return a.body.domain as SendingDomainDto;
 }
 
@@ -124,7 +129,7 @@ export async function checkSendingDomain(
   domainId: string,
 ): Promise<SendingDomainDto> {
   const a = await edgeDomains({ op: "check", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "checked");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "checked");
   return a.body.domain as SendingDomainDto;
 }
 
@@ -134,11 +139,11 @@ export async function resumeSendingDomain(
   domainId: string,
 ): Promise<SendingDomainDto> {
   const a = await edgeDomains({ op: "resume", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "resumed");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "resumed");
   return a.body.domain as SendingDomainDto;
 }
 
 export async function removeSendingDomain(tenantId: string, userId: string, domainId: string): Promise<void> {
   const a = await edgeDomains({ op: "remove", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "removed");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "removed");
 }

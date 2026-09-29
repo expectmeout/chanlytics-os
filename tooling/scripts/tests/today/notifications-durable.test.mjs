@@ -103,7 +103,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
   // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/notifications.ts");
   assert.ok(
     sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'),
     "repaints as the edge writes a row",
@@ -139,7 +139,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "the row first, addressed or not",
   );
   assert.ok(notify.includes('L.error("notification_record_failed"'), "losing the row never loses the email");
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const wa = readCode("packages/core/src/inbound/ingest.ts");
   assert.ok(
     readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') &&
       wa.includes('route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",') &&

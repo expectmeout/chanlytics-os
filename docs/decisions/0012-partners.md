@@ -59,7 +59,7 @@ standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (
   - Who, when and why of a partner's status is kept on the row.
   - The standing event no longer carries which check tripped: every member reads events.
 - **The same-card check needs every card marked.** `billing_card_marks` is written as a subscription is applied, so a
-  subscription from before 00203 has none until it changes. `tooling/scripts/partner-card-marks-backfill.mjs`
+  subscription from before 00203 has none until it changes. `tooling/scripts/ops/partner-card-marks-backfill.mjs`
   (dry-run by default, a backup first, `--apply`) marks them through the webhook's own door, and `--rejudge` puts the
   sweep's own qualified decisions back to be judged with the marks in place. Run it once 00203 is applied.
 
@@ -158,6 +158,8 @@ to sell to". A partner's own workspace, on a paid plan, is their sales desk; not
    for thirty days in a first-touch cookie and on the pending workspace; `create_workspace` takes it, and in the
    same transaction as the tenant writes the attribution row and the partner's membership. A workspace that exists
    is never attributed later; a partner who is the caller is never attributed to their own workspace.
+   _Since 0020: a workspace that exists may ask a partner to join it, and is credited to them only if it had never
+   paid for a plan._
 3. **The share is 25% of what Stripe collected on the workspace's plan invoices, for as long as it pays.** Computed
    on `amount_paid` of an invoice with a subscription, after discounts and credits, before Stripe's fees. One-time
    payments (lead packs, 0010) and pass-through costs earn nothing in this version. The rate is a column on the

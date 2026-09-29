@@ -322,9 +322,9 @@ type Database = {
                     scheduled_for: string;
                     started_at: string | null;
                     state: string;
-                    template_id: string;
-                    template_language: string;
-                    template_name: string;
+                    template_id: string | null;
+                    template_language: string | null;
+                    template_name: string | null;
                     tenant_id: string;
                     updated_at: string;
                 };
@@ -343,9 +343,9 @@ type Database = {
                     scheduled_for: string;
                     started_at?: string | null;
                     state?: string;
-                    template_id: string;
-                    template_language: string;
-                    template_name: string;
+                    template_id?: string | null;
+                    template_language?: string | null;
+                    template_name?: string | null;
                     tenant_id: string;
                     updated_at?: string;
                 };
@@ -364,9 +364,9 @@ type Database = {
                     scheduled_for?: string;
                     started_at?: string | null;
                     state?: string;
-                    template_id?: string;
-                    template_language?: string;
-                    template_name?: string;
+                    template_id?: string | null;
+                    template_language?: string | null;
+                    template_name?: string | null;
                     tenant_id?: string;
                     updated_at?: string;
                 };
@@ -2801,6 +2801,7 @@ type Database = {
                     tiktok_url: string | null;
                     version: number;
                     website_host: string | null;
+                    website_root: boolean | null;
                 };
                 Insert: {
                     about?: string | null;
@@ -2853,6 +2854,7 @@ type Database = {
                     tiktok_url?: string | null;
                     version?: number;
                     website_host?: string | null;
+                    website_root?: boolean | null;
                 };
                 Update: {
                     about?: string | null;
@@ -2905,6 +2907,7 @@ type Database = {
                     tiktok_url?: string | null;
                     version?: number;
                     website_host?: string | null;
+                    website_root?: boolean | null;
                 };
                 Relationships: [
                     {
@@ -3420,6 +3423,48 @@ type Database = {
                     }
                 ];
             };
+            partner_invitations: {
+                Row: {
+                    declined_at: string | null;
+                    expires_at: string;
+                    invited_by: string | null;
+                    partner_id: string;
+                    sent_at: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    declined_at?: string | null;
+                    expires_at: string;
+                    invited_by?: string | null;
+                    partner_id: string;
+                    sent_at?: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    declined_at?: string | null;
+                    expires_at?: string;
+                    invited_by?: string | null;
+                    partner_id?: string;
+                    sent_at?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "partner_invitations_partner_id_fkey";
+                        columns: ["partner_id"];
+                        isOneToOne: false;
+                        referencedRelation: "partners";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "partner_invitations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: true;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             partner_payouts: {
                 Row: {
                     created_at: string;
@@ -3505,6 +3550,7 @@ type Database = {
                     handover_email: string | null;
                     handover_expires_at: string | null;
                     handover_sent_at: string | null;
+                    invited_by: string | null;
                     origin: string;
                     partner_id: string;
                     seat_held_at: string | null;
@@ -3524,6 +3570,7 @@ type Database = {
                     handover_email?: string | null;
                     handover_expires_at?: string | null;
                     handover_sent_at?: string | null;
+                    invited_by?: string | null;
                     origin?: string;
                     partner_id: string;
                     seat_held_at?: string | null;
@@ -3543,6 +3590,7 @@ type Database = {
                     handover_email?: string | null;
                     handover_expires_at?: string | null;
                     handover_sent_at?: string | null;
+                    invited_by?: string | null;
                     origin?: string;
                     partner_id?: string;
                     seat_held_at?: string | null;
@@ -3746,6 +3794,7 @@ type Database = {
                     domain_ids: string[];
                     gap_days: number;
                     gap_minutes: number | null;
+                    hand: Json | null;
                     id: string;
                     include_unconfirmed: boolean;
                     kind: string;
@@ -3760,9 +3809,9 @@ type Database = {
                     run_hour: number;
                     signed_by: string | null;
                     state: string;
-                    template_id: string;
-                    template_language: string;
-                    template_name: string;
+                    template_id: string | null;
+                    template_language: string | null;
+                    template_name: string | null;
                     tenant_id: string;
                     trigger: string;
                     updated_at: string;
@@ -3777,6 +3826,7 @@ type Database = {
                     domain_ids?: string[];
                     gap_days?: number;
                     gap_minutes?: number | null;
+                    hand?: Json | null;
                     id?: string;
                     include_unconfirmed?: boolean;
                     kind?: string;
@@ -3791,9 +3841,9 @@ type Database = {
                     run_hour?: number;
                     signed_by?: string | null;
                     state?: string;
-                    template_id: string;
-                    template_language: string;
-                    template_name: string;
+                    template_id?: string | null;
+                    template_language?: string | null;
+                    template_name?: string | null;
                     tenant_id: string;
                     trigger: string;
                     updated_at?: string;
@@ -3808,6 +3858,7 @@ type Database = {
                     domain_ids?: string[];
                     gap_days?: number;
                     gap_minutes?: number | null;
+                    hand?: Json | null;
                     id?: string;
                     include_unconfirmed?: boolean;
                     kind?: string;
@@ -3822,9 +3873,9 @@ type Database = {
                     run_hour?: number;
                     signed_by?: string | null;
                     state?: string;
-                    template_id?: string;
-                    template_language?: string;
-                    template_name?: string;
+                    template_id?: string | null;
+                    template_language?: string | null;
+                    template_name?: string | null;
                     tenant_id?: string;
                     trigger?: string;
                     updated_at?: string;
@@ -4814,6 +4865,12 @@ type Database = {
             };
         };
         Functions: {
+            ask_tokens_day: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: number;
+            };
             billing_card_mark: {
                 Args: {
                     p_fingerprint: string;
@@ -5836,6 +5893,45 @@ type Database = {
                 };
                 Returns: Json;
             };
+            partner_invitations_mine: {
+                Args: never;
+                Returns: {
+                    expires_at: string;
+                    sent_at: string;
+                    tenant_id: string;
+                    workspace: string;
+                }[];
+            };
+            partner_invite: {
+                Args: {
+                    p_code: string;
+                    p_tenant: string;
+                };
+                Returns: Json;
+            };
+            partner_invite_accept: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: {
+                    earns: boolean;
+                    id: string;
+                    name: string;
+                    slug: string;
+                }[];
+            };
+            partner_invite_decline: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: undefined;
+            };
+            partner_invite_withdraw: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: undefined;
+            };
             partner_letter_written: {
                 Args: {
                     p_partner: string;
@@ -6204,6 +6300,7 @@ type Database = {
                     checks: Json;
                     code: string;
                     decided_by: string;
+                    origin: string;
                     partner_id: string;
                     standing: string;
                     standing_at: string;
@@ -6327,6 +6424,13 @@ type Database = {
                     region: string;
                 }[];
             };
+            reach_out_booked: {
+                Args: {
+                    p_seen: Json;
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             reach_out_chain_report: {
                 Args: {
                     p_root_id: string;
@@ -6442,6 +6546,16 @@ type Database = {
                     p_created_at: string;
                 };
                 Returns: boolean;
+            };
+            reach_out_hand_run: {
+                Args: {
+                    p_day: string;
+                    p_items: Json;
+                    p_run_id: string;
+                    p_step_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             reach_out_held_stale: {
                 Args: {
@@ -7068,6 +7182,12 @@ type Database = {
                 Args: never;
                 Returns: number;
             };
+            workspace_partner: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: Json;
+            };
         };
         Enums: {
             [_ in never]: never;
@@ -7610,6 +7730,8 @@ interface ReachOutReplyOf {
     /** The address the reach-out wrote to, as stored; the lead's website host. */
     lead_email: string | null;
     lead_website: string | null;
+    /** Whether the finder saw that website as its host's root (00237); null when it was not kept, or before 00237. */
+    lead_website_root: boolean | null;
     answered_message_id: string | null;
     /** The first 600 characters of the email it answers. */
     answered_text: string | null;
@@ -8107,6 +8229,8 @@ interface ReachOutStepRow {
     signed_by: string | null;
     include_unconfirmed: boolean | null;
     template_id: string | null;
+    /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
+    hand: unknown;
     run_hour: number;
     last_run_for: string | null;
     created_at: string;
@@ -8145,6 +8269,30 @@ declare function emailWordsByTemplate(db: Db$d, tenantId: string, ids: string[])
 } | null>>;
 /** The searches' names, by id. */
 declare function searchNamesByIds(db: Db$d, tenantId: string, ids: string[]): Promise<Map<string, string>>;
+/** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */
+declare function leadNamesByIds(db: Db$d, tenantId: string, ids: string[]): Promise<Map<string, string>>;
+/** One lead a hand step hands to the team: its send, its person, the step's words for it, and its step's id. */
+type HandItem = {
+    send_id: string;
+    lead_id: string;
+    contact_id: string;
+    words: string;
+    source_id: string;
+};
+/**
+ * A hand step's run for its day, written whole (00228 reach_out_hand_run): the run, a handed send for each lead, and
+ * each lead's dated step for the team. How many were made, and how many the run had already.
+ */
+declare function handRun(db: Db$d, p: {
+    tenantId: string;
+    stepId: string;
+    runId: string;
+    day: string;
+    items: HandItem[];
+}): Promise<{
+    made: number;
+    already: number;
+}>;
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
 declare function runsWaitingOf(db: Db$d, tenantId: string): Promise<{
     id: string;
@@ -9053,8 +9201,8 @@ type PartnerPublicRow = Pick<PartnerRow, "id" | "code" | "status" | "share_bp" |
 declare function getOwnPartner(db: Db$1): Promise<PartnerPublicRow | null>;
 /**
  * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
- * read): through their link, or set up and accepted by an owner (0016); one still waiting for its owner is not
- * brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
+ * read): through their link, set up and accepted by an owner (0016), or joined at an owner's invitation (0020); one
+ * still waiting for its owner is not brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
  * row is a link's. Null when it cannot be read.
  */
 declare function getPartnerBroughtCount(db: Db$1, partnerId: string): Promise<number | null>;
@@ -9236,6 +9384,69 @@ interface HandoverInvite {
  * caller passes, so the door that sends it can write to nobody else. Null when the workspace has no open handover.
  */
 declare function getHandoverInvite(db: Db$1, tenantId: string): Promise<HandoverInvite | null>;
+/**
+ * An existing workspace brings in a partner (decision 0020, 00225): its owner names them by code, and they accept.
+ * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
+ * words, as the handover's do.
+ */
+/** The invitation as the owner's card says it. */
+interface PartnerInviteSent {
+    code: string;
+    sentAt: string;
+    expiresAt: string;
+}
+/** The owner asks the partner with this code to join the workspace (00225 partner_invite). */
+declare function invitePartner(db: Db$1, tenantId: string, code: string): Promise<HandoverResult<PartnerInviteSent>>;
+/** The owner takes the invitation back before it is answered (00225 partner_invite_withdraw). */
+declare function withdrawPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
+/** The workspace's partner and the invitation waiting, as its owner reads them (00225 workspace_partner). */
+interface WorkspacePartner {
+    partner: {
+        code: string;
+        origin: string;
+        since: string;
+        seated: boolean;
+    } | null;
+    invitation: {
+        code: string;
+        sentAt: string;
+        expiresAt: string;
+        declinedAt: string | null;
+    } | null;
+}
+declare function getWorkspacePartner(db: Db$1, tenantId: string): Promise<HandoverResult<WorkspacePartner>>;
+/** A workspace asking the caller, a partner, to join it. */
+interface PartnerInvitation {
+    tenantId: string;
+    workspace: string;
+    sentAt: string;
+    expiresAt: string;
+}
+/**
+ * The open invitations to the calling partner (00225 partner_invitations_mine). None on a database 00225 has not
+ * reached, which is true there: nobody can have asked.
+ */
+declare function getPartnerInvitations(db: Db$1): Promise<PartnerInvitation[]>;
+/** The workspace the partner joined, and whether its plan earns them a share. */
+interface PartnerJoined extends HandoverWorkspace {
+    earns: boolean;
+}
+/** The caller, a partner, joins the workspace that asked (00225 partner_invite_accept). */
+declare function acceptPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<PartnerJoined>>;
+/** The caller, a partner, says no (00225 partner_invite_decline). */
+declare function declinePartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
+/** What the edge needs to tell a partner a workspace asked for them: to whom, which workspace, until when. */
+interface PartnerInviteMail {
+    email: string;
+    workspace: string;
+    partnerCode: string;
+    expiresAt: string;
+}
+/**
+ * An open invitation's facts, for the edge (service role): the address is the partner's own account's, read here,
+ * never one a caller passes. Null when the workspace has no open invitation, or the partner has no address left.
+ */
+declare function getPartnerInviteMail(db: Db$1, tenantId: string): Promise<PartnerInviteMail | null>;
 
 /**
  * One lead as the Leads page would show it (Reach out Part 4, PR 9): what GET leads/[id] reads for the peek of a lead
@@ -9246,7 +9457,7 @@ declare function getHandoverInvite(db: Db$1, tenantId: string): Promise<Handover
 
 type Db = SupabaseClient<Database>;
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
-type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at">;
+type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at" | "website_root">;
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
 interface LeadOneMember {
     id: string;
@@ -9357,4 +9568,4 @@ declare function readAllRows<T>(what: string, page: (from: number, to: number) =
  */
 declare function readAllRowsByKey<T>(what: string, key: (row: T) => string, page: (after: string | null, size: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

@@ -248,7 +248,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // provisioned line spoken in their prompts -- are run in eval-door.test.mjs
   // and steer-door.test.mjs.
   for (const [file, call] of [
-    ["packages/core/src/inbound/answer.ts", "rt?.known"],
+    ["packages/core/src/inbound/model-turn.ts", "rt?.known"],
     ["apps/edge/lib/voice/call-start.ts", "rt.known"],
   ]) {
     const src = readCode(file);
@@ -261,7 +261,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // platform knows, and their conflicts -- is RUN: through the route in
   // settings-routes.test.mjs ("F1") and through its reader in readers.test.mjs.
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes(
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts").includes(
       "w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };",
     ),
     "and publishes them once",

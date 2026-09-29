@@ -13,7 +13,7 @@ import {
   type PipelineVM,
 } from "@chanlytics/contracts";
 import { PEOPLE_PAGE, countPeople, listPeople } from "../people/people";
-import { withVisits, type PeopleVisits } from "../calendar/calendar";
+import { withVisits, type PeopleVisits } from "../calendar/people-visits";
 import { dealPaceRead } from "../people/deals";
 import { stepNamer } from "../people/person-notes";
 import { followUpFacts } from "../campaigns/playbooks";

@@ -16,6 +16,7 @@ import type {
   ReachOutStartDto,
 } from "./reach-out-dtos";
 import { HOLD_DOOR_WORDS, holdDoors, holdWords, type HoldDoor } from "./reach-out-words";
+import type { HandKind } from "./reach-out-hand";
 
 export const REACH_OUT_SHEET_WORDS = {
   sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
@@ -33,6 +34,12 @@ export const REACH_OUT_SHEET_WORDS = {
   noDomain: "Add a domain you send from in Settings › Connections › Email first.",
   anotherStep: "Another step",
   anotherStepHint: "· another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "· ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
   removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
@@ -46,6 +53,9 @@ export const REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -137,6 +147,12 @@ export function sheetFootWords(p: { share: number; gapMinutes: number; ready: nu
 
 export function stepLabel(n: number): string {
   return n === 0 ? "Your email" : n === 1 ? "A short nudge" : `Email ${n + 1}`;
+}
+
+/** A step's label: an email's by its place, a hand step's by its kind (Part 5, G20). */
+export function stepLabelOf(s: { n: number; hand?: { kind: HandKind } | null }): string {
+  if (!s.hand) return stepLabel(s.n);
+  return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
 }
 
 export function stepWhenWords(n: number, afterDays: number | null): string {
@@ -336,7 +352,7 @@ export function chainPathWords(c: Pick<ReachOutChainDto, "steps">) {
   return {
     steps: c.steps.map((s) => ({
       id: s.id,
-      label: stepLabel(s.n),
+      label: stepLabelOf(s),
       after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`,
     })),
     stops: "Stops for anyone who writes back, books or says no.",
@@ -362,8 +378,30 @@ export const REACH_OUT_ROW_WORDS = {
 
 /** Playbooks' row for a chain (F14; canvas board 07): what the list says before the row is opened. */
 export function chainHintOf(c: ReachOutChainDto, host: string | null): string {
-  const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
+  const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
   return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` · from ${host}` : ""}`;
+}
+
+/**
+ * One step's line in the open row's table: an email's counts, or what a call or a note handed to you, which writes
+ * nothing and is answered by nobody.
+ */
+function reportRowOf(
+  s: ReachOutChainReportDto["steps"][number],
+  step: Pick<ReachOutChainDto["steps"][number], "after_days" | "hand"> | undefined,
+): string[] {
+  const label = stepLabelOf({ n: s.n, hand: step?.hand ?? null });
+  const when = s.n === 0 ? "Day one, in their hours" : `After ${step?.after_days ?? "?"} days with nothing back`;
+  if (step?.hand) return [label, when, `${s.handed ?? 0} handed to you`, "—", "—", "—", "—"];
+  return [
+    label,
+    when,
+    String(s.written),
+    `${s.delivered} (${pct(s.delivered, s.written)}%)`,
+    `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    String(s.said_no),
+    String(s.bounced),
+  ];
 }
 
 /** The open row: the chain's report said (R23), and whether it may be removed (R16). */
@@ -373,19 +411,21 @@ export function chainReportWordsOf(
   reach: ReachOutReachDto,
   p: { host: string | null; share: number },
 ) {
-  const sum = (k: "written" | "wrote_back" | "said_no" | "bounced" | "held") =>
-    report.steps.reduce((t, s) => t + s[k], 0);
+  const sum = (k: "written" | "wrote_back" | "said_no" | "bounced" | "held" | "handed") =>
+    report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum("written");
   const wroteBack = sum("wrote_back");
   const saidNo = sum("said_no");
   const bounced = sum("bounced");
   const held = sum("held");
+  const handed = sum("handed");
   const clauses = [`${written} written`];
+  if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
   if (saidNo > 0) clauses.push(`${saidNo} said no`);
   if (bounced > 0) clauses.push(`${bounced} bounced and their addresses were dropped`);
   const first = report.steps.find((s) => s.n === 0);
-  const afterOf = new Map(c.steps.map((s) => [s.id, s.after_days]));
+  const stepOf = new Map(c.steps.map((s) => [s.id, s]));
   return {
     // Who the chain has reached or will: its first step's written, waiting and held, and the search's still ready.
     reaches: {
@@ -393,15 +433,7 @@ export function chainReportWordsOf(
       of: `of ${reach.of} on the search`,
     },
     head: ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"],
-    table: report.steps.map((s) => [
-      stepLabel(s.n),
-      s.n === 0 ? "Day one, in their hours" : `After ${afterOf.get(s.id) ?? "?"} days with nothing back`,
-      String(s.written),
-      `${s.delivered} (${pct(s.delivered, s.written)}%)`,
-      `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
-      String(s.said_no),
-      String(s.bounced),
-    ]),
+    table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
     sentence:
       p.share > 0
         ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.`
@@ -411,7 +443,7 @@ export function chainReportWordsOf(
       held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r) => r.held > 0)?.id ?? null } : null,
     history: report.runs.map((r) => ({
       id: r.id,
-      text: `${r.run_for ? runDayWords(r.run_for) : "A run"} · ${r.written} written${r.held > 0 ? ` · ${r.held} held` : ""}`,
+      text: `${r.run_for ? runDayWords(r.run_for) : "A run"} · ${(r.handed ?? 0) > 0 ? `${r.handed} handed to you` : `${r.written} written`}${r.held > 0 ? ` · ${r.held} held` : ""}`,
     })),
     stopOne: REACH_OUT_SHEET_WORDS.stopOne,
     canRemove: report.can_remove,

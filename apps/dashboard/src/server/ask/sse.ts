@@ -54,8 +54,14 @@ export interface GatewayStop {
  */
 export interface GatewayUsage {
   type: "usage";
-  /** The API's own id for the message; a later request's cache diagnostics (Phase 6) name it. */
+  /** The API's own id for the message; the next request's cache diagnostics name it (the Phase 6 plan, D2). */
   messageId: string | null;
+  /**
+   * Why this request missed the cache the one it named had written (message.diagnostics): the API's type
+   * (`system_changed`, `tools_changed`, `messages_changed`, `model_changed`, `previous_message_not_found`,
+   * `unavailable`), "pending" when its comparison had not finished, or null when nothing diverged or nothing was named.
+   */
+  cacheMiss: string | null;
   inputTokens: number;
   cacheReadTokens: number;
   cacheCreationTokens: number;
@@ -63,6 +69,17 @@ export interface GatewayUsage {
 export interface GatewayError {
   type: "error";
   message: string;
+}
+/**
+ * Where the round's wait went before its stream began (the Phase 6 plan, D3): the edge's own time before it asked the
+ * model and the model's time to its headers, as the edge's server-timing said them (null when it said nothing), and
+ * the whole wait for the headers as this side measured it. What is left over is the hop, both ways.
+ */
+export interface GatewayTiming {
+  type: "timing";
+  gatewayMs: number | null;
+  modelMs: number | null;
+  headersMs: number;
 }
 export type GatewayEvent =
   | GatewayBlockStart
@@ -73,7 +90,8 @@ export type GatewayEvent =
   | GatewayBlockStop
   | GatewayStop
   | GatewayUsage
-  | GatewayError;
+  | GatewayError
+  | GatewayTiming;
 
 /** Whether a 400 from the API names the strict-tool or format feature, so the loop can retry without it. */
 export function featureRejected(message: string): boolean {
@@ -92,12 +110,30 @@ interface RawEvent {
     signature?: string;
     stop_reason?: string;
   };
-  message?: { id?: unknown; usage?: Record<string, unknown> };
+  message?: { id?: unknown; usage?: Record<string, unknown>; diagnostics?: unknown };
   usage?: { output_tokens?: unknown };
   error?: { message?: string; type?: string };
 }
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+/**
+ * The cache diagnostics' verdict on message_start (the Phase 6 plan, D2): null when the response carries none (no
+ * divergence, or nothing named to compare), "pending" when the comparison was still running, else the miss's type.
+ */
+function messageOf(message: { id?: unknown; diagnostics?: unknown } | undefined) {
+  return {
+    messageId: typeof message?.id === "string" ? message.id : null,
+    cacheMiss: cacheMissOf(message?.diagnostics),
+  };
+}
+function cacheMissOf(diagnostics: unknown): string | null {
+  if (!diagnostics || typeof diagnostics !== "object") return null;
+  const reason = (diagnostics as { cache_miss_reason?: unknown }).cache_miss_reason;
+  if (reason === null || reason === undefined) return "pending";
+  const type = (reason as { type?: unknown }).type;
+  return typeof type === "string" && type ? type : "unavailable";
+}
 
 /** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
 export function parseFrame(frame: string): GatewayEvent | null {
@@ -147,7 +183,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
       if (!u) return null;
       return {
         type: "usage",
-        messageId: typeof ev.message?.id === "string" ? ev.message.id : null,
+        ...messageOf(ev.message),
         inputTokens: num(u.input_tokens),
         cacheReadTokens: num(u.cache_read_input_tokens),
         cacheCreationTokens: num(u.cache_creation_input_tokens),

@@ -7,7 +7,8 @@
  * each person is read as, and what the pool can give a list. The edge's runner had built its own: its visits were never
  * marked as consultations, so a playbook on a list that reads one ran on nobody the page counted.
  */
-import type { ConsultRules, FeedItem } from "../calendar/availability";
+import type { ConsultRules } from "../calendar/service-offer";
+import type { FeedItem } from "../calendar/feed";
 import {
   indexFeed,
   toVisitDto,
@@ -17,9 +18,10 @@ import {
   type PersonVisitsDto,
   type VisitDto,
 } from "../calendar/calendar-people";
-import { isConsultationTitle } from "../deals/deals";
+import { isConsultationTitle } from "../deals/deal-consultations";
 import type { ListContext } from "./lists";
-import { toPersonRowVM, type PersonRowDto, type PersonRowVM } from "./people";
+import type { PersonRowDto } from "./person-dto";
+import { toPersonRowVM, type PersonRowVM } from "./person-row";
 
 /** A People row as the calendar matches it: a name a human gave, their number, their address. */
 export function personLikeOf(

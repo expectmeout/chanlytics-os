@@ -1,185 +1,35 @@
 // ../contracts/dist/index.js
 import { z } from "zod";
-import { z as z10 } from "zod";
+import { z as z7 } from "zod";
 import { z as z5 } from "zod";
+import { z as z2 } from "zod";
 import { z as z4 } from "zod";
 import { z as z3 } from "zod";
-import { z as z2 } from "zod";
 import { z as z6 } from "zod";
 import { z as z8 } from "zod";
-import { z as z7 } from "zod";
+import { z as z10 } from "zod";
 import { z as z9 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
-import { z as z14 } from "zod";
 import { z as z13 } from "zod";
 import { z as z15 } from "zod";
+import { z as z14 } from "zod";
 import { z as z16 } from "zod";
 import { z as z17 } from "zod";
 import { z as z18 } from "zod";
 import { z as z19 } from "zod";
 import { z as z20 } from "zod";
+import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 z.config({ jitless: true });
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z2.array(IntervalSchema).optional()
-}).strip();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z2.string().max(200).optional()
-});
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z2.string().max(120).optional()
-}).strip();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z2.boolean().optional()
-}).strip();
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
-}).strip();
-var BookingRulesSchema = z2.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z2.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strip();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z2.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
-}).strip();
-var BrainConfigSchema = z3.object({
-  business_name: z3.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z3.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z3.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z3.object({
-    /** Sent when no model key is configured. */
-    greeting: z3.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z3.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z3.string().min(1).max(2e3)
-  }).strip()
-}).strip();
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
-var LEAD_KIND_KEY = "kind";
 var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
@@ -237,38 +87,38 @@ var US_STATES = {
 var US_CODES = new Set(Object.values(US_STATES));
 var KEY = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
-var LeadSearchPlanSchema = z4.object({
-  version: z4.number().int().min(1),
-  card: z4.literal("local_businesses"),
+var words = (min, max) => z2.string().transform((s) => stripUnsafe(s).trim()).pipe(z2.string().min(min).max(max));
+var LeadSearchPlanSchema = z2.object({
+  version: z2.number().int().min(1),
+  card: z2.literal("local_businesses"),
   name: words(2, 80),
   asked: words(1, 400),
-  terms: z4.array(words(2, 60)).min(1).max(5),
-  area: z4.object({
-    kind: z4.enum(["zip", "city", "radius"]),
+  terms: z2.array(words(2, 60)).min(1).max(5),
+  area: z2.object({
+    kind: z2.enum(["zip", "city", "radius"]),
     label: words(2, 80),
-    state: z4.string().regex(/^[A-Z]{2}$/),
-    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
-    radius_m: z4.number().int().min(500).max(2e5),
-    zip: z4.string().regex(/^\d{5}$/).optional(),
+    state: z2.string().regex(/^[A-Z]{2}$/),
+    center: z2.object({ lat: z2.number().min(-90).max(90), lng: z2.number().min(-180).max(180) }).nullable(),
+    radius_m: z2.number().int().min(500).max(2e5),
+    zip: z2.string().regex(/^\d{5}$/).optional(),
     query: words(2, 120)
   }),
-  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z4.enum(["phone", "email"]),
-  criteria: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
+  count: z2.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z2.enum(["phone", "email"]),
+  criteria: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
       text: words(2, 120),
-      standard: z4.enum(["likely", "seen"]),
-      required: z4.boolean()
+      standard: z2.enum(["likely", "seen"]),
+      required: z2.boolean()
     })
   ).max(8),
-  exclusions: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
+  exclusions: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
       text: words(2, 80),
-      origin: z4.enum(["claude", "you_said"]),
-      category_key: z4.string().regex(KEY).optional()
+      origin: z2.enum(["claude", "you_said"]),
+      category_key: z2.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -296,6 +146,157 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z3.object({ open: TIME, close: TIME });
+var HoursSchema = z3.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z3.array(IntervalSchema).optional()
+}).strip();
+var DATE = z3.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z3.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z3.string().max(200).optional()
+});
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = z3.object({
+  name: z3.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z3.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z3.string().max(120).optional()
+}).strip();
+var GuardrailsSchema = z3.object({
+  never_quote_prices: z3.boolean().optional(),
+  never_confirm_booking: z3.boolean().optional(),
+  disclose_ai: z3.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z3.boolean().optional()
+}).strip();
+var NoteSchema = z3.object({
+  title: z3.string().min(1).max(80),
+  text: z3.string().min(1).max(1200)
+}).strip();
+var BookingRulesSchema = z3.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: z3.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: z3.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: z3.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: z3.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
+  party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
+}).strip();
+var E164 = /^\+[1-9]\d{6,14}$/;
+var INSTRUCTIONS_MAX = 2e4;
+var BusinessProfileSchema = z3.object({
+  address: z3.string().max(300).optional(),
+  hours: z3.partialRecord(z3.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z3.array(ClosureSchema).optional(),
+  services: z3.array(ServiceSchema).max(60).optional(),
+  languages: z3.array(z3.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z3.array(z3.string().min(1).max(200)).max(20).optional(),
+  tone: z3.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
+  website: z3.string().url().max(500).optional(),
+  notes: z3.array(NoteSchema).max(10).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z3.string().max(INSTRUCTIONS_MAX).optional()
+}).strip();
+var BrainConfigSchema = z4.object({
+  business_name: z4.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z4.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z4.string().url().max(500).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z4.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z4.object({
+    /** Sent when no model key is configured. */
+    greeting: z4.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z4.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z4.string().min(1).max(2e3)
+  }).strip()
+}).strip();
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -522,7 +523,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES2 = {
+var DAY_NAMES = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -531,7 +532,7 @@ var DAY_NAMES2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME = DAY_NAMES2;
+var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -617,283 +618,66 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-var LEAD_FIRST_DAY_TITLE = "Your people gather here";
-var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
-var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
-var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
-var LEAD_WORDS = {
-  /**
-   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
-   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
-   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
-   *
-   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
-   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
-   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
-   */
-  callWays: {
-    dial: { label: "Call from your phone" },
-    copy: { label: "Copy the number" },
-    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
-    log: { label: "Log a call you already made", meta: "how did it go?" }
-  },
-  close: "Close",
-  open: "Open",
-  stageLabel: "Stage",
-  notFit: LEAD_CLOSED_WORDS.not_a_fit,
-  notFitTitle: LEAD_NOT_A_FIT_TITLE,
-  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
-  keep: "Keep",
-  exclude: "Exclude",
-  putBack: "Put back",
-  leftOut: "Left out of this search. It doesn't count.",
-  reach: "How you can reach them",
-  checked: "Checked",
-  found: "Found",
-  call: "Call",
-  copy: "Copy",
-  copyAria: "Copy the email",
-  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
-  copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
-  noWebsite: "No website listed",
-  instagram: "Instagram",
-  talkingNote: LEAD_TALKING_NOTE,
-  sentQuestion: LEAD_SENT_QUESTION,
-  sentYes: "Yes, mark contacted",
-  sentNo: "Not yet",
-  callQuestion: LEAD_CALL_QUESTION,
-  callSave: "Save",
-  callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
-    id,
-    label: LEAD_CALL_OUTCOME_WORDS[id],
-    tone: LEAD_CALL_OUTCOME_TONES[id]
-  })),
-  noteLabel: "A note about the call",
-  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
-  noteMax: LEAD_NOTE_MAX,
-  noteLeft: leadNoteLeft,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
-  draftRewrite: "Rewrite",
-  tones: [
-    { id: "shorter", label: "Shorter" },
-    { id: "warmer", label: "Warmer" }
-  ],
-  draftWriting: "Writing it\u2026",
-  draftNote: LEAD_DRAFT_NOTE,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email.",
-  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
-  about: "About",
-  reachHeading: "Reach",
-  unclaimed: LEAD_UNCLAIMED_NOTE,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
-  // D5: the peek re-cut, and the photo expanded.
-  expand: "Expand",
-  photos: "Photos",
-  noPhoto: "No photo on the listing",
-  whereSits: "Where it sits",
-  openHours: "Open hours",
-  fromListing: "From the listing",
-  openMaps: "Open in Maps",
-  ratedHeading: "What people say",
-  closePhotos: "Close",
-  // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
-  deckPrev: "The lead before",
-  deckNext: "The next lead",
-  callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
-  /**
-   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
-   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
-   */
-  more: "More for this lead",
-  erase: LEAD_ERASE_WORDS
-};
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
-var WA_WINDOW_MS = 24 * HOUR_MS;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * MIN_MS;
-var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
-var MONTH_MS = 30 * DAY_MS;
-var NOTE_MAX = 600;
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-var L = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
+var ASK_UNDO_MS = 10 * 6e4;
+var AskProposalOutcomeSchema = z7.object({
+  state: z7.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z7.string().max(300).catch(""),
+  atMs: z7.number().catch(0),
+  undo: z7.record(z7.string(), z7.unknown()).nullable().optional()
 });
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
+var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
+var ASK_SURFACES = [
+  "today",
+  "inbox",
+  "people",
+  "leads",
+  "conversations",
+  "live",
+  "reports",
+  "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
+  "other"
 ];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var ASK_LANGUAGES = ["en", "es", "other"];
+var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
+  z8.object({
+    op: z8.literal("add_closure"),
+    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z8.string().max(200).optional()
+  }),
+  z8.object({
+    op: z8.literal("set_hours"),
+    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
+  z8.object({
+    op: z8.literal("add_service"),
+    name: z8.string().min(1).max(80),
+    duration_min: z8.number().int().min(1).max(1440).optional()
+  })
+]);
+var ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -999,22 +783,127 @@ var SENDING_HOURS_WORDS = {
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
+var LEAD_KIND_KEY = "kind";
+var LEAD_FIRST_DAY_TITLE = "Your people gather here";
+var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+var LEAD_WORDS = {
+  /**
+   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+   *
+   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+   */
+  callWays: {
+    dial: { label: "Call from your phone" },
+    copy: { label: "Copy the number" },
+    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+    log: { label: "Log a call you already made", meta: "how did it go?" }
+  },
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id]
+  })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS
 };
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: PERSON_CHANNEL_WORDS.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -1142,36 +1031,36 @@ var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX = 12;
 var LIST_ANY_MAX = 6;
 var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z7.enum(DAY_OPS), days: z7.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z7.literal("is"), yes: z7.boolean() };
-var Count = { op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) };
-var IsOrNot = z7.enum(["is", "is_not"]);
-var Token = z7.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z7.object(shape).strict();
-var ListFactSchema = z7.discriminatedUnion("field", [
-  fact({ field: z7.literal("last_visit"), ...Days }),
-  fact({ field: z7.literal("next_visit"), ...Days }),
-  fact({ field: z7.literal("booked"), ...YesNo }),
-  fact({ field: z7.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z7.literal("last_heard"), ...Days }),
-  fact({ field: z7.literal("first_contact"), ...Days }),
-  fact({ field: z7.literal("channel"), op: IsOrNot, channel: z7.enum(CHANNELS) }),
-  fact({ field: z7.literal("came_from"), op: IsOrNot, from: z7.enum(CAME_FROM) }),
-  fact({ field: z7.literal("calls"), ...Count }),
-  fact({ field: z7.literal("conversations"), ...Count }),
-  fact({ field: z7.literal("has_chat"), ...YesNo }),
-  fact({ field: z7.literal("said_yes"), ...YesNo, to: z7.enum(LIST_PURPOSES) }),
-  fact({ field: z7.literal("can_receive"), ...YesNo, to: z7.enum(LIST_PURPOSES) }),
-  fact({ field: z7.literal("stopped"), ...YesNo }),
-  fact({ field: z7.literal("standing"), op: IsOrNot, value: z7.enum(LIST_STANDINGS) }),
-  fact({ field: z7.literal("assigned"), op: IsOrNot, value: z7.enum(LIST_ASSIGNED) }),
-  fact({ field: z7.literal("deal_stage"), op: IsOrNot, value: z7.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z7.literal("consultation"), ...YesNo }),
-  fact({ field: z7.literal("step_due"), ...YesNo }),
-  fact({ field: z7.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z9.enum(DAY_OPS), days: z9.number().int().min(1).max(3650).optional() };
+var YesNo = { op: z9.literal("is"), yes: z9.boolean() };
+var Count = { op: z9.enum(["at_least", "at_most"]), n: z9.number().int().min(0).max(1e4) };
+var IsOrNot = z9.enum(["is", "is_not"]);
+var Token = z9.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z9.object(shape).strict();
+var ListFactSchema = z9.discriminatedUnion("field", [
+  fact({ field: z9.literal("last_visit"), ...Days }),
+  fact({ field: z9.literal("next_visit"), ...Days }),
+  fact({ field: z9.literal("booked"), ...YesNo }),
+  fact({ field: z9.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z9.literal("last_heard"), ...Days }),
+  fact({ field: z9.literal("first_contact"), ...Days }),
+  fact({ field: z9.literal("channel"), op: IsOrNot, channel: z9.enum(CHANNELS) }),
+  fact({ field: z9.literal("came_from"), op: IsOrNot, from: z9.enum(CAME_FROM) }),
+  fact({ field: z9.literal("calls"), ...Count }),
+  fact({ field: z9.literal("conversations"), ...Count }),
+  fact({ field: z9.literal("has_chat"), ...YesNo }),
+  fact({ field: z9.literal("said_yes"), ...YesNo, to: z9.enum(LIST_PURPOSES) }),
+  fact({ field: z9.literal("can_receive"), ...YesNo, to: z9.enum(LIST_PURPOSES) }),
+  fact({ field: z9.literal("stopped"), ...YesNo }),
+  fact({ field: z9.literal("standing"), op: IsOrNot, value: z9.enum(LIST_STANDINGS) }),
+  fact({ field: z9.literal("assigned"), op: IsOrNot, value: z9.enum(LIST_ASSIGNED) }),
+  fact({ field: z9.literal("deal_stage"), op: IsOrNot, value: z9.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z9.literal("consultation"), ...YesNo }),
+  fact({ field: z9.literal("step_due"), ...YesNo }),
+  fact({ field: z9.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z7.object({ any: z7.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z7.union([AnySchema, ListFactSchema]);
+var AnySchema = z9.object({ any: z9.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
+var ListConditionSchema = z9.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -1179,13 +1068,13 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema = z7.object({
-  v: z7.literal(2).optional(),
-  all: z7.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
+var ListRuleSchema = z9.object({
+  v: z9.literal(2).optional(),
+  all: z9.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
 }).strict().superRefine((r2, ctx) => {
   for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
     const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z7.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z9.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts(rule) {
@@ -1307,11 +1196,19 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-var ListDraftAnswerSchema = z7.object({
-  name: z7.string().trim().min(1).max(60),
-  cannot: z7.string().trim().max(200),
-  all: z7.array(z7.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z9.object({
+  name: z9.string().trim().min(1).max(60),
+  cannot: z9.string().trim().max(200),
+  all: z9.array(z9.unknown()).max(LIST_RULE_MAX)
 });
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
 function parseListToken(token2) {
@@ -1486,201 +1383,28 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     test: (vm) => listRuleMatches(l.rule, vm)
   };
 });
-var PeopleExportQuerySchema = z8.object({
-  list: z8.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema = z10.object({
+  list: z10.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var LIMIT_TIERS = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+var MONTH_MS = 30 * DAY_MS;
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
 };
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var BROADCAST_THROTTLE_WAITS_MS = [
-  MIN_MS,
-  2 * MIN_MS,
-  5 * MIN_MS,
-  10 * MIN_MS,
-  15 * MIN_MS,
-  30 * MIN_MS
-];
-var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var CHECKOUT_OUTCOME_WORDS = {
-  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
-  cancel: "Checkout was closed before finishing; nothing was charged.",
-  portal: "Back from Stripe. Any change you made there shows here within a minute."
+var NOTE_MAX = 600;
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
 };
-function registrationPathOf(saved) {
-  if (!saved) return null;
-  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
-}
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LEAD_MAP_STATE_WORDS = {
-  talking: LEAD_STAGE_WORDS.converted,
-  contacted: LEAD_STAGE_WORDS.nurture,
-  review: LEAD_REVIEW_WORD,
-  ready: LEAD_STAGE_WORDS.ready,
-  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
-};
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var PolicyLimitsSchema = z9.object({
-  max_replies_day: z9.number().int().min(1).max(200).optional(),
-  pause_hours: z9.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z9.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z9.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z9.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short,
-  follow_up: POLICY_CLASS_WORDS.follow_up.short,
-  outreach: POLICY_CLASS_WORDS.outreach.short
-};
-var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z10.object({
-  state: z10.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z10.string().max(300).catch(""),
-  atMs: z10.number().catch(0),
-  undo: z10.record(z10.string(), z10.unknown()).nullable().optional()
-});
-var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
-var ASK_SURFACES = [
-  "today",
-  "inbox",
-  "people",
-  "leads",
-  "conversations",
-  "live",
-  "reports",
-  "settings",
-  "pipeline",
-  "calendar",
-  "campaigns",
-  "start",
-  "other"
-];
-var AskSettingsChangeSchema = z10.discriminatedUnion("op", [
-  z10.object({
-    op: z10.literal("add_closure"),
-    date: z10.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z10.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z10.string().max(200).optional()
-  }),
-  z10.object({
-    op: z10.literal("set_hours"),
-    day: z10.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z10.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z10.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z10.object({ op: z10.literal("add_note"), title: z10.string().min(1).max(80), text: z10.string().min(1).max(1200) }),
-  z10.object({
-    op: z10.literal("add_service"),
-    name: z10.string().min(1).max(80),
-    duration_min: z10.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_CITATION_KINDS = [
-  "thread",
-  "conversation",
-  "call",
-  "person",
-  "page",
-  "lead",
-  "search",
-  "deal",
-  "list",
-  "broadcast",
-  "playbook",
-  "template",
-  "domain"
-];
-var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -1699,7 +1423,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -1852,6 +1576,172 @@ var PageContextSchema = z11.object({
   rows: z11.array(z11.object({ kind: z11.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z11.number().int().nonnegative()
 }).strict();
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var LIMIT_TIERS = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
+var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS = 24 * HOUR_MS;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -1982,6 +1872,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -2090,6 +1985,75 @@ var DECISION_VERBS = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var PolicyLimitsSchema = z12.object({
+  max_replies_day: z12.number().int().min(1).max(200).optional(),
+  pause_hours: z12.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z12.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z12.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z12.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -2139,16 +2103,16 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema = z12.object({
-  reply: z12.string(),
-  intent: z12.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z12.boolean().catch(false),
-  reason: z12.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z12.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z12.array(z12.string()).catch([]).transform(
+var BrainOutputSchema = z13.object({
+  reply: z13.string(),
+  intent: z13.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z13.boolean().catch(false),
+  reason: z13.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z13.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z13.array(z13.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
-  language: z12.enum(BRAIN_LANGUAGES).catch("other")
+  language: z13.enum(BRAIN_LANGUAGES).catch("other")
 });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 var REVIEW_NEWS_MS = 36 * HOUR_MS;
@@ -2166,12 +2130,20 @@ function reviewSnippet(body, max = 90) {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var CHECKOUT_OUTCOME_WORDS = {
+  success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
+  cancel: "Checkout was closed before finishing; nothing was charged.",
+  portal: "Back from Stripe. Any change you made there shows here within a minute."
+};
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
 }
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -2182,25 +2154,27 @@ var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema = z13.object({
+var ReachOutStepSchema = z14.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z13.string().uuid().nullable().optional(),
-  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z14.string().uuid().nullable().optional(),
+  subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z14.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z13.object({
-  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z13.string().uuid(),
-  include_unconfirmed: z13.boolean(),
+var ReachOutChainSchema = z14.object({
+  name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z14.string().uuid(),
+  include_unconfirmed: z14.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z13.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z14.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z13.array(z13.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
-  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z14.array(z14.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
+  signed_by: z14.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z14.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 var OPENING_FACT_KEYS = [
   "category",
@@ -2223,9 +2197,9 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
-var ReachOutRepliesQuerySchema = z14.object({
-  since: z14.string().datetime({ offset: true }).optional(),
-  conversation_id: z14.string().uuid().optional()
+var ReachOutRepliesQuerySchema = z15.object({
+  since: z15.string().datetime({ offset: true }).optional(),
+  conversation_id: z15.string().uuid().optional()
 });
 var CALL_OUTCOMES = [
   "answered",
@@ -2278,6 +2252,43 @@ var RECORDING_NOTE = {
   pending: "Recording still processing",
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
+};
+function registrationPathOf(saved) {
+  if (!saved) return null;
+  return String(saved.ein ?? "").trim() ? "standard" : "sole_proprietor";
+}
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var LEAD_MAP_STATE_WORDS = {
+  talking: LEAD_STAGE_WORDS.converted,
+  contacted: LEAD_STAGE_WORDS.nurture,
+  review: LEAD_REVIEW_WORD,
+  ready: LEAD_STAGE_WORDS.ready,
+  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
+};
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
+  outreach: POLICY_CLASS_WORDS.outreach.short
 };
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
@@ -2488,15 +2499,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z15.object({
-  places: z15.array(
-    z15.object({
-      ref: z15.number().int(),
-      criteria: z15.array(
-        z15.object({ key: z15.string(), answer: z15.enum(["pass", "fail", "unknown"]), facts: z15.array(z15.string()) })
+var AnswerSchema = z16.object({
+  places: z16.array(
+    z16.object({
+      ref: z16.number().int(),
+      criteria: z16.array(
+        z16.object({ key: z16.string(), answer: z16.enum(["pass", "fail", "unknown"]), facts: z16.array(z16.string()) })
       ),
-      email_index: z15.number().int().nullable(),
-      reason: z15.string()
+      email_index: z16.number().int().nullable(),
+      reason: z16.string()
     })
   )
 });
@@ -2716,23 +2727,26 @@ var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
-var ReachOutPreviewSchema = z16.object({
-  search_id: z16.string().uuid(),
-  index: z16.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z16.boolean(),
-  words: z16.object({
-    subject: z16.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z16.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z17.object({
+  search_id: z17.string().uuid(),
+  index: z17.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z17.boolean(),
+  words: z17.object({
+    subject: z17.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z17.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z16.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z16.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z17.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z17.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema = z16.object({ decision: z16.enum(REACH_OUT_DECISIONS) });
+var ReachOutDecideSchema = z17.object({ decision: z17.enum(REACH_OUT_DECISIONS) });
 var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -2790,6 +2804,12 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -2797,10 +2817,10 @@ var SEARCH_WARN_MS = 12 * HOUR_MS;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z17.string().trim().max(80);
-var SignupSchema = z17.object({
-  name: z17.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z17.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z18.string().trim().max(80);
+var SignupSchema = z18.object({
+  name: z18.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z18.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2814,17 +2834,17 @@ var SignupSchema = z17.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z17.string().max(200).optional(),
+  password: z18.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z17.string().trim().min(1).max(64).optional(),
+  timezone: z18.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z17.object({
-  name: z17.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z18.object({
+  name: z18.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z17.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z18.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2862,19 +2882,19 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z18.object({
-  code: z18.string().trim().min(1).max(64),
-  terms: z18.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z19.object({
+  code: z19.string().trim().min(1).max(64),
+  terms: z19.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z18.object({ letters: z18.boolean() }).strict();
+var PartnerLettersSchema = z19.object({ letters: z19.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -2893,7 +2913,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -2905,43 +2925,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z18.coerce.number();
-var letterSum = z18.object({ currency: z18.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z18.object({
+var letterCents = z19.coerce.number();
+var letterSum = z19.object({ currency: z19.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z19.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z18.array(z18.object({ kind: z18.string(), currency: z18.string(), count: z18.coerce.number(), cents: letterCents })).default([]),
+  written: z19.array(z19.object({ kind: z19.string(), currency: z19.string(), count: z19.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z18.array(letterSum).default([]),
+  matured: z19.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z18.array(letterSum).default([]),
-  paid: z18.array(z18.object({ currency: z18.string(), cents: letterCents, reference: z18.string(), sent_at: z18.string() })).default([]),
+  voided: z19.array(letterSum).default([]),
+  paid: z19.array(z19.object({ currency: z19.string(), cents: letterCents, reference: z19.string(), sent_at: z19.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z18.array(z18.object({ workspace: z18.string().nullable(), standing: z18.string(), why: z18.string().nullable() })).default([]),
+  standing: z19.array(z19.object({ workspace: z19.string().nullable(), standing: z19.string(), why: z19.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z18.array(z18.string().nullable()).default([]),
+  brought: z19.array(z19.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z18.array(z18.string().nullable()).default([]),
-  declined: z18.array(z18.string().nullable()).default([]),
+  accepted: z19.array(z19.string().nullable()).default([]),
+  declined: z19.array(z19.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z18.object({ status: z18.string(), why: z18.string().nullable() }).nullable().default(null),
-  balance: z18.array(
-    z18.object({
-      currency: z18.string(),
+  status: z19.object({ status: z19.string(), why: z19.string().nullable() }).nullable().default(null),
+  balance: z19.array(
+    z19.object({
+      currency: z19.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z18.string().nullable()
+      next_payable_at: z19.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z19.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z19.object({
-  name: z19.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z19.string().trim().max(64).nullish(),
+var ownerEmail = z20.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z20.object({
+  name: z20.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z20.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z19.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z20.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -2970,10 +2990,36 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z20.object({
-  partner_id: z20.string().uuid("That partner does not exist."),
-  why: z20.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z21.object({
+  partner_id: z21.string().uuid("That partner does not exist."),
+  why: z21.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS = 14;
+var PartnerInviteSchema = z22.object({
+  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -3124,7 +3170,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
   }
 }
 
-// src/voice-retell.ts
+// src/voice/voice-retell.ts
 import crypto2 from "crypto";
 var API = "https://api.retellai.com";
 var E1642 = /^\+[1-9]\d{6,14}$/;
@@ -3229,12 +3275,42 @@ async function listCalls(cfg, opts) {
     total: typeof out.total === "number" ? out.total : null
   };
 }
-async function getCall(cfg, callId) {
-  const r2 = await fetch(`${API}/v2/get-call/${callId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` }
-  });
-  if (!r2.ok) return null;
-  return await r2.json();
+var RETELL_READ_TIMEOUT_MS = 1e4;
+function retryAfterMs(header) {
+  if (!header) return null;
+  const h = header.trim();
+  const ms = /^\d+$/.test(h) ? Number(h) * 1e3 : Date.parse(h) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+function isCallBody(v) {
+  const o = plainObject(v);
+  return o !== null && typeof o.call_id === "string";
+}
+async function getCall(cfg, callId, opts = {}) {
+  let r2;
+  try {
+    r2 = await fetch(`${API}/v2/get-call/${callId}`, {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS)
+    });
+  } catch {
+    return { kind: "unavailable", status: null, retryAfterMs: null };
+  }
+  if (r2.ok) {
+    let body = null;
+    try {
+      body = await r2.json();
+    } catch (e) {
+      if (e instanceof Error && e.name === "TimeoutError")
+        return { kind: "unavailable", status: null, retryAfterMs: null };
+    }
+    return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
+  }
+  await r2.body?.cancel().catch(() => void 0);
+  if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
+  if (r2.status === 408 || r2.status === 425 || r2.status === 429 || r2.status >= 500)
+    return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers.get("retry-after")) };
+  return { kind: "not_found", status: r2.status };
 }
 async function getAgent(cfg, agentId) {
   const r2 = await fetch(`${API}/get-agent/${agentId}`, {
@@ -3242,26 +3318,26 @@ async function getAgent(cfg, agentId) {
   });
   if (!r2.ok) return null;
   const a = await r2.json();
-  const str5 = (k) => typeof a[k] === "string" ? a[k] : null;
-  const num3 = (k) => typeof a[k] === "number" ? a[k] : null;
+  const str2 = (k) => typeof a[k] === "string" ? a[k] : null;
+  const num = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
   const engine = a.response_engine ?? {};
   return {
-    agent_id: str5("agent_id") ?? agentId,
-    agent_name: str5("agent_name"),
-    version: num3("version"),
+    agent_id: str2("agent_id") ?? agentId,
+    agent_name: str2("agent_name"),
+    version: num("version"),
     is_published: bool("is_published"),
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic. That
     // a key rides there at all is kept as a fact, so the planner can retire it.
-    webhook_url: str5("webhook_url")?.split("?")[0] ?? null,
-    webhook_url_keyed: /[?&]key=/.test(str5("webhook_url") ?? ""),
+    webhook_url: str2("webhook_url")?.split("?")[0] ?? null,
+    webhook_url_keyed: /[?&]key=/.test(str2("webhook_url") ?? ""),
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
-    webhook_timeout_ms: num3("webhook_timeout_ms"),
-    data_storage_setting: str5("data_storage_setting"),
-    data_storage_retention_days: num3("data_storage_retention_days"),
+    webhook_timeout_ms: num("webhook_timeout_ms"),
+    data_storage_setting: str2("data_storage_setting"),
+    data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
   };
@@ -3364,14 +3440,14 @@ async function getRetellLlm(cfg, llmId, version) {
   });
   if (!r2.ok) return null;
   const l = await r2.json();
-  const str5 = (k) => typeof l[k] === "string" ? l[k] : null;
+  const str2 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
-    llm_id: str5("llm_id") ?? llmId,
+    llm_id: str2("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
-    model: str5("model"),
+    model: str2("model"),
     model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
-    general_prompt: str5("general_prompt"),
-    begin_message: str5("begin_message"),
+    general_prompt: str2("general_prompt"),
+    begin_message: str2("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
@@ -3398,7 +3474,7 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   return a.length === b.length && crypto2.timingSafeEqual(a, b);
 }
 
-// src/voice-shell.ts
+// src/voice/voice-shell.ts
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
@@ -3492,7 +3568,7 @@ function desiredVoiceShell(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
     general_tools: voiceShellTools(fnUrl, bookingHeaders)
   };
 }
-var norm = (s) => (s ?? "").replace(/\r\n/g, "\n").trim();
+var normalizedText = (s) => (s ?? "").replace(/\r\n/g, "\n").trim();
 function stableJson(v) {
   if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
   if (v && typeof v === "object") {
@@ -3514,16 +3590,16 @@ function subsetEqual(live, desired) {
 function planVoiceConvergence(live, desired) {
   const drift = [];
   const patch = {};
-  if (norm(live.general_prompt) !== norm(desired.general_prompt)) {
-    const has = (v) => norm(live.general_prompt).includes(v);
+  if (normalizedText(live.general_prompt) !== normalizedText(desired.general_prompt)) {
+    const has = (v) => normalizedText(live.general_prompt).includes(v);
     drift.push(
-      `general_prompt differs (${norm(live.general_prompt).length} chars live; reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`
+      `general_prompt differs (${normalizedText(live.general_prompt).length} chars live; reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`
     );
     patch.general_prompt = desired.general_prompt;
   }
-  if (norm(live.begin_message) !== norm(desired.begin_message)) {
+  if (normalizedText(live.begin_message) !== normalizedText(desired.begin_message)) {
     drift.push(
-      `begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}\u2026), not ${desired.begin_message}`
+      `begin_message is typed in (${JSON.stringify(normalizedText(live.begin_message).slice(0, 60))}\u2026), not ${desired.begin_message}`
     );
     patch.begin_message = desired.begin_message;
   }
@@ -3663,7 +3739,7 @@ function agentSettingsDrift(live) {
   return { converged: plan.drift.length === 0, drift: plan.drift };
 }
 
-// src/voice-provision.ts
+// src/voice/voice-provision.ts
 var VOICE_LLM_DEFAULTS = {
   model: "claude-4.5-haiku",
   model_temperature: 0,
@@ -3817,7 +3893,7 @@ function planVoiceProvision(st) {
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }
 
-// src/lines.ts
+// src/lines/lines.ts
 import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
 var LINE_COSTS = {
@@ -3861,7 +3937,7 @@ function isValidSipPassword(p) {
 var isE164 = (s) => typeof s === "string" && E164.test(s);
 var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
 
-// src/lines-twilio.ts
+// src/lines/lines-twilio.ts
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -3924,242 +4000,252 @@ function rowsOf(b, key) {
   const rows = b[key];
   return Array.isArray(rows) ? rows.filter((r2) => !!r2 && typeof r2 === "object" && !Array.isArray(r2)) : [];
 }
+async function createSubaccount(http, master, friendlyName) {
+  const b = need(
+    await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
+    "create subaccount"
+  );
+  const sid2 = str(b, "sid");
+  const token = str(b, "auth_token");
+  if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
+  return { sid: sid2, token, status: str(b, "status") ?? "active" };
+}
+async function findSubaccount(http, master, friendlyName) {
+  const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
+  for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+    const sid2 = str(a, "sid");
+    const token = str(a, "auth_token");
+    if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
+  }
+  return null;
+}
+async function findTrunk(http, acct, domainName) {
+  for (const t of rowsOf(need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
+    const sid2 = str(t, "sid");
+    if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
+  }
+  return null;
+}
+async function findCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+    "list credential lists"
+  );
+  for (const l of rowsOf(b, "credential_lists")) {
+    const sid2 = str(l, "sid");
+    if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
+  }
+  return null;
+}
+async function findCredential(http, acct, listSid, username) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+    "list credentials"
+  );
+  for (const c of rowsOf(b, "credentials")) {
+    const sid2 = str(c, "sid");
+    if (sid2 && str(c, "username") === username) return { sid: sid2 };
+  }
+  return null;
+}
+async function deleteCredential(http, acct, listSid, credentialSid) {
+  const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
+}
+async function findOrigination(http, acct, trunkSid, sipUrl) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+    "list origination urls"
+  );
+  for (const o of rowsOf(b, "origination_urls")) {
+    const sid2 = str(o, "sid");
+    if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
+  }
+  return null;
+}
+async function searchLocal(http, acct, q) {
+  const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
+    AreaCode: String(q.areaCode),
+    VoiceEnabled: "true",
+    SmsEnabled: "true",
+    PageSize: String(Math.min(Math.max(q.limit, 1), 30))
+  }).toString()}`;
+  const b = need(await http(acct, "GET", url), "search numbers");
+  const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
+  return rows.map((n) => {
+    const e164 = str(n, "phone_number");
+    if (!e164) return null;
+    const caps = n.capabilities ?? {};
+    return {
+      e164,
+      friendly: str(n, "friendly_name") ?? e164,
+      locality: str(n, "locality"),
+      region: str(n, "region"),
+      capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
+    };
+  }).filter((n) => n !== null);
+}
+async function buyNumber(http, acct, e164, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
+      PhoneNumber: e164,
+      FriendlyName: friendlyName.slice(0, 64)
+    }),
+    "buy number"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
+  return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
+}
+async function ownedNumber(http, acct, e164) {
+  const a = await http(
+    acct,
+    "GET",
+    `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
+  );
+  if (a.status === 404) return null;
+  const b = need(a, "list owned numbers");
+  const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const sid2 = str(row, "sid");
+    if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
+  }
+  return null;
+}
+async function releaseNumber(http, acct, numberSid) {
+  const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
+}
+async function createTrunk(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunks, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      DomainName: o.domainName
+    }),
+    "create trunk"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
+  return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
+}
+async function deleteTrunk(http, acct, trunkSid) {
+  const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
+}
+async function createCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
+    "create credential list"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
+  return { sid: sid2 };
+}
+async function addCredential(http, acct, listSid, username, password) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
+    "add credential"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
+  return { sid: sid2 };
+}
+async function attachCredentialList(http, acct, trunkSid, listSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
+    "attach credential list"
+  );
+}
+async function addOrigination(http, acct, trunkSid, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
+      SipUrl: o.sipUrl,
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Weight: "10",
+      Priority: "10",
+      Enabled: "true"
+    }),
+    "add origination"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
+  return { sid: sid2 };
+}
+async function attachNumber(http, acct, trunkSid, numberSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
+    "attach number to trunk"
+  );
+}
+async function createMessagingService(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.messagingServices, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      InboundRequestUrl: o.inboundUrl,
+      InboundMethod: "POST",
+      UseInboundWebhookOnNumber: "false",
+      StickySender: "true",
+      SmartEncoding: "true"
+    }),
+    "create messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function addNumberToService(http, acct, serviceSid, numberSid) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
+    "add number to messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function sendSms(http, acct, o) {
+  const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+    MessagingServiceSid: o.serviceSid,
+    To: o.to,
+    Body: o.body,
+    ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+  });
+  const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+  return {
+    ok: ok2,
+    sid: str(a.body, "sid"),
+    status: a.status,
+    code: typeof a.body?.code === "number" ? a.body.code : null
+  };
+}
 function twilioProvider(http = fetchTwilio) {
   return {
     name: "twilio",
-    async createSubaccount(master, friendlyName) {
-      const b = need(
-        await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
-        "create subaccount"
-      );
-      const sid2 = str(b, "sid");
-      const token = str(b, "auth_token");
-      if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
-      return { sid: sid2, token, status: str(b, "status") ?? "active" };
-    },
-    async findSubaccount(master, friendlyName) {
-      const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
-      for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
-        const sid2 = str(a, "sid");
-        const token = str(a, "auth_token");
-        if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
-      }
-      return null;
-    },
-    async findTrunk(acct, domainName) {
-      for (const t of rowsOf(
-        need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"),
-        "trunks"
-      )) {
-        const sid2 = str(t, "sid");
-        if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
-      }
-      return null;
-    },
-    async findCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
-        "list credential lists"
-      );
-      for (const l of rowsOf(b, "credential_lists")) {
-        const sid2 = str(l, "sid");
-        if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
-      }
-      return null;
-    },
-    async findCredential(acct, listSid, username) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
-        "list credentials"
-      );
-      for (const c of rowsOf(b, "credentials")) {
-        const sid2 = str(c, "sid");
-        if (sid2 && str(c, "username") === username) return { sid: sid2 };
-      }
-      return null;
-    },
-    async deleteCredential(acct, listSid, credentialSid) {
-      const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
-    },
-    async findOrigination(acct, trunkSid, sipUrl) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
-        "list origination urls"
-      );
-      for (const o of rowsOf(b, "origination_urls")) {
-        const sid2 = str(o, "sid");
-        if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
-      }
-      return null;
-    },
-    async searchLocal(acct, q) {
-      const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
-        AreaCode: String(q.areaCode),
-        VoiceEnabled: "true",
-        SmsEnabled: "true",
-        PageSize: String(Math.min(Math.max(q.limit, 1), 30))
-      }).toString()}`;
-      const b = need(await http(acct, "GET", url), "search numbers");
-      const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
-      return rows.map((n) => {
-        const e164 = str(n, "phone_number");
-        if (!e164) return null;
-        const caps = n.capabilities ?? {};
-        return {
-          e164,
-          friendly: str(n, "friendly_name") ?? e164,
-          locality: str(n, "locality"),
-          region: str(n, "region"),
-          capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
-        };
-      }).filter((n) => n !== null);
-    },
-    async buyNumber(acct, e164, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
-          PhoneNumber: e164,
-          FriendlyName: friendlyName.slice(0, 64)
-        }),
-        "buy number"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
-      return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
-    },
-    // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
-    // exact E.164, so this is one GET and no guessing.
-    //
-    // A read that FAILS must not be reported as "we do not own it": that answer sends
-    // the saga on to buy a second number. So a non-200 throws, and the step retries
-    // rather than spending.
-    async ownedNumber(acct, e164) {
-      const a = await http(
-        acct,
-        "GET",
-        `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
-      );
-      if (a.status === 404) return null;
-      const b = need(a, "list owned numbers");
-      const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
-      for (const row of list) {
-        if (!row || typeof row !== "object") continue;
-        const sid2 = str(row, "sid");
-        if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
-      }
-      return null;
-    },
-    async releaseNumber(acct, numberSid) {
-      const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
-    },
-    async createTrunk(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunks, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          DomainName: o.domainName
-        }),
-        "create trunk"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
-      return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
-    },
-    async deleteTrunk(acct, trunkSid) {
-      const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
-    },
-    async createCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
-        "create credential list"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
-      return { sid: sid2 };
-    },
-    async addCredential(acct, listSid, username, password) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
-        "add credential"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachCredentialList(acct, trunkSid, listSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
-        "attach credential list"
-      );
-    },
-    async addOrigination(acct, trunkSid, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
-          SipUrl: o.sipUrl,
-          FriendlyName: o.friendlyName.slice(0, 64),
-          Weight: "10",
-          Priority: "10",
-          Enabled: "true"
-        }),
-        "add origination"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachNumber(acct, trunkSid, numberSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
-        "attach number to trunk"
-      );
-    },
-    // Messaging Services API (verified 2026-09-07): the service's own inbound
-    // URL wins over the number's; sticky sender and smart encoding on.
-    async createMessagingService(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.messagingServices, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          InboundRequestUrl: o.inboundUrl,
-          InboundMethod: "POST",
-          UseInboundWebhookOnNumber: "false",
-          StickySender: "true",
-          SmartEncoding: "true"
-        }),
-        "create messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async addNumberToService(acct, serviceSid, numberSid) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
-        "add number to messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async sendSms(acct, o) {
-      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
-        MessagingServiceSid: o.serviceSid,
-        To: o.to,
-        Body: o.body,
-        ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
-      });
-      const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
-      return {
-        ok: ok2,
-        sid: str(a.body, "sid"),
-        status: a.status,
-        code: typeof a.body?.code === "number" ? a.body.code : null
-      };
-    }
+    createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
+    findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
+    findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
+    findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
+    findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),
+    deleteCredential: (acct, listSid, credentialSid) => deleteCredential(http, acct, listSid, credentialSid),
+    findOrigination: (acct, trunkSid, sipUrl) => findOrigination(http, acct, trunkSid, sipUrl),
+    searchLocal: (acct, q) => searchLocal(http, acct, q),
+    buyNumber: (acct, e164, friendlyName) => buyNumber(http, acct, e164, friendlyName),
+    ownedNumber: (acct, e164) => ownedNumber(http, acct, e164),
+    releaseNumber: (acct, numberSid) => releaseNumber(http, acct, numberSid),
+    createTrunk: (acct, o) => createTrunk(http, acct, o),
+    deleteTrunk: (acct, trunkSid) => deleteTrunk(http, acct, trunkSid),
+    createCredentialList: (acct, friendlyName) => createCredentialList(http, acct, friendlyName),
+    addCredential: (acct, listSid, username, password) => addCredential(http, acct, listSid, username, password),
+    attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http, acct, trunkSid, listSid),
+    addOrigination: (acct, trunkSid, o) => addOrigination(http, acct, trunkSid, o),
+    attachNumber: (acct, trunkSid, numberSid) => attachNumber(http, acct, trunkSid, numberSid),
+    createMessagingService: (acct, o) => createMessagingService(http, acct, o),
+    addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http, acct, serviceSid, numberSid),
+    sendSms: (acct, o) => sendSms(http, acct, o)
   };
 }
 
-// src/lines-dry.ts
+// src/lines/lines-dry.ts
 var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
 function dryProvider(seed = 1) {
   let n = seed;
@@ -4292,7 +4378,7 @@ function dryProvider(seed = 1) {
   };
 }
 
-// src/lines-saga.ts
+// src/lines/lines-saga.ts
 var LINE_STEPS = [
   "subaccount",
   "number",
@@ -4329,209 +4415,249 @@ function nextLineStep(line) {
 function errorWords(e) {
   return (e instanceof Error ? e.message : String(e)).slice(0, 500);
 }
-async function runLineSaga(start, ports) {
-  let line = { ...start, facts: { ...start.facts ?? {} } };
-  const save = async (patch) => {
-    line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
-    await ports.store.save(patch);
-  };
-  const fact2 = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
-  const room = (more = 0) => {
-    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
-  };
-  const once = async (key, look, make) => {
-    const asked = `asked_${key}`;
-    room();
-    if (line.facts[asked] === true) {
-      const found = await look();
-      if (found) return found;
-      room();
-    } else {
-      await fact2(asked, true);
-    }
-    return make();
-  };
-  if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
-  if (!line.e164) {
-    await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
-    return { ok: false, step: "number", error: "no number chosen", line };
-  }
-  let secrets = await ports.store.getSecrets();
-  const putSecrets = async (s) => {
-    secrets = { ...secrets, ...s };
-    await ports.store.putSecrets(s);
-  };
-  const sub = () => {
-    if (!line.subaccount_sid || !secrets.auth_token)
-      throw new Error("the subaccount's token is missing from the vault");
-    return { sid: line.subaccount_sid, token: secrets.auth_token };
-  };
-  let step = nextLineStep(line);
-  await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
-  try {
-    while ((step = nextLineStep(line)) !== null) {
-      room();
-      await save({ step });
-      switch (step) {
-        case "subaccount": {
-          const name = subaccountName(ports.tenant.name, line.id);
-          const acct = await once(
-            "subaccount",
-            () => ports.provider.findSubaccount(ports.master, name),
-            () => ports.provider.createSubaccount(ports.master, name)
-          );
-          await putSecrets({ auth_token: acct.token });
-          await save({ subaccount_sid: acct.sid });
-          break;
-        }
-        case "number": {
-          const held = await ports.provider.ownedNumber(sub(), line.e164);
-          if (!held) room();
-          const bought = held ?? await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
-          await save({ number_sid: bought.sid, e164: bought.e164 });
-          break;
-        }
-        case "trunk": {
-          const acct = sub();
-          if (!line.trunk_sid) {
-            const domainName = trunkDomain(line.id);
-            const t = await once(
-              "trunk",
-              () => ports.provider.findTrunk(acct, domainName),
-              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
-            );
-            await save({ trunk_sid: t.sid, termination_uri: t.domainName });
-          }
-          if (!line.credential_list_sid) {
-            const name = `${ports.tenant.name} \xB7 Chanlytics`;
-            const cl = await once(
-              "credential_list",
-              () => ports.provider.findCredentialList(acct, name),
-              () => ports.provider.createCredentialList(acct, name)
-            );
-            await save({ credential_list_sid: cl.sid });
-          }
-          if (!secrets.sip_password || !secrets.sip_username) {
-            const username = sipUsername(line.id);
-            const password = sipPassword(ports.random);
-            if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            await once(
-              "credential",
-              async () => {
-                const lost = await ports.provider.findCredential(acct, line.credential_list_sid, username);
-                if (lost) {
-                  room();
-                  await ports.provider.deleteCredential(acct, line.credential_list_sid, lost.sid);
-                }
-                return null;
-              },
-              () => ports.provider.addCredential(acct, line.credential_list_sid, username, password)
-            );
-            await putSecrets({ sip_username: username, sip_password: password });
-          }
-          if (line.facts.credential_list_attached !== true) {
-            room();
-            await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
-            await fact2("credential_list_attached", true);
-          }
-          if (typeof line.facts.origination_sid !== "string") {
-            const o = await once(
-              "origination",
-              () => ports.provider.findOrigination(acct, line.trunk_sid, RETELL_ORIGINATION),
-              () => ports.provider.addOrigination(acct, line.trunk_sid, {
-                sipUrl: RETELL_ORIGINATION,
-                friendlyName: "Retell"
-              })
-            );
-            await fact2("origination_sid", o.sid);
-          }
-          if (line.facts.number_attached !== true) {
-            room();
-            await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
-            await fact2("number_attached", true);
-          }
-          await fact2("trunk_ready", true);
-          break;
-        }
-        case "agent": {
-          room(AGENT_STEP_MORE_MS);
-          const a = await ports.agent.ensure();
-          await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
-          break;
-        }
-        case "import": {
-          if (!secrets.sip_username || !secrets.sip_password)
-            throw new Error("the SIP credential is missing from the vault");
-          const body = retellImportBody({
-            e164: line.e164,
-            terminationUri: line.termination_uri,
-            username: secrets.sip_username,
-            password: secrets.sip_password,
-            agentId: line.retell_agent_id,
-            pinned: line.facts.agent_pinned === true,
-            nickname: ports.nickname,
-            inboundWebhookUrl: ports.inboundWebhookUrl
-          });
-          const r2 = await ports.retell.importNumber(body);
-          if (!r2.ok) {
-            const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
-            throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
-          }
-          await save({
-            facts: {
-              ...line.facts,
-              retell_imported: true,
-              retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
-            }
-          });
-          break;
-        }
-        case "messaging": {
-          const acct = sub();
-          if (!line.messaging_service_sid) {
-            const svc = await ports.provider.createMessagingService(acct, {
-              friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
-              inboundUrl: ports.smsInboundUrl
-            });
-            await save({ messaging_service_sid: svc.sid });
-          }
-          if (line.facts.number_in_service !== true) {
-            room();
-            await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
-            await fact2("number_in_service", true);
-          }
-          break;
-        }
-        case "channel": {
-          if (typeof line.facts.channel_id !== "string") {
-            const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
-            await fact2("channel_id", c.channelId);
-          }
-          if (typeof line.facts.sms_channel_id !== "string") {
-            const s = await ports.smsChannel.ensure({
-              e164: line.e164,
-              lineId: line.id,
-              serviceSid: line.messaging_service_sid
-            });
-            await fact2("sms_channel_id", s.channelId);
-          }
-          break;
-        }
+function lineRun(start, ports) {
+  const run = {
+    ports,
+    line: { ...start, facts: { ...start.facts ?? {} } },
+    secrets: {},
+    async save(patch) {
+      run.line = { ...run.line, ...patch, facts: patch.facts ? { ...patch.facts } : run.line.facts };
+      await ports.store.save(patch);
+    },
+    fact: async (k, v) => run.save({ facts: { ...run.line.facts, [k]: v } }),
+    room(more = 0) {
+      if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+    },
+    async once(key, look, make) {
+      const asked = `asked_${key}`;
+      run.room();
+      if (run.line.facts[asked] === true) {
+        const found = await look();
+        if (found) return found;
+        run.room();
+      } else {
+        await run.fact(asked, true);
       }
+      return make();
+    },
+    async putSecrets(s) {
+      run.secrets = { ...run.secrets, ...s };
+      await ports.store.putSecrets(s);
+    },
+    sub() {
+      if (!run.line.subaccount_sid || !run.secrets.auth_token)
+        throw new Error("the subaccount's token is missing from the vault");
+      return { sid: run.line.subaccount_sid, token: run.secrets.auth_token };
     }
-    await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
-    return { ok: true, line };
+  };
+  return run;
+}
+var ON_STEP = {
+  subaccount: subaccountStep,
+  number: numberStep,
+  trunk: trunkStep,
+  agent: agentStep,
+  import: importStep,
+  messaging: messagingStep,
+  channel: channelStep
+};
+async function runLineSaga(start, ports) {
+  const run = lineRun(start, ports);
+  if (run.line.voice_state === "answering" && nextLineStep(run.line) === null) return { ok: true, line: run.line };
+  if (!run.line.e164) {
+    await run.save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
+    return { ok: false, step: "number", error: "no number chosen", line: run.line };
+  }
+  run.secrets = await ports.store.getSecrets();
+  let step = nextLineStep(run.line);
+  await run.save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
+  try {
+    while ((step = nextLineStep(run.line)) !== null) {
+      run.room();
+      await run.save({ step });
+      await ON_STEP[step](run);
+    }
+    await run.save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
+    return { ok: true, line: run.line };
   } catch (e) {
     if (e === OUT_OF_TIME)
-      return { ok: true, later: true, step: line.step ?? step ?? "subaccount", line };
+      return { ok: true, later: true, step: run.line.step ?? step ?? "subaccount", line: run.line };
     const error = errorWords(e);
-    const at = line.step ?? step ?? "subaccount";
-    await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
-    return { ok: false, step: at, error, line };
+    const at = run.line.step ?? step ?? "subaccount";
+    await run.save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
+    return { ok: false, step: at, error, line: run.line };
+  }
+}
+async function subaccountStep(run) {
+  const { ports } = run;
+  const name = subaccountName(ports.tenant.name, run.line.id);
+  const acct = await run.once(
+    "subaccount",
+    () => ports.provider.findSubaccount(ports.master, name),
+    () => ports.provider.createSubaccount(ports.master, name)
+  );
+  await run.putSecrets({ auth_token: acct.token });
+  await run.save({ subaccount_sid: acct.sid });
+}
+async function numberStep(run) {
+  const { ports } = run;
+  const held = await ports.provider.ownedNumber(run.sub(), run.line.e164);
+  if (!held) run.room();
+  const bought = held ?? await ports.provider.buyNumber(run.sub(), run.line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
+  await run.save({ number_sid: bought.sid, e164: bought.e164 });
+}
+var TRUNK_PARTS = [
+  ensureTrunk,
+  ensureCredentialList,
+  ensureSipCredential,
+  ensureCredentialListAttached,
+  ensureOrigination,
+  ensureNumberAttached
+];
+async function trunkStep(run) {
+  const acct = run.sub();
+  for (const ensure of TRUNK_PARTS) await ensure(run, acct);
+  await run.fact("trunk_ready", true);
+}
+async function ensureTrunk(run, acct) {
+  if (run.line.trunk_sid) return;
+  const { ports } = run;
+  const domainName = trunkDomain(run.line.id);
+  const t = await run.once(
+    "trunk",
+    () => ports.provider.findTrunk(acct, domainName),
+    () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
+  );
+  await run.save({ trunk_sid: t.sid, termination_uri: t.domainName });
+}
+async function ensureCredentialList(run, acct) {
+  if (run.line.credential_list_sid) return;
+  const { ports } = run;
+  const name = `${ports.tenant.name} \xB7 Chanlytics`;
+  const cl = await run.once(
+    "credential_list",
+    () => ports.provider.findCredentialList(acct, name),
+    () => ports.provider.createCredentialList(acct, name)
+  );
+  await run.save({ credential_list_sid: cl.sid });
+}
+async function ensureSipCredential(run, acct) {
+  if (run.secrets.sip_password && run.secrets.sip_username) return;
+  const { ports } = run;
+  const username = sipUsername(run.line.id);
+  const password = sipPassword(ports.random);
+  if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
+  await run.once(
+    "credential",
+    async () => {
+      const lost = await ports.provider.findCredential(acct, run.line.credential_list_sid, username);
+      if (lost) {
+        run.room();
+        await ports.provider.deleteCredential(acct, run.line.credential_list_sid, lost.sid);
+      }
+      return null;
+    },
+    () => ports.provider.addCredential(acct, run.line.credential_list_sid, username, password)
+  );
+  await run.putSecrets({ sip_username: username, sip_password: password });
+}
+async function ensureCredentialListAttached(run, acct) {
+  if (run.line.facts.credential_list_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachCredentialList(acct, run.line.trunk_sid, run.line.credential_list_sid);
+  await run.fact("credential_list_attached", true);
+}
+async function ensureOrigination(run, acct) {
+  if (typeof run.line.facts.origination_sid === "string") return;
+  const { ports } = run;
+  const o = await run.once(
+    "origination",
+    () => ports.provider.findOrigination(acct, run.line.trunk_sid, RETELL_ORIGINATION),
+    () => ports.provider.addOrigination(acct, run.line.trunk_sid, {
+      sipUrl: RETELL_ORIGINATION,
+      friendlyName: "Retell"
+    })
+  );
+  await run.fact("origination_sid", o.sid);
+}
+async function ensureNumberAttached(run, acct) {
+  if (run.line.facts.number_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachNumber(acct, run.line.trunk_sid, run.line.number_sid);
+  await run.fact("number_attached", true);
+}
+async function agentStep(run) {
+  const { ports } = run;
+  run.room(AGENT_STEP_MORE_MS);
+  const a = await ports.agent.ensure();
+  await run.save({ retell_agent_id: a.agentId, facts: { ...run.line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
+}
+async function importStep(run) {
+  const { ports } = run;
+  if (!run.secrets.sip_username || !run.secrets.sip_password)
+    throw new Error("the SIP credential is missing from the vault");
+  const body = retellImportBody({
+    e164: run.line.e164,
+    terminationUri: run.line.termination_uri,
+    username: run.secrets.sip_username,
+    password: run.secrets.sip_password,
+    agentId: run.line.retell_agent_id,
+    pinned: run.line.facts.agent_pinned === true,
+    nickname: ports.nickname,
+    inboundWebhookUrl: ports.inboundWebhookUrl
+  });
+  const r2 = await ports.retell.importNumber(body);
+  if (!r2.ok) {
+    const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
+    throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
+  }
+  await run.save({
+    facts: {
+      ...run.line.facts,
+      retell_imported: true,
+      retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
+    }
+  });
+}
+async function messagingStep(run) {
+  const { ports } = run;
+  const acct = run.sub();
+  if (!run.line.messaging_service_sid) {
+    const svc = await ports.provider.createMessagingService(acct, {
+      friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
+      inboundUrl: ports.smsInboundUrl
+    });
+    await run.save({ messaging_service_sid: svc.sid });
+  }
+  if (run.line.facts.number_in_service !== true) {
+    run.room();
+    await ports.provider.addNumberToService(acct, run.line.messaging_service_sid, run.line.number_sid);
+    await run.fact("number_in_service", true);
+  }
+}
+async function channelStep(run) {
+  const { ports } = run;
+  if (typeof run.line.facts.channel_id !== "string") {
+    const c = await ports.channel.ensure({
+      agentId: run.line.retell_agent_id,
+      e164: run.line.e164,
+      lineId: run.line.id
+    });
+    await run.fact("channel_id", c.channelId);
+  }
+  if (typeof run.line.facts.sms_channel_id !== "string") {
+    const s = await ports.smsChannel.ensure({
+      e164: run.line.e164,
+      lineId: run.line.id,
+      serviceSid: run.line.messaging_service_sid
+    });
+    await run.fact("sms_channel_id", s.channelId);
   }
 }
 
-// src/sms.ts
+// src/lines/sms.ts
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -4643,12 +4769,11 @@ function smsStatusToRow(status) {
 function twilioSignedString(url, form2) {
   return url + Object.keys(form2).sort().map((k) => `${k}${form2[k]}`).join("");
 }
-var enc = new TextEncoder();
 async function twilioSignature(authToken, url, form2) {
-  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
     "sign"
   ]);
-  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(twilioSignedString(url, form2)));
+  const mac = await crypto.subtle.sign("HMAC", key, utf8Bytes(twilioSignedString(url, form2)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
 function sameSignature(a, b) {
@@ -4662,21 +4787,28 @@ async function verifyTwilioSignature(authToken, url, form2, header) {
   return sameSignature(await twilioSignature(authToken, url, form2), header);
 }
 
-// src/email.ts
-function hostedAddress(localPart, domain) {
-  return `${localPart}@${domain}`;
-}
-function replyRouteAddress(replyToken, domain) {
-  return `r+${replyToken}@${domain}`;
-}
-function hostedIdentity(mailbox, domain) {
-  return {
-    fromName: mailbox.from_name,
-    fromAddress: hostedAddress(mailbox.local_part, domain),
-    replyTo: replyRouteAddress(mailbox.reply_token, domain)
-  };
-}
+// src/email/header-values.ts
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
+function messageIdHeader(id) {
+  const s = oneLine(id ?? "");
+  const bare = s.replace(/^<|>$/g, "");
+  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
+}
+function addressOf(header) {
+  const s = oneLine(header ?? "");
+  if (!s) return null;
+  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
+  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
+  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  return { address, name: name || null };
+}
+var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
+  (x) => typeof x === "string" && x.length > 0
+);
+var addressesOf = (v) => stringsOf(v).map((r2) => addressOf(r2)?.address).filter((a) => !!a);
+
+// src/email/request.ts
 function mailboxHeader(name, address) {
   const clean = oneLine(name).replace(/["\\]/g, "");
   return clean ? `"${clean}" <${address}>` : address;
@@ -4696,11 +4828,6 @@ var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
 });
 function emailHtml(text) {
   return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
-}
-function messageIdHeader(id) {
-  const s = oneLine(id ?? "");
-  const bare = s.replace(/^<|>$/g, "");
-  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
 }
 function referencesFor(parent) {
   const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);
@@ -4764,6 +4891,49 @@ function isEmailRequest(v) {
   const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return typeof r2.from === "string" && strings(r2.to) && strings(r2.reply_to) && typeof r2.subject === "string" && typeof r2.text === "string" && typeof r2.html === "string" && !!r2.headers && typeof r2.headers === "object" && Array.isArray(r2.tags) && typeof r2.idempotency_key === "string" && r2.idempotency_key.length > 0;
 }
+
+// src/email/identity.ts
+function hostedAddress(localPart, domain) {
+  return `${localPart}@${domain}`;
+}
+function replyRouteAddress(replyToken, domain) {
+  return `r+${replyToken}@${domain}`;
+}
+function hostedIdentity(mailbox, domain) {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, domain),
+    replyTo: replyRouteAddress(mailbox.reply_token, domain)
+  };
+}
+function sendsAs(mailbox, domain) {
+  return {
+    address: hostedAddress(mailbox.local_part, domain),
+    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
+  };
+}
+function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomains = null) {
+  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? [];
+  return {
+    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyRoutes: [
+      ...sendsAs(mailbox, mailDomain).replyRoutes,
+      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes)
+    ]
+  };
+}
+function ownDomainIdentity(domain, mailbox, replyDomain) {
+  return {
+    fromName: domain.from_name,
+    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain)
+  };
+}
+function requestLeavesAs(request, as) {
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+}
+
+// src/email/webhook-signature.ts
 var bytesOfBase64 = (s) => {
   const raw = atob(s);
   const out = new Uint8Array(new ArrayBuffer(raw.length));
@@ -4803,6 +4973,8 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
     return version === "v1" && !!sig && sameBytes(sig, expected);
   });
 }
+
+// src/email/intake.ts
 function platformRecipient(address, domain, coldReplyDomains = null) {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
@@ -4818,19 +4990,6 @@ function platformRecipient(address, domain, coldReplyDomains = null) {
   if (reply) return { kind: "reply", token: reply[1] };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
 }
-function addressOf(header) {
-  const s = oneLine(header ?? "");
-  if (!s) return null;
-  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
-  const address = (angle ? angle[2] : s).trim().toLowerCase();
-  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
-  return { address, name: name || null };
-}
-var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
-  (x) => typeof x === "string" && x.length > 0
-);
-var addressesOf = (v) => stringsOf(v).map((r2) => addressOf(r2)?.address).filter((a) => !!a);
 function emailReceivedEventFrom(payload) {
   const p = payload;
   if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
@@ -4854,23 +5013,23 @@ function receivedEmailFrom(body) {
   const b = body;
   if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
   const headers2 = headersOf(b.headers);
-  const str5 = (v) => typeof v === "string" && v.length ? v : null;
+  const str2 = (v) => typeof v === "string" && v.length ? v : null;
   return {
     id: b.id,
-    from: addressOf(str5(b.from) ?? headers2.from),
+    from: addressOf(str2(b.from) ?? headers2.from),
     to: addressesOf(b.to),
     cc: addressesOf(b.cc),
-    subject: str5(b.subject) ?? str5(headers2.subject),
-    text: str5(b.text),
-    html: str5(b.html),
+    subject: str2(b.subject) ?? str2(headers2.subject),
+    text: str2(b.text),
+    html: str2(b.html),
     headers: headers2,
-    messageId: messageIdHeader(str5(b.message_id) ?? headers2["message-id"]),
-    createdAt: str5(b.created_at),
+    messageId: messageIdHeader(str2(b.message_id) ?? headers2["message-id"]),
+    createdAt: str2(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
       const x = a ?? {};
       return {
-        filename: str5(x.filename),
-        contentType: str5(x.content_type),
+        filename: str2(x.filename),
+        contentType: str2(x.content_type),
         size: typeof x.size === "number" ? x.size : null
       };
     })
@@ -4890,6 +5049,8 @@ function classifyReceived(e) {
     return "automated";
   return "person";
 }
+
+// src/email/receipts.ts
 var RECEIPT_TYPES = /* @__PURE__ */ new Set([
   "sent",
   "delivered",
@@ -4911,16 +5072,16 @@ function emailReceiptFrom(payload) {
   if (!RECEIPT_TYPES.has(type)) return null;
   const d = p.data;
   if (typeof d.email_id !== "string" || !d.email_id) return null;
-  const str5 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const str2 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
   const said = d.bounce ?? d.failed ?? d.suppressed ?? {};
   return {
     type,
     providerId: d.email_id,
-    rfcMessageId: messageIdHeader(str5(d.message_id)),
+    rfcMessageId: messageIdHeader(str2(d.message_id)),
     to: addressesOf(d.to),
     messageId: tagOf(d.tags, "cl_message"),
     tenantId: tagOf(d.tags, "cl_tenant"),
-    detail: { kind: str5(said.type) ?? str5(said.reason), subKind: str5(said.subType), message: str5(said.message) }
+    detail: { kind: str2(said.type) ?? str2(said.reason), subKind: str2(said.subType), message: str2(said.message) }
   };
 }
 function emailReceiptEffect(r2) {
@@ -4940,32 +5101,8 @@ function emailReceiptEffect(r2) {
       return { status: null, error: null, suppress: null };
   }
 }
-function sendsAs(mailbox, domain) {
-  return {
-    address: hostedAddress(mailbox.local_part, domain),
-    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
-  };
-}
-function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomains = null) {
-  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? [];
-  return {
-    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyRoutes: [
-      ...sendsAs(mailbox, mailDomain).replyRoutes,
-      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes)
-    ]
-  };
-}
-function ownDomainIdentity(domain, mailbox, replyDomain) {
-  return {
-    fromName: domain.from_name,
-    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain)
-  };
-}
-function requestLeavesAs(request, as) {
-  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
-}
+
+// src/email/provider-answers.ts
 function resendLimitOf(r2) {
   if (r2.ok || r2.status !== 429 && r2.status !== 409) return null;
   let name;
@@ -4998,7 +5135,7 @@ function mailDomainsFrom(body) {
   return out;
 }
 
-// src/email-text.ts
+// src/email/email-text.ts
 import { convert } from "html-to-text";
 function emailPlainText(e) {
   const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();
@@ -5014,7 +5151,7 @@ function emailPlainText(e) {
   return converted || null;
 }
 
-// src/email-resend.ts
+// src/email/email-resend.ts
 var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
 var SEND_DEADLINE_MS = 32e3;
@@ -5157,18 +5294,18 @@ async function fetchMailDomains(cfg) {
   return domains;
 }
 
-// src/email-domains.ts
+// src/email/email-domains.ts
 var unquote = (s) => {
   const t = s.trim();
   return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t;
 };
 function recordFrom(r2) {
   const o = r2 ?? {};
-  const str5 = (k) => typeof o[k] === "string" && o[k].trim() ? o[k] : null;
-  const label = str5("record");
-  const type = str5("type");
-  const name = str5("name");
-  const value = str5("value");
+  const str2 = (k) => typeof o[k] === "string" && o[k].trim() ? o[k] : null;
+  const label = str2("record");
+  const type = str2("type");
+  const name = str2("name");
+  const value = str2("value");
   if (!label || !type || !name || !value) return null;
   if (label.toLowerCase() === "tracking") return null;
   return {
@@ -5177,7 +5314,7 @@ function recordFrom(r2) {
     name: name.trim(),
     value: type.toUpperCase() === "TXT" ? unquote(value) : value.trim(),
     priority: typeof o.priority === "number" && Number.isFinite(o.priority) ? o.priority : null,
-    status: str5("status")?.trim() ?? "unknown"
+    status: str2("status")?.trim() ?? "unknown"
   };
 }
 function providerDomainFrom(body) {
@@ -5192,11 +5329,11 @@ function providerDomainFrom(body) {
     createdAt: typeof d.created_at === "string" && Number.isFinite(Date.parse(d.created_at)) ? d.created_at : null
   };
 }
-async function call(cfg, method, path, body) {
+async function resendCall(cfg, method, path, body) {
   const a = await resendRequest(cfg, method, `/domains${path}`, body !== void 0 ? { body } : {});
   return { status: a.status, json: a.json, raw: a.raw };
 }
-function refusal(status, json, raw) {
+function resendRefusal(status, json, raw) {
   const m = json?.message;
   return {
     ok: false,
@@ -5205,21 +5342,21 @@ function refusal(status, json, raw) {
   };
 }
 async function createMailDomain(cfg, host) {
-  const r2 = await call(cfg, "POST", "", {
+  const r2 = await resendCall(cfg, "POST", "", {
     name: host,
     region: "us-east-1",
     open_tracking: false,
     click_tracking: false,
     capabilities: { sending: "enabled", receiving: "disabled" }
   });
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   const d = providerDomainFrom(r2.json);
   return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
 }
 async function getMailDomain(cfg, id) {
-  const r2 = await call(cfg, "GET", `/${encodeURIComponent(id)}`);
+  const r2 = await resendCall(cfg, "GET", `/${encodeURIComponent(id)}`);
   if (r2.status === 404) return { ok: true, value: null };
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   const d = providerDomainFrom(r2.json);
   return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
 }
@@ -5228,8 +5365,8 @@ async function findMailDomain(cfg, name) {
   const want = name.trim().toLowerCase();
   let after = null;
   for (let page = 0; page < FIND_PAGES_MAX; page++) {
-    const r2 = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
-    if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+    const r2 = await resendCall(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
     const body = r2.json ?? {};
     if (!Array.isArray(body.data))
       return { ok: false, status: r2.status, message: "the provider answered a shape that is not a list" };
@@ -5249,21 +5386,21 @@ async function findMailDomain(cfg, name) {
   return { ok: false, status: 0, message: `more than ${FIND_PAGES_MAX * 100} domains to look through` };
 }
 async function verifyMailDomain(cfg, id) {
-  const r2 = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  const r2 = await resendCall(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   return { ok: true, value: true };
 }
 async function removeMailDomain(cfg, id) {
-  const r2 = await call(cfg, "DELETE", `/${encodeURIComponent(id)}`);
+  const r2 = await resendCall(cfg, "DELETE", `/${encodeURIComponent(id)}`);
   if (r2.status === 404) return { ok: true, value: "gone" };
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   return { ok: true, value: "removed" };
 }
 function dmarcOf(txt) {
   return txt.some((chunks) => /^v=DMARC1\s*(;|$)/i.test(chunks.join("").trim())) ? "found" : "missing";
 }
 
-// src/a2p.ts
+// src/lines/a2p/wire.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
@@ -5286,9 +5423,6 @@ var A2P_POLICIES = {
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
-function brandTypeFor(r2) {
-  return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
-}
 function encodeForm(form2) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(form2)) {
@@ -5297,6 +5431,13 @@ function encodeForm(form2) {
   }
   return q.toString();
 }
+
+// src/lines/a2p/business-record.ts
+function brandTypeFor(r2) {
+  return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
+}
+
+// src/lines/a2p/trust-hub.ts
 var attrs = (o) => JSON.stringify(o);
 function customerProfileRequest(o) {
   return {
@@ -5504,6 +5645,8 @@ function evaluateTrustProductRequest(bundleSid) {
 function submitTrustProductRequest(bundleSid) {
   return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
 }
+
+// src/lines/a2p/brand-campaign.ts
 function brandRequest(o) {
   return {
     url: `${MESSAGING2}/a2p/BrandRegistrations`,
@@ -5559,6 +5702,8 @@ function updateCampaignRequest(messagingServiceSid, campaignSid, f) {
 function deleteCampaignRequest(messagingServiceSid, campaignSid) {
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
+
+// src/lines/a2p/steps.ts
 var A2P_STEPS = [
   "profile",
   "business",
@@ -5608,6 +5753,8 @@ function nextA2PStep(s, brandType = "STANDARD") {
   if (!s.campaignSid) return "campaign";
   return null;
 }
+
+// src/lines/a2p/verdict.ts
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
@@ -5637,13 +5784,13 @@ function smsStateFor(o) {
 }
 function registrationVerdict(before, after, o) {
   if (before === after) return null;
-  const num3 = o.number ?? "your line";
+  const num = o.number ?? "your line";
   const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";
   if (after === "active") {
     return {
       kind: "number",
-      title: `Texting is on: ${num3}`,
-      body: `The carriers approved ${num3}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
+      title: `Texting is on: ${num}`,
+      body: `The carriers approved ${num}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
       route: "admin/integrations",
       event: "line.texting_on"
     };
@@ -5652,7 +5799,7 @@ function registrationVerdict(before, after, o) {
     return {
       kind: "number",
       title: "Your business is approved by the carriers",
-      body: `${num3} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
+      body: `${num} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
       route: "admin/integrations",
       event: "line.texting_approved"
     };
@@ -5678,9 +5825,9 @@ function registrationVerdict(before, after, o) {
   return null;
 }
 
-// src/a2p-saga.ts
+// src/lines/a2p-saga.ts
 var sid = (a) => typeof a.body?.sid === "string" ? a.body.sid : null;
-function refusal2(a, what) {
+function twilioRefusal(a, what) {
   const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
   const code = typeof a.body?.code === "number" ? ` (Twilio ${a.body.code})` : "";
   return `${what}: ${msg}${code}`;
@@ -5695,7 +5842,7 @@ async function runA2PSaga(start, p) {
   const need2 = async (req, what) => {
     const a = await p.send(req);
     const id = sid(a);
-    if (!ok(a) || !id) throw new Error(refusal2(a, what));
+    if (!ok(a) || !id) throw new Error(twilioRefusal(a, what));
     return id;
   };
   const brandType = brandTypeFor(p.record);
@@ -5722,14 +5869,14 @@ async function runA2PSaga(start, p) {
             soleProp ? "recording who you are" : "recording the business"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, soleProp ? "attaching your details" : "attaching the business"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
         case "representative": {
           const id = await need2(representativeEndUserRequest(p.record), "recording the person who signs");
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, "attaching the person who signs"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the person who signs"));
           await save({ representativeSid: id });
           break;
         }
@@ -5742,13 +5889,13 @@ async function runA2PSaga(start, p) {
             "attaching the address"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, "attaching the address document"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the address document"));
           await save({ documentSid: id });
           break;
         }
         case "primary": {
           const a = await p.send(assignRequest(state.profileSid, p.primaryProfileSid));
-          if (!ok(a)) throw new Error(refusal2(a, "naming us as the provider"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "naming us as the provider"));
           await save({ primaryAssigned: true });
           break;
         }
@@ -5759,7 +5906,7 @@ async function runA2PSaga(start, p) {
           ];
           for (const [sid2, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid2, a));
-            if (!ok(up)) throw new Error(refusal2(up, "refreshing the business on record"));
+            if (!ok(up)) throw new Error(twilioRefusal(up, "refreshing the business on record"));
           }
           const ev = await p.send(
             evaluateRequest(
@@ -5768,13 +5915,13 @@ async function runA2PSaga(start, p) {
             )
           );
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
-          if (!ok(ev)) throw new Error(refusal2(ev, "checking the profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the profile"));
           if (status !== "compliant")
             throw new Error(
               `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`
             );
           const sub = await p.send(submitProfileRequest(state.profileSid));
-          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
           break;
         }
@@ -5793,12 +5940,12 @@ async function runA2PSaga(start, p) {
           );
           for (const objectSid of [endUser, state.profileSid]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
-            if (!ok(a)) throw new Error(refusal2(a, "attaching to the messaging profile"));
+            if (!ok(a)) throw new Error(twilioRefusal(a, "attaching to the messaging profile"));
           }
           const ev = await p.send(evaluateTrustProductRequest(bundle));
-          if (!ok(ev)) throw new Error(refusal2(ev, "checking the messaging profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the messaging profile"));
           const sub = await p.send(submitTrustProductRequest(bundle));
-          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the messaging profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the messaging profile"));
           await save({ a2pProfileSid: bundle });
           break;
         }
@@ -5844,7 +5991,7 @@ async function runA2PSaga(start, p) {
   }
 }
 
-// src/google-places.ts
+// src/google/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus,places.primaryTypeDisplayName";
 var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
@@ -5878,28 +6025,25 @@ function placesDetailsRequest(key, placeId, opts = {}) {
     headers: headers(key, PLACES_DETAILS_MASK)
   };
 }
-var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str2 = (v) => typeof v === "string" && v.trim() ? v : null;
-var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
 var localized = (v) => {
-  const o = obj(v);
-  return { text: str2(o?.text), languageCode: str2(o?.languageCode) };
+  const o = recordOrNull(v);
+  return { text: nonBlankOrNull(o?.text), languageCode: nonBlankOrNull(o?.languageCode) };
 };
 function candidateOf(p) {
-  const id = str2(p.id);
+  const id = nonBlankOrNull(p.id);
   const name = localized(p.displayName).text;
   if (!id || !name) return null;
   return {
     place_id: id,
     name,
-    address: str2(p.formattedAddress),
-    maps_uri: str2(p.googleMapsUri),
-    business_status: str2(p.businessStatus),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
     category: localized(p.primaryTypeDisplayName).text
   };
 }
 function reviewIdOf(name) {
-  const s = str2(name);
+  const s = nonBlankOrNull(name);
   if (!s) return null;
   const last = s.split("/").pop();
   return last && last.length > 0 ? last : null;
@@ -5907,30 +6051,30 @@ function reviewIdOf(name) {
 function reviewOf(r2) {
   const id = reviewIdOf(r2.name);
   if (!id) return null;
-  const author = obj(r2.authorAttribution);
+  const author = recordOrNull(r2.authorAttribution);
   const text = localized(r2.text);
   return {
     review_id: id,
-    rating: num(r2.rating),
-    author: str2(author?.displayName),
-    author_uri: str2(author?.uri),
-    author_photo_uri: str2(author?.photoUri),
+    rating: finiteOrNull(r2.rating),
+    author: nonBlankOrNull(author?.displayName),
+    author_uri: nonBlankOrNull(author?.uri),
+    author_photo_uri: nonBlankOrNull(author?.photoUri),
     text: text.text,
     language_code: text.languageCode,
-    published_at: str2(r2.publishTime),
-    maps_uri: str2(r2.googleMapsUri)
+    published_at: nonBlankOrNull(r2.publishTime),
+    maps_uri: nonBlankOrNull(r2.googleMapsUri)
   };
 }
 function pointOf(v) {
-  const o = obj(v);
+  const o = recordOrNull(v);
   if (!o) return null;
-  const day = num(o.day) ?? 0;
-  const hour = num(o.hour) ?? 0;
-  const minute = num(o.minute) ?? 0;
+  const day = finiteOrNull(o.day) ?? 0;
+  const hour = finiteOrNull(o.hour) ?? 0;
+  const minute = finiteOrNull(o.minute) ?? 0;
   return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
 }
 function periodOf(v) {
-  const o = obj(v);
+  const o = recordOrNull(v);
   const open = pointOf(o?.open);
   if (!o || !open) return null;
   if (o.close === void 0) return { open, close: null };
@@ -5942,56 +6086,56 @@ function e164Of(international) {
   const e164 = `+${international.replace(/\D/g, "")}`;
   return E164.test(e164) ? e164 : null;
 }
-function factsOf(p) {
-  const periods = obj(p.regularOpeningHours)?.periods;
+function listingFactsOf(p) {
+  const periods = recordOrNull(p.regularOpeningHours)?.periods;
   return {
     hours: Array.isArray(periods) ? periods.map(periodOf).filter((x) => x !== null) : null,
-    phone_e164: e164Of(str2(p.internationalPhoneNumber)),
-    phone_display: str2(p.nationalPhoneNumber),
-    website: str2(p.websiteUri),
-    primary_type: str2(p.primaryType),
+    phone_e164: e164Of(nonBlankOrNull(p.internationalPhoneNumber)),
+    phone_display: nonBlankOrNull(p.nationalPhoneNumber),
+    website: nonBlankOrNull(p.websiteUri),
+    primary_type: nonBlankOrNull(p.primaryType),
     primary_type_label: localized(p.primaryTypeDisplayName).text,
     service_area_only: p.pureServiceAreaBusiness === true,
-    time_zone: str2(obj(p.timeZone)?.id)
+    time_zone: nonBlankOrNull(recordOrNull(p.timeZone)?.id)
   };
 }
 function parsePlacesSearch(json) {
-  const places = obj(json)?.places;
+  const places = recordOrNull(json)?.places;
   if (!Array.isArray(places)) return [];
-  return places.map((p) => obj(p) ? candidateOf(obj(p)) : null).filter((c) => c !== null);
+  return places.map((p) => recordOrNull(p) ? candidateOf(recordOrNull(p)) : null).filter((c) => c !== null);
 }
 function parsePlaceDetails(json) {
-  const p = obj(json);
-  const id = str2(p?.id);
+  const p = recordOrNull(json);
+  const id = nonBlankOrNull(p?.id);
   const name = localized(p?.displayName).text;
   if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
-  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r2) => obj(r2) ? reviewOf(obj(r2)) : null).filter((r2) => r2 !== null) : [];
+  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r2) => recordOrNull(r2) ? reviewOf(recordOrNull(r2)) : null).filter((r2) => r2 !== null) : [];
   return {
     place_id: id,
     name,
-    address: str2(p.formattedAddress),
-    maps_uri: str2(p.googleMapsUri),
-    business_status: str2(p.businessStatus),
-    rating: num(p.rating),
-    review_count: num(p.userRatingCount),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
+    rating: finiteOrNull(p.rating),
+    review_count: finiteOrNull(p.userRatingCount),
     reviews,
-    facts: factsOf(p)
+    facts: listingFactsOf(p)
   };
 }
-function refusal3(status, body) {
+function refusal(status, body) {
   let message = `Google answered ${status}`;
   try {
-    const e = obj(obj(JSON.parse(body))?.error);
-    const m = str2(e?.message);
-    const s = str2(e?.status);
+    const e = recordOrNull(recordOrNull(JSON.parse(body))?.error);
+    const m = nonBlankOrNull(e?.message);
+    const s = nonBlankOrNull(e?.status);
     if (m) message = s ? `${s}: ${m}` : m;
   } catch {
   }
   return new PlacesError(status, message);
 }
-async function call2(http, req) {
+async function call(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal3(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   try {
     return JSON.parse(r2.body);
   } catch {
@@ -5999,10 +6143,10 @@ async function call2(http, req) {
   }
 }
 async function searchPlaces(http, key, query, opts = {}) {
-  return parsePlacesSearch(await call2(http, placesSearchRequest(key, query, opts)));
+  return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
 }
 async function getPlace(http, key, placeId, opts = {}) {
-  return parsePlaceDetails(await call2(http, placesDetailsRequest(key, placeId, opts)));
+  return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
@@ -6017,7 +6161,7 @@ function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
 }
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
-// src/google-sync.ts
+// src/google/google-sync.ts
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
@@ -6113,7 +6257,7 @@ function planProfileSync(before, known, page, day, nowMs) {
   };
 }
 
-// src/google-oauth.ts
+// src/google/google-oauth.ts
 var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
@@ -6183,10 +6327,9 @@ function parseTokenResponse(json) {
 function grantHasScope(grant, scope) {
   return grant.scope.split(/\s+/).includes(scope);
 }
-var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 function b64url(bytes) {
-  const b = typeof bytes === "string" ? enc2.encode(bytes) : bytes;
+  const b = typeof bytes === "string" ? utf8Bytes(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -6209,10 +6352,10 @@ function idTokenClaims(idToken) {
   }
 }
 async function hmac(secret, data) {
-  const key = await crypto.subtle.importKey("raw", enc2.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign"
   ]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc2.encode(data));
+  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes(data));
   return b64url(new Uint8Array(sig));
 }
 async function signState(secret, s) {
@@ -6247,15 +6390,13 @@ function newNonce() {
   return b64url(b);
 }
 
-// src/google-profile.ts
+// src/google/google-profile.ts
 var GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 var GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
 var GBP_V4_BASE = "https://mybusiness.googleapis.com/v4";
 var GBP_LOCATIONS_READ_MASK = "name,title,storefrontAddress,metadata";
 var GBP_REVIEWS_PAGE = 50;
 var GBP_REVIEWS_MAX_PAGES = 5;
-var obj2 = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str3 = (v) => typeof v === "string" && v.trim() ? v : null;
 function bearer(token, v4 = false) {
   return { Authorization: `Bearer ${token}`, ...v4 ? { "X-GOOG-API-FORMAT-VERSION": "2" } : {} };
 }
@@ -6290,87 +6431,76 @@ function deleteReplyRequest(token, reviewName) {
   return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "DELETE", headers: bearer(token, true) };
 }
 function parseAccounts(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.accounts) ? o.accounts : [];
-  const accounts = list.map((a) => obj2(a)).filter((a) => !!a).map((a) => ({
-    name: str3(a.name) ?? "",
-    title: str3(a.accountName) ?? str3(obj2(a.organizationInfo)?.registeredDomain) ?? str3(a.name) ?? "",
-    type: str3(a.type)
+  const accounts = list.map((a) => recordOrNull(a)).filter((a) => !!a).map((a) => ({
+    name: nonBlankOrNull(a.name) ?? "",
+    title: nonBlankOrNull(a.accountName) ?? nonBlankOrNull(recordOrNull(a.organizationInfo)?.registeredDomain) ?? nonBlankOrNull(a.name) ?? "",
+    type: nonBlankOrNull(a.type)
   })).filter((a) => a.name.startsWith("accounts/"));
-  return { accounts, next: str3(o?.nextPageToken) };
+  return { accounts, next: nonBlankOrNull(o?.nextPageToken) };
 }
 function oneLineAddress(a) {
-  const o = obj2(a);
+  const o = recordOrNull(a);
   if (!o) return null;
   const lines = Array.isArray(o.addressLines) ? o.addressLines.filter((l) => typeof l === "string" && !!l.trim()) : [];
   const parts = [
     ...lines,
-    str3(o.locality),
-    [str3(o.administrativeArea), str3(o.postalCode)].filter(Boolean).join(" ")
+    nonBlankOrNull(o.locality),
+    [nonBlankOrNull(o.administrativeArea), nonBlankOrNull(o.postalCode)].filter(Boolean).join(" ")
   ].filter((p) => !!p);
   return parts.length ? parts.join(", ") : null;
 }
 function parseLocations(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.locations) ? o.locations : [];
-  const locations = list.map((l) => obj2(l)).filter((l) => !!l).map((l) => {
-    const meta = obj2(l.metadata);
+  const locations = list.map((l) => recordOrNull(l)).filter((l) => !!l).map((l) => {
+    const meta = recordOrNull(l.metadata);
     return {
-      name: str3(l.name) ?? "",
-      title: str3(l.title) ?? "",
+      name: nonBlankOrNull(l.name) ?? "",
+      title: nonBlankOrNull(l.title) ?? "",
       address: oneLineAddress(l.storefrontAddress),
-      place_id: str3(meta?.placeId),
-      maps_uri: str3(meta?.mapsUri),
-      new_review_uri: str3(meta?.newReviewUri)
+      place_id: nonBlankOrNull(meta?.placeId),
+      maps_uri: nonBlankOrNull(meta?.mapsUri),
+      new_review_uri: nonBlankOrNull(meta?.newReviewUri)
     };
   }).filter((l) => l.name.startsWith("locations/"));
-  return { locations, next: str3(o?.nextPageToken) };
+  return { locations, next: nonBlankOrNull(o?.nextPageToken) };
 }
 var STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 function starRatingNumber(v) {
   return typeof v === "string" && v in STARS ? STARS[v] : null;
 }
 function parseReviewsPage(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.reviews) ? o.reviews : [];
-  const reviews = list.map((r2) => obj2(r2)).filter((r2) => !!r2).map((r2) => {
-    const name = str3(r2.name);
-    const id = str3(r2.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
+  const reviews = list.map((r2) => recordOrNull(r2)).filter((r2) => !!r2).map((r2) => {
+    const name = nonBlankOrNull(r2.name);
+    const id = nonBlankOrNull(r2.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
     if (!name || !id) return null;
-    const who = obj2(r2.reviewer);
-    const reply = obj2(r2.reviewReply);
+    const who = recordOrNull(r2.reviewer);
+    const reply = recordOrNull(r2.reviewReply);
     return {
       name,
       review_id: id,
       rating: starRatingNumber(r2.starRating),
-      author: who?.isAnonymous === true ? null : str3(who?.displayName),
-      author_photo_uri: str3(who?.profilePhotoUrl),
+      author: who?.isAnonymous === true ? null : nonBlankOrNull(who?.displayName),
+      author_photo_uri: nonBlankOrNull(who?.profilePhotoUrl),
       anonymous: who?.isAnonymous === true,
-      text: str3(r2.comment),
-      created_at: str3(r2.createTime),
-      updated_at: str3(r2.updateTime),
-      reply_text: str3(reply?.comment),
-      replied_at: str3(reply?.updateTime)
+      text: nonBlankOrNull(r2.comment),
+      created_at: nonBlankOrNull(r2.createTime),
+      updated_at: nonBlankOrNull(r2.updateTime),
+      reply_text: nonBlankOrNull(reply?.comment),
+      replied_at: nonBlankOrNull(reply?.updateTime)
     };
   }).filter((r2) => r2 !== null);
   const avg = typeof o?.averageRating === "number" ? o.averageRating : null;
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
-  return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
+  return { reviews, average_rating: avg, total_count: total, next_page_token: nonBlankOrNull(o?.nextPageToken) };
 }
-function refusal4(status, body) {
-  let message = `Google answered ${status}`;
-  try {
-    const e = obj2(obj2(JSON.parse(body))?.error);
-    const m = str3(e?.message);
-    const s = str3(e?.status);
-    if (m) message = s ? `${s}: ${m}` : m;
-  } catch {
-  }
-  return new PlacesError(status, message);
-}
-async function call3(http, req) {
+async function callProfileApi(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal4(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   if (!r2.body.trim()) return {};
   try {
     return JSON.parse(r2.body);
@@ -6382,7 +6512,7 @@ async function listAccounts(http, token) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseAccounts(await call3(http, accountsRequest(token, page)));
+    const r2 = parseAccounts(await callProfileApi(http, accountsRequest(token, page)));
     out.push(...r2.accounts);
     page = r2.next;
     if (!page) break;
@@ -6393,7 +6523,7 @@ async function listLocations(http, token, accountName) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseLocations(await call3(http, locationsRequest(token, accountName, page)));
+    const r2 = parseLocations(await callProfileApi(http, locationsRequest(token, accountName, page)));
     out.push(...r2.locations);
     page = r2.next;
     if (!page) break;
@@ -6406,7 +6536,7 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   let avg = null;
   let total = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r2 = parseReviewsPage(await call3(http, reviewsRequest(token, parent, page)));
+    const r2 = parseReviewsPage(await callProfileApi(http, reviewsRequest(token, parent, page)));
     all.push(...r2.reviews);
     if (i === 0) {
       avg = r2.average_rating;
@@ -6418,15 +6548,18 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
 }
 async function replyToReview(http, token, reviewName, comment) {
-  const o = obj2(await call3(http, replyRequest(token, reviewName, comment)));
-  return { reply_text: str3(o?.comment) ?? comment, replied_at: str3(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString() };
+  const o = recordOrNull(await callProfileApi(http, replyRequest(token, reviewName, comment)));
+  return {
+    reply_text: nonBlankOrNull(o?.comment) ?? comment,
+    replied_at: nonBlankOrNull(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString()
+  };
 }
 var GBP_REPLY_MAX = 4096;
 function cleanReply(text) {
   return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
 
-// src/edge-token.ts
+// src/tokens/edge-token.ts
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 var EDGE_TOKEN_TTL_MS = MIN_MS;
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
@@ -6462,7 +6595,7 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
 }
 
-// src/unsubscribe-token.ts
+// src/tokens/unsubscribe-token.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
 var UNSUBSCRIBE_PATH = "/u/";
 var VERSION = 1;
@@ -6507,7 +6640,7 @@ function unsubscribeUrl(origin, token) {
   return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
 }
 
-// src/apify.ts
+// src/leads/apify.ts
 var APIFY_BASE = "https://api.apify.com/v2";
 var APIFY_TIMEOUT_MS = 2e4;
 var APIFY_RUN_END_EVENTS = [
@@ -6532,22 +6665,19 @@ var ApifyRefused = class extends Error {
   }
   status;
 };
-var obj3 = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str4 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var num2 = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
 var actorPath = (actor) => encodeURIComponent(actor.replace("/", "~"));
 function runOf(data) {
-  const d = obj3(data);
-  const id = str4(d?.id);
-  const status = str4(d?.status);
+  const d = recordOrNull(data);
+  const id = trimmedOrNull(d?.id);
+  const status = trimmedOrNull(d?.status);
   if (!d || !id || !status) throw new ApifyRefused(200, "the provider answered without a run");
   return {
     id,
     status,
-    datasetId: str4(d.defaultDatasetId),
-    usageTotalUsd: num2(d.usageTotalUsd),
-    startedAt: str4(d.startedAt),
-    finishedAt: str4(d.finishedAt)
+    datasetId: trimmedOrNull(d.defaultDatasetId),
+    usageTotalUsd: finiteOrNull(d.usageTotalUsd),
+    startedAt: trimmedOrNull(d.startedAt),
+    finishedAt: trimmedOrNull(d.finishedAt)
   };
 }
 function apifyClient(fetchImpl, token) {
@@ -6555,7 +6685,7 @@ function apifyClient(fetchImpl, token) {
     Authorization: `Bearer ${token}`,
     ...json ? { "content-type": "application/json" } : {}
   });
-  async function call4(url, init, allow = () => false) {
+  async function call2(url, init, allow = () => false) {
     let res;
     try {
       res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(APIFY_TIMEOUT_MS) });
@@ -6573,7 +6703,7 @@ function apifyClient(fetchImpl, token) {
     if (allow(res.status)) return { body: null, headers: res.headers };
     let type = `http ${res.status}`;
     try {
-      type = str4(obj3(obj3(JSON.parse(text))?.error)?.type) ?? type;
+      type = trimmedOrNull(recordOrNull(recordOrNull(JSON.parse(text))?.error)?.type) ?? type;
     } catch {
     }
     if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
@@ -6589,48 +6719,48 @@ function apifyClient(fetchImpl, token) {
         webhooks
       });
       if (opts.memoryMb) q.set("memory", String(opts.memoryMb));
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "POST",
         headers: headers2(true),
         body: JSON.stringify(input)
       });
-      const run = runOf(obj3(body)?.data);
+      const run = runOf(recordOrNull(body)?.data);
       if (!run.datasetId) throw new ApifyRefused(201, "the provider started a run with no dataset");
       return { id: run.id, datasetId: run.datasetId };
     },
     async getRun(id) {
-      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      return runOf(obj3(body)?.data);
+      return runOf(recordOrNull(body)?.data);
     },
     async listActorRuns(actor, sinceIso) {
       const q = new URLSearchParams({ desc: "1", limit: "100" });
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const items = obj3(obj3(body)?.data)?.items;
+      const items = recordOrNull(recordOrNull(body)?.data)?.items;
       const out = [];
       for (const it of Array.isArray(items) ? items : []) {
-        const o = obj3(it);
-        const id = str4(o?.id);
-        const status = str4(o?.status);
-        const startedAt = str4(o?.startedAt);
+        const o = recordOrNull(it);
+        const id = trimmedOrNull(o?.id);
+        const status = trimmedOrNull(o?.status);
+        const startedAt = trimmedOrNull(o?.startedAt);
         if (!o || !id || !status || !startedAt || startedAt < sinceIso) continue;
-        out.push({ id, status, startedAt, datasetId: str4(o.defaultDatasetId) });
+        out.push({ id, status, startedAt, datasetId: trimmedOrNull(o.defaultDatasetId) });
       }
       return out;
     },
     async runInput(id) {
-      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const store = str4(obj3(obj3(body)?.data)?.defaultKeyValueStoreId);
+      const store = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.defaultKeyValueStoreId);
       if (!store) return null;
-      const rec = await call4(
+      const rec = await call2(
         `${APIFY_BASE}/key-value-stores/${encodeURIComponent(store)}/records/INPUT`,
         { method: "GET", headers: headers2(false) },
         (s) => s === 404
@@ -6644,7 +6774,7 @@ function apifyClient(fetchImpl, token) {
         fields: fields.join(","),
         format: "json"
       });
-      const { body, headers: h } = await call4(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
+      const { body, headers: h } = await call2(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -6656,23 +6786,25 @@ function apifyClient(fetchImpl, token) {
       };
     },
     async abortRun(id) {
-      await call4(
+      await call2(
         `${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}/abort`,
         { method: "POST", headers: headers2(false) },
         (s) => s >= 400 && s < 500 && s !== 401 && s !== 403 && s !== 429
       );
     },
     async eventPrices(actor) {
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const d = obj3(obj3(body)?.data);
+      const d = recordOrNull(recordOrNull(body)?.data);
       const infos = Array.isArray(d?.pricingInfos) ? d.pricingInfos : [];
-      const events = obj3(obj3(obj3(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
+      const events = recordOrNull(recordOrNull(recordOrNull(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
       const out = {};
       for (const [name, e] of Object.entries(events)) {
-        const price = num2(obj3(obj3(obj3(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd) ?? num2(obj3(e)?.eventPriceUsd);
+        const price = finiteOrNull(
+          recordOrNull(recordOrNull(recordOrNull(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd
+        ) ?? finiteOrNull(recordOrNull(e)?.eventPriceUsd);
         if (price !== null) out[name] = price;
       }
       return out;
@@ -6680,7 +6812,7 @@ function apifyClient(fetchImpl, token) {
   };
 }
 
-// src/lead-judge.ts
+// src/leads/lead-judge.ts
 import { createHash } from "crypto";
 var LEAD_JUDGE_MAX_TOKENS = 6e3;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";

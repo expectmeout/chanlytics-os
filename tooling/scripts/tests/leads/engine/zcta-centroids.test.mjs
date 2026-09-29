@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { centroidsOf, OUT } from "../../../gen-zcta-centroids.mjs";
+import { centroidsOf, OUT } from "../../../gen/zcta-centroids.mjs";
 
 const SAMPLE = [
   "GEOID\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG   ",
