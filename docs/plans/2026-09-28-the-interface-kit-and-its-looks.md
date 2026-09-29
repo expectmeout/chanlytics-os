@@ -520,6 +520,10 @@ _Proof:_ the probes; style equality. _Done when:_ a TSX component can be written
 
 ### Phase 2 · The kit, complete and identical (nothing a member can see)
 
+Phase 2 ships as one pull request, 2.1 to 2.4 together, each step a commit or a few in it: on 28 September Ruben asked
+for one push per big batch, since every push runs Actions and two Vercel builds. The steps below keep their order and
+their proofs.
+
 **2.1 The kit-grade CSS moves into the kit.** From `components.css`: buttons (:427-483), the input (:485-514), the
 badge shapes (:541-644), the live dot, faces (:669-702), empty states (:1845-1872), the menu (:1762-1821), confirm, the
 field error, the toast (:1886-1929), the tooltip (:2019-2031), the tab strip (:2033-2068). From `record.css`: fields,
@@ -536,10 +540,11 @@ it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented cont
 three surfaces (from the most common card rule), the row (from the phone row's tokens), the sheet (the record sheet
 on a desk, the phone sheet under 900px), the meter (from `SegmentBar`), the face (the phone row's 32px face), the
 composer chassis (head, rows, foot, from the record sheet). No page uses them yet. It comes after 2.3, whose gallery
-is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. Four pull requests of a day
-each, where every other step is one: the panel; the face with the list row; the meter; the sheet. The switch, the
-segmented control and the composer chassis are the record kit's rules, which 2.1 moves, so 2.2 writes none of them.
-_Proof:_ the gallery; style equality on the pages. _Done when:_ every component of §3.4 exists once in CSS.
+is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. Planned as four pull requests
+of a day each, where every other step is one: the panel; the face with the list row; the meter; the sheet. They went
+out in Phase 2's one pull request, as its commits (above). The switch, the segmented control and the composer chassis
+are the record kit's rules, which 2.1 moves, so 2.2 writes none of them. _Proof:_ the gallery; style equality on the
+pages. _Done when:_ every component of §3.4 exists once in CSS.
 
 **2.3 The gallery.** The harness's `kit` scenario and `e2e/kit/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
 and needs only 1.7; 2.1 can run beside it, and has a page that draws every class it moves once it lands. _Proof:_ the
@@ -547,8 +552,14 @@ spec. _Done when:_ every class in `classes.json` has an entry, which the spec ch
 
 **2.4 The React components for the new primitives.** Typed, rendering the kit's classes, tested on the stub React.
 Where a component already exists in JSX (`StatePill`, `MoreMenu`, `EmptyState`, the record kit), its TSX is written
-when its first surface moves (Phase 3), as a move, so it is never written twice. _Proof:_ the tests. _Done when:_ a
-moved surface can import every primitive.
+when its first surface moves (Phase 3), as a move, so it is never written twice. Built: `Button` (its door a link),
+`LinkButton`, `Panel`, `Face`, `ListRow` and `Meter`, each with its type test, and
+`tooling/scripts/tests/styles/kit-components.test.mjs` holds every entry of their gallery families to what they draw,
+so the gallery and the components cannot part. The Sheet waits on Ruben's decision whether the kit builds its
+interactive components on Base UI (`@base-ui/react`): its behaviour (focus held inside, Escape, the page behind still)
+is what that decision settles, so its component is written with it; until then `kit.css` draws `.sheet`, and the
+gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can import every primitive, the Sheet's once that
+decision is taken.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
@@ -686,9 +697,10 @@ alternatives.
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
 
-About 48 pull requests besides 0015's own: 7 in Phase 1, 7 in Phase 2 (2.2 is four), 12 in Phase 4, about 17 in
-Phase 5, 5 in Phase 6. Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before
-the surfaces are done, since they are not offered to members until step 5.5.
+About 42 pull requests besides 0015's own: 7 in Phase 1, 1 in Phase 2 (its steps together, on Ruben's instruction of
+28 September, where they were planned as 7 with 2.2 as four), 12 in Phase 4, about 17 in Phase 5, 5 in Phase 6.
+Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before the
+surfaces are done, since they are not offered to members until step 5.5.
 
 ---
 
