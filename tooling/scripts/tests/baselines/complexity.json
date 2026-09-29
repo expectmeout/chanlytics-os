@@ -659,11 +659,6 @@
     "branches": 40,
     "depth": 3
   },
-  "apps/edge/api/stripe-webhook.ts::POST#1": {
-    "lines": 256,
-    "branches": 70,
-    "depth": 4
-  },
   "apps/edge/api/whatsapp.ts::POST#1": {
     "lines": 186,
     "branches": 54,
