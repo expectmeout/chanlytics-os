@@ -2,10 +2,11 @@
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** APPROVED 25 Sep 2026 ("the plan as you best suggest is approved
 to continue as you recommend"), with one decision taken at approval: the build is model-agnostic and the default model
-is Opus 5.5 (§5.11) · **Canvas:** https://claude.ai/artifact/BQLLJrUhjRkSQwGtghZZF5 (v2; the two figures of §4 are
-drawn there) · **Companion:** the Ask Wiring Map, https://claude.ai/artifact/L91MDmxoRzTgN7NezP2T1n (23 pages and
-engines against Ask, a 23×23 matrix, a 61-row gap ledger) · **Sources:** every load-bearing claim about the API was
-read against its page on 25 Sep 2026; the notes, with every URL and read date, are
+is Opus 5.5 (§5.11); **Phases 0–7 landed** (25–29 Sep 2026, §9), and the next item is Part B, answer blocks (§9) ·
+**Canvas:** https://claude.ai/artifact/BQLLJrUhjRkSQwGtghZZF5 (v2; the two figures of §4 are drawn there) ·
+**Companion:** the Ask Wiring Map, https://claude.ai/artifact/2iv8uSCuBgYYRt4zNoWQ31 (pages and engines against Ask, a
+matrix and a gap ledger; republished as the phases close, the 25 Sep link gone) · **Sources:** every load-bearing
+claim about the API was read against its page on 25 Sep 2026; the notes, with every URL and read date, are
 `docs/superpowers/specs/2026-09-25-ask-rewired-primary-sources.md` · **Plans:** one per phase in
 `docs/superpowers/plans/`, written when its phase starts against the `main` of that day; Phase 0 is
 `2026-09-25-ask-rewired-0-measure.md`.
@@ -899,6 +900,29 @@ the most-given miss reason, run end to end on a replayed stack.
 **Phase 7 · The first run and the last doors.** The palette mounted on `#/start` with the `start` surface; ⌘K jumps for
 Pipeline, Memory and the back office; the demo palette's stale comments and the registry's stale rows corrected. No
 migration. **Proof:** the e2e first-run spec asks a question; the jump index test lists every real surface.
+
+**Phase 7, landed** (29 Sep 2026; plan `2026-09-29-ask-rewired-7-first-run-and-last-doors.md`, one pull request with
+the code, its tests and this paragraph, merged on green). The shell draws the palette it draws everywhere else beside
+the first run, so ⌘K (and `askAbout`) opens the Line over the step on the `start` surface; no door is drawn there, as
+the first run draws no chrome and no key is drawn outside the `?` sheet (a door is Ruben's call). The start surface
+has questions of its own, "What is left to set up?" first, answered by the model from the context the server's `start`
+provider already built in Phase 2 (the step, Setup's readiness, "N of M set up", the next step), never a second reading
+of Setup's rows; the offer and the playbook it borrowed from other's chips are gone, and the page questions are one
+table (`buildAskSuggestions` 49 branches down, every other surface's chips word for word). ⌘K's pages are contracts'
+`askPages`: every workspace's, the Pipeline after Leads where People says deals are on, and the back office for
+Chanlytics staff, each read from the bit its own door is drawn by; Memory's jump still lands on Business (#417) and
+answers to "AI memory", the unlisted pane's name. What landed beyond the plan's sentence: the jump index test found
+Settings › Partner (0012, in every rail since 27 Sep) with no jump, and it has one; the local e2e harness now draws
+the first run and the Line, and stands every record at its workspace's address so the Line's reads name it. The retired
+`#/pipeline` still lands on People, as the Pipeline's own test pins. No migration, no route, no model change.
+
+**Next · Part B, answer blocks.** The program's next phase is Part B of the Ask-on-a-phone spec
+(`docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md` §7), handed to this program by Ruben on 28 Sep:
+answers that shape themselves (`say` as a headline and a body of up to five blocks — text, points, steps or asks — the
+detail kept as the body's plain words, the prompt's rules and examples, `partialSay` reading the body as it streams,
+one renderer). It is planned the day it starts, against that day's `main`, from the local draft on branch
+`design/ask-answer-blocks` (never pushed); until then nobody else edits Ask's answer contract, and the phone lane keeps
+the phone's UI and reviews the renderer.
 
 Phases 0–3 are the recode and carry most of the value; 4–7 add reach.
 

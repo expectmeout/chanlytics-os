@@ -145,6 +145,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(page.getByTestId("first-run")).toBeAttached();
     expect(await line.innerText(), "no key is drawn").not.toMatch(/[↵⌘]|\besc\b/i);
     await expect(line.locator(".ask-rows-label", { hasText: "Ask about setting up" })).toBeVisible();
+    await page.screenshot({ path: "test-results/ask-first-run.png" });
     await line.getByTestId("ask-input").fill(SETUP_LEFT);
     await line.getByTestId("ask-input").press("Enter");
     if (!PAID) {
