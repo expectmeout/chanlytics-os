@@ -1,6 +1,6 @@
 # 0018 · A reply goes first, and each workspace takes its turn
 
-**Status:** decided, and step 1 built with the note; steps 2 and 3 follow, and step 4 only if step 1's numbers ask for
+**Status:** Accepted by Ruben, 28 Sep 2026. Decided, and step 1 built with the note; steps 2 and 3 follow, and step 4 only if step 1's numbers ask for
 it. Written against commit `d1ae74ff` (main, 27 September 2026, after #1175 merged), and every file and line below was
 read at it. Ruben left the three open questions to be settled by analysis; the answers close the note, and the third
 turned Decision 4 from an exclusion into an order. Where this note and the code disagree, the code wins. It is the

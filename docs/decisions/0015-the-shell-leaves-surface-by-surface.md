@@ -1,7 +1,8 @@
 # 0015 · The shell leaves, one surface at a time
 
-**Status:** decided, not built. Ruben left the open questions to be settled by analysis (27 September); the answers
-close the note. The address, the first step, waits until no open pull request holds a page that reads its own `#/`
+**Status:** Accepted by Ruben, 28 Sep 2026; decided, not built. Ruben left the open questions to be settled by
+analysis (27 September); the answers close the note, and he accepted it with one amendment, which follows them. The
+address, the first step, waits until no open pull request holds a page that reads its own `#/`
 address (the fourth answer). Written against commit `519724e9c` (main, 27 September 2026, after the organization
 program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
@@ -280,3 +281,16 @@ Ruben left the note's open questions to be settled by analysis. They are:
    `pages/pipeline-scope.jsx`, `pages/leads-real.jsx`), and the last two parse their own part of the address. On 27
    September the Reach out program holds the Leads page, with ten of its twelve pull requests to come, so the address
    would move under it. The lint steps and the ledger's (0018) go first, since they hold no page.
+
+## Amendment (28 September 2026, accepted)
+
+**Each surface moves its own `legacy-bridge` modules with it.** Accepted by Ruben with the note on 28 September 2026,
+as the Road to Ten organization review recommended. A surface's step takes the bridge modules that only it uses (its
+override, its verbs, its detail readers) into `apps/dashboard/src/surfaces/<surface>/` in the same pull request, and
+a module two surfaces use moves with the first of them, as a shared component or store does above. Otherwise the
+bridge keeps what every surface left behind: at `9e524a428` (main, 28 September) `apps/dashboard/src/legacy-bridge`
+holds 56 modules against the tree-shape ratchet's ceiling of 20 (`tooling/scripts/tests/baselines/tree-shape.json`),
+and about 34 of them would stay over it after the frame's step. So condition 1 of "A surface, done" includes the
+bridge modules the surface owned, and condition 5 banks the bridge folder's fall with the other numbers. Since this
+note was written, #1278 split the seam's overrides out of `surface-data.ts` into
+`apps/dashboard/src/legacy-bridge/surfaces/`, one module per surface; that module is the first each step takes.
