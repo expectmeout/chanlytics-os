@@ -935,18 +935,18 @@ a.chip:focus-visible {
    say why (components.css, [data-gated]), and take no hover or press state of their own. */
 .btn[data-gated]:hover,
 .btn[data-gated]:active {
-  background: var(--bg-raised);
+  background: var(--secondary-fill);
   border-color: var(--line);
 }
 .btn-primary[data-gated]:hover,
 .btn-primary[data-gated]:active {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--primary-fill);
+  border-color: var(--primary-fill);
 }
 .btn-ghost[data-gated]:hover,
 .btn-ghost[data-gated]:active {
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--quiet-ink);
 }
 .more-item[data-gated]:hover {
   background: transparent;
@@ -2521,4 +2521,291 @@ a.list-row {
   .sheet-backdrop[data-leaving] {
     display: none;
   }
+}
+
+/* ============================================================
+   THE KIT IN GLASS (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.2)
+   What a family's Glass form needs beyond its roles, whose values the look sets (tokens.css, GLASS), family by family,
+   each after the canvas it follows (Appendix C; their material is the generator's liquid.py). Every rule here names
+   the look, reads roles, and matches nothing in Classic. Most name it inside :where(), so a rule weighs what the rule
+   it restyles weighs and comes after it: a press, a focus, a refusal or a busy state written for both looks still
+   wins over a Glass form at rest. A rule that must also win over a page's (a phone's) names the look outright.
+   The material, where a family is glass: its fill; its depth, one role holding the specular top edge, the contour and
+   the shadow; and its rim, a one-pixel ring of the rim's gradient masked to the border on a pseudo-element, never an
+   element of the markup (§3.1). What floats where a page passes behind it blurs it with the control layer's blur. A
+   pane blurs from a layer drawn under its content (::before), so the pane is neither the containing block of a menu
+   that escapes it (MoreMenu escape, placed against the window) nor its clip; it isolates, as the record card always
+   has, so that layer sits over the pane's ground and under its words. Inside a pane everything is an inset: a plain
+   fill with its hairline and its specular edge, and never a blur (never glass on glass).
+   ============================================================ */
+
+/* ---- Capsule buttons (every canvas; liquid.py cap) ----
+   The capsule, the height and the colours are the roles': a control's radius is a capsule's, the primary is the accent
+   (decision 5), the secondary an inset's fill with the hairline. What the roles cannot say: the secondary's specular
+   top edge; the primary's words at 600, the glow of the accent under it and its own specular edge; and a quiet or a
+   destructive act with no edge of glass at all. */
+:where([data-look="glass"]) .btn {
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .btn-primary {
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--primary-depth);
+}
+:where([data-look="glass"]) .btn-ghost,
+:where([data-look="glass"]) .btn-danger {
+  box-shadow: none;
+}
+
+/* ---- The segmented capsule and the stage capsule (inbox3.py segmented; deals3.py stage_capsule) ----
+   A choice of a few is one capsule, the picked segment the lozenge: the selected fill with its specular edge and a
+   small shadow. It stands in a pane (a fold, a sheet), so its track is an inset and never glass. A deal's stage (D2)
+   is this capsule; the mark on a step behind it is the Pipeline's own (its canvas, step 5.4). A choice with a sentence
+   under each option is a grid of cards, which round as an inset rounds. */
+:where([data-look="glass"]) .rec-seg {
+  padding: 3px;
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .rec-seg-btn[aria-checked="true"] {
+  box-shadow: var(--selected-depth);
+}
+:where([data-look="glass"]) .rec-seg[data-hints="true"] {
+  border-radius: var(--surface-inset-radius);
+}
+:where([data-look="glass"]) .rec-seg[data-hints="true"] .rec-seg-btn {
+  border-radius: var(--radius-lg);
+}
+
+/* A surface's views are the segmented capsule of the canvases' title blocks (inbox3.py surface_tabs): glass on the
+   page, as wide as its tabs, the picked tab the lozenge in ink. One weight whichever is picked, as in Classic (a
+   bolder word is a wider one, and the tabs beside it moved on every switch), where the canvases set it at 600. A
+   thumb carrying the page carries the lozenge, drawn under the words. Its padding is the capsule's own, so it names
+   the look outright, over the strip's sides that the phone and Campaigns set (components.css), which become where the
+   frame and the page place the capsule. */
+[data-look="glass"] .stabs,
+[data-look="glass"] .stabs.stabs-campaigns {
+  padding: 4px;
+}
+:where([data-look="glass"]) .stabs {
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  border-radius: var(--radius-full);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  backdrop-filter: var(--surface-control-blur);
+  isolation: isolate;
+}
+:where([data-look="glass"]) .stabs::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .stabs-tab {
+  height: var(--control-h-sm);
+  padding: 0 14px;
+  border-bottom: 0;
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .stabs-tab:hover {
+  color: var(--ink);
+}
+:where([data-look="glass"]) .stabs-tab.active {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .stabs[data-glide]::after {
+  top: 4px;
+  bottom: 4px;
+  z-index: -1;
+  height: auto;
+  border-radius: var(--radius-full);
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+:where([data-look="glass"]) .stabs[data-glide] .stabs-tab.active {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---- Clear panes and inset rows (E3's clear tiles; inbox3.py and people3.py panes) ----
+   A pane is clear glass: its fill, its rim over its edge, and the specular edge, contour and shadow its depth, with no
+   hairline (its rim is its edge). The panel's inset and pop are no pane; the record card is one. Inside a pane, an
+   inset takes its specular edge, a row's wash an inset's corner, and a face is the canvases' avatar: the inset's fill
+   and hairline, the initials in ink.
+   The pane's blur: the record card isolates in both looks (its rows' washes sit under their words in it), so its fill
+   and blur take a layer of its own under its words, and the card stays no containing block for a menu that escapes
+   it. A panel does not isolate, and does not take one: a layer of its own would draw a menu escaping it under the pane
+   after it (measured on the gallery, 29 Sep: under it in Glass where Classic drew it over), and over the page's light
+   a pane's blur moves what is drawn by less than one level in 255 on average (measured there too). */
+:where([data-look="glass"]) .panel:not(.panel-inset, .panel-pop),
+:where([data-look="glass"]) .rec-card {
+  position: relative;
+  border-width: 0;
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .rec-card {
+  background: transparent;
+}
+:where([data-look="glass"]) .rec-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--surface-pane-fill);
+  backdrop-filter: var(--surface-pane-blur);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .panel:not(.panel-inset, .panel-pop)::after,
+:where([data-look="glass"]) .rec-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .panel-inset,
+:where([data-look="glass"]) .confirm-block {
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .rec-row::before {
+  border-radius: var(--surface-inset-radius);
+}
+:where([data-look="glass"]) .face {
+  border-color: var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+/* ---- What pops over the page (every canvas's popover) ----
+   Opaque, as the roles say, with the look's soft shadow in place of the menu's own. */
+:where([data-look="glass"]) .more-menu {
+  box-shadow: var(--surface-pop-depth);
+}
+
+/* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
+   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque as what pops over the page is,
+   over the page's wash; on a phone it rises from the bottom edge at the same corner. Its foot is a capsule of the
+   control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
+   rows scroll above it, never under it. It names the look outright, over the record kit's phone foot (record.css). */
+@media (width > 900px) {
+  :where([data-look="glass"]) .sheet,
+  :where([data-look="glass"]) .rec-sheet {
+    top: 14px;
+    right: 14px;
+    bottom: 14px;
+    border: 1px solid var(--surface-pop-edge);
+    border-radius: var(--surface-pane-radius);
+    box-shadow: var(--surface-pop-depth);
+  }
+}
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .sheet {
+    border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
+  }
+}
+[data-look="glass"] .rec-sheet-foot {
+  position: relative;
+  margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 6px 6px 16px;
+  border-top: 0;
+  border-radius: var(--surface-control-radius);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+  backdrop-filter: var(--surface-control-blur);
+}
+[data-look="glass"] .rec-sheet-foot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+[data-look="glass"] .rec-sheet-foot .btn {
+  height: var(--control-h-lg);
+  padding: 0 16px;
+}
+
+/* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----
+   A composer's rows are a pane's: the key in the third ink, the rule between them the edge (the roles'), and the
+   fields in them insets, a plain fill with its hairline and its specular top edge, rounding as a capsule where the
+   field holds one line and as an inset where it holds more (a sentence to type, a list open under its box). The plan
+   sentence of tokens (C1, C2) is each composer's own markup, and comes with its surface's canvas (step 5.4). */
+:where([data-look="glass"]) .rec-input,
+:where([data-look="glass"]) .rec-input-group,
+:where([data-look="glass"]) .rec-combo {
+  border-color: var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) textarea.rec-input,
+:where([data-look="glass"]) .rec-combo[data-open="true"] {
+  border-radius: var(--surface-inset-radius);
+}
+
+/* ---- The search capsule (inbox3.py search_capsule; deals3.py glass_search) ----
+   The house's search box, a capsule at the canvases' height: an inset in a pane, as the list's is, its glyph and its
+   words in the third ink, and the key that finds it a small capsule of its own. */
+:where([data-look="glass"]) .input {
+  height: var(--control-h-lg);
+  padding: 0 12px;
+  border-color: var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .input .kbd {
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+}
+
+/* ---- Counts as text (liquid_lite.py count_text; liquid.py count) ----
+   A count beside what it counts (a tab, a title, a filter) is text: the third ink, the words' own size, no ground,
+   and never a warning's colour, since the canvases count people who need you in the same ink. On an icon, where no
+   words stand beside it, it is the neutral count: the ink's fill and its words, with no ring. */
+:where([data-look="glass"]) .tally {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .tally-warn {
+  background: none;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .tally-icon,
+:where([data-look="glass"]) .tally-icon.tally-warn {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  background: var(--count-fill);
+  box-shadow: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--count-ink);
 }
