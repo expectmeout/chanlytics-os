@@ -201,6 +201,20 @@ test(
     assert.equal(reach.error?.code, "P0002", "the workspace is not found, as it is to a stranger");
     const report = await password.rpc("reach_out_chain_report", { p_tenant_id: owner.tenant, p_root_id: search });
     assert.equal(report.error?.code, "P0002");
+    for (const [door, args] of [
+      ["reach_out_report", { p_tenant_id: owner.tenant, p_days: 30 }],
+      ["reach_out_search_lines", { p_tenant_id: owner.tenant, p_search_id: search }],
+      ["reach_out_lead_timeline", { p_tenant_id: owner.tenant, p_lead_id: search }],
+    ]) {
+      const r = await password.rpc(door, args);
+      assert.equal(r.error?.code, "P0002", `${door}: not found to a password alone`);
+    }
+    const shownReport = await shown.rpc("reach_out_report", { p_tenant_id: owner.tenant, p_days: 30 });
+    assert.equal(
+      shownReport.error,
+      null,
+      `the session that showed the code reads the report: ${shownReport.error?.message}`,
+    );
     const shownReach = await shown.rpc("reach_out_reach", { p_tenant_id: owner.tenant, p_search_id: search });
     assert.equal(shownReach.error, null, `the session that showed the code reads it: ${shownReach.error?.message}`);
 
