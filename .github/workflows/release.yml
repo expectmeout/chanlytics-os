@@ -37,6 +37,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="$(node tooling/scripts/ops/release-note.mjs --tag "$GITHUB_SHA")"
+          # A re-run of a job that got as far as the release finds it made.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$tag is already released"
+            exit 0
+          fi
           node tooling/scripts/ops/release-note.mjs --to "$GITHUB_SHA" > release.md
           cat release.md
           gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file release.md --repo "$GITHUB_REPOSITORY"
