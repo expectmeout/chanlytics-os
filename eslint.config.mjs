@@ -208,6 +208,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/lib",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
+  "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/connections",
@@ -230,7 +231,7 @@ export const LIMITED_TREES = [
 ];
 
 /**
- * The held trees where a function still takes more than four parameters (measured 28 September 2026: 43 functions,
+ * The held trees where a function still takes more than four parameters (measured 28 September 2026: 48 functions,
  * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
@@ -238,6 +239,7 @@ export const WIDE_PARAMS = [
   "packages/db/src",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
+  "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",

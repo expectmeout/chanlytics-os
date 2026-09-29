@@ -542,7 +542,43 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
   assert.ok(!printed(body).includes(KEY));
 });
 
-test("provision, the apply that binds an existing number: the number is patched onto the agent, pinned, with the inbound webhook; the event says it was not bought", async () => {
+test("provision, the apply's legs in order: the receptionist and the number at the provider with nothing written, then the row, the bell and the event, and only then the read-back", async () => {
+  for (const [ask, numberCall] of [
+    [{ area_code: 305 }, "POST /create-phone-number"],
+    [{ number: NUMBER }, "PATCH /update-phone-number/%2B13055550100"],
+  ]) {
+    const { tables } = use();
+    const p = retell();
+    const written = [];
+    const providerFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      written.push([tables.tenant_channels.length, tables.notifications.length, tables.events.length]);
+      return providerFetch(url, init);
+    };
+    let status;
+    try {
+      [status] = await answer(await knock({ tenant_id: A, apply: true, ...ask }));
+    } finally {
+      globalThis.fetch = providerFetch;
+      p.restore();
+    }
+    assert.equal(status, 200);
+    assert.deepEqual(
+      p.paths().map((call, i) => [call, written[i]]),
+      [
+        ["POST /create-retell-llm", [0, 0, 0]],
+        ["POST /create-agent", [0, 0, 0]],
+        ["POST /publish-agent-version/agent_2", [0, 0, 0]],
+        [numberCall, [0, 0, 0]],
+        ["GET /get-agent/agent_2", [1, 1, 1]],
+        ["GET /get-retell-llm/llm_1?version=0", [1, 1, 1]],
+      ],
+      JSON.stringify(ask),
+    );
+  }
+});
+
+test("provision, the apply that binds an existing number:the number is patched onto the agent, pinned, with the inbound webhook; the event says it was not bought", async () => {
   const { tables } = use();
   const p = retell();
   let status, body;
