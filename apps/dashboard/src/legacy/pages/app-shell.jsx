@@ -442,6 +442,37 @@ const useTabTitle = (crumbs, inboxNeeds) => {
 };
 
 /**
+ * Where a person is taken to the page: its first heading, else the page region itself (the `main` landmark, focusable so
+ * it can hold focus). `always` for the skip link, which is asked for; otherwise never from where the person is already
+ * working inside the page (a field they are typing in, the row the arrows walk).
+ */
+const focusPage = (always) => {
+  const main = document.getElementById ? document.getElementById("main") : null;
+  if (!main) return;
+  const at = document.activeElement;
+  if (!always && at && at !== document.body && main.contains(at)) return;
+  const heading = main.querySelector('h1, h2, [role="heading"]');
+  const target = heading || main;
+  if (target.getAttribute("tabindex") === null) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+};
+
+/**
+ * A move to another page moves focus to it, as a page load does: a hash route never loads a page, so a keyboard and a
+ * screen reader were left on the link pressed in the sidebar, and read nothing of where they had gone. Once the page has
+ * drawn (the reading pane is not the page), and not for the first page the tab opened on.
+ */
+const usePageFocus = (routeKey, routeLoading) => {
+  const handled = useShellRef(null);
+  useShellEffect(() => {
+    if (routeLoading || handled.current === routeKey) return;
+    const first = handled.current === null;
+    handled.current = routeKey;
+    if (!first) focusPage(false);
+  }, [routeKey, routeLoading]);
+};
+
+/**
  * How the route view comes in. A move that stays on the page -- People to Leads or the Pipeline and back -- is still
  * a remount (each scope is a mount of its own), and the route fade played on every one, on top of the rows' own
  * draw: the switch read as a wait. The fade is for arriving somewhere else, and for a page landing where the reading
@@ -517,12 +548,14 @@ const appChrome = (s) => {
   const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
+      {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
+      <button type="button" className="skip-link" onClick={() => focusPage(true)}>Skip to the page</button>
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
         {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (data-bits
             touchSwipe). */}
-        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+        {navOpen && <div className="nav-backdrop" role="presentation" onClick={() => setNavOpen(false)} />}
         <Sidebar
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}
@@ -552,7 +585,8 @@ const appChrome = (s) => {
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
-        <div
+        <main
+          id="main"
           key={viewKey}
           className={`main-scroll route-view ${pane ? "pane" : ""} ${routeStay ? "route-stay" : ""} ${routeSlide ? `route-slide-${routeSlide}` : ""}`}
           aria-busy={routeLoading ? "true" : undefined}
@@ -565,7 +599,7 @@ const appChrome = (s) => {
                 ? <SurfaceUnavailable onNavigate={navigate} />
                 : content}
           </ShellErrorBoundary>
-        </div>
+        </main>
         {/* Inside the app the native tab bar stands here (window.__IN_APP, stamped before paint). */}
         {!window.__IN_APP && (
           <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
@@ -628,6 +662,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);
+  usePageFocus(at.routeKey, gate.routeLoading);
   // The shell is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived
   // while this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close
   // runs before the replayed open.

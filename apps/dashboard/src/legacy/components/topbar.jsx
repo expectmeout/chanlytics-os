@@ -191,14 +191,14 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   const sections = tbnSections(items.map((n) => (readHere.current.has(n.id) ? { ...n, unread: true } : n)));
   return (
     <>
-      <div className="tbn-backdrop" onClick={onClose} />
+      <div className="tbn-backdrop" role="presentation" onClick={onClose} />
       {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
           leaving). A popover under the bell on a wider screen, where neither moves it. */}
       <div
         className="tbn-pop"
-        role="dialog"
+        role="dialog" aria-modal="true"
         aria-label="Notifications"
-        ref={window.leaving ? window.leaving("bell") : undefined}
+        ref={window.dialogRef ? window.dialogRef("bell") : undefined}
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: tbnPhone }) : {})}
       >
         <div className="tbn-handle" aria-hidden="true" />
@@ -527,8 +527,8 @@ const Topbar = ({
     : { icon: theme === "light" ? "moon" : "sun", label: theme === "light" ? "Switch to dark" : "Switch to light" };
 
   return (
-    <div className="topbar">
-      <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" onClick={onMenu}>
+    <header className="topbar">
+      <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" aria-label="Menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
       <div className="crumbs">
@@ -617,7 +617,7 @@ const Topbar = ({
       </div>
 
       {toastNode}
-    </div>
+    </header>
   );
 };
 

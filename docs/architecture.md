@@ -317,7 +317,7 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 - _A device's_ preferences (the theme, the look, the rail) live in `localStorage` and nowhere else
   (`device-prefs.ts`); _a tab's own_ (a view's place, a half-written draft) in `sessionStorage` through the one store
   (`tab-memory.ts`); and what only one component cares about, in that component.
-- _Who is acting_ is one answer, `roles.ts`: the member's role from the workspace's read, lowered by an owner's View-as,
+- _Who is acting_ is one answer, `identity.ts` (`roleOf`): the member's role from the workspace's read, lowered by an owner's View-as,
   failing closed. Every gate asks the role store it completes (`ST_STORE.myRole()`, `mayAtLeast`), never `__ME.role`.
 
 A component draws again when a surface it draws from lands or changes status, and by nothing else. It names them:

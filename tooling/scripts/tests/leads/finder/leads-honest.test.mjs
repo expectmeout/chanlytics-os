@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../../_roles.mjs";
+import { installRoleStore } from "../../_legacy-react.mjs";
 import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
@@ -458,6 +458,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "plRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.

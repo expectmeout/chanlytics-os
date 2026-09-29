@@ -234,7 +234,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // rail's row for it does; the line above stays the whole Pipeline's.
   const total = viewCount;
   // Each view keeps its own place (the words in the box, the cursor, the scroll), as each of People's lists does.
-  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}` });
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}`, windowed: false });
   // The people this view shows first, read in the background once the boot is in, so a row's peek and their page open
   // on what the tab already holds (people-detail.ts warmPeople).
   const aheadKey = ids.slice(0, 12).join(",");

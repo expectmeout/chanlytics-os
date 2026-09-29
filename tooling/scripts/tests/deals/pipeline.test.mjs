@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../_roles.mjs";
+import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   DEAL_ACT_WORDS,
@@ -866,6 +866,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "plRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // In the order both lists load them (manifest.ts, Chanlytics.html): the peek and the board before the Pipeline, the

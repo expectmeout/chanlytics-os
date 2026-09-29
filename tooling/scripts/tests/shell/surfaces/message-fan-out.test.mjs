@@ -307,3 +307,103 @@ test("REGRESSION: the three reads of a message draw the shell once on Today and 
     offStatus();
   }
 });
+
+/* ------------------------------- landmarks and where focus goes ------------------------------- */
+
+const nodesOf = (tree, keep, out = []) => {
+  if (!tree || typeof tree !== "object") return out;
+  if (keep(tree)) out.push(tree);
+  for (const k of [tree.props?.children ?? []].flat(Infinity)) nodesOf(k, keep, out);
+  return out;
+};
+
+test("the page is a main landmark with a way past the bars to it, and a move to another page puts focus on it once it has drawn", () => {
+  const off = status.hearSurfaces(REAL, win);
+  for (const o of REAL) status.setStatus(o.key, "live");
+  const keep = globalThis.document;
+  const focused = [];
+  const put = (name) => ({
+    name,
+    attrs: {},
+    getAttribute(k) {
+      return k in this.attrs ? this.attrs[k] : null;
+    },
+    setAttribute(k, v) {
+      this.attrs[k] = v;
+    },
+    focus() {
+      focused.push(name);
+    },
+  });
+  const heading = put("its heading");
+  const inside = put("a field on the page");
+  const region = {
+    ...put("the region"),
+    contains: (n) => n === region || n === inside || n === heading,
+    querySelector: () => heading,
+  };
+  globalThis.document = {
+    ...keep,
+    body: {},
+    activeElement: null,
+    getElementById: (id) => (id === "main" ? region : null),
+  };
+  const props = { theme: "light", themePref: "light", sidebar: "open", onSidebar() {}, onTheme() {} };
+  const draw = () => {
+    frames.begin();
+    return win.ChanlyticsApp(props);
+  };
+  const goTo = (hash) => {
+    win.location.hash = hash;
+    win.dispatchEvent({ type: "hashchange" });
+    return draw();
+  };
+  try {
+    cells = {};
+    win.location.hash = "#/today";
+    let tree = draw();
+    const mains = nodesOf(tree, (n) => n.type === "main");
+    assert.equal(mains.length, 1, "one main landmark");
+    assert.equal(mains[0].props.id, "main");
+    assert.ok(mains[0].props.className.includes("route-view"), "the page's own region, where it always was");
+    assert.deepEqual(focused, [], "the page the tab opened on is where focus starts");
+    const [skip] = nodesOf(tree, (n) => n.type === "button" && String(n.props.className).includes("skip-link"));
+    assert.ok(skip, "a way past the sidebar and the bars, the first thing in the app");
+    assert.equal(
+      nodesOf(tree, (n) => n.type === "div" && String(n.props.className).includes("app-root"))[0].props.children.flat(
+        Infinity,
+      )[0],
+      skip,
+      "the first stop for Tab",
+    );
+
+    tree = goTo("#/calendar");
+    assert.deepEqual(focused, ["its heading"], "another page: focus goes to its heading, as a page load would");
+    assert.equal(heading.attrs.tabindex, "-1", "made focusable for it");
+
+    focused.length = 0;
+    globalThis.document.activeElement = inside;
+    tree = goTo("#/inbox");
+    assert.deepEqual(focused, [], "never from where the person is already working inside the page");
+
+    globalThis.document.activeElement = null;
+    tree = goTo("#/inbox");
+    assert.deepEqual(focused, [], "the same page again is not a move");
+    tree = goTo("#/today");
+    assert.deepEqual(focused, ["its heading"], "from the sidebar, or the address, it is");
+
+    focused.length = 0;
+    globalThis.document.activeElement = inside;
+    const [pressed] = nodesOf(draw(), (n) => n.type === "button" && String(n.props.className).includes("skip-link"));
+    pressed.props.onClick();
+    assert.deepEqual(
+      focused,
+      ["its heading"],
+      "the skip link is asked for, so it takes focus even from inside the page",
+    );
+  } finally {
+    globalThis.document = keep;
+    off();
+    win.location.hash = "#/today";
+  }
+});

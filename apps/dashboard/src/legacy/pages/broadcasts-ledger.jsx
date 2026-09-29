@@ -242,7 +242,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   const inner = (
     <>
       {/* A press anywhere on the line that is not one of its controls opens the run (cmRowPress), as a person's row does. */}
-      <div className="bc-run-line" onClick={window.cmRowPress}>
+      <div className="bc-run-line" role="presentation" onClick={window.cmRowPress}>
         <span className="mark bc-run-mark" aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={13} /></span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
@@ -272,7 +272,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
           <window.CmReach will={will} pool={pool} held={finished ? held : 0} reasons={reasons} size="sm" progress={sending ? row.progress || 0 : null} label={`${row.name}, sent so far`} />
         </div>
         {/* A question asked here is answered here: a press on its words, or just beside its Yes, is not the row's. */}
-        <div className="bc-run-acts" onClick={asking ? (e) => e.stopPropagation() : undefined}>
+        <div className="bc-run-acts" role="presentation" onClick={asking ? (e) => e.stopPropagation() : undefined}>
           {waiting && <BcRunVerbs row={row} canSend={canSend} armed={armed} onArm={onArm} stopping={stopping} approving={approving} approve={approve} cancel={cancel} />}
           {/* Where the row goes: its report, a screen of its own. The whole row presses it; this is its mark, and its
               name for a keyboard and a screen reader. */}

@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, PL_FIRST_ROWS, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, useSurface, mayAtLeast */
+   PL_NO_SEL, PL_FIRST_ROWS, plRowWindow, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, useSurface, mayAtLeast */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -117,7 +117,7 @@ const ClientDecisionRow = ({ client, onOpen }) => {
     : { label: "Open", kind: "ghost" };
 
   return (
-    <div className="cl-decision" onClick={() => onOpen(c.id)} onPointerEnter={() => window.__warmPerson && window.__warmPerson(c.id)} role="button">
+    <div className="cl-decision" onClick={() => onOpen(c.id)} onKeyDown={window.keyPress(() => onOpen(c.id))} onPointerEnter={() => window.__warmPerson && window.__warmPerson(c.id)} role="button" tabIndex={0}>
       <div className="cl-decision-l">
         <div className="cl-mini-avatar" data-priority={c.priority}>{c.initials}</div>
         <TempPill value={c.temp} />
@@ -449,12 +449,12 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
             <StatStrip className="cl-head-stats">
               <StatCell label="Total book" value={CLIENTS_AGGREGATES.total} meta={`+${CLIENTS_AGGREGATES.newThisMonth} this month`} metaTone="pos" />
               <StatCell label="Active touches" value={CLIENTS_AGGREGATES.activeAgentTouches} meta={`today · ${CLIENTS_AGGREGATES.agentsActive} agents`} />
-              <span className="cl-health-wrap" onClick={() => setHealthOpen(v => !v)} data-tip="How this is computed — click to expand">
+              <span className="cl-health-wrap" role="button" tabIndex={0} aria-expanded={healthOpen} onKeyDown={window.keyPress(() => setHealthOpen(v => !v))} onClick={() => setHealthOpen(v => !v)} data-tip="How this is computed — click to expand">
                 <StatCell label="Health index" value={Math.round(CLIENTS_AGGREGATES.health.score * 100)} meta={`${CLIENTS_AGGREGATES.healthDelta} · why?`} metaTone="neg" />
                 {healthOpen && (
                   <>
-                    <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); setHealthOpen(false); }} />
-                    <div className="cl-health-pop" onClick={(e) => e.stopPropagation()}>
+                    <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); setHealthOpen(false); }} />
+                    <div className="cl-health-pop" role="presentation" onClick={(e) => e.stopPropagation()}>
                       <div className="cl-health-pop-title">Health index · {Math.round(CLIENTS_AGGREGATES.health.score * 100)}</div>
                       <div className="cl-health-pop-sub">Weighted blend of the lists that predict revenue</div>
                       {[
@@ -542,10 +542,10 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
                     <Icon name={activeSegMeta.kind === "agent" ? "sparkle" : "filter"} size={10} />
                     {activeSegMeta.label}
                     {!segHasMembers && <span className="cl-seg-filter-note">preview — open in Segments for members</span>}
-                    <button className="cl-seg-filter-x" title="Clear segment filter" onClick={() => setSegment(null)}>
+                    <button className="cl-seg-filter-x" title="Clear segment filter" aria-label="Clear segment filter" onClick={() => setSegment(null)}>
                       <Icon name="x" size={9} />
                     </button>
-                    <button className="cl-seg-filter-open" title="Open in Segments" onClick={() => window.CHANLY.nav(CHANLY.R.segment(activeSegMeta.id))}>
+                    <button className="cl-seg-filter-open" title="Open in Segments" aria-label="Open in Segments" onClick={() => window.CHANLY.nav(CHANLY.R.segment(activeSegMeta.id))}>
                       <Icon name="external" size={9} />
                     </button>
                   </span>
@@ -593,7 +593,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
                     </button>
                     {bulkMenu === "segment" && (
                       <>
-                        <div className="more-backdrop" onClick={() => setBulkMenu(null)} />
+                        <div className="more-backdrop" role="presentation" onClick={() => setBulkMenu(null)} />
                         <div className="more-menu cl-bulkbar-menu" role="menu">
                           <div className="more-header">Saved filters</div>
                           {CLIENT_SEGMENTS.filter(s => s.kind === "manual").map(s => (
@@ -614,7 +614,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
                     </button>
                     {bulkMenu === "agent" && (
                       <>
-                        <div className="more-backdrop" onClick={() => setBulkMenu(null)} />
+                        <div className="more-backdrop" role="presentation" onClick={() => setBulkMenu(null)} />
                         <div className="more-menu cl-bulkbar-menu" role="menu">
                           <div className="more-header">Work these {selected.size} clients</div>
                           {((window.FLEET_DATA && window.FLEET_DATA.FLEET_ROSTER) || []).map(a => (
@@ -1097,7 +1097,7 @@ const PeopleListsSheet = ({ onClose, title = "Lists", children }) => {
   }, [onClose]);
   return (
     <>
-      <div className="sb-sheet-backdrop" onClick={onClose} />
+      <div className="sb-sheet-backdrop" role="presentation" onClick={onClose} />
       {/* It goes the way it came as it closes, and a thumb pulls it down (data-bits leaving, touchSwipe). */}
       <div className="sb-sheet pl-sheet" role="dialog" aria-label={title} data-testid="people-lists-sheet" ref={window.leaving ? window.leaving("people-lists") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
         <div className="sb-sheet-head">
@@ -1486,7 +1486,7 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
     open();
   };
   return (
-    <span className="cl-row-actions" onClick={(e) => e.stopPropagation()}>
+    <span className="cl-row-actions" role="presentation" onClick={(e) => e.stopPropagation()}>
       {p.threadId && <button className="cl-row-act" title="Open the thread" aria-label="Open the thread" onClick={open} data-testid="row-open-thread"><Icon name="chat" size={12} /></button>}
       {p.threadId && bookingLink && (
         <button className="cl-row-act" title={p.bookingLinkAction.title} aria-label={p.bookingLinkAction.label} onClick={link} data-testid="row-booking-link"><Icon name="calendar" size={12} /></button>
@@ -2115,9 +2115,9 @@ const AddPersonButton = ({ onAdded, flash }) => {
 // and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
 const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", onBack = null, testid, children }) => (
   <>
-    <div className="sb-sheet-backdrop" onClick={onClose} />
-    {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving). */}
-    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid} ref={window.leaving ? window.leaving("people-sheet") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
+    <div className="sb-sheet-backdrop" role="presentation" onClick={onClose} />
+    {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving); focus is held in it while it is open (dialogRef). */}
+    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid} ref={window.dialogRef ? window.dialogRef("people-sheet") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
       <div className="pp-sheet-handle" aria-hidden="true" />
       <div className="pp-sheet-head">
         {onBack && <button type="button" className="pp-sheet-back" onClick={onBack} aria-label="Back" data-testid={`${testid}-back`}><Icon name="chevron" size={18} /></button>}
@@ -2394,8 +2394,11 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
  * - selectionOf: what a selection belongs to; when it changes, the selection goes.
  * - extra, onPlace(p, again): what else a view's place holds (Leads' map), and the view's own part of putting one
  *   back (`again`: a view opened after the first).
+ * - windowed: a long list draws a window of its rows (PL_WINDOW_ROWS), grown as its foot comes near and as the cursor
+ *   walks past it; false for a table in sections (the Pipeline's groups), which draws every row after its first frame.
+ *   Said by every caller: a default would be a branch of this function's, which is at its cap.
  */
-const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionOf, extra = null, onPlace = null }) => {
+const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionOf, extra = null, onPlace = null, windowed }) => {
   const { phone, setSearchOpen, setBulkSheet, selectMode, setSelectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, colsOpen, setColsOpen, colsButton, q, setQ, searchRef, scrollRef } = controls;
   // The selection goes with the VIEW, not with the words in the box: someone who selects forty, types a name to find
   // two more and clears it again still has their forty. Both bars count and act on only the rows they show
@@ -2408,11 +2411,18 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
   // hovered row does (clients.css).
   const [cursor, setCursor] = useState(null);
+  // The rows drawn: a window of a long list (people-table.jsx plRowWindow). A place to put back needs every row.
+  const [placed] = useState(() => { const at = plPlaceLoad(page, view); return !!(at && (at.top || at.cursor)); });
+  const { budget: rowBudget, reach } = plRowWindow({ placed, windowed, count: ids.length });
   React.useEffect(() => { setCursor((c) => (c && ids.includes(c) ? c : null)); }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const moveCursor = (step) => setCursor((c) => {
-    const i = c ? ids.indexOf(c) : -1;
-    return ids[step > 0 ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
-  });
+  const moveCursor = (step) => {
+    // A row the cursor walks to is drawn: the window reaches past it, so the row is there to take focus.
+    reach(ids.indexOf(cursor) + step);
+    setCursor((c) => {
+      const i = c ? ids.indexOf(c) : -1;
+      return ids[step > 0 ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
+    });
+  };
   // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
   // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
   // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
@@ -2440,23 +2450,6 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
   const placeTop = React.useRef(0);
   const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
-  // A fresh mount draws its first rows only (PL_FIRST_ROWS) and the rest a frame later: the switch between People
-  // and Leads is a remount, and the table's rows were most of what it waited on (measured on the salon: a 250 ms
-  // draw of 96 leads, 125 ms with the first 24). A place to put back -- a scroll, a cursor -- needs every row on the
-  // first draw, so it draws them all. The budget is the mount's: a view change inside the page never narrows it.
-  const [rowBudget, setRowBudget] = useState(() => {
-    const p = plPlaceLoad(page, view);
-    return p && (p.top || p.cursor) ? Infinity : PL_FIRST_ROWS;
-  });
-  React.useEffect(() => {
-    if (rowBudget === Infinity) return undefined;
-    const lift = () => setRowBudget(Infinity);
-    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
-    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
-    const frame = requestAnimationFrame(lift);
-    const beat = setTimeout(lift, 120);
-    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const p = plPlaceLoad(page, view) || {};
     setQ(p.q || "");
@@ -2851,7 +2844,7 @@ const usePeoplePlace = ({ controls, shown, tab, listId, savedId, q }) => {
   const shownIds = shown.map((r) => r.id);
   // Each view keeps its own place: everyone, a smart list, a kept list or a state.
   const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
-  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "people", view: peopleView, ids: shownIds, noun: "person", selectionOf: `${tab}|${listId}|${savedId}` });
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "people", view: peopleView, ids: shownIds, noun: "person", selectionOf: `${tab}|${listId}|${savedId}`, windowed: true });
   // The people this view shows first, read in the background once the boot is in, so a press opens a page the tab
   // already holds, whole (people-detail.ts warmPeople): a person not read yet opens on nothing of theirs until it is.
   const aheadKey = shownIds.slice(0, 12).join(",");

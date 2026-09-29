@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../_roles.mjs";
+import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,

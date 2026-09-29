@@ -1,5 +1,5 @@
 /**
- * The role every gate reads is one answer (legacy-bridge/roles.ts): the member's role from the workspace's read, lowered
+ * The role every gate reads is one answer (legacy-bridge/identity.ts roleOf and installRoles): the member's role from the workspace's read, lowered
  * by an owner's View-as preview, failing closed, and read against contracts' ladder (roleAtLeast) by every page that
  * offers an act only to the role its door takes. Run on the real functions and the real store the bridge completes.
  */
@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { roleOf, installRoles } = await importSrc("apps/dashboard/src/legacy-bridge/roles.ts");
+const { roleOf, installRoles } = await importSrc("apps/dashboard/src/legacy-bridge/identity.ts");
 
 /** A window with the store settings.jsx makes (its own team stands in for a demo session's member). */
 const windowWith = ({ me, demo = false, viewAs = null, demoRole = "operator" } = {}) => {

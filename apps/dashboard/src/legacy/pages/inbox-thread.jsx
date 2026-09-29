@@ -775,7 +775,7 @@ const ApprovalCard = ({ thread, approval, onDecide = () => {}, planParam = 0, on
         <ExpanderPanel>
           <div className="ix-approval-evidence">
             {approval.evidence?.map((e, i) => (
-              <div key={i} className={`ix-evid ${e.to ? "linked" : ""}`} onClick={e.to ? () => window.CHANLY.nav(e.to) : undefined} role={e.to ? "button" : undefined}>
+              <div key={i} className={`ix-evid ${e.to ? "linked" : ""}`} onClick={e.to ? () => window.CHANLY.nav(e.to) : undefined} onKeyDown={e.to ? window.keyPress(() => window.CHANLY.nav(e.to)) : undefined} role={e.to ? "button" : undefined} tabIndex={e.to ? 0 : undefined}>
                 <span className={`ix-evid-kind kind-${e.kind}`}>{e.kind}</span>
                 <div className="ix-evid-body">
                   <div className="ix-evid-label">{e.label}{e.to && <Icon name="arrow-right" size={9} style={{ marginLeft: 5, color: "var(--ink-faint)" }} />}</div>

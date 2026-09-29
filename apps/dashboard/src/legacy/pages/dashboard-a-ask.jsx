@@ -623,8 +623,8 @@ const AskBarSeed = ({ open, onClose }) => {
   };
 
   return (
-    <div className="ask-overlay" onClick={onClose}>
-      <div className="ask-modal cmd-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="ask-overlay" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ask-modal cmd-modal">
         <div className="cmd-input-bar">
           {active
             ? <button className="cmd-back" onClick={() => { setActiveId(null); setQuery(""); }} aria-label="Back to commands"><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /></button>
@@ -646,7 +646,7 @@ const AskBarSeed = ({ open, onClose }) => {
           ) : (
             sections.map((sec) => (
               <React.Fragment key={sec.key}>
-                {sec.label && <div className="cmd-sec-label">{sec.label}{sec.clear && <span className="cmd-clear" onClick={sec.clear}>Clear</span>}</div>}
+                {sec.label && <div className="cmd-sec-label">{sec.label}{sec.clear && <span className="cmd-clear" role="button" tabIndex={0} onKeyDown={window.keyPress(sec.clear)} onClick={sec.clear}>Clear</span>}</div>}
                 {sec.items.map((it) => (
                   <button key={it._i} className={`cmd-row ${it.type} ${it._i === sel ? "sel" : ""} ${it.done ? "done" : ""}`} onMouseMove={() => setSel(it._i)} onClick={() => activate(it)}>
                     <span className="cmd-row-ic"><Icon name={it.done ? "check" : it.icon} size={12} /></span>

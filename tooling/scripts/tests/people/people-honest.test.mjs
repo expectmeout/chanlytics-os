@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../_roles.mjs";
+import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   SHORTCUTS,
@@ -401,6 +401,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "plRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
@@ -3752,6 +3754,78 @@ test("a fresh mount draws its first rows and the next draw every row; a place to
   } finally {
     clearTabMemory();
     delete globalThis.window.__tabMemory;
+  }
+});
+
+test("a long list draws a window of its rows: its foot is watched and grows the window, and the cursor walks past it -- a thousand people were a thousand rows on every keystroke", async () => {
+  // Measured on a salon's 500 people, a keystroke in the search box redrew every row (85 ms), and the rows a person
+  // scrolls to are a few dozen of a list that can be thousands. The window is PL_WINDOW_ROWS, a foot after it is watched,
+  // and each time it comes near the window grows by a step; a browser that cannot watch draws every row.
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
+  const footOf = (tree) => find(tree, (n) => n.type === "tr" && n.props?.id === "pl-more");
+  const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
+  const watchers = [];
+  const keepWatcher = globalThis.IntersectionObserver;
+  const keepGet = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "pl-more" ? {} : null);
+  globalThis.IntersectionObserver = class {
+    constructor(seen) {
+      this.seen = seen;
+      watchers.push(this);
+    }
+    observe() {}
+    disconnect() {
+      this.gone = true;
+    }
+  };
+  try {
+    await freshPage({ people: everyone });
+    draw();
+    let tree = draw();
+    assert.equal(rowsOf(tree), globalThis.window.PL_WINDOW_ROWS, "a window of the rows, not all of them");
+    assert.ok(footOf(tree), "with its foot drawn, so it can be watched");
+    assert.equal(footOf(tree).props["aria-hidden"], "true", "nothing for a screen reader to say");
+    const watcher = watchers.at(-1);
+    assert.ok(watcher && !watcher.gone, "the foot is watched");
+    watcher.seen([{ isIntersecting: false }]);
+    assert.equal(rowsOf(draw()), globalThis.window.PL_WINDOW_ROWS, "out of range: nothing grows");
+    watcher.seen([{ isIntersecting: true }]);
+    tree = draw();
+    assert.equal(
+      rowsOf(tree),
+      globalThis.window.PL_WINDOW_ROWS + globalThis.window.PL_WINDOW_STEP,
+      "the foot came near: a step more",
+    );
+    assert.ok(watcher.gone, "the old foot is let go, the new one watched");
+
+    // The cursor walks to a row past the window: it is drawn, and holds the cursor.
+    await freshPage({ people: everyone });
+    draw();
+    draw();
+    const past = globalThis.window.PL_WINDOW_ROWS + 5;
+    // A draw between short runs of keys, as a person's are: the window reaches a step past the cursor each time.
+    for (let i = 0; i < past; i += 1) {
+      press("j");
+      if (i % 20 === 19) draw();
+    }
+    tree = draw();
+    const focused = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
+    assert.equal(
+      focused?.props.id,
+      `person-p${past}`,
+      "the row the cursor walked to past the window is there to hold it",
+    );
+    assert.ok(rowsOf(tree) >= past, "the window reached it");
+
+    // No way to watch a foot, no window: every row, as before.
+    delete globalThis.IntersectionObserver;
+    await freshPage({ people: everyone });
+    draw();
+    draw();
+    assert.equal(rowsOf(draw()), 1000, "a browser that cannot watch draws every row");
+  } finally {
+    globalThis.IntersectionObserver = keepWatcher;
+    globalThis.document.getElementById = keepGet;
   }
 });
 

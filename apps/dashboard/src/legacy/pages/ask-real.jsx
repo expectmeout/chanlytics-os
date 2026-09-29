@@ -305,12 +305,13 @@ const useArMemory = ({ open, A, query, setQuery, active, asked, openThread }) =>
   }, [active && active.id]);
 };
 
-/** Where focus goes: the field on a desktop, the dialog on a phone, and the field again after "Type instead". */
+/** Where focus goes: the field on a desktop, the dialog on a phone, the field again after "Type instead"; the dialog holds it (trapFocus). */
 const useArFocus = ({ H, open, doomed, live, active, view, quick, inputRef, dialogRef, talk, typing }) => {
   // The field takes focus on a desktop; a phone's takeover opens with focus on the dialog, so no keyboard rises until a
   // tap on the field asks for it (S10).
   H.useAskFocus(inputRef, open && !doomed && !arPhone(), [open, live, active, doomed, view, quick]);
   H.useAskFocus(dialogRef, open && arPhone(), [open]);
+  useArEffect(() => (open && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open]);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.
   useArEffect(() => {
     if (talk.listening || !typing.current) return;
@@ -924,11 +925,10 @@ const arLineView = (ln) => {
   return (
     // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is the whole screen (ask.css),
     // a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
-    <div className="ask-overlay ask-line-scrim" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
+    <div className="ask-overlay ask-line-scrim" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
       <div
         ref={dialogRef}
         className="ask-modal ask-real ask-line"
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         tabIndex={-1}

@@ -260,7 +260,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
             <StatCell label="LTV" value={`$${(c.ltv ?? 0).toLocaleString()}`} meta={`$${Math.round((c.ltv ?? 0) / Math.max(1, c.visits ?? 1))} avg visit`} />
             <StatCell label="Sessions left" value={c.sessionsLeft} meta={c.sessionsLeft === 0 ? "no active package" : "current pkg"} />
             <StatCell label="Last visit" value={c.lastVisit} valueSize={14} meta={`last contact ${c.lastContact}`} />
-            <span className="cl-prof-next" onClick={() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar")} title={appt ? "Open this appointment in Calendar" : "Open Calendar"} style={{ cursor: "pointer", display: "block" }}>
+            <span className="cl-prof-next" role="button" tabIndex={0} onKeyDown={window.keyPress(() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar"))} onClick={() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar")} title={appt ? "Open this appointment in Calendar" : "Open Calendar"} style={{ cursor: "pointer", display: "block" }}>
               <StatCell label="Next visit" value={c.nextAppt ? c.nextAppt.split(" · ")[0] : "—"} valueSize={14} meta={c.nextAppt ? c.nextAppt.split(" · ")[1] || "booked" : "none booked"} metaTone={c.nextAppt ? "" : "neg"} />
             </span>
             <StatCell label="Cadence" value={cadence.value} valueSize={14} meta={cadence.meta} metaTone={cadence.meta === "slowing" ? "neg" : ""} />
@@ -486,7 +486,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
             />
             <div className="cl-prof-ask-chips">
               {[c.temp < 0.5 ? "Why the cooling?" : "What keeps them coming back?", "Compare to similar clients", c.temp < 0.5 ? "Best re-engagement" : "Upsell timing"].map(q => (
-                <span key={q} className="cl-prof-ask-chip" onClick={() => window.askAbout({ prompt: `${q} (about ${c.name})` })}>{q}</span>
+                <span key={q} className="cl-prof-ask-chip" role="button" tabIndex={0} onKeyDown={window.keyPress(() => window.askAbout({ prompt: `${q} (about ${c.name})` }))} onClick={() => window.askAbout({ prompt: `${q} (about ${c.name})` })}>{q}</span>
               ))}
             </div>
           </div>

@@ -47,8 +47,6 @@ window.ST_STORE = window.ST_STORE || {
   getTeam() { return this.team; },
   me() { return this.team.find(m => m.id === this.meId); },
   myRole() {
-    // In the app the bridge replaces this, and adds mayAtLeast, with the same reading (legacy-bridge/roles.ts roleOf):
-    // one answer for every gate, this store's and the pages' own. What stays here is the standalone mockup's.
     // Real membership role when the bridge has it (E1) — every gate() chip in
     // the app starts telling the truth through this one line. View-as still
     // previews a LOWER role on top of the real one (owner-only, client-side,

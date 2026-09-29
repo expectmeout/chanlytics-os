@@ -18,6 +18,7 @@
 import { csvCell } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 import { hearSurfaces, surfaceHook, surfaceMoved } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
+import { installRoles } from "../../../apps/dashboard/src/legacy-bridge/identity.ts";
 
 const listeners = {};
 const storage = () => {
@@ -218,6 +219,18 @@ export function unmount() {
  * does not merely read the new globals when the test draws it anyway) quiets it, sends the event, and asks this.
  */
 export const redrawWanted = () => cells.wanted;
+/**
+ * The role store as the app has it, for the page tests whose gates ask who is acting: settings.jsx makes the store and the
+ * bridge completes it (legacy-bridge/identity.ts installRoles), so `mayAtLeast`, `myRole` and View-as read the window's
+ * `__ME` and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes `window.__ME.role`
+ * between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
+ */
+export function installRoleStore(win = globalThis.window) {
+  const store = (win.ST_STORE ??= { viewAsRole: null, can: () => true });
+  store.viewAsRole ??= null;
+  installRoles(win);
+  return store;
+}
 /** A surface's rows landed, or its status moved: what LegacyApp's read and the seam's event count against its key. */
 export const surfaceLanded = (key) => surfaceMoved(key);
 export const quiet = () => {
