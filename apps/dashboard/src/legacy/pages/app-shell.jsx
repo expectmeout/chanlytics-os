@@ -460,16 +460,17 @@ const focusPage = (always) => {
 /**
  * A move to another page moves focus to it, as a page load does: a hash route never loads a page, so a keyboard and a
  * screen reader were left on the link pressed in the sidebar, and read nothing of where they had gone. Once the page has
- * drawn (the reading pane is not the page), and not for the first page the tab opened on.
+ * drawn (the reading pane is not the page), and not for the first page the tab opened on. A move within a page -- a thread
+ * opened in the Inbox, a peek, a pane -- changes the address and not the page: the page is not read out again.
  */
-const usePageFocus = (routeKey, routeLoading) => {
+const usePageFocus = (page, routeLoading) => {
   const handled = useShellRef(null);
   useShellEffect(() => {
-    if (routeLoading || handled.current === routeKey) return;
+    if (routeLoading || handled.current === page) return;
     const first = handled.current === null;
-    handled.current = routeKey;
+    handled.current = page;
     if (!first) focusPage(false);
-  }, [routeKey, routeLoading, handled]);
+  }, [page, routeLoading, handled]);
 };
 
 /**
@@ -662,7 +663,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);
-  usePageFocus(at.routeKey, gate.routeLoading);
+  usePageFocus(page, gate.routeLoading);
   // The shell is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived
   // while this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close
   // runs before the replayed open.

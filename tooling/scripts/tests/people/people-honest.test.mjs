@@ -3762,15 +3762,22 @@ test("a long list draws a window of its rows: its foot is watched and grows the 
   // scrolls to are a few dozen of a list that can be thousands. The window is PL_WINDOW_ROWS, a foot after it is watched,
   // and each time it comes near the window grows by a step; a browser that cannot watch draws every row.
   const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
-  const footOf = (tree) => find(tree, (n) => n.type === "tr" && n.props?.id === "pl-more");
+  const footOf = (tree) => find(tree, (n) => n.type === "tr" && n.props?.id === "pl-foot");
   const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
   const watchers = [];
+  // The foot sits in a box that scrolls, and is watched from inside it: a margin on the page's viewport does not widen the
+  // clip of a scroller between the two.
+  const scroller = { overflowY: "auto", parentElement: null };
+  const foot = { parentElement: scroller };
+  const keepStyle = globalThis.window.getComputedStyle;
+  globalThis.window.getComputedStyle = (n) => ({ overflowY: n.overflowY });
   const keepWatcher = globalThis.IntersectionObserver;
   const keepGet = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) => (id === "pl-more" ? {} : null);
+  globalThis.document.getElementById = (id) => (id === "pl-foot" ? foot : null);
   globalThis.IntersectionObserver = class {
-    constructor(seen) {
+    constructor(seen, options) {
       this.seen = seen;
+      this.options = options;
       watchers.push(this);
     }
     observe() {}
@@ -3787,6 +3794,8 @@ test("a long list draws a window of its rows: its foot is watched and grows the 
     assert.equal(footOf(tree).props["aria-hidden"], "true", "nothing for a screen reader to say");
     const watcher = watchers.at(-1);
     assert.ok(watcher && !watcher.gone, "the foot is watched");
+    assert.equal(watcher.options.root, scroller, "from inside the box that scrolls it");
+    assert.equal(watcher.options.rootMargin, "800px 0px", "from a screen's height before it is on screen");
     watcher.seen([{ isIntersecting: false }]);
     assert.equal(rowsOf(draw()), globalThis.window.PL_WINDOW_ROWS, "out of range: nothing grows");
     watcher.seen([{ isIntersecting: true }]);
@@ -3849,6 +3858,42 @@ test("a long list draws a window of its rows: its foot is watched and grows the 
     draw();
     draw();
     assert.equal(rowsOf(draw()), 1000, "a browser that cannot watch draws every row");
+  } finally {
+    globalThis.IntersectionObserver = keepWatcher;
+    globalThis.document.getElementById = keepGet;
+    globalThis.window.getComputedStyle = keepStyle;
+  }
+});
+
+test("the cursor's row is drawn wherever the cursor came from: a sort that carries it past the window keeps it on the page", async () => {
+  // Only J and K reached past the window, and a sort keeps the cursor: it moved to a row that was not drawn, and the table
+  // was left with no tab stop. Names sort as words, so \"Person 1\" is first ascending and last descending.
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
+  const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
+  const keepGet = globalThis.document.getElementById;
+  const keepWatcher = globalThis.IntersectionObserver;
+  delete globalThis.IntersectionObserver;
+  globalThis.document.getElementById = () => null;
+  try {
+    await freshPage({ people: everyone });
+    draw();
+    let tree = draw();
+    assert.equal(rowsOf(tree), globalThis.window.PL_WINDOW_ROWS, "a window of the rows");
+    press("j");
+    tree = draw();
+    const isPerson = (n) =>
+      n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith("Person");
+    find(tree, isPerson).props.onClick();
+    find(draw(), isPerson).props.onClick();
+    tree = draw();
+    tree = draw();
+    const cursor = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
+    assert.equal(
+      cursor?.props.id,
+      "person-p1",
+      "the cursor is on the row it was on, which the sort moved to the foot of the list",
+    );
+    assert.ok(rowsOf(tree) >= 1000 - 1, "the window reached it");
   } finally {
     globalThis.IntersectionObserver = keepWatcher;
     globalThis.document.getElementById = keepGet;

@@ -2,8 +2,9 @@
 // The table for any rows, and its Columns menu, for People and for Leads (a scope of People): the columns they are
 // given, what a cell needs (`ctx`), a selection, a keyboard cursor and a way to open a row. Lifted out of
 // clients-a.jsx (release B of the lead finder): four of these helpers closed over People's PL_COLUMNS, so Leads could
-// not draw the table with columns of its own. Every helper takes the column list. Hookless, as before: the sort, the
-// columns, the cursor and the selection are the page's (clients-a.jsx usePlControls and usePlPlace), where its one
+// not draw the table with columns of its own. Every helper takes the column list. The table is hookless: the sort, the
+// columns, the cursor and the selection are the page's (people.jsx usePlControls and usePlPlace), and so is how many rows
+// it draws (usePlRowWindow, below, which the page calls), where its one
 // keyboard listener can move them.
 
 // Person and the row's actions are not the member's to hide.
@@ -29,12 +30,12 @@ const PL_NO_SEL = new Set();
 // parameter list is a new function on every draw, and the memoised rows handed one (onToggle, onCursor) drew again on
 // every keystroke, J, fold and toast of a page that never selects -- the Pipeline's.
 const PL_NOOP = () => {};
-// The rows a fresh mount draws first; the page lifts the budget a frame later (clients-a.jsx rowBudget). The switch
+// The rows a fresh mount draws first; the page lifts the budget a frame later (people.jsx usePlPlace, usePlRowWindow). The switch
 // between People and Leads is a remount, and the Leads table's rows were most of what it waited on: measured on the
 // salon, a 250 ms draw of 96 leads, 125 ms with the first 24. Enough rows for a tall screen's first view.
 const PL_FIRST_ROWS = 24;
 // A long list draws a window of its rows, not all of them: this many once the first frame is out, and this many more
-// each time its foot comes near (clients-a.jsx usePlPlace). Measured on a salon's 500 people, a keystroke in the search
+// each time its foot comes near (usePlRowWindow). Measured on a salon's 500 people, a keystroke in the search
 // box redrew every row (85 ms), and the rows a person scrolls to are a few dozen of a list that can be thousands.
 const PL_WINDOW_ROWS = 300;
 const PL_WINDOW_STEP = 200;
@@ -139,8 +140,17 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
 // The rows drawn: all of them, or a window and, at its foot, a row with nothing in it that is watched so the window grows
 // before the foot is reached (usePlRowWindow).
 const plWindowRows = (rows, budget, row, span) => (budget < rows.length
-  ? [...rows.slice(0, budget).map(row), <tr key="pl-more" id="pl-more" className="pl-more" aria-hidden="true"><td colSpan={span} /></tr>]
+  ? [...rows.slice(0, budget).map(row), <tr key="pl-foot" id="pl-foot" className="pl-foot" aria-hidden="true"><td colSpan={span} /></tr>]
   : rows.map(row));
+
+// The nearest ancestor that scrolls, which a watcher of an element in it takes for its root; null is the page's viewport.
+const plScrollParent = (el) => {
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const over = window.getComputedStyle(n).overflowY;
+    if (over === "auto" || over === "scroll") return n;
+  }
+  return null;
+};
 
 // The rows a fresh mount draws first: the first few; where a place is to be put back, enough to reach it -- a step past
 // the cursor's row, and a step past what the scroll's height holds at 40px a row, shorter than any row (a desk's are 45);
@@ -153,14 +163,14 @@ const plStartRows = (place, windowed, ids) => {
 
 /**
  * How many rows the table draws (`budget`, its prop) for a page's life: the first rows only (PL_FIRST_ROWS) and a window
- * of them a frame later, grown by a step each time the window's foot (#pl-more) comes within a screen's height of the
+ * of them a frame later, grown by a step each time the window's foot (#pl-foot) comes within a screen's height of the
  * screen, and to reach a row the cursor walks to (`reach(index)`). A table in sections draws every row (`windowed` false:
  * the Pipeline's groups), and so does a browser that cannot watch a foot. The switch between People and Leads is a
  * remount, and the rows were most of what it waited on (measured on the salon: a 250 ms draw of 96 leads, 125 ms with the
  * first 24); a keystroke in the search box redrew all 500 of them (85 ms). The budget is the mount's: a view change
  * inside the page never narrows it. `place`: what the tab kept of this view (a cursor, a scroll), to be put back.
  */
-const usePlRowWindow = ({ place, windowed, ids }) => {
+const usePlRowWindow = ({ place, windowed, ids, cursor }) => {
   const count = ids.length;
   const [budget, setBudget] = React.useState(() => plStartRows(place, windowed, ids));
   React.useEffect(() => {
@@ -174,13 +184,16 @@ const usePlRowWindow = ({ place, windowed, ids }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (budget >= count || !document.getElementById) return undefined;
-    const foot = document.getElementById("pl-more");
+    const foot = document.getElementById("pl-foot");
     if (!foot) return undefined;
     if (typeof IntersectionObserver !== "function") { setBudget(Infinity); return undefined; }
-    const watch = new IntersectionObserver((seen) => { if (seen.some((s) => s.isIntersecting)) setBudget((b) => b + PL_WINDOW_STEP); }, { rootMargin: "800px 0px" });
+    // Watched from inside the box that scrolls it, whose clip a margin on the page's own viewport does not widen.
+    const watch = new IntersectionObserver((seen) => { if (seen.some((s) => s.isIntersecting)) setBudget((b) => b + PL_WINDOW_STEP); }, { root: plScrollParent(foot), rootMargin: "800px 0px" });
     watch.observe(foot);
     return () => watch.disconnect();
   }, [budget, count]);
+  // The cursor's row is drawn wherever the cursor came from: a sort that moved it, a view's kept place, a deep link.
+  React.useEffect(() => { setBudget((b) => Math.max(b, ids.indexOf(cursor) + PL_WINDOW_STEP)); }, [cursor, ids]);
   return { budget, reach: (index) => setBudget((b) => Math.max(b, index + PL_WINDOW_STEP)) };
 };
 

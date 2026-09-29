@@ -2413,7 +2413,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   const [cursor, setCursor] = useState(null);
   // The rows drawn: a window of a long list (people-table.jsx usePlRowWindow), reaching a place that is to be put back.
   const [place] = useState(() => plPlaceLoad(page, view));
-  const { budget: rowBudget, reach } = usePlRowWindow({ place, windowed, ids });
+  const { budget: rowBudget, reach } = usePlRowWindow({ place, windowed, ids, cursor });
   React.useEffect(() => { setCursor((c) => (c && ids.includes(c) ? c : null)); }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveCursor = (step) => {
     // A row the cursor walks to is drawn: the window reaches past it, so the row is there to take focus.
@@ -2457,6 +2457,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
     setCursor(p.cursor || null);
     if (onPlace) onPlace(p, placeOf.current !== undefined);
     placeTop.current = p.top || 0;
+    reach(Math.ceil(placeTop.current / 40));
     placeDue.current = { view, top: p.top || 0, q: p.q || "", fresh: true };
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.

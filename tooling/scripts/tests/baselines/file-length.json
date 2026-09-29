@@ -1,5 +1,5 @@
 {
-  "apps/dashboard/src/legacy/components/data-bits.jsx": 1277,
+  "apps/dashboard/src/legacy/components/data-bits.jsx": 1281,
   "apps/dashboard/src/legacy/components/record-fold.jsx": 953,
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": 1253,
   "apps/dashboard/src/legacy/pages/ask-real.jsx": 1014,
@@ -10,6 +10,6 @@
   "apps/dashboard/src/legacy/pages/first-run.jsx": 1312,
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 1743,
   "apps/dashboard/src/legacy/pages/inbox.jsx": 976,
-  "apps/dashboard/src/legacy/pages/people.jsx": 3243,
+  "apps/dashboard/src/legacy/pages/people.jsx": 3244,
   "apps/dashboard/src/legacy/pages/settings.jsx": 1912
 }

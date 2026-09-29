@@ -2,7 +2,8 @@
  * A modal dialog holds focus while it is open, with one helper (data-bits trapFocus and dialogRef): focus goes in, Tab
  * and Shift+Tab stay inside and count only what Tab stops at, and focus goes back to what opened it. Run on the real
  * helper over a document that keeps focus the way a browser does; the pages that use it (the notifications panel, the
- * shortcuts sheet, People's phone sheet, the Calendar's appointment) name it, and the Ask Line keeps Tab in with trapTab.
+ * shortcuts sheet, People's phone sheet, the Calendar's appointment and the Ask Line) name it. The record kit's sheet and
+ * fold keep their own, which are older.
  *
  * Before it, the Calendar's dialog had a trap of its own that counted a control Tab never reaches (one taken out of the
  * tab order, one not on screen), so focus walked out of it past the last control that Tab did stop at.
@@ -12,10 +13,21 @@ import assert from "node:assert/strict";
 import { installLegacyReact } from "../../_legacy-react.mjs";
 
 installLegacyReact();
-const doc = { body: { name: "body" }, activeElement: null, addEventListener() {}, removeEventListener() {} };
+const heard = {};
+const doc = {
+  body: { name: "body" },
+  activeElement: null,
+  addEventListener: (type, fn) => (heard[type] ||= []).push(fn),
+  removeEventListener() {},
+};
 globalThis.document = doc;
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { trapFocus, dialogRef, trapTab } = globalThis.window;
+const { trapFocus, dialogRef, trapTab, keyPress } = globalThis.window;
+/** Focus moved to an element, as a browser says it: the document's focusin heard, its target the element. */
+const focusTo = (el) => {
+  el.focus();
+  for (const fn of heard.focusin ?? []) fn({ target: el });
+};
 // The way out a dialog carries (data-bits leaving), as a record of when an element arrives and leaves.
 const leavings = [];
 globalThis.window.leaving = (key) => (el) => leavings.push([key, el ? "in" : "out"]);
@@ -159,6 +171,39 @@ test("dialogRef is one ref for a key, holds the element for its whole life, and 
     ["test-sheet", "in"],
     ["test-sheet", "out"],
   ]);
+});
+
+test("a sheet that autofocuses a field gives focus back to what opened it, not to the field", () => {
+  // People's Add a person and Rename sheets autofocus an input, which has focus by the time the dialog holds it.
+  const opener = control("Add a person");
+  opener.closest = () => null;
+  focusTo(opener);
+  const field = control("the name field");
+  const box = dialogOf([field]);
+  field.closest = () => box;
+  focusTo(field);
+  assert.equal(doc.activeElement, field, "the page's own autofocus, inside");
+  const release = trapFocus(box);
+  assert.equal(doc.activeElement, field, "focus already inside stays");
+  release();
+  assert.equal(doc.activeElement, opener, "the way back is the control that opened it");
+});
+
+test("keyPress is a button's answer to Enter and Space, pressed on the element itself and never typed in a field inside it", () => {
+  const pressed = [];
+  const onKey = keyPress((e) => pressed.push(e.key));
+  const el = {};
+  const inner = {};
+  const key = (k, target = el) => {
+    let prevented = false;
+    onKey({ key: k, target, currentTarget: el, preventDefault: () => (prevented = true) });
+    return prevented;
+  };
+  assert.equal(key("Enter"), true);
+  assert.equal(key(" "), true);
+  assert.equal(key("a"), false, "any other key is not a press");
+  assert.equal(key("Enter", inner), false, "a key typed in something inside is that thing's");
+  assert.deepEqual(pressed, ["Enter", " "]);
 });
 
 test("nothing to hold is nothing done", () => {

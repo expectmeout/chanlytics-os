@@ -392,6 +392,16 @@ test("the page is a main landmark with a way past the bars to it, and a move to 
     tree = goTo("#/today");
     assert.deepEqual(focused, ["its heading"], "from the sidebar, or the address, it is");
 
+    // A move within a page -- a thread opened in the Inbox, which changes the address and not the page -- reads nothing out.
+    focused.length = 0;
+    globalThis.document.activeElement = null;
+    tree = goTo("#/inbox");
+    assert.deepEqual(focused, ["its heading"], "another page: its heading");
+    focused.length = 0;
+    tree = goTo("#/inbox/th-1");
+    tree = goTo("#/inbox/th-2");
+    assert.deepEqual(focused, [], "a thread opened, and another: the same page, not read out again");
+
     focused.length = 0;
     globalThis.document.activeElement = inside;
     const [pressed] = nodesOf(draw(), (n) => n.type === "button" && String(n.props.className).includes("skip-link"));
@@ -406,4 +416,35 @@ test("the page is a main landmark with a way past the bars to it, and a move to 
     off();
     win.location.hash = "#/today";
   }
+});
+
+test("every surface a page names to useSurface is a real one: a key that is no override's (the People's event is 'clients', its key 'people') redraws nothing", async () => {
+  const { parse, repoFiles } = await import("../../_ast.mjs");
+  const ts = (await import("typescript")).default;
+  const real = new Set(REAL.map((o) => o.key));
+  const named = [];
+  for (const file of repoFiles(["apps/dashboard/src/legacy"], { keep: /.jsx$/ })) {
+    if (file.includes("/legacy/demo/")) continue;
+    const sf = parse(file);
+    const visit = (n) => {
+      if (
+        ts.isCallExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === "useSurface" &&
+        n.arguments[0]
+      ) {
+        const arg = n.arguments[0];
+        const literals = ts.isStringLiteral(arg) ? [arg] : ts.isArrayLiteralExpression(arg) ? arg.elements : [];
+        for (const l of literals) if (ts.isStringLiteral(l)) named.push([file, l.text]);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  assert.ok(named.length >= 12, `the scan found ${named.length} names; it has stopped seeing the pages`);
+  assert.deepEqual(
+    named.filter(([, key]) => !real.has(key)),
+    [],
+    "name the surface's key (an override's `key`), not its event",
+  );
 });

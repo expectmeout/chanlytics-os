@@ -322,11 +322,15 @@ Object.assign(window, { trapTab, tabStops: tabStopsIn, propsWithout: (props, key
 // trapFocus(box): focus goes into the dialog (the box itself, so a phone's keyboard stays down), Tab stays inside it
 // (trapTab), and release() puts focus back on the control that opened it, as the record kit's sheet does. Escape is the
 // page's own. dialogRef(key) is the ref that does it for an element's life, one per key as `leaving` is, carrying
-// `leaving`'s way out too. Every aria-modal overlay takes one of these.
+// `leaving`'s way out too. The modals outside the record kit take one of these.
+// What had focus outside every modal: a sheet that autofocuses a field has taken focus by the time it is held.
+let focusedOutside = null;
+document.addEventListener("focusin", (e) => { if (!(e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) focusedOutside = e.target; });
 const trapFocus = (box) => {
   if (!box || !box.addEventListener) return () => {};
-  const from = document.activeElement;
-  if (!box.contains(document.activeElement)) {
+  const at = document.activeElement;
+  const from = at && box.contains(at) && focusedOutside ? focusedOutside : at;
+  if (!box.contains(at)) {
     if (box.getAttribute("tabindex") === null) box.setAttribute("tabindex", "-1");
     box.focus({ preventScroll: true });
   }
