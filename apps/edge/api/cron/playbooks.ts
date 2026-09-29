@@ -14,11 +14,14 @@ import { playbooksDue, reachOutsDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { tellReachOutDays } from "../../lib/reach-out/day-numbers.js";
 import { stampReachOutStep, tenantZoneOf } from "../../lib/packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
 export const REACH_OUT_YIELD_AT_MS = 40_000;
+/** When the day's reach-out lines at 6 PM stop being written for the tick: inside the function's sixty seconds. */
+const REACH_OUT_DAY_UNTIL_MS = 50_000;
 
 export async function POST(request: Request): Promise<Response> {
   const started = Date.now();
@@ -44,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
   const byTenant = new Map<string, PlaybookRow[]>();
   for (const p of page.rows as PlaybookRow[]) byTenant.set(p.tenant_id, [...(byTenant.get(p.tenant_id) ?? []), p]);
 
-  const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0, remaining: page.remaining };
+  const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0, remaining: page.remaining, told: 0 };
   for (const [tenantId, rows] of byTenant) {
     const { data: tenant } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
     const tz = tenant?.timezone || "America/New_York";
@@ -102,6 +105,8 @@ export async function POST(request: Request): Promise<Response> {
       await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
     }
   }
+  // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
+  out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);
   // `remaining` counts RUNNING playbooks past the page, and due-ness is judged
   // here, in the tenant's own zone, AFTER paging — so this over-reports: a
   // deployment with twenty-six daily playbooks says five were left behind

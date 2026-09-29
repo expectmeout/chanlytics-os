@@ -21,6 +21,8 @@ export interface OutreachFactsRow {
   wrote_back: boolean;
   /** An automatic out-of-office whose day is still ahead (00226): the chain waits. A database before 00226 says nothing. */
   away: boolean;
+  /** Its owner stopped writing to this lead (00241, Reach out Part 6's H10). A database before 00241 says nothing. */
+  stopped: boolean;
   /**
    * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
    * when the workspace owns no such domain.
@@ -64,6 +66,9 @@ export async function outreachFactsOf(
     wrote_back: f.wrote_back,
     // Absent before 00226: not away, as it was.
     away: f.away === true,
+    // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
+    // the followers leave the lead out, both in SQL.
+    stopped: f.stopped === true,
     domain:
       f.domain && typeof f.domain === "object" && typeof f.domain.state === "string"
         ? {
@@ -406,4 +411,37 @@ export async function undoReplyReading(db: Db, messageId: string): Promise<Json>
   const { data, error } = await db.rpc("reach_out_reply_undo", { p_message_id: messageId });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data;
+}
+
+/** A workspace whose 6 PM it is, with the day's reach-out numbers (00241 reach_out_day_due). */
+export interface ReachOutDayDue {
+  tenant_id: string;
+  /** The workspace's own day, "2026-09-28". */
+  day: string;
+  numbers: { written: number; wrote_back: number; interested: number; said_no: number; bounced: number; held: number };
+}
+
+/**
+ * The workspaces with a reach-out whose local hour at `now` is 18, not told that day, with a number above zero, at most
+ * `limit` (Reach out Part 6, H12). The service role asks it, from the hourly playbooks sweep; a read that fails throws.
+ */
+export async function reachOutDayDue(db: Db, now: Date, limit: number): Promise<ReachOutDayDue[]> {
+  const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
+  if (error) throw new Error(`cannot read the day's reach-out numbers: ${error.message}`);
+  return (data ?? []).map((r) => {
+    const n = (r.numbers && typeof r.numbers === "object" ? r.numbers : {}) as Record<string, unknown>;
+    const num = (k: string) => Number(n[k] ?? 0) || 0;
+    return {
+      tenant_id: r.tenant_id,
+      day: r.day,
+      numbers: {
+        written: num("written"),
+        wrote_back: num("wrote_back"),
+        interested: num("interested"),
+        said_no: num("said_no"),
+        bounced: num("bounced"),
+        held: num("held"),
+      },
+    };
+  });
 }

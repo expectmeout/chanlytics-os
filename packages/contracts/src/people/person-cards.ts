@@ -10,6 +10,7 @@ import { visitDay, visitLine, visitTime } from "../calendar/calendar-people";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
 import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
+import { reachOutPersonOf } from "../reach-out/reach-out-leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./list-rules";
 import { PEOPLE_LISTS } from "./lists";
@@ -479,6 +480,9 @@ export function aboutOf({
       v: `${found !== null ? clockDateYear(found, tz) : "—"} · ${addedBy({ source: "lead", title: null }).how}`,
     });
   }
+  // The reach-out that found them, and where they stand in it (Reach out Part 6, H11).
+  const reach = profile.lead?.reach_out ? reachOutPersonOf(profile.lead.reach_out, nowMs, tz).about : null;
+  if (reach) about.push({ k: "Reach out", v: reach });
   return about;
 }
 

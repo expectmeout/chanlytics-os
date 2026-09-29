@@ -275,6 +275,8 @@ interface OutreachFacts {
   wroteBack: boolean;
   /** An automatic out-of-office whose day is still ahead (00226): the chain waits for it. */
   away: boolean;
+  /** Its owner stopped writing to this lead (00241): the email is skipped. */
+  stopped: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -310,6 +312,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       suppressed: false,
       wroteBack: false,
       away: false,
+      stopped: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -340,6 +343,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
     away: facts.away,
+    stopped: facts.stopped,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -390,6 +394,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
       suppressed: o.suppressed,
       wroteBack: o.wroteBack,
       away: o.away,
+      stopped: o.stopped,
     });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";

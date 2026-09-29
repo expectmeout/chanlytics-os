@@ -65,9 +65,11 @@ export const ROUTES = {
   "GET reach-out-replies": { method: "GET", path: "/api/v1/reach-out-replies" },
   "GET reach-outs": { method: "GET", path: "/api/v1/reach-outs" },
   "GET reach-outs/[id]": { method: "GET", path: "/api/v1/reach-outs/[id]" },
+  "GET reach-outs/leads": { method: "GET", path: "/api/v1/reach-outs/leads" },
   "GET reach-outs/reach": { method: "GET", path: "/api/v1/reach-outs/reach" },
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
+  "GET reports/reach-outs": { method: "GET", path: "/api/v1/reports/reach-outs" },
   "GET segments": { method: "GET", path: "/api/v1/segments" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
@@ -162,6 +164,7 @@ export const ROUTES = {
   "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
+  "POST reach-outs/leads/[id]/stop": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/stop" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
@@ -265,9 +268,11 @@ export type Routes = {
   "GET reach-out-replies": typeof import("../../app/api/v1/reach-out-replies/route").GET;
   "GET reach-outs": typeof import("../../app/api/v1/reach-outs/route").GET;
   "GET reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").GET;
+  "GET reach-outs/leads": typeof import("../../app/api/v1/reach-outs/leads/route").GET;
   "GET reach-outs/reach": typeof import("../../app/api/v1/reach-outs/reach/route").GET;
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
+  "GET reports/reach-outs": typeof import("../../app/api/v1/reports/reach-outs/route").GET;
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
@@ -362,6 +367,7 @@ export type Routes = {
   "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
+  "POST reach-outs/leads/[id]/stop": typeof import("../../app/api/v1/reach-outs/leads/[id]/stop/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;

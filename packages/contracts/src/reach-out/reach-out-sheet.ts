@@ -1,7 +1,7 @@
 /**
  * Every sentence the pages say about a reach-out (Reach out, Part 4): the sheet, what Start did, the approval sheet,
  * Playbooks' row and open row, Templates' email row, and the doors' refusals. The canvas's words with the database's
- * numbers in; a count the database does not hold is never said (interested and booked are Part 5's).
+ * numbers in; a count the database does not hold is never said (interested and booked are counted since 00241, Part 6).
  */
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
@@ -24,7 +24,7 @@ export const REACH_OUT_SHEET_WORDS = {
   opening:
     "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
-  stopOne: "To stop writing to one business, mark its lead Said no or Not a fit.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
   first: "Starts today. The first run waits on you. After that, a run gives you thirty minutes to stop it.",
   slotsHint: "click to insert · each is filled per lead, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
@@ -63,6 +63,10 @@ export const REACH_OUT_REFUSALS = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -88,7 +92,8 @@ export function isReachOutRefusal(message: string | null | undefined): boolean {
   return REFUSAL_SET.has(message ?? "");
 }
 
-const pct = (n: number, of: number): number => (of > 0 ? Math.round((n / of) * 100) : 0);
+/** A whole-number share, 0 of nothing: the chain's row and Reports' reach-outs say their rates by it. */
+export const pct = (n: number, of: number): number => (of > 0 ? Math.round((n / of) * 100) : 0);
 
 /** Who gets it (the reach block): the count, the bar, and the reasons, each with its door. */
 export function reachLineOf(r: ReachOutReachDto, includeUnconfirmed: boolean) {
@@ -392,13 +397,16 @@ function reportRowOf(
 ): string[] {
   const label = stepLabelOf({ n: s.n, hand: step?.hand ?? null });
   const when = s.n === 0 ? "Day one, in their hours" : `After ${step?.after_days ?? "?"} days with nothing back`;
-  if (step?.hand) return [label, when, `${s.handed ?? 0} handed to you`, "—", "—", "—", "—"];
+  if (step?.hand) return [label, when, `${s.handed ?? 0} handed to you`, "—", "—", "—", "—", "—", "—"];
   return [
     label,
     when,
     String(s.written),
     `${s.delivered} (${pct(s.delivered, s.written)}%)`,
     `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    // Interested and booked (Part 6, H7): absent from a report read before 00241, and then unknown, never a zero.
+    s.interested === undefined ? "—" : String(s.interested),
+    s.booked === undefined ? "—" : String(s.booked),
     String(s.said_no),
     String(s.bounced),
   ];
@@ -432,7 +440,7 @@ export function chainReportWordsOf(
       n: reach.ready + (first?.written ?? 0) + (first?.waiting ?? 0) + (first?.held ?? 0),
       of: `of ${reach.of} on the search`,
     },
-    head: ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"],
+    head: ["Step", "When", "Written", "Delivered", "Wrote back", "Interested", "Booked", "Said no", "Bounced"],
     table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
     sentence:
       p.share > 0

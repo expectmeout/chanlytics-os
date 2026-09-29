@@ -378,7 +378,7 @@ test("the Playbooks row and its open row say what the database holds, no more (R
   );
   assert.deepEqual(w.history[0], { id: "b", text: "Sep 24 · 30 written" });
   assert.deepEqual([w.canRemove, w.remove], [false, null], "one that wrote is paused, never removed");
-  assert.equal(w.stopOne, "To stop writing to one business, mark its lead Said no or Not a fit.");
+  assert.equal(w.stopOne, "To stop writing to one business, open its lead and press Stop writing to them.");
   const fresh = chainReportWordsOf(
     CHAIN,
     {

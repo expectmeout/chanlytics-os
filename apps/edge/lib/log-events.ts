@@ -258,6 +258,8 @@ export const LOG_EVENTS = [
   "reach_out_checked",
   "reach_out_claim_failed",
   "reach_out_context_failed",
+  "reach_out_day_failed",
+  "reach_out_day_told",
   "reach_out_decision_unwritten",
   "reach_out_lead_unwritten",
   "reach_out_month_spent",

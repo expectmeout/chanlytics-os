@@ -1034,7 +1034,8 @@ test("a person carries the runs that named them, newest first, and the lead they
   );
   assert.deepEqual(
     p.lead,
-    { id: "l-1", business_name: "Glow Studio", found_at: "2026-07-01T00:00:00Z" },
+    // The lead's reach-out story (Part 6, H11) is its own read, which this world does not answer: none, never a failure.
+    { id: "l-1", business_name: "Glow Studio", found_at: "2026-07-01T00:00:00Z", reach_out: null },
     "never an erased lead",
   );
 });

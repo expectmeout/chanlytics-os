@@ -633,14 +633,14 @@ function feedProblemWords(reason, status) {
   }
 }
 var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut(raw, kept, at2 = []) {
+function keysLeftOut(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields(read, raw, ctx) {
@@ -674,8 +674,8 @@ var TenantConfigSchema = z6.object({
 var MAX_INTERVALS_PER_DAY = 4;
 var MAX_CLOSURES = 60;
 function isRealDate(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES = {
   mon: "Monday",
@@ -728,25 +728,25 @@ function checkDay(h, day, ctx) {
   }
 }
 function checkClosure(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate(c2.date)) {
     ctx.addIssue({
       code: z6.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate(c2.until)) {
     ctx.addIssue({
       code: z6.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z6.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -1036,7 +1036,7 @@ var LEAD_WORDS = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -1378,9 +1378,9 @@ var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
 function parseListToken(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -2680,6 +2680,43 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+var REACH_OUT_REFUSALS = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 function isCampaignEmail(request) {
   const headers = request?.headers;
   const v = headers?.["List-Unsubscribe"];
@@ -2701,39 +2738,6 @@ var ReachOutPreviewSchema = z17.object({
 });
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
 var ReachOutDecideSchema = z17.object({ decision: z17.enum(REACH_OUT_DECISIONS) });
-var REACH_OUT_REFUSALS = {
-  exists: "This search has a reach-out already.",
-  wrote: "This reach-out has written already. Pause it instead.",
-  stepWrote: "That step has written already. Pause the reach-out instead.",
-  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
-  handLast: "A call or a note ends the chain.",
-  stepRan: "That step has run already. Add a new step instead.",
-  outOfPlace: "A step is out of its place. Open the reach-out again.",
-  notFound: "Reach-out not found.",
-  workspaceNotFound: "Workspace not found.",
-  oneEmail: "A reach-out has at least one email.",
-  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
-  leadNotFound: "Lead not found.",
-  leadGone: "This lead is gone.",
-  searchNotFound: "Search not found.",
-  domainNotFound: "Domain not found.",
-  sendNotFound: "Email not found.",
-  runNotFound: "Run not found.",
-  runOver: "That run is over.",
-  gone: "That email has gone.",
-  includeHeld: "Only an email the check held for a reason is included.",
-  givenUp: "This email waited two weeks for your answer and was given up.",
-  decision: "Include, rewrite, skip or not a fit.",
-  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
-  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
-  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
-  /** The preview on a deployment that runs nothing. */
-  preview: "Previews only work on the production dashboard.",
-  previewDown: "The preview could not be written just now. Try again in a moment.",
-  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
-};
-var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 var REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",
   words: "What you'd say",
@@ -2896,7 +2900,7 @@ var PARTNER_WORDS = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
@@ -8434,14 +8438,14 @@ function feedProblemWords2(reason, status) {
   }
 }
 var isJsonObject2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut2(raw, kept, at2 = []) {
+function keysLeftOut2(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut2(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut2(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject2(raw) || !isJsonObject2(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut2(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut2(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields2(read, raw, ctx) {
@@ -8475,8 +8479,8 @@ var TenantConfigSchema2 = z62.object({
 var MAX_INTERVALS_PER_DAY2 = 4;
 var MAX_CLOSURES2 = 60;
 function isRealDate2(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES2 = {
   mon: "Monday",
@@ -8529,25 +8533,25 @@ function checkDay2(h, day, ctx) {
   }
 }
 function checkClosure2(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate2(c2.date)) {
     ctx.addIssue({
       code: z62.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate2(c2.until)) {
     ctx.addIssue({
       code: z62.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z62.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -8825,7 +8829,7 @@ var LEAD_WORDS2 = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -9167,9 +9171,9 @@ var SAVED_ID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
 function parseListToken2(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID2.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID2.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -10472,22 +10476,6 @@ var NOTE_SUGGEST_SCHEMA2 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
-var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
-var REACH_OUT_PREVIEW_INDEX_MAX2 = 199;
-var ReachOutPreviewSchema2 = z172.object({
-  search_id: z172.string().uuid(),
-  index: z172.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX2),
-  include_unconfirmed: z172.boolean(),
-  words: z172.object({
-    subject: z172.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
-    body: z172.string().trim().min(1).max(REACH_OUT_BODY_MAX2 * 2)
-  }),
-  signed_by: z172.string().trim().max(SIGNED_BY_MAX2).nullable(),
-  language: z172.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
-var REACH_OUT_DECISIONS2 = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema2 = z172.object({ decision: z172.enum(REACH_OUT_DECISIONS2) });
 var REACH_OUT_REFUSALS2 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -10502,6 +10490,10 @@ var REACH_OUT_REFUSALS2 = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -10521,6 +10513,22 @@ var REACH_OUT_REFUSALS2 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
+var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_PREVIEW_INDEX_MAX2 = 199;
+var ReachOutPreviewSchema2 = z172.object({
+  search_id: z172.string().uuid(),
+  index: z172.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX2),
+  include_unconfirmed: z172.boolean(),
+  words: z172.object({
+    subject: z172.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+    body: z172.string().trim().min(1).max(REACH_OUT_BODY_MAX2 * 2)
+  }),
+  signed_by: z172.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  language: z172.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS2 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema2 = z172.object({ decision: z172.enum(REACH_OUT_DECISIONS2) });
 var REACH_OUT_SHEET_PARTS2 = {
   who: "Who gets it",
   words: "What you'd say",
@@ -10643,7 +10651,7 @@ var PARTNER_WORDS2 = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
@@ -12307,14 +12315,14 @@ function feedProblemWords3(reason, status) {
   }
 }
 var isJsonObject3 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut3(raw, kept, at2 = []) {
+function keysLeftOut3(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut3(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut3(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject3(raw) || !isJsonObject3(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut3(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut3(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields3(read, raw, ctx) {
@@ -12348,8 +12356,8 @@ var TenantConfigSchema3 = z63.object({
 var MAX_INTERVALS_PER_DAY3 = 4;
 var MAX_CLOSURES3 = 60;
 function isRealDate3(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES3 = {
   mon: "Monday",
@@ -12402,25 +12410,25 @@ function checkDay3(h, day, ctx) {
   }
 }
 function checkClosure3(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate3(c2.date)) {
     ctx.addIssue({
       code: z63.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate3(c2.until)) {
     ctx.addIssue({
       code: z63.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z63.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -12698,7 +12706,7 @@ var LEAD_WORDS3 = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -13040,9 +13048,9 @@ var SAVED_ID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 var BUILTIN_ID3 = /^[a-z_]{1,40}$/;
 function parseListToken3(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID3.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID3.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -14345,22 +14353,6 @@ var NOTE_SUGGEST_SCHEMA3 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
-var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
-var REACH_OUT_PREVIEW_INDEX_MAX3 = 199;
-var ReachOutPreviewSchema3 = z173.object({
-  search_id: z173.string().uuid(),
-  index: z173.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX3),
-  include_unconfirmed: z173.boolean(),
-  words: z173.object({
-    subject: z173.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
-    body: z173.string().trim().min(1).max(REACH_OUT_BODY_MAX3 * 2)
-  }),
-  signed_by: z173.string().trim().max(SIGNED_BY_MAX3).nullable(),
-  language: z173.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
-var REACH_OUT_DECISIONS3 = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema3 = z173.object({ decision: z173.enum(REACH_OUT_DECISIONS3) });
 var REACH_OUT_REFUSALS3 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -14375,6 +14367,10 @@ var REACH_OUT_REFUSALS3 = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -14394,6 +14390,22 @@ var REACH_OUT_REFUSALS3 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET3 = new Set(Object.values(REACH_OUT_REFUSALS3));
+var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_PREVIEW_INDEX_MAX3 = 199;
+var ReachOutPreviewSchema3 = z173.object({
+  search_id: z173.string().uuid(),
+  index: z173.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX3),
+  include_unconfirmed: z173.boolean(),
+  words: z173.object({
+    subject: z173.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+    body: z173.string().trim().min(1).max(REACH_OUT_BODY_MAX3 * 2)
+  }),
+  signed_by: z173.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  language: z173.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS3 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema3 = z173.object({ decision: z173.enum(REACH_OUT_DECISIONS3) });
 var REACH_OUT_SHEET_PARTS3 = {
   who: "Who gets it",
   words: "What you'd say",
@@ -14516,7 +14528,7 @@ var PARTNER_WORDS3 = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
@@ -14732,7 +14744,7 @@ var STATE_TTL_MS2 = 10 * MIN_MS3;
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
 z232.config({ jitless: true });
-function zoneParts(tz, at2) {
+function zoneParts(tz, at3) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hourCycle: "h23",
@@ -14743,7 +14755,7 @@ function zoneParts(tz, at2) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
-  }).formatToParts(at2);
+  }).formatToParts(at3);
   const get2 = (t2) => parts2.find((p) => p.type === t2)?.value ?? "";
   return {
     y: Number(get2("year")),
@@ -15354,14 +15366,14 @@ function feedProblemWords22(reason, status) {
   }
 }
 var isJsonObject22 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut22(raw, kept, at2 = []) {
+function keysLeftOut22(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut22(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut22(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject22(raw) || !isJsonObject22(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut22(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut22(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields22(read, raw, ctx) {
@@ -15395,8 +15407,8 @@ var TenantConfigSchema22 = z622.object({
 var MAX_INTERVALS_PER_DAY22 = 4;
 var MAX_CLOSURES22 = 60;
 function isRealDate22(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES22 = {
   mon: "Monday",
@@ -15449,25 +15461,25 @@ function checkDay22(h, day, ctx) {
   }
 }
 function checkClosure22(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate22(c2.date)) {
     ctx.addIssue({
       code: z622.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate22(c2.until)) {
     ctx.addIssue({
       code: z622.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z622.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -15745,7 +15757,7 @@ var LEAD_WORDS22 = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -16087,9 +16099,9 @@ var SAVED_ID22 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 var BUILTIN_ID22 = /^[a-z_]{1,40}$/;
 function parseListToken22(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID22.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID22.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -16681,8 +16693,8 @@ function keyParts(key) {
 }
 function shiftKey(key, n2) {
   const { y, m, d } = keyParts(key);
-  const at2 = new Date(Date.UTC(y, m - 1, d + n2));
-  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
+  const at3 = new Date(Date.UTC(y, m - 1, d + n2));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
 }
 function mondayOf(key) {
   const { y, m, d } = keyParts(key);
@@ -17333,8 +17345,8 @@ function awayUntilOf(day, today, tz) {
 function rereadAt(unread2, done, receivedAt, now) {
   if (done >= REPLY_REREADS) return null;
   const nextDay = Math.floor(now / DAY_MS22) * DAY_MS22 + DAY_MS22;
-  const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS22 : nextDay;
-  return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS22 ? null : at2;
+  const at3 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS22 : nextDay;
+  return at3 > receivedAt + REPLY_REREAD_DAYS * DAY_MS22 ? null : at3;
 }
 function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
@@ -17562,10 +17574,10 @@ function nextOpenMoment(tz, when) {
   const { date, hour } = parts(tz, when);
   if (hour >= PLAYBOOK_HOURS22.min && hour <= PLAYBOOK_HOURS22.max) return { at: when, moved: false };
   const day = hour < PLAYBOOK_HOURS22.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS22.min * HOUR_MS22;
-  const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS22.min) at2 += (PLAYBOOK_HOURS22.min - landed) * HOUR_MS22;
-  return { at: new Date(at2), moved: true };
+  let at3 = zoneMidnight(tz, day) + PLAYBOOK_HOURS22.min * HOUR_MS22;
+  const landed = parts(tz, new Date(at3)).hour;
+  if (landed !== PLAYBOOK_HOURS22.min) at3 += (PLAYBOOK_HOURS22.min - landed) * HOUR_MS22;
+  return { at: new Date(at3), moved: true };
 }
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS22;
@@ -17853,38 +17865,6 @@ var NOTE_SUGGEST_SCHEMA22 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-function isCampaignEmail2(request) {
-  const headers = request?.headers;
-  const v = headers?.["List-Unsubscribe"];
-  return typeof v === "string" && v.trim() !== "";
-}
-var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
-var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  if (f.away) return "outreach_away";
-  return null;
-}
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
-var REACH_OUT_PREVIEW_INDEX_MAX22 = 199;
-var ReachOutPreviewSchema22 = z1722.object({
-  search_id: z1722.string().uuid(),
-  index: z1722.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX22),
-  include_unconfirmed: z1722.boolean(),
-  words: z1722.object({
-    subject: z1722.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
-    body: z1722.string().trim().min(1).max(REACH_OUT_BODY_MAX22 * 2)
-  }),
-  signed_by: z1722.string().trim().max(SIGNED_BY_MAX22).nullable(),
-  language: z1722.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
-var REACH_OUT_DECISIONS22 = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema22 = z1722.object({ decision: z1722.enum(REACH_OUT_DECISIONS22) });
 var REACH_OUT_REFUSALS22 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -17899,6 +17879,10 @@ var REACH_OUT_REFUSALS22 = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -17918,6 +17902,39 @@ var REACH_OUT_REFUSALS22 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET22 = new Set(Object.values(REACH_OUT_REFUSALS22));
+function isCampaignEmail2(request) {
+  const headers = request?.headers;
+  const v = headers?.["List-Unsubscribe"];
+  return typeof v === "string" && v.trim() !== "";
+}
+var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
+  if (f.stopped) return "outreach_stopped";
+  return null;
+}
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
+var REACH_OUT_PREVIEW_INDEX_MAX22 = 199;
+var ReachOutPreviewSchema22 = z1722.object({
+  search_id: z1722.string().uuid(),
+  index: z1722.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX22),
+  include_unconfirmed: z1722.boolean(),
+  words: z1722.object({
+    subject: z1722.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+    body: z1722.string().trim().min(1).max(REACH_OUT_BODY_MAX22 * 2)
+  }),
+  signed_by: z1722.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  language: z1722.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS22 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema22 = z1722.object({ decision: z1722.enum(REACH_OUT_DECISIONS22) });
 var REACH_OUT_SHEET_PARTS22 = {
   who: "Who gets it",
   words: "What you'd say",
@@ -18040,7 +18057,7 @@ var PARTNER_WORDS22 = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
@@ -18614,14 +18631,14 @@ function feedProblemWords32(reason, status) {
   }
 }
 var isJsonObject32 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut32(raw, kept, at2 = []) {
+function keysLeftOut32(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut32(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut32(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject32(raw) || !isJsonObject32(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut32(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut32(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields32(read, raw, ctx) {
@@ -18655,8 +18672,8 @@ var TenantConfigSchema32 = z632.object({
 var MAX_INTERVALS_PER_DAY32 = 4;
 var MAX_CLOSURES32 = 60;
 function isRealDate32(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES32 = {
   mon: "Monday",
@@ -18709,25 +18726,25 @@ function checkDay32(h, day, ctx) {
   }
 }
 function checkClosure32(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate32(c2.date)) {
     ctx.addIssue({
       code: z632.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate32(c2.until)) {
     ctx.addIssue({
       code: z632.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z632.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -19005,7 +19022,7 @@ var LEAD_WORDS32 = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -19347,9 +19364,9 @@ var SAVED_ID32 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 var BUILTIN_ID32 = /^[a-z_]{1,40}$/;
 function parseListToken32(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID32.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID32.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -20645,22 +20662,6 @@ var NOTE_SUGGEST_SCHEMA32 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
-var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
-var REACH_OUT_PREVIEW_INDEX_MAX32 = 199;
-var ReachOutPreviewSchema32 = z1732.object({
-  search_id: z1732.string().uuid(),
-  index: z1732.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX32),
-  include_unconfirmed: z1732.boolean(),
-  words: z1732.object({
-    subject: z1732.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
-    body: z1732.string().trim().min(1).max(REACH_OUT_BODY_MAX32 * 2)
-  }),
-  signed_by: z1732.string().trim().max(SIGNED_BY_MAX32).nullable(),
-  language: z1732.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
-var REACH_OUT_DECISIONS32 = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema32 = z1732.object({ decision: z1732.enum(REACH_OUT_DECISIONS32) });
 var REACH_OUT_REFUSALS32 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -20675,6 +20676,10 @@ var REACH_OUT_REFUSALS32 = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -20694,6 +20699,22 @@ var REACH_OUT_REFUSALS32 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET32 = new Set(Object.values(REACH_OUT_REFUSALS32));
+var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_PREVIEW_INDEX_MAX32 = 199;
+var ReachOutPreviewSchema32 = z1732.object({
+  search_id: z1732.string().uuid(),
+  index: z1732.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX32),
+  include_unconfirmed: z1732.boolean(),
+  words: z1732.object({
+    subject: z1732.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+    body: z1732.string().trim().min(1).max(REACH_OUT_BODY_MAX32 * 2)
+  }),
+  signed_by: z1732.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  language: z1732.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS32 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema32 = z1732.object({ decision: z1732.enum(REACH_OUT_DECISIONS32) });
 var REACH_OUT_SHEET_PARTS32 = {
   who: "Who gets it",
   words: "What you'd say",
@@ -20816,7 +20837,7 @@ var PARTNER_WORDS32 = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
@@ -21017,6 +21038,9 @@ async function outreachFactsOf(db, p) {
     wrote_back: f.wrote_back,
     // Absent before 00226: not away, as it was.
     away: f.away === true,
+    // Absent before 00241: not stopped. The stop still holds without it: its planned and held sends are skipped, and
+    // the followers leave the lead out, both in SQL.
+    stopped: f.stopped === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -21071,6 +21095,7 @@ async function outreachFacts(db, d, f, nowMs) {
       suppressed: false,
       wroteBack: false,
       away: false,
+      stopped: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -21099,6 +21124,7 @@ async function outreachFacts(db, d, f, nowMs) {
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
     away: facts.away,
+    stopped: facts.stopped,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -21123,7 +21149,8 @@ function refusalFor(d, f, nowMs, o2) {
       leadStage: o2.leadStage,
       suppressed: o2.suppressed,
       wroteBack: o2.wroteBack,
-      away: o2.away
+      away: o2.away,
+      stopped: o2.stopped
     });
     if (lead) return lead;
     if (!o2.unsubscribable) return "outreach_without_unsubscribe";
@@ -22350,14 +22377,14 @@ function feedProblemWords4(reason, status) {
   }
 }
 var isJsonObject4 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut4(raw, kept, at2 = []) {
+function keysLeftOut4(raw, kept, at3 = []) {
   if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut4(v, kept[i], [...at2, i]) : []);
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut4(v, kept[i], [...at3, i]) : []);
   }
   if (!isJsonObject4(raw) || !isJsonObject4(kept)) return [];
   return Object.entries(raw).flatMap(([k, v]) => {
     if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut4(v, kept[k], [...at2, k]) : [[...at2, k]];
+    return Object.hasOwn(kept, k) ? keysLeftOut4(v, kept[k], [...at3, k]) : [[...at3, k]];
   });
 }
 function refuseUnknownFields4(read, raw, ctx) {
@@ -22391,8 +22418,8 @@ var TenantConfigSchema4 = z64.object({
 var MAX_INTERVALS_PER_DAY4 = 4;
 var MAX_CLOSURES4 = 60;
 function isRealDate4(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
 }
 var DAY_NAMES4 = {
   mon: "Monday",
@@ -22445,25 +22472,25 @@ function checkDay4(h, day, ctx) {
   }
 }
 function checkClosure4(c2, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+  const at3 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate4(c2.date)) {
     ctx.addIssue({
       code: z64.ZodIssueCode.custom,
-      path: at2("date"),
+      path: at3("date"),
       message: `${c2.date} is not a date on the calendar.`
     });
   }
   if (c2.until && !isRealDate4(c2.until)) {
     ctx.addIssue({
       code: z64.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: `${c2.until} is not a date on the calendar.`
     });
   }
   if (c2.until && c2.until < c2.date) {
     ctx.addIssue({
       code: z64.ZodIssueCode.custom,
-      path: at2("until"),
+      path: at3("until"),
       message: "A closure cannot end before it starts."
     });
   }
@@ -22741,7 +22768,7 @@ var LEAD_WORDS4 = {
   ratedHeading: "What people say",
   closePhotos: "Close",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckOf: (at3, of) => `${at3} of ${of}`,
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
@@ -23083,9 +23110,9 @@ var SAVED_ID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 var BUILTIN_ID4 = /^[a-z_]{1,40}$/;
 function parseListToken4(token2) {
   if (typeof token2 !== "string") return null;
-  const at2 = token2.indexOf(":");
-  const kind = token2.slice(0, at2);
-  const id = token2.slice(at2 + 1);
+  const at3 = token2.indexOf(":");
+  const kind = token2.slice(0, at3);
+  const id = token2.slice(at3 + 1);
   if ((kind === "seg" || kind === "state") && BUILTIN_ID4.test(id)) return { kind: "builtin", id };
   if (kind === "list" && SAVED_ID4.test(id)) return { kind: "saved", id: id.toLowerCase() };
   return null;
@@ -24380,22 +24407,6 @@ var NOTE_SUGGEST_SCHEMA4 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
-var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
-var REACH_OUT_PREVIEW_INDEX_MAX4 = 199;
-var ReachOutPreviewSchema4 = z174.object({
-  search_id: z174.string().uuid(),
-  index: z174.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX4),
-  include_unconfirmed: z174.boolean(),
-  words: z174.object({
-    subject: z174.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
-    body: z174.string().trim().min(1).max(REACH_OUT_BODY_MAX4 * 2)
-  }),
-  signed_by: z174.string().trim().max(SIGNED_BY_MAX4).nullable(),
-  language: z174.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
-});
-var REACH_OUT_DECISIONS4 = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema4 = z174.object({ decision: z174.enum(REACH_OUT_DECISIONS4) });
 var REACH_OUT_REFUSALS4 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -24410,6 +24421,10 @@ var REACH_OUT_REFUSALS4 = {
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** 00241 reach_out_report: only Reports' own periods. */
+  period: "A period is 7, 30 or 90 days.",
   searchNotFound: "Search not found.",
   domainNotFound: "Domain not found.",
   sendNotFound: "Email not found.",
@@ -24429,6 +24444,22 @@ var REACH_OUT_REFUSALS4 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET4 = new Set(Object.values(REACH_OUT_REFUSALS4));
+var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
+var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
+var REACH_OUT_PREVIEW_INDEX_MAX4 = 199;
+var ReachOutPreviewSchema4 = z174.object({
+  search_id: z174.string().uuid(),
+  index: z174.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX4),
+  include_unconfirmed: z174.boolean(),
+  words: z174.object({
+    subject: z174.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+    body: z174.string().trim().min(1).max(REACH_OUT_BODY_MAX4 * 2)
+  }),
+  signed_by: z174.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  language: z174.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS4 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema4 = z174.object({ decision: z174.enum(REACH_OUT_DECISIONS4) });
 var REACH_OUT_SHEET_PARTS4 = {
   who: "Who gets it",
   words: "What you'd say",
@@ -24551,7 +24582,7 @@ var PARTNER_WORDS4 = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",

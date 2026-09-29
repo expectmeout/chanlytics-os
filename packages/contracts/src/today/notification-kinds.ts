@@ -1,6 +1,6 @@
 /**
- * What Settings › Notifications says the workspace is told, and when: the kinds of email the edge really sends,
- * grouped, each with the words of when it is sent. No switch is offered that no code reads (settings.jsx's own rule),
+ * What Settings › Notifications says the workspace is told, and when: the kinds of email the edge really sends, and
+ * the one line it writes to the bell alone (the day's reach-out numbers), grouped, each with the words of when it is sent. No switch is offered that no code reads (settings.jsx's own rule),
  * so these are rows, not choices. "To Chanlytics" marks the platform's alerts, which no workspace's addresses receive.
  */
 export interface NotificationKindRow {
@@ -30,7 +30,8 @@ export const NOTIFICATION_KIND_GROUPS: readonly NotificationKindGroup[] = [
     ],
   },
   {
-    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens.
+    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens; and Part 6 (H12), the
+    // day's numbers at 6 PM, the one row that is a line in the bell rather than an email.
     title: "Reach-outs",
     rows: [
       {
@@ -48,6 +49,11 @@ export const NOTIFICATION_KIND_GROUPS: readonly NotificationKindGroup[] = [
       {
         title: "A sending domain is held, and when it sends again",
         what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again.",
+      },
+      {
+        // Part 6 (H12): a line in the bell, never an email.
+        title: "The day's numbers",
+        what: "At 6 PM your time, a line in the bell, not an email: what your reach-outs wrote that day, who wrote back, and what waits for you.",
       },
     ],
   },

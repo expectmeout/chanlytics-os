@@ -66,8 +66,15 @@ export {
   replyUndoableOf,
   undoReplyReading,
   markReplyTold,
+  reachOutDayDue,
 } from "./repositories/outreach";
-export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow, ReplyListRow } from "./repositories/outreach";
+export type {
+  OutreachFactsRow,
+  ReachOutReplyOf,
+  ReplyReadingRow,
+  ReplyListRow,
+  ReachOutDayDue,
+} from "./repositories/outreach";
 export {
   domainCapacityOf,
   reachOutAudience,

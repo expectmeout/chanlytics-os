@@ -127,7 +127,7 @@ test("who gets it: the search's reach as the database counts it, the unconfirmed
   assert.equal(byTestId(tree, "ro-signed").props.value, "Sam", "signed with the member's first name");
   assert.equal(
     textOf(byTestId(tree, "ro-stop-one")),
-    "To stop writing to one business, mark its lead Said no or Not a fit.",
+    "To stop writing to one business, open its lead and press Stop writing to them.",
   );
 });
 

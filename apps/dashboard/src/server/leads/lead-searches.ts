@@ -11,8 +11,10 @@ import {
   type LeadSearchDto,
   type LeadSearchPlan,
   type LeadStage,
+  type PersonLeadDto,
 } from "@chanlytics/contracts";
 import { answerOf, refusalOf } from "./lead-answers";
+import { leadTimelineOf } from "../campaigns/reach-out-leads";
 import { requireUuid } from "../request-guards";
 import { type Params, row } from "../route";
 import type { RouteContext } from "../with-route";
@@ -364,13 +366,15 @@ export async function undoSearch(
 
 /**
  * The lead a person was found as, the newest when two places held their number; null when they were never one. A
- * converted lead's page links to its person; this is the way back.
+ * converted lead's page links to its person; this is the way back. It carries what a reach-out wrote to the lead and
+ * what came back (Reach out Part 6, H11): the story its peek reads, which a failed read leaves out rather than fail
+ * the page.
  */
 export async function leadOfPerson(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   contactId: string,
-): Promise<{ id: string; business_name: string; found_at: string } | null> {
+): Promise<PersonLeadDto | null> {
   const { data, error } = await ctx.supabase
     .from("leads")
     .select("id, business_name, found_at")
@@ -382,5 +386,7 @@ export async function leadOfPerson(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? { id: data.id, business_name: data.business_name, found_at: data.found_at } : null;
+  if (!data) return null;
+  const reach = await leadTimelineOf(ctx, tenantId, data.id).catch(() => null);
+  return { id: data.id, business_name: data.business_name, found_at: data.found_at, reach_out: reach };
 }

@@ -112,6 +112,7 @@ export const SCHEMA_SETS = {
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
+    "reach_out_day",
   ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],

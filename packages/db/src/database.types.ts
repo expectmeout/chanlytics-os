@@ -2755,6 +2755,7 @@ export type Database = {
         Row: {
           about: string | null
           blanked_at: string | null
+          booked_at: string | null
           business_name: string
           category: string | null
           city: string | null
@@ -2793,6 +2794,7 @@ export type Database = {
           price: string | null
           rank: number | null
           rating: number | null
+          reach_out_stopped_at: string | null
           region: string | null
           resume_at: string | null
           reviews: number | null
@@ -2808,6 +2810,7 @@ export type Database = {
         Insert: {
           about?: string | null
           blanked_at?: string | null
+          booked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
@@ -2846,6 +2849,7 @@ export type Database = {
           price?: string | null
           rank?: number | null
           rating?: number | null
+          reach_out_stopped_at?: string | null
           region?: string | null
           resume_at?: string | null
           reviews?: number | null
@@ -2861,6 +2865,7 @@ export type Database = {
         Update: {
           about?: string | null
           blanked_at?: string | null
+          booked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
@@ -2899,6 +2904,7 @@ export type Database = {
           price?: string | null
           rank?: number | null
           rating?: number | null
+          reach_out_stopped_at?: string | null
           region?: string | null
           resume_at?: string | null
           reviews?: number | null
@@ -6087,6 +6093,14 @@ export type Database = {
           send: Json
         }[]
       }
+      reach_out_day_due: {
+        Args: { p_limit: number; p_now: string }
+        Returns: {
+          day: string
+          numbers: Json
+          tenant_id: string
+        }[]
+      }
       reach_out_due_domains: {
         Args: {
           p_at: string
@@ -6173,6 +6187,11 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      reach_out_lead_stop: { Args: { p_lead_id: string }; Returns: Json }
+      reach_out_lead_timeline: {
+        Args: { p_lead_id: string; p_tenant_id: string }
+        Returns: Json
       }
       reach_out_month_sent: {
         Args: { p_at: string; p_tenant_id: string }
@@ -6286,9 +6305,17 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: string
       }
+      reach_out_report: {
+        Args: { p_days: number; p_tenant_id: string }
+        Returns: Json
+      }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
       reach_out_save: {
         Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+        Returns: Json
+      }
+      reach_out_search_lines: {
+        Args: { p_search_id: string; p_tenant_id: string }
         Returns: Json
       }
       reach_out_send_decide: {

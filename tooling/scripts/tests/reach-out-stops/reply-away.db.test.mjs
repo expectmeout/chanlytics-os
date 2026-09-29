@@ -365,8 +365,10 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
     .replace(/\n\s+and not coalesce\(\(f\.facts->>'away'\)::boolean, false\)/, "")
     .replace(/\(select 1 from public\.reach_out_sends x\n\s+where/, "(select 1 from public.reach_out_sends x where");
   assert.equal(back, f185);
-  assert.equal(liveBody("outreach_lead_facts"), facts226, "the database runs 00226's facts");
-  assert.equal(liveBody("reach_out_followers"), f223, "and its followers");
+  // 00241 re-creates both whole with the stop (Reach out Part 6), and what-comes-back.db.test.mjs holds it to these.
+  const now = migration("00241");
+  assert.equal(liveBody("outreach_lead_facts"), bodyIn(now, "create or replace function public.outreach_lead_facts("));
+  assert.equal(liveBody("reach_out_followers"), bodyIn(now, "create or replace function public.reach_out_followers("));
 });
 
 test("stamp_email_left_as merges how a reply left into meta.email, and nothing else", { skip }, async () => {

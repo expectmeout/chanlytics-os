@@ -272,6 +272,9 @@ const ldBusinessCell = (l, x) => (
 // { key, label, sortable, pinned, fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes.
 const LEAD_COLUMNS = [
   { key: "business", label: "Business", sortable: true, pinned: true, cell: ldBusinessCell },
+  // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with, while a reach-out writes to
+  // the open search, the line that says where this business stands in it (contracts reachOutLineOf, x.reachOut).
+  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l, x) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}{ldReachOutLine(l, x)}</td> },
   { key: "reach", label: "Reach", sortable: false, cell: (l, x) => (
     <td key="reach" className="shrink ld-reach-cell" data-testid="lead-reach">
       {l.cls === "excluded" ? <span className="dim">Not checked</span> : (
@@ -295,7 +298,6 @@ const LEAD_COLUMNS = [
   ) },
   { key: "fit", label: "Fit", sortable: true, on: false, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
   { key: "why", label: "Why it fits", sortable: false, on: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
-  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <StatePill kind="lead_stage" value={l.stage} label={l.stageLabel} />}</td> },
   { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: false, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },
   { key: "source", label: "Source", sortable: false, on: false, cell: (l) => <td key="source" className="shrink dim ld-source-cell">{l.source}</td> },
   { key: "website", label: "Website", sortable: false, on: false, cell: (l) => <td key="website" className="shrink dim ld-website-cell">{l.host}</td> },
@@ -309,6 +311,12 @@ const LEAD_COLUMNS = [
 // person's row always says theirs); where it is, or what it waits on, or what left it out; and whether a phone and a
 // mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
 // it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
+// Where this business stands in the reach-out writing to the open search (Part 6, H8), or nothing.
+const ldReachOutLine = (l, x) => {
+  const line = x && x.reachOut && l.cls !== "excluded" ? x.reachOut.lineOf(l.id) : null;
+  return line ? <div className="cl-row-meta" data-testid="lead-reach-out-line">{line}</div> : null;
+};
+
 // A phone, as People judges it (clients-a.jsx PL_PHONE_QUERY): the slide below is a thumb's alone.
 const ldPhoneNow = () => !!(window.matchMedia && window.matchMedia(window.PL_PHONE_QUERY || "(max-width: 900px)").matches);
 const ldCardCell = (l, x) => {
@@ -322,7 +330,8 @@ const ldCardCell = (l, x) => {
   name: l.name,
   pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
   // Under a group's own heading (x.sectioned, leads-scope.jsx ldReviewSections) the reason is said once, above.
-  lead: l.cls === "excluded" ? l.fitLabel : l.cls === "review" && x && x.sectioned ? l.sub : (l.waitsOn || l.sub),
+  // While a reach-out writes to the open search, its line says where this business stands (Part 6, H8).
+  lead: l.cls === "excluded" ? l.fitLabel : l.cls === "review" && x && x.sectioned ? l.sub : ((x && x.reachOut && x.reachOut.lineOf(l.id)) || l.waitsOn || l.sub),
   leadTestid: "lead-sub",
   swipe: slides
     ? window.touchSwipe({

@@ -16,6 +16,7 @@ const doorRefuses = (f: ReachOutFollower): boolean =>
     suppressed: f.facts.suppressed,
     wroteBack: f.facts.wrote_back,
     away: f.facts.away === true,
+    stopped: f.facts.stopped === true,
   }) !== null;
 
 export async function runHandStep(

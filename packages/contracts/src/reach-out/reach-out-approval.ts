@@ -20,6 +20,9 @@ function skippedReasonWords(reason: string): string {
       return "missing a value your words name";
     case "owner_skipped":
       return "skipped by you";
+    case "owner_stopped":
+    case "outreach_stopped":
+      return "you stopped writing to them";
     case "not_a_fit":
       return "marked Not a fit";
     case "kept_waiting":

@@ -1584,7 +1584,7 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card" data-testid="notif-kinds">
         <div className="fl-card-head">
           <h2 className="fl-card-title">What you'll get</h2>
-          <span className="fl-card-sub">By email, the moment it happens.</span>
+          <span className="fl-card-sub">By email, the moment it happens; the day's reach-out numbers are a line in the bell.</span>
         </div>
         {((window.__today && window.__today.notificationKinds) || []).map((g) => (
           <div className="set-notif-group" key={g.title} data-testid="notif-group">
@@ -1617,7 +1617,7 @@ const PaneNotificationsReal = ({ flash }) => {
               background), so "push notifications are not built" denied a switch one click away (S20). */}
           <li><Icon name="check" size={11} /><span>Your browser can alert you too while Chanlytics is open in it — switch alerts on from the bell.</span></li>
           <li><Icon name="check" size={11} /><span>Sent from {notif.from ? <b>{notif.from}</b> : "the Chanlytics alert address"}{notif.from ? "" : " until your own sending domain is verified"}.</span></li>
-          <li><Icon name="check" size={11} /><span>No text-message alerts, and no daily or weekly digest. Today is the brief.</span></li>
+          <li><Icon name="check" size={11} /><span>No text-message alerts, and no daily or weekly email. Today is the brief.</span></li>
         </ul>
       </section>
     </>
