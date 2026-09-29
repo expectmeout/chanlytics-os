@@ -1,4 +1,4 @@
-/* global React, Icon, StatePill */
+/* global React, Icon, StatePill, mayAtLeast */
 // People › Pipeline (docs/decisions/0008-a-proposal-is-part-of-the-deal.md): People's rows by where their deal stands
 // -- consultations, proposals out, clients, and those who passed or ended -- under one line that says what is out and
 // what it comes to. A view of People, never a page of its own: People's switch, People's table in sections
@@ -110,7 +110,7 @@ const pipePeekFocus = (peekId, cursor) => {
 };
 // Whether this member may record a deal: an owner or an operator, as the person page decides it (client-profile.jsx).
 // Whoever acts in the workspace: the roles contracts ROLE_PERMS gives `approve` (owner, operator, and the partner, 0012).
-const pipeCanRecord = () => !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
+const pipeCanRecord = () => mayAtLeast("operator");
 // A send from the peek's card opens their thread with the words in the box where free text can go: the person page's
 // own path (client-profile.jsx openWith), and the thread reads the same key as it opens (inbox-thread.jsx).
 const pipeComposeIn = (person, text, nav) => {

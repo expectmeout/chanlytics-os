@@ -863,6 +863,11 @@ Object.assign(window, { holdStill, routeDoor });
 // where the permission's own words would mislead -- snoozing is an `approve` act.
 // Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
+// Whether the member, as they are acting (View-as included), stands on this rung of the ladder or above it: contracts'
+// one reading of it (roleAtLeast), through the role store the bridge completes (legacy-bridge/roles.ts). Where nothing
+// says who is looking it answers no, as a gate fails closed. A page offering an act only to the role its door takes
+// asks this; it read the raw membership (__ME.role), blind to an owner's View-as preview.
+const mayAtLeast = (rung) => !!(window.ST_STORE && window.ST_STORE.mayAtLeast && window.ST_STORE.mayAtLeast(rung));
 const gateTitle = (a, doing) => {
   const said = window.__roleGate ? window.__roleGate(window.ST_STORE ? window.ST_STORE.myRole() : "viewer", a, doing) : null;
   return said ? said.reason : "Your role can't do this.";
@@ -890,7 +895,7 @@ const gatedProps = (reason) => {
   };
 };
 const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
-Object.assign(window, { canDo, gateTitle, gate, gatedProps });
+Object.assign(window, { canDo, mayAtLeast, gateTitle, gate, gatedProps });
 
 // ---- Attachments in a thread (real sessions) ---------------------------
 // The bytes live in a private bucket; the route answers with a five-minute

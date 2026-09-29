@@ -14,6 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../_roles.mjs";
 import {
   CONSENT_SOURCES,
   SHORTCUTS,
@@ -362,9 +363,11 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
+installRoleStore();
 // Menus and questions as their props: the items are what these tests press, drawn by hookless stand-ins.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;

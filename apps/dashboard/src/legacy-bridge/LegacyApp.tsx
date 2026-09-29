@@ -78,6 +78,7 @@ import { installPartner, partnerOverride } from "./partner";
 import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
+import { installRoles } from "./roles";
 import { installClock } from "./zone";
 import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
 import type { OpenHandoverDto } from "@chanlytics/contracts";
@@ -132,6 +133,8 @@ installPartner();
 installActivity();
 installIdentity();
 installShell();
+// The role store's reading of who is acting, View-as included, for every gate (roles.ts): after the manifest made the store.
+installRoles();
 // The installable shell's service worker (public/sw.js). It caches nothing
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev

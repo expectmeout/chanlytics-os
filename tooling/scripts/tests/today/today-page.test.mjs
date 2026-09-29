@@ -25,7 +25,20 @@ import {
   stateOf,
   leadQuestionRoute,
 } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  quiet,
+  redrawWanted,
+  surfaceLanded,
+} from "../_legacy-react.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
 const ZONE = "America/New_York";
@@ -941,19 +954,44 @@ test("the day listens for People too: it reads People for a visit that needs som
   // missing until something else redrew it.
   clear();
   set({ TODAY_DATA: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
-  const heard = new Set();
-  const keep = W.addEventListener;
-  W.addEventListener = (type, fn) => {
-    heard.add(type);
-    keep(type, fn);
-  };
-  try {
-    draw(W.TodayDay);
-  } finally {
-    W.addEventListener = keep;
+  draw(W.TodayDay);
+  for (const key of ["calendar", "playbooks", "people"]) {
+    quiet();
+    surfaceLanded(key);
+    assert.ok(redrawWanted(), `the day redraws when ${key} lands`);
   }
-  for (const n of ["surface:calendar", "surface:playbooks", "surface:clients"])
-    assert.ok(heard.has(n), `the day redraws on ${n}`);
+  // A surface nothing here draws from is none of its business: Billing's read moves nothing.
+  quiet();
+  surfaceLanded("billing");
+  assert.ok(!redrawWanted(), "the day does not redraw for a surface it does not draw");
+});
+
+test("each band of Today is drawn again when a surface it draws from lands, and by no other's", () => {
+  // The shell drew whole on every surface's read; a band now names the surfaces it draws (useSurface) and moves on those.
+  clear();
+  set({ TODAY_DATA: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: { rows: [] } });
+  const bands = [
+    ["the alert line", W.HeroBrief, ["today"]],
+    ["the day's card", W.TodayCard, ["today", "reports"]],
+    ["the setup card", W.TodaySetup, ["setup"]],
+    ["the queue", W.AgentCommand, ["today", "broadcasts", "live"]],
+    ["Worth a look", W.TodayLeaks, ["reports", "people", "today"]],
+    ["the pins", W.TodayPins, ["people"]],
+    ["the day", W.TodayDay, ["calendar", "playbooks", "people"]],
+  ];
+  for (const [name, Band, drawnFrom] of bands) {
+    draw(Band);
+    for (const key of drawnFrom) {
+      quiet();
+      surfaceLanded(key);
+      assert.ok(redrawWanted(), `${name} is drawn again when ${key} lands`);
+    }
+    for (const stranger of ["billing", "inbox", "conversations"]) {
+      quiet();
+      surfaceLanded(stranger);
+      assert.ok(!redrawWanted(), `${name} is not drawn again for ${stranger}`);
+    }
+  }
 });
 
 test("the day: five rows and a line to the Calendar; a failed calendar read says so where the day would be", () => {

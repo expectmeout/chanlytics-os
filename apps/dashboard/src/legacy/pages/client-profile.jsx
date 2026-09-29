@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm, EmptyState, FailedRead */
+/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm, EmptyState, FailedRead, mayAtLeast */
 // Chanlytics — Client profile page.
 // The last approval surface wired into the decide engine: Aisha's queue
 // approves through IX_STORE (toast + undo), overlays live decisions, and
@@ -1385,9 +1385,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const peopleRow = window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((r) => r.id === id) : null;
   const dealP = peopleRow && peopleRow.followUp ? { ...p, followUp: peopleRow.followUp } : p;
   const tone = p.rightNow.tone;
-  const isOwner = !!(window.__ME && window.__ME.role === "owner");
-  // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
-  const canRecord = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
+  const isOwner = mayAtLeast("owner");
+  // The roles ROLE_PERMS gives `approve`: operator, the partner (0012) and the owner.
+  const canRecord = mayAtLeast("operator");
   const digitsOf = (x) => String(x || "").replace(/\D/g, "");
   const typedMatches =
     del.typed.trim() === p.name ||

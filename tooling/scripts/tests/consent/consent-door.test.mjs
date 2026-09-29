@@ -9,6 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../_roles.mjs";
 import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
@@ -194,10 +195,6 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
   );
   assert.ok(p.includes("data-testid={`${testid}-how`}"), "a yes is not written until the page knows how it was given");
   assert.ok(
-    p.includes('["owner", "operator", "partner"].includes(window.__ME.role)'),
-    "operators record answers too, and the partner",
-  );
-  assert.ok(
     p.includes('if (value !== "unknown") record("unknown", null);'),
     "the reset writes nothing when there is nothing to reset",
   );
@@ -251,6 +248,9 @@ globalThis.React = {
   useMemo: (fn) => HOOKS.useMemo(fn),
 };
 globalThis.window = { __ME: { role: "operator" }, FieldError };
+// Who is acting, as data-bits asks it (mayAtLeast) of the role store the bridge completes.
+installRoleStore(globalThis.window);
+globalThis.mayAtLeast = (rung) => globalThis.window.ST_STORE.mayAtLeast(rung);
 await import("../../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 const Ask = globalThis.window.ConsentAsk;
 assert.equal(typeof Ask, "function", "the ask is published, or nothing below tests anything");

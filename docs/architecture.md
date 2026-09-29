@@ -306,6 +306,29 @@ them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
 for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
+**Where the shell's state lives.** Three kinds, each with one owner:
+
+- _The workspace's rows_ are read through the seam into a surface's globals (`window.__PEOPLE`, and so on), never by a
+  page. One read is out at a time for each surface, so the newest read lands last (`surface-data.ts`
+  `activateOverride`); the workspace's own topic says what changed (decision 0019) and each tab re-reads only the surface
+  that changed; a write re-reads what it may have made stale, from one table (`refresh-map.ts`), which holds every write
+  to a list of surfaces or to a reason it needs none (`refresh-coverage.test.mjs`). A tab keeps its last read in
+  `sessionStorage` so a reload paints at once (`surface-cache.ts`), and a sign-out closes that cache before it clears it.
+- _A device's_ preferences (the theme, the look, the rail) live in `localStorage` and nowhere else
+  (`device-prefs.ts`); _a tab's own_ (a view's place, a half-written draft) in `sessionStorage` through the one store
+  (`tab-memory.ts`); and what only one component cares about, in that component.
+- _Who is acting_ is one answer, `roles.ts`: the member's role from the workspace's read, lowered by an owner's View-as,
+  failing closed. Every gate asks the role store it completes (`ST_STORE.myRole()`, `mayAtLeast`), never `__ME.role`.
+
+A component draws again when a surface it draws from lands or changes status, and by nothing else. It names them:
+`useSurface("people")`, a list, or a route (`surface-registry.ts` `routeSurfaces`), which the shell names for the page on
+screen. The counts live in `surface-status.ts`, bumped by each surface's own events before React draws. A surface's
+status changing is news; a read that changed nothing is not, so a message no longer draws the whole shell seven times.
+Today, the Inbox and People are on it. The hand-written `surface:*` listeners that remain (31 direct
+`addEventListener("surface:…")` sites in 22 of the shell's files on 29 September 2026, and the few that loop over a list of
+names) either do something a redraw does not (reseed a list and keep a thread open, say what a re-read did to it) or wait
+for their page to move to `useSurface`; a new page names its surfaces.
+
 ## The interface
 
 The plan (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`) puts

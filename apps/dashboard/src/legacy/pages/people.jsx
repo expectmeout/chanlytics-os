@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, PL_FIRST_ROWS, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
+   PL_NO_SEL, PL_FIRST_ROWS, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, useSurface, mayAtLeast */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -766,11 +766,8 @@ const PL_NO_LISTS = [];
 const PL_NO_PEOPLE = { rows: [], lists: PL_NO_LISTS, saved: PL_NO_LISTS, aggregates: { total: 0, needsYou: 0, reachedWeek: 0 }, views: {}, attention: {}, savedRead: true };
 
 const usePeople = () => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("surface:clients", bump);
-    return () => window.removeEventListener("surface:clients", bump);
-  }, []);
+  // Drawn again when People's rows land or its status moves (surface-status.ts).
+  useSurface("people");
   return window.__PEOPLE || PL_NO_PEOPLE;
 };
 
@@ -1779,7 +1776,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   // With a list kept by hand open, the selection can leave it; the people stay.
   const dropFromList = () => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); });
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
-  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  const isOwner = mayAtLeast("owner");
   const [noting, setNoting] = React.useState(false);
   const [note, setNote] = React.useState("");
   // A yes on sign-up forms waits for the note that says which forms: a stack of
@@ -3206,7 +3203,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const sheets = usePeopleSheets(newList, savedId);
   const { listsOpen, setListsOpen, addOpen, listAct } = sheets;
   // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
-  const canEditLists = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
+  const canEditLists = mayAtLeast("operator");
   usePeopleAddress(listId, savedId, tab);
   const farther = usePeopleFarther({ people, q, plFlash });
   const { found } = farther;
