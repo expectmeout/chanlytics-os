@@ -24,6 +24,7 @@ import {
   type A2PResult,
   type A2PState,
   type BusinessRecord,
+  type ProviderAccount,
 } from "../packages/channels.js";
 import {
   formatPhoneDisplay,
@@ -218,16 +219,46 @@ export async function registerLine(
     statusCallback?: string;
   },
 ): Promise<RegisterResult> {
+  const state = a2pStateFrom(o.line);
+  const ready = filingPrerequisites(o.line, state);
+  if (!ready.ok) return ready;
+  const refused = await preflightRefusal(db, o, state);
+  if (refused) return refused;
+  const record = recordAsFiled(o);
+
+  // Everything is filed as the WORKSPACE'S OWN subaccount, per Twilio's ISV
+  // guide; our primary profile is referenced by sid, never moved.
+  const sub = await lineAccount(db, o.line).catch(() => null);
+  if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: o.line.sms_state };
+  const ports = filingPorts(db, o, { ...ready, sub, record });
+  return settleFiling(db, o, await runFiling(db, o, state, ports));
+}
+
+/** What `registerLine` is asked to file, as its callers pass it. */
+type Filing = Parameters<typeof registerLine>[1];
+
+/**
+ * What the platform needs before anything is filed: Twilio as the line provider, our own approved primary profile, a
+ * mailbox for Twilio to write to, and the line's Messaging Service. A refusal here has read and written nothing.
+ */
+function filingPrerequisites(
+  line: LineRow,
+  state: A2PState,
+):
+  | { ok: false; error: EdgeErrorCode; state: A2PState; smsState: string }
+  | { ok: true; primary: string; email: string; messagingServiceSid: string } {
   const choice = lineProviderFromEnv();
   const primary = primaryProfileSid();
   const email = platformEmail();
-  const state = a2pStateFrom(o.line);
-  if (!choice || choice.name !== "twilio")
-    return { ok: false, error: "no_provider", state, smsState: o.line.sms_state };
-  if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: o.line.sms_state };
-  if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: o.line.sms_state };
-  if (!o.line.messaging_service_sid)
-    return { ok: false, error: "no_messaging_service", state, smsState: o.line.sms_state };
+  if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider", state, smsState: line.sms_state };
+  if (!primary) return { ok: false, error: "no_primary_profile", state, smsState: line.sms_state };
+  if (!email) return { ok: false, error: "no_platform_mailbox", state, smsState: line.sms_state };
+  if (!line.messaging_service_sid) return { ok: false, error: "no_messaging_service", state, smsState: line.sms_state };
+  return { ok: true, primary, email, messagingServiceSid: line.messaging_service_sid };
+}
+
+/** The pre-flight: null when the filing may go ahead, else the refusal, with the row set to `needs_record`. */
+async function preflightRefusal(db: Db, o: Filing, state: A2PState): Promise<RegisterResult | null> {
   // Checked before a single call is made, because on a real filing an incomplete
   // record is a fee spent on a rejection that arrives days later. The decision
   // itself lives in `filingProblems` above, which the refile path asks too -- so
@@ -238,41 +269,42 @@ export async function registerLine(
     workspaceName: o.workspaceName,
     hasOptInNumber: o.hasOptInNumber,
   });
+  if (!problems.length) return null;
 
-  if (problems.length) {
-    // NOTHING HAS BEEN SENT, so `needs_record` is the truth about this row and the
-    // sentences are what the owner has to act on. They are RETURNED as well as
-    // stored: the row is read by a page that reloads, and the person who just
-    // pressed the button is owed the answer now rather than an error token.
-    await db
-      .from("lines")
-      .update({
-        sms_state: "needs_record",
-        last_error: problems.join(" "),
-        state_since: new Date().toISOString(),
-      })
-      .eq("id", o.line.id);
-    return {
-      ok: false,
-      error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
-      problems,
-      state,
-      smsState: "needs_record",
-    };
-  }
+  // NOTHING HAS BEEN SENT, so `needs_record` is the truth about this row and the
+  // sentences are what the owner has to act on. They are RETURNED as well as
+  // stored: the row is read by a page that reloads, and the person who just
+  // pressed the button is owed the answer now rather than an error token.
+  await db
+    .from("lines")
+    .update({
+      sms_state: "needs_record",
+      last_error: problems.join(" "),
+      state_since: new Date().toISOString(),
+    })
+    .eq("id", o.line.id);
+  return {
+    ok: false,
+    error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
+    problems,
+    state,
+    smsState: "needs_record",
+  };
+}
 
-  const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
+/** The business on record as every request of this filing states it. */
+function recordAsFiled(o: Filing): BusinessRecord {
   // A business with no website of its own files the page we publish for it. The
   // substitution happens HERE, once, rather than in each request builder: the
   // brand, the campaign and the profile must all name the same URL, and three
   // places deciding that separately is three places to disagree.
   const base = businessRecordFrom(o.record);
   const record = base.websiteUrl?.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
+  return record;
+}
 
-  // Everything is filed as the WORKSPACE'S OWN subaccount, per Twilio's ISV
-  // guide; our primary profile is referenced by sid, never moved.
-  const sub = await lineAccount(db, o.line).catch(() => null);
-  if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: o.line.sms_state };
+/** The saga's one way to Twilio: a request made as the subaccount, and what Twilio answered, parsed once. */
+function subaccountSend(sub: ProviderAccount): A2PPorts["send"] {
   const send = async (req: A2PRequest) => {
     const acct = sub;
     const r = await fetch(req.url, {
@@ -294,30 +326,66 @@ export async function registerLine(
     }
     return { status: r.status, body };
   };
+  return send;
+}
 
-  // Each receipt lands on the row before the next call runs.
-  const FACT_OF: Partial<Record<keyof A2PState, string>> = {
-    businessSid: "a2p_business_sid",
-    representativeSid: "a2p_representative_sid",
-    addressSid: "a2p_address_sid",
-    documentSid: "a2p_document_sid",
-    primaryAssigned: "a2p_primary_assigned",
-    profileSubmitted: "a2p_profile_submitted",
-  };
-  const COLUMN_OF: Partial<Record<keyof A2PState, string>> = {
-    profileSid: "profile_sid",
-    a2pProfileSid: "a2p_profile_sid",
-    brandSid: "brand_sid",
-    campaignSid: "campaign_sid",
-  };
+// Each receipt lands on the row before the next call runs.
+const FACT_OF: Partial<Record<keyof A2PState, string>> = {
+  businessSid: "a2p_business_sid",
+  representativeSid: "a2p_representative_sid",
+  addressSid: "a2p_address_sid",
+  documentSid: "a2p_document_sid",
+  primaryAssigned: "a2p_primary_assigned",
+  profileSubmitted: "a2p_profile_submitted",
+};
+const COLUMN_OF: Partial<Record<keyof A2PState, string>> = {
+  profileSid: "profile_sid",
+  a2pProfileSid: "a2p_profile_sid",
+  brandSid: "brand_sid",
+  campaignSid: "campaign_sid",
+};
+
+/** The saga's save: each receipt to its column, or into the row's facts, of which this filing keeps its own copy. */
+function receiptSaver(db: Db, line: LineRow): A2PPorts["save"] {
   let facts = (
-    o.line.facts && typeof o.line.facts === "object" && !Array.isArray(o.line.facts)
-      ? { ...(o.line.facts as Record<string, unknown>) }
+    line.facts && typeof line.facts === "object" && !Array.isArray(line.facts)
+      ? { ...(line.facts as Record<string, unknown>) }
       : {}
   ) as Record<string, unknown>;
 
+  return async (patch) => {
+    const row: Record<string, unknown> = {};
+    let touchedFacts = false;
+    for (const [k, v] of Object.entries(patch)) {
+      const col = COLUMN_OF[k as keyof A2PState];
+      if (col) {
+        row[col] = v;
+        continue;
+      }
+      const fact = FACT_OF[k as keyof A2PState];
+      if (fact) {
+        facts[fact] = v;
+        touchedFacts = true;
+      }
+    }
+    if (touchedFacts) row.facts = facts;
+    const { error } = await db
+      .from("lines")
+      .update(row as Database["public"]["Tables"]["lines"]["Update"])
+      .eq("id", line.id);
+    if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
+  };
+}
+
+/** What the saga runs over: the subaccount's send, the business and the campaign's words, and the receipts' save. */
+function filingPorts(
+  db: Db,
+  o: Filing,
+  f: { sub: ProviderAccount; record: BusinessRecord; primary: string; email: string; messagingServiceSid: string },
+): A2PPorts {
+  const { sub, record, primary, email } = f;
   const ports: A2PPorts = {
-    send,
+    send: subaccountSend(sub),
     accountSid: sub.sid,
     primaryProfileSid: primary,
     email,
@@ -337,7 +405,7 @@ export async function registerLine(
       hostedUrl: o.hostedUrl,
       lineNumber: formatPhoneDisplay(o.line.e164),
     }),
-    messagingServiceSid: o.line.messaging_service_sid,
+    messagingServiceSid: f.messagingServiceSid,
     useCase: LOW_VOLUME_USECASE,
     mock: o.mock,
     // Tied to the use case above, deliberately: everything this product files
@@ -347,30 +415,14 @@ export async function registerLine(
     // that ever files something bigger should turn it back on with its eyes
     // open rather than inherit it by silence.
     skipVetting: true,
-    async save(patch) {
-      const row: Record<string, unknown> = {};
-      let touchedFacts = false;
-      for (const [k, v] of Object.entries(patch)) {
-        const col = COLUMN_OF[k as keyof A2PState];
-        if (col) {
-          row[col] = v;
-          continue;
-        }
-        const fact = FACT_OF[k as keyof A2PState];
-        if (fact) {
-          facts[fact] = v;
-          touchedFacts = true;
-        }
-      }
-      if (touchedFacts) row.facts = facts;
-      const { error } = await db
-        .from("lines")
-        .update(row as Database["public"]["Tables"]["lines"]["Update"])
-        .eq("id", o.line.id);
-      if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
-    },
+    save: receiptSaver(db, o.line),
   };
+  return ports;
+}
 
+/** The filing itself: the row says `registering`, and which registration, before the saga's first call. */
+async function runFiling(db: Db, o: Filing, state: A2PState, ports: A2PPorts): Promise<A2PResult> {
+  const record = ports.record;
   // reg_sole_prop is written HERE, with reg_mock, and never derived later: an
   // owner who incorporates and types their new tax id would otherwise read
   // back as a standard brand while the carriers still hold the narrow one --
@@ -386,6 +438,12 @@ export async function registerLine(
     })
     .eq("id", o.line.id);
   const result = await runA2PSaga(state, ports);
+  return result;
+}
+
+/** Where the filing ended, written to the row and the log, and answered. */
+async function settleFiling(db: Db, o: Filing, result: A2PResult): Promise<RegisterResult> {
+  const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
   // A campaign that cannot be filed until the carriers finish with the brand
   // is a WAIT: everything asked for was accepted. The row says "waiting on
   // carriers", carries no error, and the next status check files it.
