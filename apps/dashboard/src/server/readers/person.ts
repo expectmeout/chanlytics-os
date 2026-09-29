@@ -9,7 +9,6 @@ import {
   type PersonDecisionDto,
   type PersonDetailDto,
   type PersonEscalationDto,
-  type PersonRowDto,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db";
 import {
@@ -72,7 +71,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     const rowRead = Promise.resolve(sb.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: id })).then(
       ({ data, error }) => {
         if (error) throw new Error(error.message);
-        return ((data ?? [])[0] as PersonRowDto | undefined) ?? null;
+        return (data ?? [])[0] ?? null;
       },
     );
     // A query builder runs again each time it is awaited: the conversations are read once and handed to both readers.
@@ -113,7 +112,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       if (decs.error) throw new Error(decs.error.message);
       return {
         byConv: groupMessages(msgs),
-        escalations: (escs.data ?? []) as PersonEscalationDto[],
+        escalations: escs.data ?? [],
         decisions: (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null })),
       };
     });

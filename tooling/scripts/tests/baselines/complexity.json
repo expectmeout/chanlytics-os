@@ -639,11 +639,6 @@
     "branches": 54,
     "depth": 8
   },
-  "apps/edge/lib/google/profile-sync.ts::syncProfile#1": {
-    "lines": 145,
-    "branches": 31,
-    "depth": 2
-  },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
     "lines": 271,
     "branches": 1,
@@ -695,7 +690,7 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 190,
+    "lines": 185,
     "branches": 5,
     "depth": 0
   },

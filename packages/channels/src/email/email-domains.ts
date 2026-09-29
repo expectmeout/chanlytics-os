@@ -32,8 +32,7 @@ const unquote = (s: string): string => {
 /** A record as a registrar wants it typed: the value without the quotes the provider wraps a TXT in. */
 function recordFrom(r: unknown): DomainRecord | null {
   const o = (r ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null =>
-    typeof o[k] === "string" && (o[k] as string).trim() ? (o[k] as string) : null;
+  const str = (k: string): string | null => (typeof o[k] === "string" && o[k].trim() ? o[k] : null);
   const label = str("record");
   const type = str("type");
   const name = str("name");

@@ -92,7 +92,7 @@ export async function GET(): Promise<Response> {
   }
   let judged: { status: number; body: HealthAnswer };
   try {
-    judged = await judgeHealth(db as unknown as HealthDb);
+    judged = await judgeHealth(db);
   } catch {
     judged = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "error" } };
   }

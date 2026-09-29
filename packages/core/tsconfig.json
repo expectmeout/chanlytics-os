@@ -1,9 +1,11 @@
 {
+  "//": "noUncheckedIndexedAccess waits here until core's index reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them.",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "resolveJsonModule": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["node"]
+    "types": ["node"],
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts"]
 }

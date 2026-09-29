@@ -166,7 +166,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
   const { replyQuality } = hold;
   const sent = await send(
     replyText,
-    fallback ? (fallback.meta as Record<string, Json>) : (brainMeta as unknown as Record<string, Json> | undefined),
+    fallback ? fallback.meta : (brainMeta as unknown as Record<string, Json> | undefined),
   );
   const tSent = Date.now();
   if (sent.outcome === "sent") {

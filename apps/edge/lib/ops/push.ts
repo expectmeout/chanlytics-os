@@ -56,8 +56,7 @@ function experienceGroups(detail: string): Set<string>[] {
     for (const e of body.errors ?? []) {
       if (!e.details || typeof e.details !== "object") continue;
       for (const tokens of Object.values(e.details as Record<string, unknown>)) {
-        if (Array.isArray(tokens) && tokens.every((t) => typeof t === "string"))
-          groups.push(new Set(tokens as string[]));
+        if (Array.isArray(tokens) && tokens.every((t) => typeof t === "string")) groups.push(new Set(tokens));
       }
     }
     return groups.length > 1 ? groups : [];
@@ -107,7 +106,7 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
           receipts.push(...ticketsOf(batch, r.json as { data?: ExpoTicket[] }));
           continue;
         }
-        const detail = await text(r);
+        const detail = text(r);
         const groups = r.status === 400 ? experienceGroups(detail) : [];
         if (groups.length) {
           // Tokens of more than one app in one request: the service refuses the whole batch, so each app's tokens go
@@ -143,7 +142,7 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
         const batch = ids.slice(i, i + RECEIPTS_BATCH);
         const r = await post(EXPO_RECEIPTS_URL, { ids: batch });
         if (r.outcome !== "ok") {
-          const detail = await text(r);
+          const detail = text(r);
           throw new Error(`push_receipts_rejected ${r.status} ${detail.slice(0, 200)}`.trim());
         }
         const { data } = (r.json ?? {}) as { data?: Record<string, ExpoReceipt> };

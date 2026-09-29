@@ -106,7 +106,7 @@ export interface GbpReviewsPage {
 
 export function parseAccounts(json: unknown): { accounts: GbpAccount[]; next: string | null } {
   const o = recordOrNull(json);
-  const list = Array.isArray(o?.accounts) ? o!.accounts : [];
+  const list = Array.isArray(o?.accounts) ? o.accounts : [];
   const accounts = list
     .map((a) => recordOrNull(a))
     .filter((a): a is Obj => !!a)
@@ -139,7 +139,7 @@ function oneLineAddress(a: unknown): string | null {
 
 export function parseLocations(json: unknown): { locations: GbpLocation[]; next: string | null } {
   const o = recordOrNull(json);
-  const list = Array.isArray(o?.locations) ? o!.locations : [];
+  const list = Array.isArray(o?.locations) ? o.locations : [];
   const locations = list
     .map((l) => recordOrNull(l))
     .filter((l): l is Obj => !!l)
@@ -162,12 +162,12 @@ const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE:
 
 /** "FIVE" → 5; anything else → null. */
 export function starRatingNumber(v: unknown): number | null {
-  return typeof v === "string" && v in STARS ? STARS[v] : null;
+  return typeof v === "string" && Object.hasOwn(STARS, v) ? (STARS[v] ?? null) : null;
 }
 
 export function parseReviewsPage(json: unknown): GbpReviewsPage {
   const o = recordOrNull(json);
-  const list = Array.isArray(o?.reviews) ? o!.reviews : [];
+  const list = Array.isArray(o?.reviews) ? o.reviews : [];
   const reviews = list
     .map((r) => recordOrNull(r))
     .filter((r): r is Obj => !!r)
@@ -192,8 +192,8 @@ export function parseReviewsPage(json: unknown): GbpReviewsPage {
       };
     })
     .filter((r): r is GbpReview => r !== null);
-  const avg = typeof o?.averageRating === "number" ? o!.averageRating : null;
-  const total = typeof o?.totalReviewCount === "number" ? o!.totalReviewCount : null;
+  const avg = typeof o?.averageRating === "number" ? o.averageRating : null;
+  const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: nonBlankOrNull(o?.nextPageToken) };
 }
 

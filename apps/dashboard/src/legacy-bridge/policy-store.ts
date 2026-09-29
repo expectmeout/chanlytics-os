@@ -151,7 +151,7 @@ export function uiRows(p: PoliciesSurface): UiRow[] {
     return {
       ...r,
       mode: r.locked ? "Never" : modeLabel(rec?.mode),
-      limits: (rec?.limits as Record<string, unknown> | null | undefined) ?? {},
+      limits: rec?.limits ?? {},
     };
   });
 }
@@ -177,7 +177,7 @@ interface PolicyWindow {
  * at bridge boot, after the manifest has installed the seeds and before React
  * renders.
  */
-export function installPolicyStore(win: PolicyWindow = window as unknown as PolicyWindow): void {
+export function installPolicyStore(win: PolicyWindow = window): void {
   const seed = win.POLICY;
   const surface = (): PoliciesSurface | null | undefined => win.__POLICIES;
   const store = {
@@ -224,5 +224,5 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       return !!surface();
     },
   };
-  win.POLICY = store as unknown as SeedStore;
+  win.POLICY = store;
 }

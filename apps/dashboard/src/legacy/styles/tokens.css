@@ -133,6 +133,14 @@
   --duration-base: 200ms;
   --duration-slow: 360ms;
 
+  /* ---------- Blur and saturation (a look's material) ----------
+     How far a glass surface softens what is behind it and how much it warms its colour: the control layer's, the
+     canvases' own (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, Appendix B). A look's roles read them,
+     never a rule: Classic blurs nothing. The canvases' clear pane blurred at 14px and 1.25; the look draws its panes
+     clear without a blur (kit.css, the panes), so that step waits for a pane that needs one. */
+  --blur-lg: 28px;
+  --saturate-lg: 1.5;
+
   /* ---------- Signature Accent ---------- */
   /* Used ONLY for live/active agent state. Never decorative. */
   --accent: oklch(0.62 0.19 25);
@@ -304,6 +312,285 @@
 }
 
 /* ============================================================
+   GLASS -- the look the six Liquid Glass canvases draw (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
+   §3.1 and Appendix B, its values in oklch). Not offered to members yet: a page wears it only where a stored look asks
+   for it (contracts' shell/chrome.ts, LOOK_OFFERED), and Classic, above, is untouched.
+   A material more than a palette: a cool ground lit by three soft pools of light, which the glass takes its colour
+   from; the control layer (the sidebar, the top bar's capsules, the tab bar, a segmented capsule) in deep glass with a
+   rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur
+   (never glass on glass); and what pops over the page opaque. Coral is the primary act (decision 5), the live call,
+   the Now line and the picked tab; amber the one warning; a count is neutral; green is what is open, checked or won.
+   The first block is the light side and sets everything; the dark side sets every colour again, since a [data-look]
+   rule weighs what a [data-theme] rule weighs and would otherwise lend a dark root its light colours. A value no
+   canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
+   and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
+   this look read them.
+   ============================================================ */
+[data-look="glass"] {
+  /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
+  --bg: oklch(0.962 0.005 275);
+  --bg-sunken: oklch(0.945 0.006 275);
+  --bg-raised: oklch(1 0 0);
+  --bg-hover: oklch(0.935 0.007 275);
+  --bg-active: oklch(0.915 0.008 275);
+  /* The hairline, the canvases' edge; the strong one derived from it. */
+  --line: oklch(0.304 0.046 275 / 0.1);
+  --line-strong: oklch(0.304 0.046 275 / 0.18);
+  /* Theirs is an inset, ours a tint of the edge's colour, with no hairline of its own. */
+  --bubble-them-bg: oklch(1 0 0 / 0.62);
+  --bubble-them-line: oklch(0.304 0.046 275 / 0.1);
+  --bubble-us-bg: oklch(0.304 0.046 275 / 0.09);
+  --bubble-us-line: transparent;
+
+  /* Ink, 1 to 4: the canvases' four, the third and the fourth stronger than they drew them. Every word the dim ink says
+     reads 4.5:1 or more on the ground, the light and the glass it stands on (0.64 read 3.4 to 4.1 there); the faint
+     ink, a placeholder's and a hint's, reads no fainter than Classic's on Classic's ground (0.22 read 1.5, Classic
+     2.4). The plan's Appendix B keeps the canvases' value beside each. */
+  --ink: oklch(0.227 0.008 275);
+  --ink-muted: oklch(0.328 0.021 278 / 0.86);
+  --ink-dim: oklch(0.328 0.021 278 / 0.78);
+  --ink-faint: oklch(0.328 0.021 278 / 0.45);
+
+  /* Coral, amber and green, each with its soft ground and, where the canvases give one, its words; and the words of red
+     and blue, which the canvases do not draw. Green's words stay Classic's --ok-ink, which reads 4.8:1 on this ground.
+     Coral is a step deeper than the canvases' (0.633), so that white words on it and the coral words a page writes read
+     no worse than Classic's (white on it 4.3:1, Classic 3.9); amber a hair deeper (0.737) for the same reason, where a
+     page still writes it as words. Each tone's words are deeper than the canvases' (coral's 0.532, amber's 0.508) and
+     Classic's (red's 0.5, blue's 0.47), so that a pill's words read 4.5:1 on their soft ground over the look's strongest
+     light, the blue pool, where they read 3.4 to 4.0. */
+  --accent: oklch(0.6 0.185 31);
+  --accent-soft: oklch(0.6 0.185 31 / 0.12);
+  --accent-fg: oklch(1 0 0);
+  --accent-ink: oklch(0.45 0.15 32);
+  --warn: oklch(0.72 0.147 74);
+  --warn-soft: oklch(0.72 0.147 74 / 0.14);
+  --warn-ink: oklch(0.45 0.09 72);
+  --ok: oklch(0.571 0.12 155);
+  --ok-soft: oklch(0.571 0.12 155 / 0.12);
+  --danger-ink: oklch(0.45 0.17 27);
+  --info-ink: oklch(0.43 0.1 235);
+
+  /* The page: its ground, and the light, three soft pools where the canvases put them. */
+  --surface-page-light:
+    radial-gradient(39% 40% at 23% 6%, oklch(0.821 0.089 265 / 0.68), transparent),
+    radial-gradient(43% 36% at 89% 40%, oklch(0.98 0.013 64 / 0.95), transparent),
+    radial-gradient(37% 33% at 39% 91%, oklch(0.841 0.088 295 / 0.46), transparent);
+
+  /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
+     with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
+  --surface-control-fill: oklch(1 0 0 / 0.5);
+  --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.33), transparent 42%);
+  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg));
+  --surface-control-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.98) 0%,
+    oklch(1 0 0 / 0.35) 28%,
+    oklch(1 0 0 / 0.14) 58%,
+    oklch(1 0 0 / 0.78) 100%
+  );
+  --surface-control-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 22px 44px -26px oklch(0.274 0.063 274 / 0.36), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
+  --surface-control-radius: 30px;
+
+  /* A pane: clear, a thinner rim, a shallow shadow, and no hairline: its rim is its edge. */
+  --surface-pane-fill: oklch(1 0 0 / 0.26);
+  --surface-pane-edge: transparent;
+  --surface-pane-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.98) 0%,
+    oklch(1 0 0 / 0.35) 34%,
+    oklch(1 0 0 / 0.14) 64%,
+    oklch(1 0 0 / 0.78) 100%
+  );
+  --surface-pane-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 16px 36px -28px oklch(0.274 0.063 274 / 0.3), 0 1px 1.5px oklch(0.274 0.063 274 / 0.05);
+  --surface-pane-radius: 30px;
+
+  /* An inset, inside a pane: a plain fill, the hairline, the specular top edge, and a corner concentric with the
+     pane's (30px round 16px of padding: 14px). */
+  --surface-inset-fill: oklch(1 0 0 / 0.62);
+  --surface-inset-edge: oklch(0.304 0.046 275 / 0.1);
+  --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.95);
+  --surface-inset-radius: 14px;
+
+  /* What pops over the page: opaque, and a soft shadow (derived from the canvases' popover). */
+  --surface-pop-fill: oklch(1 0 0 / 0.98);
+  --surface-pop-edge: oklch(0.304 0.046 275 / 0.1);
+  --surface-pop-radius: var(--radius-xl);
+  --surface-pop-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 18px 44px -14px oklch(0.274 0.063 274 / 0.3),
+    0 1px 2px oklch(0.274 0.063 274 / 0.08);
+  --surface-scrim: oklch(0.959 0.005 275 / 0.5);
+
+  /* The live call's island: always dark, as the hardware it borrows from, in both themes, with its own ink and coral. */
+  --surface-island-fill: oklch(0.202 0.008 286 / 0.94);
+  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.12), 0 10px 26px -12px oklch(0 0 0 / 0.7);
+  --surface-island-ink: oklch(0.971 0.003 286);
+  --surface-island-accent: oklch(0.719 0.175 29);
+
+  /* Controls: capsules, a little taller, and the picked segment a lozenge with its specular edge. */
+  --control-h-sm: 28px;
+  --control-h-md: 32px;
+  --control-h-lg: 36px;
+  --control-radius: var(--radius-full);
+  --control-radius-sm: var(--radius-full);
+  --selected-fill: oklch(1 0 0 / 0.82);
+  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The dim and faint inks on the picked segment, which is lighter than the ground it stands on: the page's own on the
+     light side, where the lozenge only lifts them. */
+  --selected-ink-dim: var(--ink-dim);
+  --selected-ink-faint: var(--ink-faint);
+
+  /* Actions: the primary is the accent, coral, with a glow of the accent under it and the specular edge (decision 5);
+     the secondary sits on a pane as an inset does. The fill is deeper than the canvases' button (0.624), so its white
+     words read 4.5:1 (they read 3.9). */
+  --primary-fill: oklch(0.58 0.184 31);
+  --primary-ink: oklch(1 0 0);
+  --primary-hover: oklch(from var(--primary-fill) calc(l - 0.04) c h);
+  --primary-depth: 0 8px 18px -10px oklch(0.6 0.185 31), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  --secondary-fill: oklch(1 0 0 / 0.62);
+
+  /* A count beside what it counts, on a nav row or an icon: neutral, never a warning's colour. */
+  --count-fill: oklch(0.227 0.008 275);
+  --count-ink: oklch(1 0 0);
+
+  /* The fills the glass falls back on where there is no blur or transparency is to be reduced (the two blocks at the
+     end): each translucent fill laid over what it sits on, opaque. */
+  --surface-control-solid: oklch(0.981 0.003 275);
+  --surface-pane-solid: oklch(0.972 0.004 275);
+  --surface-inset-solid: oklch(0.989 0.002 275);
+  --selected-solid: oklch(0.997 0.001 265);
+  --surface-pop-solid: oklch(1 0 0);
+  --surface-island-solid: oklch(0.202 0.008 286);
+}
+
+[data-look="glass"][data-theme="dark"] {
+  --bg: oklch(0.174 0.008 274);
+  --bg-sunken: oklch(0.15 0.008 274);
+  --bg-raised: oklch(0.238 0.01 277);
+  --bg-hover: oklch(0.23 0.009 275);
+  --bg-active: oklch(0.26 0.009 275);
+  --line: oklch(1 0 0 / 0.09);
+  --line-strong: oklch(1 0 0 / 0.16);
+  --bubble-them-bg: oklch(1 0 0 / 0.075);
+  --bubble-them-line: oklch(1 0 0 / 0.09);
+  --bubble-us-bg: oklch(1 0 0 / 0.14);
+  --bubble-us-line: transparent;
+
+  --ink: oklch(0.968 0.003 286);
+  --ink-muted: oklch(0.946 0.012 286 / 0.72);
+  --ink-dim: oklch(0.946 0.012 286 / 0.66);
+  --ink-faint: oklch(0.946 0.012 286 / 0.38);
+
+  --accent: oklch(0.719 0.175 29);
+  --accent-soft: oklch(0.719 0.175 29 / 0.15);
+  --accent-fg: oklch(0.171 0.027 33);
+  --accent-ink: oklch(0.82 0.11 28);
+  --warn: oklch(0.801 0.138 77);
+  --warn-soft: oklch(0.801 0.138 77 / 0.15);
+  --warn-ink: oklch(0.842 0.12 81);
+  --ok: oklch(0.783 0.162 155);
+  --ok-soft: oklch(0.783 0.162 155 / 0.13);
+  /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read
+     4.8 there. Blue's are Classic's, set again over the light side's. */
+  --danger-ink: oklch(0.74 0.15 27);
+  --info-ink: oklch(0.72 0.12 235);
+
+  --surface-page-light:
+    radial-gradient(39% 40% at 23% 6%, oklch(0.737 0.103 267 / 0.17), transparent),
+    radial-gradient(43% 36% at 89% 40%, oklch(0.955 0.026 55 / 0.05), transparent),
+    radial-gradient(37% 33% at 39% 91%, oklch(0.76 0.135 293 / 0.1), transparent);
+
+  --surface-control-fill: oklch(1 0 0 / 0.085);
+  --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.042), transparent 42%);
+  --surface-control-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.42) 0%,
+    oklch(1 0 0 / 0.1) 28%,
+    oklch(1 0 0 / 0.05) 58%,
+    oklch(1 0 0 / 0.22) 100%
+  );
+  --surface-control-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.3), 0 28px 60px -32px oklch(0 0 0 / 0.8),
+    0 2px 8px -4px oklch(0 0 0 / 0.5);
+
+  --surface-pane-fill: oklch(1 0 0 / 0.035);
+  --surface-pane-rim: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.42) 0%,
+    oklch(1 0 0 / 0.1) 34%,
+    oklch(1 0 0 / 0.05) 64%,
+    oklch(1 0 0 / 0.22) 100%
+  );
+  --surface-pane-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.3), 0 20px 44px -30px oklch(0 0 0 / 0.7),
+    0 1px 2px oklch(0 0 0 / 0.3);
+
+  --surface-inset-fill: oklch(1 0 0 / 0.075);
+  --surface-inset-edge: oklch(1 0 0 / 0.09);
+  --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.2);
+
+  --surface-pop-fill: oklch(0.24 0.01 277 / 0.97);
+  --surface-pop-edge: oklch(1 0 0 / 0.09);
+  --surface-pop-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 24px 48px -16px oklch(0 0 0 / 0.55);
+  --surface-scrim: oklch(0.123 0.006 286 / 0.55);
+
+  --surface-island-fill: oklch(0.146 0.004 286 / 0.92);
+  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.1), 0 10px 26px -12px oklch(0 0 0 / 0.7);
+
+  --selected-fill: oklch(1 0 0 / 0.13);
+  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  --selected-ink-dim: oklch(0.946 0.012 286 / 0.8);
+  --selected-ink-faint: oklch(0.946 0.012 286 / 0.5);
+
+  --primary-fill: oklch(0.719 0.175 29);
+  --primary-ink: oklch(0.171 0.027 33);
+  --primary-hover: oklch(from var(--primary-fill) calc(l + 0.04) c h);
+  --primary-depth: 0 8px 18px -10px oklch(0.719 0.175 29), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  --secondary-fill: oklch(1 0 0 / 0.075);
+
+  --count-fill: oklch(1 0 0 / 0.92);
+  --count-ink: oklch(0.209 0.006 271);
+
+  --surface-control-solid: oklch(0.262 0.007 275);
+  --surface-pane-solid: oklch(0.211 0.008 275);
+  --surface-inset-solid: oklch(0.284 0.007 275);
+  --selected-solid: oklch(0.374 0.006 275);
+  --surface-pop-solid: oklch(0.238 0.01 277);
+  --surface-island-solid: oklch(0.146 0.004 286);
+}
+
+/* Where the browser draws no blur, and where the device asks for less transparency, the glass is opaque (§3.1): each
+   fill takes its solid, and nothing blurs. Written once for both sides, which [data-theme] weighs over the dark block,
+   after it. Reduced motion keeps its own rules: the glass adds no motion of its own. */
+@supports not (backdrop-filter: blur(1px)) {
+  [data-look="glass"][data-theme] {
+    --surface-control-fill: var(--surface-control-solid);
+    --surface-pane-fill: var(--surface-pane-solid);
+    --surface-inset-fill: var(--surface-inset-solid);
+    --secondary-fill: var(--surface-inset-solid);
+    --selected-fill: var(--selected-solid);
+    --surface-pop-fill: var(--surface-pop-solid);
+    --surface-island-fill: var(--surface-island-solid);
+    --surface-control-blur: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-look="glass"][data-theme] {
+    --surface-control-fill: var(--surface-control-solid);
+    --surface-pane-fill: var(--surface-pane-solid);
+    --surface-inset-fill: var(--surface-inset-solid);
+    --secondary-fill: var(--surface-inset-solid);
+    --selected-fill: var(--selected-solid);
+    --surface-pop-fill: var(--surface-pop-solid);
+    --surface-island-fill: var(--surface-island-solid);
+    --surface-control-blur: none;
+  }
+}
+
+/* ============================================================
    BASE
    ============================================================ */
 * { box-sizing: border-box; }
@@ -323,6 +610,15 @@ html, body {
   font-feature-settings: "ss01", "cv11", "cv02";
   transition: background var(--duration-base) var(--ease-out),
               color var(--duration-base) var(--ease-out);
+}
+
+/* In Glass the page is lit: the three pools over the ground, which the glass takes its colour from. Fixed to the
+   window, so a page that scrolls (the kit's gallery) keeps them behind every surface. The shell's root draws them
+   for the app, over this (components.css, .app-root). */
+[data-look="glass"] body {
+  background-image: var(--surface-page-light);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 button, input, select, textarea {

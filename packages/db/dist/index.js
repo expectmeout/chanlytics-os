@@ -3616,7 +3616,13 @@ async function erasureDigests(db, tenantId, values) {
   if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
   const digests = data ?? [];
   if (digests.length !== asked.length) throw new Error("the erasure digests came back short");
-  return new Map(asked.map((v, i) => [v, digests[i]]));
+  const out = /* @__PURE__ */ new Map();
+  for (const [i, value] of asked.entries()) {
+    const digest = digests[i];
+    if (digest === void 0) throw new Error("the erasure digests came back short");
+    out.set(value, digest);
+  }
+  return out;
 }
 
 // src/repositories/outreach.ts
@@ -4816,8 +4822,9 @@ async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped
     if (error) throw new Error(`${what}: ${error.message}`);
     const rows = data ?? [];
     out.push(...rows);
-    if (rows.length < size) return out;
-    after = key(rows[rows.length - 1]);
+    const last = rows.at(-1);
+    if (rows.length < size || last === void 0) return out;
+    after = key(last);
   }
   onCapped(what, cap);
   return out;
@@ -5443,7 +5450,7 @@ async function join(client, tenantId, topic, hearing, heard) {
   await hearing.leaving;
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
-  if (token) client.realtime.setAuth(token);
+  if (token) await client.realtime.setAuth(token);
   hearing.joining = null;
   if (!hearing.listeners.size) return forget(heard, topic, hearing);
   const channel = client.channel(topic, { config: { private: true } }).on("broadcast", { event: "*" }, (message) => tell(hearing, tenantId, message));
@@ -5475,8 +5482,9 @@ function tell(hearing, tenantId, message) {
 
 // src/sweeps.ts
 function remainingOf(rows) {
-  if (rows.length === 0) return 0;
-  const total = rows[0].due_total;
+  const first = rows[0];
+  if (first === void 0) return 0;
+  const total = first.due_total;
   if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
   return Math.max(0, total - rows.length);
 }

@@ -107,7 +107,7 @@ interface CallRow {
 export function mediaPublic(raw: unknown): MessageDto["media"] {
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
-  const str = (k: string) => (typeof m[k] === "string" ? (m[k] as string) : null);
+  const str = (k: string) => (typeof m[k] === "string" ? m[k] : null);
   return {
     mime_type: str("mime_type"),
     ...(str("fetch_state") ? { fetch_state: str("fetch_state") as string } : {}),

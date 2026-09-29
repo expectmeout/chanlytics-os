@@ -338,7 +338,7 @@ const COLUMN_OF: Partial<Record<keyof A2PState, string>> = {
 
 /** The saga's save: each receipt to its column, or into the row's facts, of which this filing keeps its own copy. */
 function receiptSaver(db: Db, line: LineRow): A2PPorts["save"] {
-  let facts = (
+  const facts = (
     line.facts && typeof line.facts === "object" && !Array.isArray(line.facts)
       ? { ...(line.facts as Record<string, unknown>) }
       : {}

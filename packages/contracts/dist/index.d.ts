@@ -1660,15 +1660,16 @@ declare const PROVIDER_STATUSES: ReadonlySet<string>;
 declare const SENDING_DOMAINS_MAX = 5;
 /** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
 declare const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
+type RampStep = {
+    days: number;
+    perDay: number;
+};
 /**
  * The ramp (decision 8): per domain, by the days it has actually sent since it was clean (D15, counted by the database's
  * sending_domain_capacity over the last 90), never the calendar's: a domain verified a month ago that has sent on two
- * days is two days into its warm-up, not thirty.
+ * days is two days into its warm-up, not thirty. It starts somewhere, so its first step is always there to read.
  */
-declare const DOMAIN_RAMP: ReadonlyArray<{
-    days: number;
-    perDay: number;
-}>;
+declare const DOMAIN_RAMP: readonly [RampStep, ...RampStep[]];
 /** How many a day a verified domain may send: the ramp's step by the days it has sent (D15). */
 declare function domainDailyCap(sentDays: number): number;
 /**
@@ -13193,11 +13194,13 @@ declare function roleAtLeast(role: string, atLeast: Role): boolean;
 
 type ThemePref = "light" | "dark" | "system";
 type Theme = "light" | "dark";
-declare const THEME_OPTIONS: ReadonlyArray<{
+type ThemeOption = {
     id: ThemePref;
     label: string;
     icon: string;
-}>;
+};
+/** The three, in the order the top bar's one button steps through them; a fixed three, so each is there to read. */
+declare const THEME_OPTIONS: readonly [ThemeOption, ThemeOption, ThemeOption];
 declare const isThemePref: (v: unknown) => v is ThemePref;
 /**
  * The preference after this one, in THEME_OPTIONS' order, so the top bar's one button reaches all three. It flipped

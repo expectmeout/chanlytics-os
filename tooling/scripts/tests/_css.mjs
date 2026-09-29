@@ -28,8 +28,10 @@
  *            it out for four sides. A mask's colours are not counted: `mask-image` reads
  *            only their alpha, which no look sets
  *   blur     each blur() in a `filter` or `backdrop-filter`, prefixed or not, with a
- *            length other than zero (the kit writes `blur(0)` where it means none,
- *            because the build drops `backdrop-filter: none`, #929)
+ *            length other than zero. Where a rule means no blur it reads a role whose
+ *            Classic value is `none`: the build drops a written `backdrop-filter: none`
+ *            beside its prefixed twin (#929), and `blur(0)` is not `none`, since it
+ *            makes its element a containing block and a stacking context
  * A literal a page writes as a token's fallback (`var(--radius-md, 8px)`) or beside
  * one (`calc(var(--radius-md) - 1px)`) is counted: it is a number a look cannot reach.
  * A length a page keeps in a custom property of its own (`--r: 6px`) is not seen as a

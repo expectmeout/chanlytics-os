@@ -207,18 +207,19 @@ export const reachOuts = {
       if (timer !== null) clearTimeout(timer);
       timer = null;
     };
+    const beat = async () => {
+      timer = null;
+      const r = await broadcasts.detail(runId).catch(() => null);
+      if (stopped) return;
+      if (r && r.ok) onRead(r.data);
+      // A run no longer checking anything is left alone, and so is one this member may not read or that is gone (a
+      // 4xx asks again for nothing); a failed read otherwise tries again at the next beat.
+      if (r && r.ok && !(r.data.reach_out && r.data.reach_out.checking > 0)) return stop();
+      if (r && !r.ok && r.status >= 400 && r.status < 500) return stop();
+      next();
+    };
     const next = () => {
-      timer = setTimeout(async () => {
-        timer = null;
-        const r = await broadcasts.detail(runId).catch(() => null);
-        if (stopped) return;
-        if (r && r.ok) onRead(r.data);
-        // A run no longer checking anything is left alone, and so is one this member may not read or that is gone (a
-        // 4xx asks again for nothing); a failed read otherwise tries again at the next beat.
-        if (r && r.ok && !(r.data.reach_out && r.data.reach_out.checking > 0)) return stop();
-        if (r && !r.ok && r.status >= 400 && r.status < 500) return stop();
-        next();
-      }, REACH_OUT_RUN_REREAD_MS);
+      timer = setTimeout(() => void beat(), REACH_OUT_RUN_REREAD_MS);
     };
     next();
     return stop;
