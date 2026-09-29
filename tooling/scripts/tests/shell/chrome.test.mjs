@@ -156,9 +156,13 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     'document.documentElement.setAttribute("data-theme", theme);',
     'document.documentElement.setAttribute("data-look", look);',
     "setPrefs((p) => choosePref(browserStorage, p, key, v))",
-    'onTheme={(v) => choose("theme", v)}',
-    'onLook={(v) => choose("look", v)}',
-    'onSidebar={(v) => choose("sidebar", v)}',
+    // Made once, so the shell's element is kept until a preference changes (defect 17).
+    'const onTheme = useCallback((v: string) => choose("theme", v), [choose]);',
+    'const onLook = useCallback((v: string) => choose("look", v), [choose]);',
+    'const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);',
+    "onTheme={onTheme}",
+    "onLook={onLook}",
+    "onSidebar={onSidebar}",
     "theme={theme}",
     "look={look}",
   ])

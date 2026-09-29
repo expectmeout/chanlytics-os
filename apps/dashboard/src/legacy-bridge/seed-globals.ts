@@ -31,6 +31,8 @@ import {
   importCounts,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
+import { useSurfaceWith, type SurfaceNames } from "./surface-status";
+import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
 import {
   LEAD_COUNT_CHOICES,
@@ -70,6 +72,7 @@ declare global {
   interface Window {
     React: typeof React;
     ReactDOM: typeof ReactDOM;
+    useSurface: (names: SurfaceNames) => number;
     __DEMO_MODE: boolean;
     ROLE_PERMS: typeof ROLE_PERMS;
     __roleGate: typeof roleGate;
@@ -134,6 +137,9 @@ declare global {
 if (typeof window !== "undefined") {
   window.React = React;
   window.ReactDOM = ReactDOM;
+  // The one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a route's, as
+  // the registry names them. Over this React, before any page loads.
+  window.useSurface = useSurfaceWith(React, routeSurfaces);
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;

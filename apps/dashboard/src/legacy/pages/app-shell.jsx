@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, ReportsPage, FailedRead */
+/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, ReportsPage, FailedRead, useSurface */
 // Chanlytics — App Shell
 // The live product frame: hash routing, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -243,8 +243,15 @@ const useRouteGate = ({ page, param, routeKey }) => {
     const armWait = () => {
       if (w === null && routeReady(page, param, true)) w = setTimeout(() => setWaitedOutKey(routeKey), window.__routeWaitMs || 3000);
     };
-    // Re-render when readiness changes; the render below reads the truth.
-    const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => { setReadyTick((n) => n + 1); armWait(); }) : null;
+    // Re-render when this route's readiness changes, and only then; the render below reads the truth. Any surface's
+    // status moving told this, and each notice drew the shell again whatever it was about.
+    const readiness = () => `${routeReady(page, param)}|${routeReady(page, param, true)}|${routeFailed(page, param)}`;
+    let was = readiness();
+    const off = window.__onSurfaceReady ? window.__onSurfaceReady(() => {
+      const now = readiness();
+      if (now !== was) { was = now; setReadyTick((n) => n + 1); }
+      armWait();
+    }) : null;
     armWait();
     // Never strand the operator on the reading pane forever — but time out INTO the
     // unavailable pane, never into the mockup's seeds.
@@ -591,6 +598,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   const inboxNeeds = useInboxNeeds();
   const at = routeAt(route);
   const { page, param } = at;
+  // Drawn again when a surface the route on screen is drawn from moves (who is looking, its own, what it draws beside
+  // it: surface-registry.ts routeSurfaces), and not for any other surface's read. The pages hear their own.
+  useSurface({ page, param });
   const gate = useRouteGate(at);
   const { demoGated } = gate;
   const { navigate, backToPeople } = useShellNavigate(setRoute);
@@ -630,4 +640,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   });
 };
 
-window.ChanlyticsApp = ChanlyticsApp;
+// `useSurface` is the bridge's (seed-globals.ts, before any file here loads); where there is no bridge (the standalone
+// mockup) nothing is read again, so nothing moves, and this stand-in answers nothing new.
+const useSurfaceStill = () => 0;
+Object.assign(window, { ChanlyticsApp, useSurface: window.useSurface || useSurfaceStill });

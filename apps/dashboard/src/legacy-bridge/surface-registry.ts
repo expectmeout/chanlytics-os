@@ -184,12 +184,15 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
-  // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7).
-  inbox: ["reach_out_replies"],
+  // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
+  // thread is drawn from the calls Conversations reads (inbox-thread.jsx tlCallFor), the same door as the Inbox's own.
+  inbox: ["reach_out_replies", "conversations"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],
-  messages: ["reach_outs"],
+  // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
+  messages: ["reach_outs", "playbooks"],
+  broadcasts: ["playbooks"],
   // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
@@ -212,6 +215,70 @@ export function routeDrawsFor(page: string, param?: string | null): readonly str
   // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
   if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
+}
+
+/**
+ * Every surface the route on screen is drawn from: who is looking (the workspace, which carries the role every gate
+ * reads), the route's own surface, and what it draws beside it. The shell is drawn again when one of these moves
+ * (surface-status.ts), and by no other surface's read.
+ */
+export function routeSurfaces(page: string, param?: string | null): string[] {
+  const own = routeSurfaceFor(page, param);
+  return [...new Set(["workspace", ...(own ? [own] : []), ...routeDrawsFor(page, param)])];
+}
+
+/* ------------------------- what a message re-reads ------------------------- */
+
+/** The page and its param the address names, as the shell parses it (app-shell.jsx parseHash). */
+function hashRoute(hash: string): { page: string; param: string | null } {
+  const [page, param] = (hash || "#/today").replace(/^#[/]?/, "").split("/");
+  return { page: page || "today", param: param || null };
+}
+
+/** Whether this surface is the one the page on screen is of (its own surface, never one it draws beside it). */
+export function ownsTheScreen(key: string, hash: string): boolean {
+  const { page, param } = hashRoute(hash);
+  return routeSurfaceFor(page, param) === key;
+}
+
+/** Surfaces that let a live event pass while their page was elsewhere: read once when it comes on screen. */
+const missedWhileAway = new Set<string>();
+
+/**
+ * A surface that counts messages but is not where they are read -- People's rows, Reports' numbers, a campaign's
+ * replies -- hears these tables only while its own page is on screen; an event it lets pass is kept, and the surface
+ * is read once as its page comes on screen (readWhatWasMissed). One message used to re-read seven surfaces, four of
+ * them on no page anyone was looking at, People among them, every page of it; now the Inbox, Conversations and Today,
+ * which draw messages, and the page on screen. A table the rule does not name is the surface's own, heard always.
+ */
+export function onlyOnItsPage(
+  key: string,
+  tables: readonly string[],
+  hash: () => string = () => window.location.hash,
+): (change: { table: string }) => boolean {
+  return (change) => {
+    if (!tables.includes(change.table) || ownsTheScreen(key, hash())) return true;
+    missedWhileAway.add(key);
+    return false;
+  };
+}
+
+/**
+ * Each move of the address: a surface whose page comes on screen and that let an event pass is read once, through
+ * the runner (`read`, the running runner's refresh). Answers the stop.
+ */
+export function readWhatWasMissed(
+  overrides: readonly { key: string }[],
+  read: (keys: string[]) => void,
+  win: Window = window,
+): () => void {
+  const onMove = () => {
+    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, win.location.hash));
+    for (const o of due) missedWhileAway.delete(o.key);
+    if (due.length) read(due.map((o) => o.key));
+  };
+  win.addEventListener("hashchange", onMove);
+  return () => win.removeEventListener("hashchange", onMove);
 }
 
 /**

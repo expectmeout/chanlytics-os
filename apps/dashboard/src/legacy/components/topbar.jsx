@@ -1,4 +1,4 @@
-/* global React, Icon, usePPToast */
+/* global React, Icon, usePPToast, useSurface */
 // Chanlytics — Top bar (unified) + typed notifications popover.
 // Popover pattern adopted from the legacy repo's notification-action-card:
 // every notification carries contextual actions that deep-link into the OS.
@@ -648,16 +648,21 @@ const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle",
  */
 const LiveCallBar = () => {
   const [, tick] = React.useReducer((n) => n + 1, 0);
+  // Drawn again when the calls are read again (the live surface's own signal), or a call is ended here.
+  useSurface("live");
   React.useEffect(() => {
-    window.addEventListener("surface:live", tick);
     window.addEventListener("live:ended", tick);
-    // A second, so the clock reads like a clock. Only while a call is up: the
-    // effect re-runs on every repaint the events cause, and the interval is
-    // cleared with it.
-    const t = window.setInterval(tick, 1000);
-    return () => { window.clearInterval(t); window.removeEventListener("surface:live", tick); window.removeEventListener("live:ended", tick); };
+    return () => window.removeEventListener("live:ended", tick);
   }, []);
   const bar = window.__chrome && window.__chrome.liveBar ? window.__chrome.liveBar(window.__LIVE, Date.now()) : null;
+  // A second, so the clock reads like a clock, and only while a call is up: it ran every second of every session,
+  // redrawing a bar that said nothing, under a comment that said otherwise.
+  const up = !!bar;
+  React.useEffect(() => {
+    if (!up) return undefined;
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [up]);
   if (!bar) return null;
   const open = () => window.CHANLY && window.CHANLY.nav(bar.callId ? `live/${bar.callId}` : "live");
   return (

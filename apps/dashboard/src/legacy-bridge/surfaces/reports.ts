@@ -21,6 +21,8 @@ import {
   type ReachOutReportVM,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "../surface-data";
+import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
+import { onlyOnItsPage } from "../surface-registry";
 
 /* ------------------------------- Reports --------------------------------- */
 
@@ -93,7 +95,12 @@ export const reportsOverride: SurfaceOverride = {
   globals: ["__REPORTS"],
   events: ["surface:reports"],
   refreshOnMessageInserts: true,
+  // A message moves the period's numbers: read again only while its page is on screen, and once when it comes back
+  // (surface-registry.ts).
+  refreshWhen: onlyOnItsPage("reports", DEFAULT_REFRESH_TABLES),
   debounceMs: 800,
+  // A period's reads take their turn; a pick of another period is read at once (activateOverride).
+  view: () => String(reportDays),
   apply: async () => {
     const days = reportDays;
     const [data, campaigns, reachOuts] = await Promise.all([

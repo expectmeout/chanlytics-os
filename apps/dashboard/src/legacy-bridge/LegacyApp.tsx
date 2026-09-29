@@ -9,7 +9,7 @@
  * SurfaceData runner; the pill reports live/degraded per surface, carries
  * sign-out, and flags stale deployments (version heartbeat).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
@@ -44,6 +44,7 @@ import {
   type JoinLiveFeed,
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
+import { hearSurfaces, useSurfaceWith } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier, warmPersonOnScreen } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
@@ -174,6 +175,15 @@ const SURFACES = [
   googleOverride,
   billingOverride,
 ];
+/**
+ * Each surface's own signal (surface-status.ts): its events counted against its key, before React draws anything. The
+ * pages redraw on it through `useSurface` (seed-globals.ts), and this component on the workspace's.
+ */
+hearSurfaces(SURFACES);
+const useSurface = useSurfaceWith({ useCallback, useSyncExternalStore });
+// A surface that let a message pass while its page was elsewhere is read once as its page comes on screen
+// (surface-registry.ts onlyOnItsPage).
+readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
 /** The runner's live feed: the one subscription, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeMessagesInserts(createClient(), onChange, opts);
 const SURFACE_LABELS: Record<string, string> = {
@@ -190,7 +200,7 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installRouteGate, installSurfaceRegistry } from "./surface-registry";
+import { installRouteGate, installSurfaceRegistry, readWhatWasMissed } from "./surface-registry";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -290,6 +300,40 @@ type ChanlyticsAppComponent = React.ComponentType<{
   showInboxAgentRail: boolean;
 }>;
 
+/** The workspaces this account may open, as the workspace's read last said. */
+const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
+
+/**
+ * The shell as an element kept until one of its props changes, its callbacks made once: LegacyApp draws again when the
+ * workspace moves or a preference does, and the shell under it is drawn again only for a preference. Each page redraws
+ * on its own surfaces (surface-status.ts), and the shell on the route's (app-shell.jsx). It was drawn again, with three
+ * new callbacks, on every surface's read.
+ */
+function useShellApp(prefs: Prefs, theme: Theme, look: LookPref, choose: (key: ChosenPref, v: string) => void) {
+  const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
+  const onLook = useCallback((v: string) => choose("look", v), [choose]);
+  const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);
+  const ChanlyticsApp = (window as unknown as { ChanlyticsApp?: ChanlyticsAppComponent }).ChanlyticsApp;
+  const { theme: themePref, sidebar, inboxDensity, showInboxAgentRail } = prefs;
+  return useMemo(
+    () =>
+      ChanlyticsApp ? (
+        <ChanlyticsApp
+          theme={theme}
+          themePref={themePref}
+          onTheme={onTheme}
+          look={look}
+          onLook={onLook}
+          sidebar={sidebar}
+          onSidebar={onSidebar}
+          inboxDensity={inboxDensity}
+          showInboxAgentRail={showInboxAgentRail}
+        />
+      ) : null,
+    [ChanlyticsApp, theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, showInboxAgentRail],
+  );
+}
+
 export default function LegacyApp() {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
@@ -301,10 +345,10 @@ export default function LegacyApp() {
   }, []);
   const systemDark = useSystemDark();
   const { theme, look } = documentStamps(prefs, systemDark);
-  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>(
-    () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
-  );
-  const [, setStatusTick] = useState(0);
+  // Who is looking and their workspaces: drawn again when the workspace's read lands or its status moves, and by
+  // no other surface's (the pages hear their own).
+  useSurface("workspace");
+  const allWorkspaces = listedWorkspaces();
   const me = (window as unknown as { __ME?: { email?: string | null; handovers?: OpenHandoverDto[] } }).__ME;
   const handover = useHandoverAsk(isSurfaceReady("workspace"), me?.handovers);
   // What the shell alone knows — the connection, the live feed, a newer
@@ -323,6 +367,7 @@ export default function LegacyApp() {
     (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
     [],
   );
+  const shellApp = useShellApp(prefs, theme, look, choose);
 
   useDocumentStamps(theme, look);
   // Viewport scoping, exactly what the inline boot script did.
@@ -331,14 +376,11 @@ export default function LegacyApp() {
     return () => document.documentElement.classList.remove("legacy-on");
   }, []);
 
-  // Surface flips: one runner owns retries, realtime, debounce, and status.
+  // Surface flips: one runner owns retries, realtime, debounce, and status. A status that changed, or the connection,
+  // is the line's to say; it draws nothing here.
   useEffect(() => {
     const stop = startSurfaces(SURFACES, joinLiveFeed);
-    const off = onSurfaceStatusChange(() => {
-      setStatusTick((n) => n + 1);
-      setAllWorkspaces((window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? []);
-      publishStatus();
-    });
+    const off = onSurfaceStatusChange(publishStatus);
     return () => {
       stop();
       off();
@@ -444,21 +486,5 @@ export default function LegacyApp() {
     );
   }
 
-  const ChanlyticsApp = (window as unknown as { ChanlyticsApp: ChanlyticsAppComponent }).ChanlyticsApp;
-
-  return (
-    <div id="root">
-      <ChanlyticsApp
-        theme={theme}
-        themePref={prefs.theme}
-        onTheme={(v) => choose("theme", v)}
-        look={look}
-        onLook={(v) => choose("look", v)}
-        sidebar={prefs.sidebar}
-        onSidebar={(v) => choose("sidebar", v)}
-        inboxDensity={prefs.inboxDensity}
-        showInboxAgentRail={prefs.showInboxAgentRail}
-      />
-    </div>
-  );
+  return <div id="root">{shellApp}</div>;
 }

@@ -409,7 +409,19 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  useSyncExternalStore: (subscribe, snapshot) => {
+    const k = frames.key();
+    if (!(k in cells)) {
+      cells[k] = true;
+      subscribe(() => {});
+    }
+    return snapshot();
+  },
 };
+// The bridge's hook the shell redraws on (surface-status.ts), over this React.
+globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts")).useSurfaceWith(
+  globalThis.React,
+);
 await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
 // The route table the shell reads (SHELL_ROUTES, drawRoute), loaded where both lists load it: just before the shell.
@@ -1276,8 +1288,12 @@ test("the live bar names who is on the line and opens that call; with nobody on 
     contact: { display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+16465550123" },
     ...over,
   });
-  // The bar runs a one-second clock while a call is up.
-  win.setInterval = () => 1;
+  // The bar runs a one-second clock while a call is up, and only then.
+  let clocks = 0;
+  win.setInterval = () => {
+    clocks += 1;
+    return 1;
+  };
   win.clearInterval = () => {};
   const drawn = () => {
     cells = [];
@@ -1289,10 +1305,12 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   assert.equal(drawn(), null, "no live surface yet: nothing to say");
   win.__LIVE = toLiveVM([], null, "America/New_York", new Date(NOW));
   assert.equal(drawn(), null, "REGRESSION: an empty line still drew a bar");
+  assert.equal(clocks, 0, "REGRESSION (defect 29): the clock ticked every second of every session, with no call up");
 
   win.__LIVE = toLiveVM([ongoing()], null, "America/New_York", new Date(NOW));
   const bar = drawn();
   assert.ok(bar, "someone is on the phone");
+  assert.equal(clocks, 1, "a call up: the clock runs");
   assert.match(textOf(bar), /On the phone now · Rosa/);
   const went = [];
   win.CHANLY = { nav: (to) => went.push(to) };

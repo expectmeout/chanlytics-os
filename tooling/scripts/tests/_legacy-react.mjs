@@ -17,6 +17,7 @@
  */
 import { csvCell } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { useSurfaceWith } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
 
 const listeners = {};
 const storage = () => {
@@ -142,8 +143,26 @@ export function installLegacyReact(extra = {}) {
     },
     useEffect: effect,
     useLayoutEffect: effect,
+    // A store outside React: heard while the component is drawn (its subscription made again each draw, the old one
+    // let go, as React does when `subscribe` is a new function), and a notice is a reason to draw again.
+    useSyncExternalStore: (subscribe, snapshot) => {
+      const k = frames.key();
+      const prev = cells.list[k];
+      if (prev && typeof prev.cleanup === "function") prev.cleanup();
+      cells.list[k] = {
+        deps: null,
+        effect: true,
+        cleanup: subscribe(() => {
+          cells.wanted = true;
+        }),
+      };
+      return snapshot();
+    },
   };
   globalThis.ReactDOM = { createPortal: (node) => node };
+  // The bridge's one hook (legacy-bridge/surface-status.ts), made over this React as LegacyApp makes it over the
+  // app's: a page redraws when a surface it draws moves.
+  globalThis.useSurface = useSurfaceWith(globalThis.React);
 }
 
 /** A new tree: every hook cell and every listener forgotten. */
