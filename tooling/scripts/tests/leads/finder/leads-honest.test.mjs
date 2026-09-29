@@ -3927,3 +3927,43 @@ test("at a phone's width the bar has the map's pin where the rows have places, a
     globalThis.__phone = false;
   }
 });
+
+// A list of your own (Reach out Part 7, J8): a search with no round and a plan with no area, drawn where the bridge's
+// lists are not (the finder's strip is never asked for it), and its menu offering nothing that searches again.
+test("a list of your own draws with no round and no area, reaches no finder strip, and its menu never searches again", () => {
+  const LIST = "5e000000-0000-4000-8000-000000000071";
+  const list = search({
+    id: LIST,
+    name: "Expo gyms",
+    asked: "gyms I met at the expo",
+    via: "import",
+    plan: {
+      version: 1,
+      card: "local_businesses",
+      list: "import",
+      name: "Expo gyms",
+      asked: "gyms I met at the expo",
+      terms: [],
+      count: 3,
+      contact: "email",
+      criteria: [],
+      exclusions: [],
+    },
+    round: null,
+  });
+  fresh({ leads: surface({ searches: [list, search()] }) });
+  draw({ leadsRoute: `leads:s-${LIST}` });
+  assert.deepEqual(strips, [], "no strip: the finder's is never drawn for a list");
+  // No map: a list has no area to draw or to widen, though its leads were placed.
+  const tree = draw({ leadsRoute: `leads:s-${LIST}` });
+  click(byTestId(tree, "leads-map-toggle"));
+  assert.equal(byTestId(draw({ leadsRoute: `leads:s-${LIST}` }), "lead-map"), null);
+  const items = menuOf("Expo gyms")
+    .items.filter((i) => i.label)
+    .map((i) => i.label);
+  assert.deepEqual(items, ["Rename", "Export these 0", "Remove this search"]);
+  const found = menuOf("Personal trainers · Austin")
+    .items.filter((i) => i.label)
+    .map((i) => i.label);
+  assert.ok(found.includes("Find new ones") && found.includes("Search again, changed"), "a found search keeps both");
+});

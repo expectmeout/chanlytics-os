@@ -770,13 +770,13 @@
     "depth": 2
   },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
-    "lines": 194,
-    "branches": 77,
+    "lines": 181,
+    "branches": 71,
     "depth": 1
   },
   "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {
-    "lines": 146,
-    "branches": 58,
+    "lines": 142,
+    "branches": 56,
     "depth": 0
   },
   "packages/contracts/src/people/list-rules.ts::listFactWords#1": {

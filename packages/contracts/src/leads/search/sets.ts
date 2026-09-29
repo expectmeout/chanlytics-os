@@ -8,7 +8,8 @@
 /* ------------------------------------------------------ the stored sets -- */
 // Each mirrors a CHECK in 00140 and is held to it in schema-sets.ts.
 
-export const LEAD_SEARCH_VIAS = ["people", "ask"] as const;
+/** How a search was made: the finder on the page or through Ask, or a list of the owner's own (00242: a file, or leads chosen on Leads). */
+export const LEAD_SEARCH_VIAS = ["people", "ask", "import", "chosen"] as const;
 export type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
 export const LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"] as const;
 export type LeadRoundPurpose = (typeof LEAD_ROUND_PURPOSES)[number];
