@@ -109,6 +109,8 @@ export interface ReachOutLeadTimelineDto {
   resume_at: string | null;
   booked_at: string | null;
   stopped_at: string | null;
+  /** Found on a listing (the finder's); false for a lead a list of the owner's own brought (00242). Absent before it. */
+  found_on_listing?: boolean;
   chain: { root_id: string; name: string; state: string } | null;
   search: { id: string; name: string; asked: string | null; fit: string | null } | null;
   /** The person's email thread, where the reach-out's emails and the answers to them are. */
@@ -402,7 +404,12 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
       ? {
           at: foundAt,
           text: [
-            t.search?.asked ? `Found on Google Maps by “${t.search.asked}”` : "Found on Google Maps",
+            // A lead a list of the owner's own brought (00242) was found on no listing.
+            t.found_on_listing === false
+              ? "From your list"
+              : t.search?.asked
+                ? `Found on Google Maps by “${t.search.asked}”`
+                : "Found on Google Maps",
             fit ? fit.toLowerCase() : null,
             t.email_state === "ok" ? "address checked" : null,
           ]

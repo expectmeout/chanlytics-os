@@ -10,6 +10,7 @@ import {
   type LeadRoundEnding,
   type LeadSearchDto,
   type LeadSearchPlan,
+  type LeadSearchVia,
   type LeadStage,
   type PersonLeadDto,
 } from "@chanlytics/contracts";
@@ -241,6 +242,7 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
       name: r.name,
       asked: r.asked,
       asked_on: r.created_at,
+      via: r.via as LeadSearchVia,
       plan: r.plan as LeadSearchPlan,
       plan_version: r.plan_version ?? 1,
       thread_id: r.thread_id ?? null,
@@ -251,6 +253,8 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
     name: r.name,
     asked: r.asked,
     asked_on: r.created_at,
+    // A list of your own (00242) says so: the page draws its own strip and offers nothing that searches it again.
+    via: r.via as LeadSearchVia,
     plan: r.plan as LeadSearchPlan,
     plan_version: r.plan_version ?? 1,
     thread_id: r.thread_id ?? null,

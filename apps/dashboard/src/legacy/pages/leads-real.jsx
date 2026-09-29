@@ -33,6 +33,7 @@ const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopl
 
 /** Where reach-out-leads.jsx is not loaded (a harness that leaves it out), no search has a reach-out writing. */
 const ldNoReachOut = () => null;
+const ldNoLists = () => ({ importDoor: null, writeAct: () => null, node: null, stripOf: () => null, emptyOf: () => null });
 
 // The owner's own clipboard and the owner's own phone: a lead is emailed from their inbox and called from their
 // handset, and nothing is sent from here (PRD 0.4).
@@ -382,7 +383,7 @@ const leadFinderActs = ({ leadView, nav, plFlash, finder, openFinder, closeFinde
     question: s.round && s.round.question ? s.round.question.sentence : "",
     name: s.name,
     asked: s.asked,
-    leavingOut: (s.plan.exclusions || []).map((x) => x.text),
+    leavingOut: ((s.plan && s.plan.exclusions) || []).map((x) => x.text),
   });
   // Find leads is Ask on this page (spec F1, F2): the takeover on a phone, the Stage on a desktop. A suggestion's
   // words go into the field; the button and the F key open Ask as ⌘K does, keeping whatever the owner left in it
@@ -608,6 +609,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const openSearch = acts.searchById(leadView.searchId);
   // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
   const reachOut = (window.useReachOutLeads || ldNoReachOut)(openSearch ? openSearch.id : null);
+  // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open.
+  const lists = (window.useLeadLists || ldNoLists)({ flash: plFlash });
   // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
   const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
   // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
@@ -620,23 +623,23 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown, reachOut);
   const routes = leadRailRoutes({ leadView, nav, searchById: acts.searchById });
   const strip = leadStripActs({ openSearch, ...acts, ...finderActs, ...searches, ...routes, setSortBy, setSortDir, ...st });
-  const p = { ...controls, ...st, ...acts, ...finderActs, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, closePeek, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads, reachOut };
+  const p = { ...controls, ...st, ...acts, ...finderActs, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, closePeek, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads, reachOut, lists };
   return <LeadsScope {...leadsListProps(p)} {...leadsBandProps(p)} {...leadsBulkProps(p)} {...leadsPeekProps(p)} {...leadsFootProps(p)} />;
 };
 
 /* ---------------------------------------------------- what LeadsScope is handed, in its order */
 // The rail, the list's head and the table.
 const leadsListProps = (p) => {
-  const { leads, rail, listsOpen, setListsOpen, standing, leadView, openSearch, ldStrip, leadShown, rowBudget, phone, viewLanded, columns, colOptions, colsOpen, colsButton, setColsOpen, pickColumn, cellCtxLeads, sortBy, sortDir, onSort, q, setQ, searchRef, searchOpen, setSearchOpen, scrollRef, scrolledX, setScrolledX, filtered, setChip, setFitChip, goto, reachOut } = p;
+  const { leads, rail, listsOpen, setListsOpen, standing, leadView, openSearch, ldStrip, leadShown, rowBudget, phone, viewLanded, columns, colOptions, colsOpen, colsButton, setColsOpen, pickColumn, cellCtxLeads, sortBy, sortDir, onSort, q, setQ, searchRef, searchOpen, setSearchOpen, scrollRef, scrolledX, setScrolledX, filtered, setChip, setFitChip, goto, reachOut, lists } = p;
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
   // bar never shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
   const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
-  const railCount = openSearch ? openSearch.round.counted : openList ? openList.count : null;
+  const railCount = openSearch ? (openSearch.round ? openSearch.round.counted : 0) : openList ? openList.count : null;
   return {
     surface: leads, rail, railLabel, railCount, listTitle: openList ? openList.label : "All leads",
     listsOpen, onLists: () => setListsOpen(true), onCloseLists: () => setListsOpen(false),
-    standing, view: leadView, search: openSearch, strip: ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null,
+    standing, view: leadView, search: openSearch, strip: lists.stripOf(openSearch) || (ldStrip && !(openSearch && openSearch.plan && openSearch.plan.list) ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     reachOutStrip: openSearch && reachOut && window.ReachOutLeadsStrip ? <window.ReachOutLeadsStrip leads={reachOut} /> : null,
     rows: leadShown, rowBudget, phone,
     // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
@@ -653,7 +656,7 @@ const leadsListProps = (p) => {
 
 // The band, the map, the bench and the list's empty state.
 const leadsBandProps = (p) => {
-  const { band, mapOpen, setMapOpen, leadShown, mapPick, setMapPick, openSearch, onStripAction, leadView, leads, benchGroup, setBenchGroup, fitChip, setFitChip, values, setValues, waitsOn, canFind, openFind } = p;
+  const { band, mapOpen, setMapOpen, leadShown, mapPick, setMapPick, openSearch, onStripAction, leadView, leads, benchGroup, setBenchGroup, fitChip, setFitChip, values, setValues, waitsOn, canFind, openFind, lists } = p;
   return {
     band,
     // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
@@ -662,10 +665,11 @@ const leadsBandProps = (p) => {
     // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
     mapOpen, onMap: setMapOpen,
     // The phone's bar shows the map's pin only where the rows the source placed give it something to draw.
-    canMap: leadShown.some((l) => !!l.point),
+    // A list of your own (Part 7) has no area to draw or widen: no map.
+    canMap: !(openSearch && openSearch.plan && openSearch.plan.list) && leadShown.some((l) => !!l.point),
     mapPick, onMapPick: setMapPick,
-    plot: mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null,
-    onWiden: () => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); },
+    plot: mapOpen && !(openSearch && openSearch.plan && openSearch.plan.list) && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null,
+    onWiden: () => { if (!openSearch || !openSearch.plan || !openSearch.plan.area) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); },
     benchGroups: leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : [],
     benchGroup, onBenchGroup: setBenchGroup, month: leads.month,
     onNearby: (area) => onStripAction("nearby", { ...openSearch.plan, area }),
@@ -675,13 +679,13 @@ const leadsBandProps = (p) => {
       ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
       : !leadView.cls && waitsOn(leadView.searchId)
       ? { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null }
-      : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: openFind } : null },
+      : lists.emptyOf(openSearch) || { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: openFind } : null },
   };
 };
 
 // The selection and its bulk bar, and the rail's doors.
 const leadsBulkProps = (p) => {
-  const { sel, toggleSel, toggleAll, clearSelection, setSel, setAllMatching, leads, openSearch, leadSaid, leadAct, leadView, allMatching, sortBy, sortDir, leadBusy, bulkLeads, bulkWhy, setBulkWhy, phone, bulkSheet, setBulkSheet, bulkNotAFit, copyEmails, cursor, setCursor, canFind, canExport, nav, people, setChip, pickListRoute, pickSearchRoute, setListsOpen, goto, chip, exportHrefFor, searchWordsFor } = p;
+  const { sel, toggleSel, toggleAll, clearSelection, setSel, setAllMatching, leads, openSearch, leadSaid, leadAct, leadView, allMatching, sortBy, sortDir, leadBusy, bulkLeads, bulkWhy, setBulkWhy, phone, bulkSheet, setBulkSheet, bulkNotAFit, copyEmails, cursor, setCursor, canFind, canExport, nav, people, setChip, pickListRoute, pickSearchRoute, setListsOpen, goto, chip, exportHrefFor, searchWordsFor, lists, leadShown } = p;
   return {
     sel, onToggle: toggleSel, onToggleAll: toggleAll, onClearSel: clearSelection,
     onSelectIds: (ids) => { setSel(new Set(ids)); setAllMatching(false); },
@@ -702,7 +706,9 @@ const leadsBulkProps = (p) => {
     allMatching, onSelectAllMatching: () => setAllMatching(true),
     bulkView: { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir },
     bulkBusy: leadBusy, onBulk: bulkLeads, bulkWhy, onBulkWhy: setBulkWhy, bulkSheet: phone ? bulkSheet : null, onBulkSheet: setBulkSheet,
-    onBulkNotAFit: bulkNotAFit, onCopyEmails: copyEmails, cursor, onCursor: setCursor, canFind, canExport,
+    onBulkNotAFit: bulkNotAFit, onCopyEmails: copyEmails, cursor, onCursor: setCursor, canFind, canExport, importDoor: lists.importDoor, listsNode: lists.node,
+    // Write to them (Part 7): the rows chosen and shown, never all that match (a view is not a list of ids).
+    writeToThem: lists.writeAct({ ids: allMatching ? [] : leadShown.filter((l) => sel.has(l.id)).map((l) => l.id), phone, shut: () => setBulkSheet(null) }),
     exportHref: window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null,
     onScope: (to) => nav(plScopeRoute(to)),
     // The Pipeline is in the switch where deals are on (0008): People's surface says so, and it lands after Leads' on a
