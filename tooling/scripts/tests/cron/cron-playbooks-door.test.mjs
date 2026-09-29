@@ -33,7 +33,7 @@ for (const k of [
   delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { POST } = await import(at("apps/edge/api/cron/playbooks.ts"));
+const { POST, REACH_OUT_YIELD_AT_MS } = await import(at("apps/edge/api/cron/playbooks.ts"));
 const { PLAYBOOKS_PER_TICK } = await import(at("apps/edge/lib/ops/sweep-rotation.ts"));
 after(() => setPg(null));
 
@@ -171,6 +171,20 @@ function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
   setPg(db);
   return { db, tables, backlog, tick: () => knock(POST, "playbooks") };
 }
+/**
+ * The page as the database read it a moment before a workspace paused: every workspace judged as though active, over
+ * the case's own tables, by the fake's own page (its second argument).
+ */
+const readBeforeThePause = (args, derived) => {
+  const was = latest.tables.tenants.map((t) => t.status);
+  for (const t of latest.tables.tenants) t.status = "active";
+  try {
+    return derived(args);
+  } finally {
+    latest.tables.tenants.forEach((t, i) => (t.status = was[i]));
+  }
+};
+
 /** A workspace on the clock `tz`, with a number that may send, a template Meta approved, and the win-back class set to `mode`. */
 function workspace(tables, id, tz, mode, status = "active") {
   tables.tenants.push({ id, name: `Workspace ${id.slice(0, 8)}`, timezone: tz, status });
@@ -329,8 +343,35 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
 
 /* -------------------------------------------------------------- paused */
 
-test("a paused workspace is counted off and said once, quietly: nothing is made, nothing is scheduled, the playbook is not marked as run, one info line names it", async () => {
+test("a paused workspace's moments are not on the page at all: nothing is made, scheduled, said or stamped, and the day stays open for the hour it resumes", async () => {
   const w = world({ people: { [P]: [person("c1")] } });
+  workspace(w.tables, P, OPEN, "auto", "paused");
+  w.tables.playbooks.push(playbook(P, "pb-p"));
+  const before = { ...w.tables.playbooks[0] };
+
+  const said = hear();
+  let status, body;
+  try {
+    [status, body] = await answer(await w.tick());
+  } finally {
+    said.restore();
+  }
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts(), "not due while paused: not run, not counted off, not left behind");
+  nothingMade(w);
+  assert.deepEqual(w.tables.playbooks[0], before, "not marked as run, not moved: untouched");
+  assert.ok(!w.db.seen.some((s) => s.rpc === "people_list"), "the workspace is not even read");
+  assert.ok(!said.lines.some((l) => l.tenant_id === P), "and nothing is said about it");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
+
+  // The hour billing resumes, it is due again: its day was never closed.
+  w.tables.tenants.find((t) => t.id === P).status = "active";
+  const [, resumed] = await answer(await w.tick());
+  assert.deepEqual(resumed, counts({ tenants: 1, due: 1, sent: 1 }));
+});
+
+test("a workspace paused after the page was read is counted off and said once, quietly: nothing is made or scheduled, the day stays open, and the moment moves to the back of the page", async () => {
+  const w = world({ people: { [P]: [person("c1")] }, rpcs: { playbooks_due: readBeforeThePause } });
   workspace(w.tables, P, OPEN, "auto", "paused");
   w.tables.playbooks.push(playbook(P, "pb-p"));
 
@@ -342,10 +383,12 @@ test("a paused workspace is counted off and said once, quietly: nothing is made,
     said.restore();
   }
   assert.equal(status, 200);
-  assert.deepEqual(body, counts({ tenants: 1, due: 1, off: 1 }), "due, and counted off");
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, off: 1 }), "due on the page, and counted off");
   nothingMade(w);
   assert.deepEqual(w.tables.events, [], "no run recorded: there was none");
-  assert.equal(w.tables.playbooks[0].last_run_for, null, "not marked as run, so it runs the day billing resumes");
+  const [pb] = w.tables.playbooks;
+  assert.equal(pb.last_run_for, null, "not marked as run, so it runs the day billing resumes");
+  assert.ok(Date.parse(pb.last_run_at) > Date.now() - 60_000, "but it goes to the back of the page");
 
   const about = said.lines.filter((l) => l.event === "playbooks_skip_paused");
   assert.equal(about.length, 1, "said once");
@@ -400,28 +443,282 @@ test("the page is bounded and least-recently-run first, and what it could not re
   );
 });
 
-test("by the business's clock: in the middle of the night nothing is due and the workspace is not even read; three ticks in a row with work left behind, and the sweep says so with a 503", async () => {
-  const w = world({ people: { [R]: [person("c1")] }, ticks: 3 });
+test("by the business's clock: in the middle of the night nothing is due, the workspace is not even read, and twenty-seven playbooks that are not due are not a backlog", async () => {
+  const w = world({ people: { [R]: [person("c1")] } });
   workspace(w.tables, R, CLOSED, "auto");
   for (let i = 0; i < PLAYBOOKS_PER_TICK + 2; i++)
     w.tables.playbooks.push(playbook(R, `pb-${String(i).padStart(2, "0")}`));
 
   const [status, body] = await answer(await w.tick());
-  assert.equal(status, 503, "sweep_health turns this red and mails the platform");
-  assert.deepEqual(body, { ...counts({ remaining: 2 }), ok: false, error: "playbooks_backlog", backlog_ticks: 3 });
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts(), "nothing due, nothing left behind");
   assert.ok(!w.db.seen.some((s) => s.rpc === "people_list"), "not due: the workspace is not read");
   nothingMade(w);
   assert.ok(w.tables.playbooks.every((p) => p.last_run_for === null));
+  assert.deepEqual(
+    w.backlog,
+    [{ p_sweep: "playbooks", p_remaining: 0 }],
+    "what is not due was never left behind: the alarm does not count it",
+  );
+});
+
+test("three ticks in a row with DUE work left behind, and the sweep says so with a 503, having still run the page", async () => {
+  const w = world({ people: { [R]: [person("c1")] }, ticks: 3 });
+  workspace(w.tables, R, OPEN, "never");
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 2; i++)
+    w.tables.playbooks.push(playbook(R, `pb-${String(i).padStart(2, "0")}`));
+  const today = localDate(OPEN, new Date());
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 503, "sweep_health turns this red and mails the platform");
+  assert.deepEqual(body, {
+    ...counts({ tenants: 1, due: PLAYBOOKS_PER_TICK, off: PLAYBOOKS_PER_TICK, remaining: 2 }),
+    ok: false,
+    error: "playbooks_backlog",
+    backlog_ticks: 3,
+  });
+  assert.equal(w.tables.playbooks.filter((p) => p.last_run_for === today).length, PLAYBOOKS_PER_TICK);
   assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 2 }]);
+});
+
+/* ---------------------------------------------------- only what is due */
+
+test("a due playbook beyond the twenty-fifth runs in the same tick: twenty-five that are not yet at their hour, never run, hold no place in the page", async () => {
+  // Twenty-five playbooks made this morning for eight in the evening. They have
+  // never run, so a page ordered on last_run_at alone puts them first all day,
+  // and the one that is due now waits behind them until they have run.
+  const w = world({ people: { [A]: [person("c1")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  const today = localDate(OPEN, new Date());
+  const yesterday = localDate(OPEN, new Date(Date.now() - D));
+  for (let i = 0; i < PLAYBOOKS_PER_TICK; i++)
+    w.tables.playbooks.push(playbook(A, `pb-evening-${String(i).padStart(2, "0")}`, { run_hour: 20 }));
+  w.tables.playbooks.push(playbook(A, "pb-due", { last_run_for: yesterday, last_run_at: iso(D) }));
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, sent: 1 }), "the due one ran; nothing was left behind");
+  assert.deepEqual(
+    w.tables.playbooks.filter((p) => p.last_run_for === today).map((p) => p.id),
+    ["pb-due"],
+    "the one that was due ran, and none of the evening's",
+  );
+  assert.equal(w.tables.broadcasts.length, 1);
+  assert.equal(w.tables.broadcasts[0].playbook_id, "pb-due");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
+});
+
+test("a playbook that already ran today, or is not yet at its hour, is neither run nor counted as left behind", async () => {
+  const w = world({ people: { [A]: [person("c1")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  const today = localDate(OPEN, new Date());
+  // Twenty-six ran this morning, one is set for the evening: twenty-seven running playbooks, none of them due.
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i++)
+    w.tables.playbooks.push(
+      playbook(A, `pb-ran-${String(i).padStart(2, "0")}`, { last_run_for: today, last_run_at: iso(H) }),
+    );
+  w.tables.playbooks.push(playbook(A, "pb-evening", { run_hour: 20 }));
+  const before = w.tables.playbooks.map((p) => [p.id, p.last_run_for, p.last_run_at]);
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts(), "nothing due, nothing left behind");
+  assert.ok(!w.db.seen.some((s) => s.rpc === "people_list"), "nothing due: the workspace is not read");
+  nothingMade(w);
+  assert.deepEqual(
+    w.tables.playbooks.map((p) => [p.id, p.last_run_for, p.last_run_at]),
+    before,
+    "no stamp moved",
+  );
+  assert.deepEqual(
+    w.backlog,
+    [{ p_sweep: "playbooks", p_remaining: 0 }],
+    "a full table of not-due playbooks is not a backlog",
+  );
+});
+
+test("a zone nobody knows does not take the tick down: the workspace with it is judged in UTC, and the others run on their own clocks as ever", async () => {
+  // tenants.timezone is owner-settable text; a name Postgres does not know would fail the page for every workspace,
+  // every tick, so the page judges such a row in UTC (00245 safe_zone), as the edge itself falls back to UTC.
+  const now = new Date();
+  const utcHour = localHour("UTC", now);
+  // Set for the hour it is in UTC right now, within the sending hours: due there when UTC's clock is inside them.
+  const marsDue = utcHour >= 9 && utcHour <= 20;
+  const M = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const w = world({ people: { [A]: [person("c1")], [M]: [person("c2")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  workspace(w.tables, M, "Mars/Olympus", "auto");
+  w.tables.playbooks.push(playbook(A, "pb-a"));
+  w.tables.playbooks.push(playbook(M, "pb-m", { run_hour: Math.min(20, Math.max(9, utcHour)) }));
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200, "one bad name never fails the tick");
+  assert.deepEqual(body, counts(marsDue ? { tenants: 2, due: 2, sent: 2 } : { tenants: 1, due: 1, sent: 1 }));
+  const ran = Object.fromEntries(w.tables.playbooks.map((p) => [p.id, p.last_run_for]));
+  assert.equal(ran["pb-a"], localDate(OPEN, now), "the sound workspace ran on its own clock");
+  assert.equal(
+    ran["pb-m"],
+    marsDue ? localDate("UTC", now) : null,
+    "the workspace with the unknown zone is judged in UTC, and its day is UTC's",
+  );
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
+});
+
+test("twenty-six running moments in a paused workspace hold no place in the page: the two due in a sound workspace run in the first tick, nothing is left behind, and the alarm stays quiet", async () => {
+  // The re-score of 28 September: twenty-five of one paused workspace's moments (every stopped Stripe subscription
+  // pauses one), not run since the pause, sorted first every hour and no other workspace's playbook ran, anywhere.
+  const w = world({ people: { [A]: [person("c1")], [P]: [person("c2")] } });
+  workspace(w.tables, P, OPEN, "auto", "paused");
+  workspace(w.tables, A, OPEN, "auto");
+  const today = localDate(OPEN, new Date());
+  const yesterday = localDate(OPEN, new Date(Date.now() - D));
+  // The paused workspace's, last run before the pause: they would sort first.
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i++)
+    w.tables.playbooks.push(
+      playbook(P, `pb-p-${String(i).padStart(2, "0")}`, { last_run_at: iso(30 * D), last_run_for: "2026-08-28" }),
+    );
+  // The sound workspace's two, run yesterday: they sort after.
+  w.tables.playbooks.push(playbook(A, "pb-a1", { last_run_for: yesterday, last_run_at: iso(D) }));
+  w.tables.playbooks.push(playbook(A, "pb-a2", { last_run_for: yesterday, last_run_at: iso(D - H) }));
+  const paused = () => w.tables.playbooks.filter((p) => p.tenant_id === P).map((p) => [p.last_run_for, p.last_run_at]);
+  const before = paused();
+
+  const [status, first] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(first, counts({ tenants: 1, due: 2, sent: 2 }), "the first tick: the two run");
+  assert.deepEqual(
+    w.tables.playbooks
+      .filter((p) => p.last_run_for === today)
+      .map((p) => p.id)
+      .sort(),
+    ["pb-a1", "pb-a2"],
+  );
+  assert.deepEqual(paused(), before, "the paused ones untouched: no stamp, their day still open");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }], "and nothing counted as left behind");
+});
+
+test("a moment the page calls due and the edge's clock does not is never run, said once as a warning, and moved to the back of the page with its day open: a zone the two read apart never holds the first places", async () => {
+  // The page judged it in one zone and handed the sweep another: what the database and the edge would do with a name
+  // they read apart (a POSIX string before 00245's safe_zone refused it).
+  const w = world({
+    people: { [A]: [person("c1")] },
+    rpcs: { playbooks_due: (a, derived) => derived(a).map((r) => ({ ...r, timezone: CLOSED })) },
+  });
+  workspace(w.tables, A, OPEN, "auto");
+  w.tables.playbooks.push(playbook(A, "pb-a"));
+
+  const said = hear();
+  let body;
+  try {
+    [, body] = await answer(await w.tick());
+  } finally {
+    said.restore();
+  }
+  assert.deepEqual(body, counts(), "not run, not counted as due");
+  nothingMade(w);
+  const [pb] = w.tables.playbooks;
+  assert.equal(pb.last_run_for, null, "its day stays open");
+  assert.ok(Date.parse(pb.last_run_at) > Date.now() - 60_000, "and it goes to the back of the page");
+  const about = said.lines.filter((l) => l.event === "playbooks_page_not_due");
+  assert.deepEqual(
+    about.map((l) => [l.level, l.tenant_id, l.kind, l.count]),
+    [["warn", A, "moment", 1]],
+  );
+});
+
+test("a moment whose run failed is moved to the back of the page with its day open: a run that fails every hour never holds the first place", async () => {
+  const w = world({
+    people: { [A]: [person("c1")] },
+    faults: { "templates.select": { message: "canceling statement due to statement timeout" } },
+  });
+  workspace(w.tables, A, OPEN, "auto");
+  w.tables.playbooks.push(playbook(A, "pb-a", { last_run_at: iso(D) }));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, failed: 1 }));
+  const [pb] = w.tables.playbooks;
+  assert.equal(pb.last_run_for, null, "its day stays open: the next hour tries it again");
+  assert.ok(Date.parse(pb.last_run_at) > Date.now() - 60_000, "behind the moments that can run");
+});
+
+test("reach-out steps a tick that ran long never reached are counted as left behind, so the alarm hears a starved page", async () => {
+  const w = world({ rpcs: coldRpcs([]) });
+  coldWorkspace(w.tables, A, OPEN);
+  for (let i = 0; i < 3; i += 1)
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso((i + 1) * H) }));
+  // The clock jumps past the yield once the tick has begun: every later read of it is forty-one seconds on.
+  const realNow = Date.now;
+  let reads = 0;
+  Date.now = () => realNow() + (reads++ === 0 ? 0 : REACH_OUT_YIELD_AT_MS + 1_000);
+  let body;
+  try {
+    [, body] = await answer(await w.tick());
+  } finally {
+    Date.now = realNow;
+  }
+  assert.deepEqual([body.due, body.remaining], [0, 3], "none run, all three left behind");
+  assert.deepEqual(
+    w.backlog.map((b) => b.p_remaining),
+    [3],
+  );
 });
 
 /* ------------------------------------------------------- cannot be read */
 
-test("playbooks that cannot be read are a 500, and nothing is noted", async () => {
-  const w = world({ faults: { "playbooks.select": { message: "permission denied for table playbooks" } } });
-  assert.deepEqual(await answer(await w.tick()), [500, { ok: false }]);
-  assert.deepEqual(w.backlog, []);
-  nothingMade(w);
+test("playbooks that cannot be read are a 500 that says so, and nothing is noted: a database without the page's function included, so the edge deployed ahead of its migration is loud, never quiet", async () => {
+  for (const refusal of [
+    "permission denied for function playbooks_due",
+    "Could not find the function public.playbooks_due(p_at, p_kind, p_last_hour, p_limit) in the schema cache",
+  ]) {
+    const w = world({
+      people: { [A]: [person("c1")] },
+      rpcs: {
+        playbooks_due: () => {
+          throw new Error(refusal);
+        },
+      },
+    });
+    workspace(w.tables, A, OPEN, "auto");
+    w.tables.playbooks.push(playbook(A, "pb-a"));
+    const said = hear();
+    try {
+      assert.deepEqual(await answer(await w.tick()), [500, { ok: false }]);
+    } finally {
+      said.restore();
+    }
+    const failed = said.lines.filter((l) => l.event === "playbooks_read_failed");
+    assert.equal(failed.length, 1, refusal);
+    assert.equal(failed[0].level, "error");
+    assert.ok(failed[0].error.includes(refusal), "the database's own words");
+    assert.deepEqual(w.backlog, []);
+    nothingMade(w);
+    assert.equal(w.tables.playbooks[0].last_run_for, null);
+  }
+});
+
+test("a reach-out page that cannot be read is said, and the moments still run", async () => {
+  const w = world({
+    people: { [A]: [person("c1")] },
+    rpcs: {
+      playbooks_due: (a, ask) => {
+        if (a.p_kind === "reach_out") throw new Error("permission denied for function playbooks_due");
+        return ask(a);
+      },
+    },
+  });
+  workspace(w.tables, A, OPEN, "auto");
+  w.tables.playbooks.push(playbook(A, "pb-a"));
+  const said = hear();
+  let status, body;
+  try {
+    [status, body] = await answer(await w.tick());
+  } finally {
+    said.restore();
+  }
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts({ tenants: 1, due: 1, sent: 1 }));
+  const failed = said.lines.filter((l) => l.event === "reach_outs_read_failed");
+  assert.deepEqual([failed.length, failed[0]?.level], [1, "error"], "said once, as an error");
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
 });
 
 /* ------------------------------------------------------------ reach-outs */
@@ -564,7 +861,8 @@ test("a moment and a reach-out in one workspace each run through their own verb:
 });
 
 test("a reach-out that cannot run moves to the back of the page and keeps its day open; the steps behind it run, and the alarm counts both pages", async () => {
-  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  // Its workspace paused after the page was read: the step is on the page, and its run finds the pause.
+  const w = world({ rpcs: { ...coldRpcs([coldLead("l1")]), playbooks_due: readBeforeThePause } });
   // A paused workspace's step, never run: it sorts first.
   coldWorkspace(w.tables, A, OPEN);
   w.tables.tenants[0].status = "paused";
@@ -580,17 +878,52 @@ test("a reach-out that cannot run moves to the back of the page and keeps its da
   assert.ok(Date.parse(paused.last_run_at) > Date.now() - 60_000, "but it goes to the back of the page");
 });
 
+test("a paused workspace's reach-out steps hold no place in the reach-out page either: twenty-six of them, and the one due in a sound workspace runs and nothing is left behind", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  coldWorkspace(w.tables, A, OPEN);
+  w.tables.tenants[0].status = "paused";
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i += 1)
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: null }));
+  const B = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  coldWorkspace(w.tables, B, OPEN);
+  w.tables.playbooks.push(reachOut(B, "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", { last_run_at: iso(D) }));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual([body.due, body.off, body.held, body.remaining], [1, 0, 1, 0]);
+  assert.deepEqual(
+    w.backlog.map((b) => b.p_remaining),
+    [0],
+  );
+});
+
 test("what the reach-out page could not reach is noted with the moments': starved reach-outs can raise the alarm", async () => {
   const w = world({ rpcs: coldRpcs([]) });
-  coldWorkspace(w.tables, A, CLOSED);
+  // Twenty-six due steps with no leads to plan: the page takes twenty-five, and the twenty-sixth is what is left.
+  coldWorkspace(w.tables, A, OPEN);
   for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i += 1)
-    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso(i * H) }));
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso((i + 1) * H) }));
   const [, body] = await answer(await w.tick());
-  assert.equal(body.remaining, 1);
+  assert.deepEqual([body.due, body.remaining], [PLAYBOOKS_PER_TICK, 1]);
   assert.deepEqual(
     w.backlog.map((b) => b.p_remaining),
     [1],
   );
+});
+
+test("the reach-out page is only what is due: twenty-five steps that ran today hold no place and are not counted, and the one due behind them runs now", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  coldWorkspace(w.tables, A, OPEN);
+  const today = localDate(OPEN, new Date());
+  for (let i = 0; i < PLAYBOOKS_PER_TICK; i += 1)
+    w.tables.playbooks.push(
+      reachOut(A, `ro-ran-${String(i).padStart(2, "0")}`, { last_run_for: today, last_run_at: iso((i + 1) * H) }),
+    );
+  w.tables.playbooks.push(reachOut(A, R, { last_run_at: iso(3 * D) }));
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts({ due: 1, held: 1 }), "the due step ran (its first run waits for its owner)");
+  assert.equal(w.tables.broadcasts.length, 1);
+  assert.equal(w.tables.broadcasts[0].playbook_id, R);
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }], "twenty-six running steps, none left behind");
 });
 
 test("a veto run goes on the record: the system's decision under the mode its owner chose, and the run's event", async () => {

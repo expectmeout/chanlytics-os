@@ -279,4 +279,6 @@ export { watchedTables, subscribeMessagesInserts } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";
+export { duePlaybooks, dueCalendars, stampPlaybooksTried } from "./sweeps";
+export type { DuePage, DuePlaybook, DueCalendar } from "./sweeps";
 export type { Database, Json } from "./database.types";
