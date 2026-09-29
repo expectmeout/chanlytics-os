@@ -123,7 +123,7 @@ test("two searches waiting on their answers are one line that says how many", ()
   );
 });
 
-// The nightly's seed found it (e2e/today.spec.ts, expectNoQueueRepeat): a search waiting on its answer is a row of
+// The nightly's seed found it (e2e/today/today.spec.ts, expectNoQueueRepeat): a search waiting on its answer is a row of
 // Your queue, and the bell's question row about the same search was drawn again under While you were away.
 test("a search waiting in the queue is not said again by the bell's question row about it", () => {
   const S = "5eed0000-0000-4000-8000-000000000001";

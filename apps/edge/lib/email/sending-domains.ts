@@ -62,6 +62,7 @@ import {
   type DomainJudgement,
   type DomainResumer,
   type DomainRowState,
+  type EdgeErrorCode,
   type SendingDomainDto,
   HOUR_MS,
   MIN_MS,
@@ -145,10 +146,16 @@ async function heldTwice(
 /** A day: an owner hears of a domain's holds at most once in one. */
 const HOLD_NOTICE_COOLDOWN_MS = 24 * HOUR_MS;
 
+/** The door's answer: the domain, or a refusal's code with the owner's words in `message` (the page shows them). */
 type DoorAnswer =
-  { ok: true; domain: SendingDomainDto } | { ok: false; status: number; error: string; message: string };
+  { ok: true; domain: SendingDomainDto } | { ok: false; status: number; error: EdgeErrorCode; message: string };
 
-const say = (status: number, error: string, message: string): DoorAnswer => ({ ok: false, status, error, message });
+const say = (status: number, error: EdgeErrorCode, message: string): DoorAnswer => ({
+  ok: false,
+  status,
+  error,
+  message,
+});
 
 /** A host another workspace reserved and never verified is theirs this long: the provider's own verification window. */
 const UNVERIFIED_HOLD_MS = 72 * HOUR_MS;

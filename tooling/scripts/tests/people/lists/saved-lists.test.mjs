@@ -81,7 +81,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
 });
 
 test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", async () => {
-  const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const s = readCode("apps/dashboard/src/legacy-bridge/surfaces/people.ts");
   assert.ok(s.includes('read("GET segments")'));
   assert.ok(
     s.includes('const members = m.state === "ok" ? rows.filter((r) => m.ids.has(r.id)) : [];') &&

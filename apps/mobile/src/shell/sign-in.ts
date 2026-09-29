@@ -5,6 +5,7 @@
  * FROM the WebView: the cookie the door sets then lands in the WebView's own store, and the 303 lands the page.
  * The form here is that POST's body.
  */
+import { MIN_MS } from "@chanlytics/contracts/phone-app";
 
 export type NativeProvider = "apple" | "google";
 
@@ -43,9 +44,9 @@ export function reversedClientId(iosClientId: string): string | null {
 }
 
 /** How long the app may sit in the background before it locks again. */
-export const LOCK_GRACE_MS = 2 * 60_000;
+export const LOCK_GRACE_MS = 2 * MIN_MS;
 
-export interface LockInput {
+interface LockInput {
   /** The person's choice, kept in the secure store; null before they have made one. */
   enabled: boolean | null;
   /** Whether the phone has a biometric enrolled (or a passcode, which the prompt falls back to). */

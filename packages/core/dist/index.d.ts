@@ -200,9 +200,11 @@ interface EmailRoute {
  * frozen with an own domain's From never leaves around outreach's rules, and a
  * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
  * still applies. No routes, no email line (null, like a number with no
- * credentials).
+ * credentials). `held` is the addresses of the workspace's own domains that
+ * are held: no route, but a reply frozen with one says why it went as the
+ * mailbox.
  */
-declare function emailSender(routes: EmailRoute[]): Sender | null;
+declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -959,6 +961,8 @@ interface ReplyFacts {
     /** The address the reach-out wrote to, and the lead's website. */
     leadAddress: string | null;
     leadWebsite: string | null;
+    /** Whether the finder saw that website as its host's root (00237); null when it was not kept. */
+    leadWebsiteRoot?: boolean | null;
     /** The chain's signature ({{your name}}), which a draft ends with. */
     signedBy: string | null;
     /** The business's zone. */
@@ -1793,6 +1797,11 @@ interface LeadColumns {
     lat: number | null;
     lng: number | null;
     website_host: string | null;
+    /**
+     * Whether the website is that host's root (00237): a page under a host (an ISP's "/~joe/") is no proof the host is
+     * the business's own, so a no from it never closes the host's whole domain.
+     */
+    website_root: boolean | null;
     instagram_url: string | null;
     /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
     neighborhood: string | null;
@@ -2129,6 +2138,8 @@ interface CleanPlace {
     /** 0 none, 1 the listing, 2 the listing's number is on their site too. */
     phoneSources: 0 | 1 | 2;
     host: string | null;
+    /** Whether the listing's website is that host's root, not a page under it (00237); null without a host. */
+    root: boolean | null;
     region: string | null;
     emails: string[];
     dropped: {
@@ -2183,7 +2194,7 @@ declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressed
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
+ * zcta-centroids.json is written by tooling/scripts/gen/zcta-centroids.mjs
  * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
  */
 

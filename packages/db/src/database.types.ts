@@ -2803,6 +2803,7 @@ export type Database = {
           tiktok_url: string | null
           version: number
           website_host: string | null
+          website_root: boolean | null
         }
         Insert: {
           about?: string | null
@@ -2855,6 +2856,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Update: {
           about?: string | null
@@ -2907,6 +2909,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Relationships: [
           {
@@ -4864,6 +4867,7 @@ export type Database = {
       }
     }
     Functions: {
+      ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined

@@ -17,11 +17,11 @@
 }
 .dash-a-head > div:first-child { min-width: 0; }
 .dash-a-eyebrow {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+  font-size: var(--text-xs); font-weight: 500; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--ink-dim); margin-bottom: 8px;
 }
 .dash-a-title {
-  font-size: 28px; font-weight: 500; letter-spacing: -0.025em;
+  font-size: var(--text-3xl); font-weight: 500; letter-spacing: -0.025em;
   color: var(--ink); line-height: 1.15; margin: 0;
 }
 .dash-a-sub {
@@ -77,7 +77,7 @@
 .cmd2-bucket:hover { background: var(--bg-hover); }
 .cmd2-bucket.active { background: var(--bg-raised); box-shadow: var(--shadow-sm); }
 .cmd2-bucket-dot {
-  width: 6px; height: 6px; border-radius: 999px;
+  width: 6px; height: 6px; border-radius: var(--radius-full);
   background: var(--ink-faint);
 }
 .cmd2-bucket.urgent .cmd2-bucket-dot { background: var(--accent); }
@@ -85,7 +85,7 @@
   box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.18);
 }
 .cmd2-bucket-label {
-  font-size: 12.5px; font-weight: 500; color: var(--ink);
+  font-size: var(--text-sm); font-weight: 500; color: var(--ink);
   grid-column: 2; grid-row: 1;
 }
 .cmd2-bucket-hint {
@@ -100,7 +100,7 @@
   background: var(--bg-raised);
   border: 1px solid var(--line);
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   min-width: 20px;
   text-align: center;
 }
@@ -143,7 +143,7 @@
 .cmd2-insight {
   display: flex; align-items: flex-start; gap: 6px;
   margin-top: 6px;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   line-height: 1.5;
   max-width: 560px;
@@ -154,7 +154,7 @@
 .cmd2-list { display: flex; flex-direction: column; }
 .cmd2-empty {
   padding: 48px 24px; text-align: center;
-  color: var(--ink-dim); font-size: 12.5px;
+  color: var(--ink-dim); font-size: var(--text-sm);
 }
 .cmd2-row {
   display: grid;
@@ -201,16 +201,16 @@
 .cmd2-who { font-weight: 500; color: var(--ink); }
 .cmd2-chan { color: var(--ink-dim); }
 .cmd2-value {
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 .cmd2-value.pos { color: var(--ok); background: var(--ok-soft); }
 .cmd2-value.neg { color: var(--danger); background: var(--danger-soft); }
 .cmd2-row-spacer { flex: 1; }
 .cmd2-time {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cmd2-detail {
@@ -232,8 +232,8 @@
   padding: 2px 8px;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
   color: var(--ink-muted);
 }
 .cmd2-row-actions { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
@@ -284,7 +284,7 @@
 }
 .dash-b-headline .muted { color: var(--ink-dim); font-weight: 300; }
 .dash-b-deck {
-  font-size: 14.5px; color: var(--ink-muted);
+  font-size: var(--text-md); color: var(--ink-muted);
   line-height: 1.6; max-width: 600px; margin: 0 0 20px;
 }
 .dash-b-ribbon {
@@ -296,7 +296,7 @@
 .ribbon-cell { display: inline-flex; align-items: baseline; gap: 6px; }
 .ribbon-value { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
 .ribbon-label { color: var(--ink-dim); font-size: 12px; }
-.ribbon-delta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim); }
+.ribbon-delta { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
 .ribbon-delta.up { color: var(--ok); }
 .ribbon-delta.down { color: var(--danger); }
 
@@ -335,7 +335,7 @@
   padding: 18px 0 8px;
 }
 .stream2-hour-num {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   color: var(--ink-dim);
   letter-spacing: 0.04em;
@@ -349,7 +349,7 @@
   text-transform: uppercase;
   color: var(--ink-dim);
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   font-weight: 500;
@@ -363,7 +363,7 @@
 /* shared item layout */
 .stream2-when {
   width: 44px; flex-shrink: 0;
-  font-size: 11px; color: var(--ink-dim);
+  font-size: var(--text-xs); color: var(--ink-dim);
   padding-top: 2px; text-align: right;
 }
 .stream2-rail {
@@ -379,7 +379,7 @@
 }
 .stream2-rail.urgent::before { background: var(--accent); width: 2px; }
 .stream2-rail-tick {
-  width: 5px; height: 5px; border-radius: 999px;
+  width: 5px; height: 5px; border-radius: var(--radius-full);
   background: var(--ink-faint);
   position: relative; z-index: 1;
 }
@@ -432,7 +432,7 @@
   color: var(--ok);
   background: var(--ok-soft);
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -464,7 +464,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   letter-spacing: 0.05em;
 }
 .stream2-review-tag {
@@ -484,7 +484,7 @@
 .stream2-review-body { padding: 12px 14px; }
 .stream2-review-who {
   display: flex; align-items: center; gap: 6px;
-  font-size: 13.5px; color: var(--ink);
+  font-size: var(--text-base); color: var(--ink);
   margin-bottom: 4px;
 }
 .stream2-review-who strong { font-weight: 500; }
@@ -512,7 +512,7 @@
 }
 .rail-block { display: flex; flex-direction: column; }
 .rail-label {
-  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--text-xs); letter-spacing: 0.06em; text-transform: uppercase;
   font-weight: 500; color: var(--ink-dim);
   padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px;
 }
@@ -523,7 +523,7 @@
   border: 1px solid var(--line); border-radius: var(--radius-md);
   background: var(--bg-raised);
 }
-.rail-cmd-num { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: var(--ink); }
+.rail-cmd-num { font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: var(--ink); }
 .rail-cmd-lbl {
   margin-top: 4px; font-size: 10px; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-dim); font-weight: 500;

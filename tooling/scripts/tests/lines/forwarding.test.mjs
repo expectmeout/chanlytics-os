@@ -17,7 +17,7 @@ import {
   forwardingDialLabel,
   FORWARDING_MODES,
   CARRIER_WORDS,
-  MODE_WORDS,
+  FORWARDING_MODE_WORDS,
   FORWARDING_TEST_WINDOW_MS,
   isCarrier,
   isForwardingMode,
@@ -92,7 +92,7 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
     other: "Another carrier or a landline",
     office: "An office phone system",
   });
-  assert.deepEqual(MODE_WORDS, { unanswered: "Only calls you don't answer", always: "Every call" });
+  assert.deepEqual(FORWARDING_MODE_WORDS, { unanswered: "Only calls you don't answer", always: "Every call" });
   assert.equal(FORWARDING_TEST_WINDOW_MS, 30 * 60_000);
   assert.ok(isCarrier("att") && !isCarrier("sprint") && isForwardingMode("always") && !isForwardingMode("busy"));
 });

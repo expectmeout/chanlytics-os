@@ -7,7 +7,7 @@ name: Database
 #
 # It reports on every pull request, so branch protection can require it, and it
 # replays only when the database could have changed. The first step pipes the
-# changed files through tooling/scripts/db-paths-changed.mjs, which holds the
+# changed files through tooling/scripts/checks/db-paths-changed.mjs, which holds the
 # one list of what the replay depends on: the migrations, seed and config under
 # supabase/, the SQL suites, the db package's src (the *.integration suites call
 # its repositories through the committed dist), what the two --check steps
@@ -56,7 +56,7 @@ jobs:
           else
             files="$(git diff --name-only "$BEFORE" "$AFTER")"
           fi
-          printf '%s\n' "$files" | node tooling/scripts/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$files" | node tooling/scripts/checks/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
       - if: steps.changed.outputs.db == 'true'
         uses: pnpm/action-setup@v6
       - if: steps.changed.outputs.db == 'true'
@@ -88,12 +88,12 @@ jobs:
       # A migration that changed one without regenerating fails here, and the
       # compiler then names every copy the change left behind.
       - if: steps.changed.outputs.db == 'true'
-        run: node tooling/scripts/gen-schema-sets.mjs --check
+        run: node tooling/scripts/gen/schema-sets.mjs --check
       # database.types.ts regenerated from the same database and compared, with
       # PostgREST's version and the month's events partitions ignored.
       # Red: supabase start && corepack pnpm gen:db-types
       - if: steps.changed.outputs.db == 'true'
-        run: node tooling/scripts/check-db-types.mjs --check
+        run: node tooling/scripts/gen/db-types.mjs --check
       # The local stack's service and anon keys are the published demo keys, not
       # secrets. The anon key is what the RLS suites sign real sessions in with.
       - name: Point the suite at the local database

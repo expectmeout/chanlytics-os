@@ -17,6 +17,7 @@ export type { GatewayEvent } from "./sse";
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../deployment";
+import type { EdgeErrorCode } from "@chanlytics/contracts";
 
 export interface GatewayCall {
   tenantId: string;
@@ -38,6 +39,11 @@ export interface GatewayCall {
       effort?: "low" | "medium" | "high";
       format?: { type: "json_schema"; schema: Record<string, unknown> };
     };
+    /**
+     * The cache diagnostics (the Phase 6 plan, D2): the id of the message this request follows on, or null to start a
+     * comparison. The API answers on message_start with why this request missed what that one wrote.
+     */
+    diagnostics?: { previous_message_id: string | null };
   };
   signal?: AbortSignal;
 }
@@ -56,6 +62,22 @@ export class GatewayRefused extends Error {
 }
 
 /**
+ * The edge's server-timing header (the Phase 6 plan, D3): its own time before it asked the model (`gateway`) and the
+ * model's time to its headers (`model`), each null when the header says nothing of it.
+ */
+function serverTiming(header: string | null): { gatewayMs: number | null; modelMs: number | null } {
+  const durs = new Map<string, number>();
+  for (const part of (header ?? "").split(",")) {
+    const [name, ...params] = part.split(";").map((x) => x.trim());
+    const dur = params.find((x) => x.startsWith("dur="));
+    const ms = dur ? Number(dur.slice(4)) : NaN;
+    if (name && Number.isFinite(ms)) durs.set(name, Math.round(ms));
+  }
+  const dur = (name: string): number | null => durs.get(name) ?? null;
+  return { gatewayMs: dur("gateway"), modelMs: dur("model") };
+}
+
+/**
  * Open one model round and yield its events as they arrive.
  *
  * Throws GatewayRefused before the first event when the edge would not run
@@ -66,6 +88,7 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
   if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
   let res: Response;
+  const sentAt = Date.now();
   try {
     res = await fetch(`${edgeUrl()}/api/admin/llm`, {
       method: "POST",
@@ -82,8 +105,11 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     throw new GatewayRefused({ kind: "unreachable", message: e instanceof Error ? e.message : String(e) });
   }
   if (!res.ok || !res.body) {
+    // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
+    // is an object with a message.
     const j = (await res.json().catch(() => ({}))) as {
-      error?: unknown;
+      error?: EdgeErrorCode | { message?: string };
+      detail?: string;
       used?: number;
       cap?: number;
       message?: string;
@@ -92,13 +118,16 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
       throw new GatewayRefused({ kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 });
     if (res.status === 503 && j.error === "no_model_key") throw new GatewayRefused({ kind: "no_key" });
     const err =
-      j.error && typeof j.error === "object"
-        ? (j.error as { message?: string }).message
-        : typeof j.error === "string"
-          ? j.error
-          : j.message;
+      typeof j.detail === "string"
+        ? j.detail
+        : j.error && typeof j.error === "object"
+          ? j.error.message
+          : typeof j.error === "string"
+            ? j.error
+            : j.message;
     throw new GatewayRefused({ kind: "bad_request", message: `${res.status} ${err ?? "model refused"}` });
   }
+  yield { type: "timing", ...serverTiming(res.headers.get("server-timing")), headersMs: Date.now() - sentAt };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let carry = "";

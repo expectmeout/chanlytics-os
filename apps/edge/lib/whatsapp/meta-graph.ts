@@ -34,7 +34,7 @@ interface GraphError {
   error?: { message?: string; code?: number; error_subcode?: number; type?: string };
 }
 
-async function call<T>(path: string, init: RequestInit & { token?: string }): Promise<GraphResult<T>> {
+async function graphCall<T>(path: string, init: RequestInit & { token?: string }): Promise<GraphResult<T>> {
   const { token, ...rest } = init;
   let res: Response;
   try {
@@ -65,7 +65,7 @@ export function exchangeCode(
   code: string,
 ): Promise<GraphResult<{ access_token: string; token_type?: string }>> {
   const qs = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
-  return call(`/oauth/access_token?${qs}`, { method: "GET" });
+  return graphCall(`/oauth/access_token?${qs}`, { method: "GET" });
 }
 
 interface PhoneNumberInfo {
@@ -79,7 +79,7 @@ interface PhoneNumberInfo {
 
 /** The number as Meta holds it: its display form, its verified name, its quality. */
 export function phoneNumber(token: string, phoneNumberId: string): Promise<GraphResult<PhoneNumberInfo>> {
-  return call(
+  return graphCall(
     `/${encodeURIComponent(phoneNumberId)}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type`,
     { method: "GET", token },
   );
@@ -87,12 +87,12 @@ export function phoneNumber(token: string, phoneNumberId: string): Promise<Graph
 
 /** The WABA, to prove the token sees it. */
 export function wabaInfo(token: string, wabaId: string): Promise<GraphResult<{ id: string; name?: string }>> {
-  return call(`/${encodeURIComponent(wabaId)}?fields=id,name`, { method: "GET", token });
+  return graphCall(`/${encodeURIComponent(wabaId)}?fields=id,name`, { method: "GET", token });
 }
 
 /** Subscribe this app to the WABA's webhooks; without it, its messages never reach us. */
 export function subscribeWaba(token: string, wabaId: string): Promise<GraphResult<{ success?: boolean }>> {
-  return call(`/${encodeURIComponent(wabaId)}/subscribed_apps`, { method: "POST", token });
+  return graphCall(`/${encodeURIComponent(wabaId)}/subscribed_apps`, { method: "POST", token });
 }
 
 /**
@@ -105,7 +105,7 @@ export function registerNumber(
   phoneNumberId: string,
   pin: string,
 ): Promise<GraphResult<{ success?: boolean }>> {
-  return call(`/${encodeURIComponent(phoneNumberId)}/register`, {
+  return graphCall(`/${encodeURIComponent(phoneNumberId)}/register`, {
     method: "POST",
     token,
     headers: { "content-type": "application/json" },

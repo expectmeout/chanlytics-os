@@ -14,14 +14,9 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts::handle#1": {
-    "lines": 232,
-    "branches": 31,
-    "depth": 2
-  },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
-    "lines": 136,
-    "branches": 59,
+    "lines": 125,
+    "branches": 46,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/segments/[id]/route.ts::handle#1": {
@@ -34,33 +29,18 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/login/page.tsx::LoginPage#1": {
-    "lines": 225,
-    "branches": 11,
-    "depth": 0
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
     "depth": 0
-  },
-  "apps/dashboard/app/signup/page.tsx::SignupPage#1": {
-    "lines": 256,
-    "branches": 19,
-    "depth": 1
   },
   "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
     "lines": 155,
     "branches": 13,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {
-    "lines": 320,
-    "branches": 32,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 181,
+    "lines": 172,
     "branches": 11,
     "depth": 1
   },
@@ -74,14 +54,9 @@
     "branches": 4,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/surface-data.ts::apply#7": {
+  "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts::apply#1": {
     "lines": 146,
     "branches": 31,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
-    "lines": 243,
-    "branches": 8,
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/campaign-bits.jsx::CmPicker#1": {
@@ -145,7 +120,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 209,
+    "lines": 210,
     "branches": 35,
     "depth": 0
   },
@@ -585,13 +560,13 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 525,
-    "branches": 87,
+    "lines": 490,
+    "branches": 76,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
     "lines": 67,
-    "branches": 43,
+    "branches": 41,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
@@ -640,12 +615,12 @@
     "depth": 2
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 84,
+    "lines": 83,
     "branches": 33,
     "depth": 3
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 177,
+    "lines": 175,
     "branches": 46,
     "depth": 1
   },
@@ -655,7 +630,7 @@
     "depth": 4
   },
   "apps/edge/api/admin/voice-provision.ts::POST#1": {
-    "lines": 203,
+    "lines": 202,
     "branches": 43,
     "depth": 2
   },
@@ -674,20 +649,10 @@
     "branches": 32,
     "depth": 3
   },
-  "apps/edge/api/cron/calls.ts::POST#1": {
-    "lines": 191,
-    "branches": 36,
-    "depth": 3
-  },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,
     "branches": 35,
     "depth": 4
-  },
-  "apps/edge/api/diag.ts::GET#1": {
-    "lines": 234,
-    "branches": 49,
-    "depth": 3
   },
   "apps/edge/api/retell-fn.ts::POST#1": {
     "lines": 279,
@@ -714,19 +679,14 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p-campaign-facts.ts::campaignFactsFor#1": {
-    "lines": 221,
-    "branches": 12,
-    "depth": 0
-  },
   "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
-    "lines": 215,
+    "lines": 213,
     "branches": 26,
     "depth": 1
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 169,
-    "branches": 34,
+    "lines": 164,
+    "branches": 32,
     "depth": 2
   },
   "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
@@ -779,20 +739,10 @@
     "branches": 35,
     "depth": 2
   },
-  "packages/channels/src/a2p-saga.ts::runA2PSaga#1": {
+  "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
     "branches": 42,
     "depth": 5
-  },
-  "packages/channels/src/lines-saga.ts::runLineSaga#1": {
-    "lines": 225,
-    "branches": 41,
-    "depth": 5
-  },
-  "packages/channels/src/lines-twilio.ts::twilioProvider#1": {
-    "lines": 261,
-    "branches": 2,
-    "depth": 0
   },
   "packages/channels/src/whatsapp.ts::normalizeInbound#1": {
     "lines": 100,
@@ -803,16 +753,6 @@
     "lines": 85,
     "branches": 49,
     "depth": 3
-  },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM#1": {
-    "lines": 229,
-    "branches": 29,
-    "depth": 0
-  },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM/map(fn)#3": {
-    "lines": 70,
-    "branches": 55,
-    "depth": 1
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 186,
@@ -874,20 +814,10 @@
     "branches": 84,
     "depth": 0
   },
-  "packages/contracts/src/reports/reports.ts::toReportVM#1": {
-    "lines": 237,
-    "branches": 37,
-    "depth": 0
-  },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
     "lines": 66,
     "branches": 36,
     "depth": 3
-  },
-  "packages/contracts/src/setup/connections.ts::connectionRows#1": {
-    "lines": 394,
-    "branches": 67,
-    "depth": 1
   },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
@@ -923,11 +853,6 @@
     "lines": 200,
     "branches": 55,
     "depth": 2
-  },
-  "packages/contracts/src/today/today-leaks.ts::todayLeaks#1": {
-    "lines": 207,
-    "branches": 66,
-    "depth": 1
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
     "lines": 86,

@@ -542,3 +542,89 @@ test("a failed run's report says why it stopped and how to get past it, in the c
     "no reason on file is said so, and no fix is guessed at",
   );
 });
+
+test("each part of a run's report says its own words: the span its bars cover, why the unreached were not reached, who answered, and each figure when nothing came back", () => {
+  const person = (over) => ({
+    contact_id: "p",
+    name: "Ada Lee",
+    first_name: "Ada",
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    message_status: "sent",
+    conversation_id: "cv-p",
+    delivered_at: null,
+    read_at: null,
+    replied: false,
+    replied_at: null,
+    consent_after: null,
+    consent_at: null,
+    consent_purpose: null,
+    reply_words: null,
+    answered_by: null,
+    answered_at: null,
+    waiting_on_you: false,
+    ...over,
+  });
+  const report = (recipients, state = "sent", windowMs = C.REPLY_WINDOW_MS) =>
+    C.toRunReportVM({ broadcast: { state, params: [] }, recipients }, { windowMs, nowMs: T0 });
+  // The span: the shortest that holds the last answer, up to the window, in words.
+  const spanFor = (ms, windowMs) =>
+    report([person({ delivered_at: at(ms), message_status: "delivered" })], "sent", windowMs).span;
+  assert.equal(spanFor(20 * 60_000), "the first hour");
+  assert.equal(spanFor(90 * 60_000), "the first 2 hours");
+  assert.equal(spanFor(20 * H), "the first day");
+  assert.equal(spanFor(30 * H), "the first 2 days");
+  assert.equal(spanFor(20 * 60_000, 3 * H), "the first hour", "a window shorter than a span still starts from an hour");
+  assert.equal(spanFor(150 * 60_000, 3 * H), "the first 3 hours", "past the spans the window holds, the window itself");
+  // Someone the run never reached, by how the run ended.
+  const queued = person({ state: "queued", sent_at: null, message_status: null });
+  const cutWords = (state) => report([queued], state).people[0];
+  assert.deepEqual(
+    ["failed", "canceled", "sent", "sending"].map((s) => [cutWords(s).pill.label, cutWords(s).words, cutWords(s).in]),
+    [
+      ["Not sent", "the run stopped before them", ["all", "held"]],
+      ["Not sent", "canceled before it reached them", ["all", "held"]],
+      ["Not sent", "never sent", ["all", "held"]],
+      ["Waiting", "not sent yet", ["all"]],
+    ],
+  );
+  // Who answered a reply, and when.
+  const replied = (over) => person({ replied: true, replied_at: at(H), ...over });
+  const clock = (iso) => (iso ? `t${(Date.parse(iso) - T0) / 60_000}` : null);
+  const outcomes = C.toRunReportVM(
+    {
+      broadcast: { state: "sent", params: [] },
+      recipients: [
+        replied({ contact_id: "a", answered_by: "team", answered_at: at(2 * H) }),
+        replied({ contact_id: "b", replied_at: at(2 * H), answered_by: "team", answered_at: null }),
+        replied({ contact_id: "c", replied_at: at(3 * H), answered_by: "receptionist", answered_at: null }),
+      ],
+    },
+    { windowMs: C.REPLY_WINDOW_MS, nowMs: T0, clock },
+  ).replies.map((x) => [x.contact_id, x.outcome.words, x.outcome.tone]);
+  assert.deepEqual(outcomes, [
+    ["a", "Your team answered · t120", "ok"],
+    ["b", "Your team answered", "ok"],
+    ["c", "The receptionist answered", "ok"],
+  ]);
+  // Each figure when nothing came back, and when everything reached the handset.
+  const subs = (vm) => vm.figures.map((f) => [f.id, f.sub, f.tone]);
+  assert.deepEqual(subs(report([])), [
+    ["sent", "of 0 on the list", "plain"],
+    ["delivered", "nothing has gone out", "plain"],
+    ["replied", "nobody has written back yet", "plain"],
+    ["said_yes", "nobody new said yes", "plain"],
+    ["stopped", "nobody asked to stop", "plain"],
+  ]);
+  const all = report([person({ message_status: "read", read_at: at(H), replied: true, replied_at: at(H) })]);
+  assert.deepEqual(subs(all).slice(1, 3), [
+    ["delivered", "every one reached the handset", "ok"],
+    ["replied", "each one is a thread in the Inbox", "ok"],
+  ]);
+  assert.deepEqual(
+    all.figures[1].bars,
+    [0, 0, 0, 0, 1, 0, 0, 0],
+    "a read with no delivery stamp is drawn when it was read: an hour in, in two hours of quarter-hour steps",
+  );
+});

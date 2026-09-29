@@ -516,6 +516,47 @@ test("a seed that names a thread opens that thread, its last answer under the li
   await closes();
 });
 
+test("a question asked in an open thread hands the page's context the thread it joins, as the Line holds it, so a place in the words is the last answer's item (the Phase 5 plan, D7); a new conversation hands none", async () => {
+  const calls = ask([TH(1), TH(2)]);
+  const seen = [];
+  globalThis.window.__ask.context = (route, words, thread) => {
+    seen.push({ words, thread });
+    return { v: 1, surface: "today", route: route.page, rows: [], askedAt: 1 };
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: input.threadId ?? TH(3).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
+  };
+  const asked = async (tree, words) => {
+    typed(tree, words);
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    return later(Palette, OPEN);
+  };
+  try {
+    render(Palette, CLOSED);
+    sent("ask:seed", { thread: TH(2).id });
+    let tree = await asked(await opens(), "and the second one?");
+    const joined = seen.find((s) => s.words === "and the second one?");
+    assert.deepEqual(
+      joined.thread.map((m) => [m.role, m.text]),
+      [
+        ["user", "Question 2"],
+        ["assistant", "The answer to Question 2."],
+      ],
+      "the thread it joins: its messages before this question",
+    );
+    assert.equal(calls.inputs.at(-1).threadId, TH(2).id);
+    press(byTestId(tree, "ask-clear"));
+    tree = await asked(await later(Palette, OPEN), "who is new this week?");
+    assert.equal(seen.find((s) => s.words === "who is new this week?").thread, null, "a new conversation: none");
+  } finally {
+    delete globalThis.window.__ask.context;
+    await closes();
+  }
+});
+
 /* ------------------------------ the Line ------------------------------ */
 
 // Today's queue as the Line reads it: a person waiting and a search waiting, so Right now has its two pills.
@@ -1688,6 +1729,96 @@ test("on a phone the newest question stands at the top once per question, never 
     press(byTestId(tree, "ask-clear-head"));
     tree = await later(Palette, props);
     assert.equal(body.scrollTop, 0, "REGRESSION: New opened the home at the thread's old offset");
+  } finally {
+    await closes();
+    ph.restore();
+  }
+});
+
+test("REGRESSION: on a phone Latest holds back while a new question glides to the top -- it flashed on every follow-up in a thread longer than the screen (D7)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  const heard = {};
+  const fire = (type) => {
+    for (const fn of [...(heard[type] || [])]) fn({ type });
+  };
+  // The thread's scroller as the glide begins: the newest question 1,500px down, a 600px screen, 400px scrolled.
+  const body = {
+    scrollTop: 0,
+    clientHeight: 600,
+    dataset: {},
+    querySelector: (sel) => (sel === "#ask-now-q" ? { offsetTop: 1500 } : null),
+    scrollTo() {
+      this.scrollTop = 400;
+    },
+    addEventListener(type, fn) {
+      (heard[type] ||= new Set()).add(fn);
+    },
+    removeEventListener(type, fn) {
+      if (heard[type]) heard[type].delete(fn);
+    },
+    dispatchEvent(ev) {
+      fire(ev.type);
+      return true;
+    },
+  };
+  const raf = [globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame];
+  globalThis.requestAnimationFrame = (fn) => {
+    fn();
+    return 0;
+  };
+  globalThis.cancelAnimationFrame = () => {};
+  try {
+    const calls = ask([]);
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(5).id, title: input.text });
+      on({ t: "final", message: said(`m-${calls.sent.length}`, `Answer ${calls.sent.length}.`) });
+    };
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    byClass(tree, "ask-line-body")[0].props.ref.current = body;
+    tree = await asks(tree, props, "first?");
+    tree = await asks(tree, props, "second?");
+    assert.equal(body.dataset.pinning, "1", "the question glides up");
+    fire("scroll");
+    tree = await later(Palette, props);
+    assert.equal(byTestId(tree, "ask-latest"), null, "REGRESSION: Latest while the question was on its way up");
+    body.scrollTop = 1486;
+    fire("scrollend");
+    tree = await later(Palette, props);
+    assert.equal(body.dataset.pinning, undefined, "the glide is over");
+    assert.equal(byTestId(tree, "ask-latest"), null, "the question at the top: nothing to offer");
+    body.scrollTop = 0;
+    fire("scroll");
+    tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-latest"), "scrolled back by hand: Latest");
+  } finally {
+    [globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame] = raf;
+    await closes();
+    ph.restore();
+  }
+});
+
+test("REGRESSION: a hold on the three keeps its pointer, so a mouse's hold outlasts the three hiding under it as they listen -- it ended at once in a narrow desktop window (D4)", async () => {
+  const ph = phoneWindow();
+  const props = { open: true, onClose() {} };
+  try {
+    ask([]);
+    render(Palette, props);
+    const tree = await later(Palette, props);
+    const stage = byTestId(tree, "ask-hero-stage");
+    const captured = [];
+    stage.props.onPointerDown({
+      ...pressOf(),
+      pointerId: 7,
+      clientX: 20,
+      clientY: 20,
+      currentTarget: { setPointerCapture: (id) => captured.push(id) },
+    });
+    assert.deepEqual(captured, [7], "the press keeps its pointer");
+    assert.equal(typeof stage.props.onLostPointerCapture, "function", "and a pointer lost ends the hold");
+    stage.props.onPointerUp();
   } finally {
     await closes();
     ph.restore();

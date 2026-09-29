@@ -13,7 +13,7 @@
  * function's budget; the runner batches. Body: { tenant_id, cases: [{ id,
  * text, history? }] } where history is prior turns [{ role, content }].
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
@@ -54,7 +54,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   // as the dashboard mints one; the key opens it only on an edge without the secret.
   const auth = authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
-  if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
   let body: { tenant_id?: string; cases?: EvalCase[] } = {};
   try {
@@ -68,11 +68,11 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   const tenantId = String(body.tenant_id || "");
   const cases = Array.isArray(body.cases) ? body.cases : [];
   if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
-    return json(400, { ok: false, error: `tenant_id and 1-${MAX_CASES} cases required` });
+    return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
   }
   for (const c of cases) {
     if (!c || typeof c.id !== "string" || typeof c.text !== "string" || !c.text.trim() || c.text.length > MAX_CHARS) {
-      return json(400, { ok: false, error: `each case needs an id and a text of 1-${MAX_CHARS} chars` });
+      return refuse(400, "bad_request", `each case needs an id and a text of 1-${MAX_CHARS} chars`);
     }
     if (
       c.history &&
@@ -80,12 +80,12 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
         c.history.length > 12 ||
         c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))
     ) {
-      return json(400, { ok: false, error: "history is up to 12 turns of { role, content }" });
+      return refuse(400, "bad_request", "history is up to 12 turns of { role, content }");
     }
   }
 
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   // The tenant's WhatsApp channel, as the webhook would route it.
   const { data: ch, error } = await db
     .from("tenant_channels")
@@ -95,8 +95,8 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (error) return json(500, { ok: false, error: "channel_read_failed" });
-  if (!ch) return json(404, { ok: false, error: "no_whatsapp_channel" });
+  if (error) return refuse(500, "channel_read_failed");
+  if (!ch) return refuse(404, "no_whatsapp_channel");
   const routed: RoutedChannel = {
     channelId: ch.id,
     tenantId: ch.tenant_id,
@@ -107,7 +107,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
-  if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
+  if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
   const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);

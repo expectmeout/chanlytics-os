@@ -1588,7 +1588,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -9377,7 +9377,7 @@ var ASK_ANSWER_CAPS2 = {
 var ROW_KINDS2 = ASK_CITATION_KINDS2.filter((k) => k !== "page");
 var SOURCE2 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
     id: { type: "string" },
@@ -10819,7 +10819,6 @@ var twilioUrls = {
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
   messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
-var enc = new TextEncoder();
 var oneLine = (s2) => s2.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function messageIdHeader(id) {
   const s2 = oneLine(id ?? "");
@@ -10864,7 +10863,6 @@ var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
 var FRESH_SLACK_MS = 2 * DAY_MS2;
 var STATE_TTL_MS = 10 * MIN_MS2;
-var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
@@ -11226,28 +11224,28 @@ var EntityDecoder2 = class {
    * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  write(str2, offset) {
+  write(str, offset) {
     switch (this.state) {
       case EntityDecoderState2.EntityStart: {
-        if (str2.charCodeAt(offset) === CharCodes3.NUM) {
+        if (str.charCodeAt(offset) === CharCodes3.NUM) {
           this.state = EntityDecoderState2.NumericStart;
           this.consumed += 1;
-          return this.stateNumericStart(str2, offset + 1);
+          return this.stateNumericStart(str, offset + 1);
         }
         this.state = EntityDecoderState2.NamedEntity;
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
       case EntityDecoderState2.NumericStart: {
-        return this.stateNumericStart(str2, offset);
+        return this.stateNumericStart(str, offset);
       }
       case EntityDecoderState2.NumericDecimal: {
-        return this.stateNumericDecimal(str2, offset);
+        return this.stateNumericDecimal(str, offset);
       }
       case EntityDecoderState2.NumericHex: {
-        return this.stateNumericHex(str2, offset);
+        return this.stateNumericHex(str, offset);
       }
       case EntityDecoderState2.NamedEntity: {
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
     }
   }
@@ -11260,22 +11258,22 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericStart(str2, offset) {
-    if (offset >= str2.length) {
+  stateNumericStart(str, offset) {
+    if (offset >= str.length) {
       return -1;
     }
-    if ((str2.charCodeAt(offset) | TO_LOWER_BIT2) === CharCodes3.LOWER_X) {
+    if ((str.charCodeAt(offset) | TO_LOWER_BIT2) === CharCodes3.LOWER_X) {
       this.state = EntityDecoderState2.NumericHex;
       this.consumed += 1;
-      return this.stateNumericHex(str2, offset + 1);
+      return this.stateNumericHex(str, offset + 1);
     }
     this.state = EntityDecoderState2.NumericDecimal;
-    return this.stateNumericDecimal(str2, offset);
+    return this.stateNumericDecimal(str, offset);
   }
-  addToNumericResult(str2, start, end, base) {
+  addToNumericResult(str, start, end, base) {
     if (start !== end) {
       const digitCount = end - start;
-      this.result = this.result * Math.pow(base, digitCount) + parseInt(str2.substr(start, digitCount), base);
+      this.result = this.result * Math.pow(base, digitCount) + parseInt(str.substr(start, digitCount), base);
       this.consumed += digitCount;
     }
   }
@@ -11288,18 +11286,18 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericHex(str2, offset) {
+  stateNumericHex(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber3(char) || isHexadecimalCharacter2(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 16);
+        this.addToNumericResult(str, startIdx, offset, 16);
         return this.emitNumericEntity(char, 3);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 16);
+    this.addToNumericResult(str, startIdx, offset, 16);
     return -1;
   }
   /**
@@ -11311,18 +11309,18 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericDecimal(str2, offset) {
+  stateNumericDecimal(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber3(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 10);
+        this.addToNumericResult(str, startIdx, offset, 10);
         return this.emitNumericEntity(char, 2);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 10);
+    this.addToNumericResult(str, startIdx, offset, 10);
     return -1;
   }
   /**
@@ -11367,12 +11365,12 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNamedEntity(str2, offset) {
+  stateNamedEntity(str, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
     let valueLength = (current & BinTrieFlags2.VALUE_LENGTH) >> 14;
-    for (; offset < str2.length; offset++, this.excess++) {
-      const char = str2.charCodeAt(offset);
+    for (; offset < str.length; offset++, this.excess++) {
+      const char = str.charCodeAt(offset);
       this.treeIndex = determineBranch2(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
         return this.result === 0 || // If we are parsing an attribute
@@ -11457,15 +11455,15 @@ var EntityDecoder2 = class {
 };
 function getDecoder2(decodeTree) {
   let ret = "";
-  const decoder = new EntityDecoder2(decodeTree, (str2) => ret += fromCodePoint2(str2));
-  return function decodeWithTrie(str2, decodeMode) {
+  const decoder = new EntityDecoder2(decodeTree, (str) => ret += fromCodePoint2(str));
+  return function decodeWithTrie(str, decodeMode) {
     let lastIndex = 0;
     let offset = 0;
-    while ((offset = str2.indexOf("&", offset)) >= 0) {
-      ret += str2.slice(lastIndex, offset);
+    while ((offset = str.indexOf("&", offset)) >= 0) {
+      ret += str.slice(lastIndex, offset);
       decoder.startEntity(decodeMode);
       const len = decoder.write(
-        str2,
+        str,
         // Skip the "&"
         offset + 1
       );
@@ -11476,7 +11474,7 @@ function getDecoder2(decodeTree) {
       lastIndex = offset + len;
       offset = len === 0 ? lastIndex + 1 : lastIndex;
     }
-    const result = ret + str2.slice(lastIndex);
+    const result = ret + str.slice(lastIndex);
     ret = "";
     return result;
   };
@@ -11602,7 +11600,7 @@ var xmlCodeMap2 = /* @__PURE__ */ new Map([
 ]);
 var getCodePoint2 = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  String.prototype.codePointAt != null ? (str2, index) => str2.codePointAt(index) : (
+  String.prototype.codePointAt != null ? (str, index) => str.codePointAt(index) : (
     // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
     ((c2, index) => (c2.charCodeAt(index) & 64512) === 55296 ? (c2.charCodeAt(index) - 55296) * 1024 + c2.charCodeAt(index + 1) - 56320 + 65536 : c2.charCodeAt(index))
   )
@@ -13252,7 +13250,7 @@ var ASK_ANSWER_CAPS3 = {
 var ROW_KINDS3 = ASK_CITATION_KINDS3.filter((k) => k !== "page");
 var SOURCE3 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
     id: { type: "string" },
@@ -14703,7 +14701,6 @@ var SMS_OPTED_OUT_CODE = 21610;
 function smsRefusalOf(r222) {
   return !r222.ok && r222.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
 }
-var enc3 = new TextEncoder();
 var oneLine2 = (s2) => s2.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
   const s2 = oneLine2(header ?? "");
@@ -14732,7 +14729,6 @@ var RESEND_RECEIVED2 = `${RESEND_API2}/emails/receiving`;
 var RESEND_DOMAINS2 = `${RESEND_API2}/domains`;
 var FRESH_SLACK_MS2 = 2 * DAY_MS3;
 var STATE_TTL_MS2 = 10 * MIN_MS3;
-var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
 z232.config({ jitless: true });
@@ -15095,6 +15091,14 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "google.com",
   "g.page"
 ])();
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
 function siteHost(url) {
   if (!url) return null;
   let host;
@@ -16310,7 +16314,7 @@ var ASK_ANSWER_CAPS22 = {
 var ROW_KINDS22 = ASK_CITATION_KINDS22.filter((k) => k !== "page");
 var SOURCE22 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
     id: { type: "string" },
@@ -17238,11 +17242,11 @@ var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
 function firstWords(text, n2) {
   const kept = [];
-  let words42 = 0;
+  let words322 = 0;
   for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
-    if (isWord && words42 === n2) break;
-    if (isWord) words42++;
+    if (isWord && words322 === n2) break;
+    if (isWord) words322++;
     kept.push(token2);
   }
   return kept.join(" ");
@@ -17257,8 +17261,8 @@ var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
 var saysAny = (summary, names2) => {
-  const words42 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n2) => words42.has(n2));
+  const words322 = new Set(summary.toLowerCase().split(/\P{L}+/u));
+  return names2.some((n2) => words322.has(n2));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -17332,20 +17336,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS22 : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS22 ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -17367,15 +17363,15 @@ function otherWriter(leadAddress, replyFrom) {
 }
 function replyStepWords(reading, p) {
   const b = p.business.trim() || "The business";
-  let words42;
+  let words322;
   if (reading.intent === "not_now")
-    words42 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
+    words322 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
     const who = reading.referTo ?? "someone else";
-    words42 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
-  } else if (reading.intent === "away") words42 = `${b} is back today: write to them.`;
+    words322 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+  } else if (reading.intent === "away") words322 = `${b} is back today: write to them.`;
   else return null;
-  return withinChars(p.writer ? `${words42} (${p.writer} wrote it.)` : words42, STEP_WORDS_MAX);
+  return withinChars(p.writer ? `${words322} (${p.writer} wrote it.)` : words322, STEP_WORDS_MAX);
 }
 function automaticPlan(r222, c2, today) {
   if (r222.intent === "away")
@@ -17419,7 +17415,7 @@ function readingPlan(reading, c2) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c2.leadAddress, c2.leadWebsite) ?? ownedDomainOf(c2.replyFrom, c2.leadWebsite)
+        suppressDomain: ownedDomainOf(c2.leadAddress, c2.leadWebsite, c2.leadWebsiteRoot) ?? ownedDomainOf(c2.replyFrom, c2.leadWebsite, c2.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c2.readAt, c2.tz);
@@ -19562,7 +19558,7 @@ var ASK_ANSWER_CAPS32 = {
 var ROW_KINDS32 = ASK_CITATION_KINDS32.filter((k) => k !== "page");
 var SOURCE32 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
     id: { type: "string" },
@@ -21611,6 +21607,7 @@ async function readReply(ports, cmd) {
       business: facts.business,
       leadAddress: facts.leadAddress,
       leadWebsite: facts.leadWebsite,
+      leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
       reread: n2 > 0,
       readAt: now
@@ -21856,10 +21853,8 @@ async function backOff(ports, b, cmd, timezone) {
     body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`
   });
 }
-var enc32 = new TextEncoder();
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
-var enc4 = new TextEncoder();
 var DEADLINE_MARGIN_MS = 8e3;
 var UNKNOWN_START_GRACE_MS = 10 * MIN_MS22;
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
@@ -23298,7 +23293,7 @@ var ASK_ANSWER_CAPS4 = {
 var ROW_KINDS4 = ASK_CITATION_KINDS4.filter((k) => k !== "page");
 var SOURCE4 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
     id: { type: "string" },
@@ -24834,6 +24829,7 @@ async function reachOutReplyOf(db, p) {
     lead_contact_id: textOf(o2.lead_contact_id),
     lead_email: textOf(o2.lead_email),
     lead_website: textOf(o2.lead_website),
+    lead_website_root: typeof o2.lead_website_root === "boolean" ? o2.lead_website_root : null,
     answered_message_id: textOf(o2.answered_message_id),
     answered_text: textOf(o2.answered_text),
     business: textOf(o2.business) ?? "",
@@ -25179,6 +25175,7 @@ function replyFactsOf(r6) {
     business: r6.business,
     leadAddress: r6.lead_email,
     leadWebsite: r6.lead_website,
+    leadWebsiteRoot: r6.lead_website_root,
     signedBy: r6.signed_by,
     tz: r6.tz ?? DEFAULT_TIMEZONE
   };
@@ -25630,14 +25627,24 @@ function saySettled(results) {
 
 // src/tick.ts
 var errText = (e2) => e2 instanceof Error ? e2.message : String(e2);
+function noteLate(lateMs, job, now) {
+  if (job.attempts !== 1) return;
+  const late = Math.max(0, now - Date.parse(job.due_at));
+  if (Number.isNaN(late)) return;
+  lateMs[job.kind] = Math.max(lateMs[job.kind] ?? 0, late);
+}
+function lateFields(lateMs) {
+  return Object.fromEntries(Object.entries(lateMs).map(([kind, ms]) => [`late_ms_${kind}`, ms]));
+}
 async function runTick(ports, opts) {
   const started = ports.now();
   const deadlineFor = (kind) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
-  while (ports.now() - started < opts.claimForMs) {
+  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {} };
+  for (let now = ports.now(); now - started < opts.claimForMs; now = ports.now()) {
     const job = await ports.claim(opts.leaseSeconds);
     if (!job) break;
     c2.claimed += 1;
+    noteLate(c2.lateMs, job, now);
     if (verdictFor(job) === "give_up") {
       await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
       c2.gaveUp += 1;
@@ -25751,6 +25758,7 @@ export {
   dispatchJob,
   failJob,
   incomingEmailOf,
+  lateFields,
   retryWait,
   runTick,
   saySettled,

@@ -69,14 +69,14 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
  * thrown inside the webhook's per-message catch, and every batch would still
  * have answered 200.
  */
-let injected: InboundPorts | null = null;
+let injectedPorts: InboundPorts | null = null;
 
 export function setInboundPorts(p: InboundPorts | null): void {
-  injected = p;
+  injectedPorts = p;
 }
 
 export function realPorts(): InboundPorts {
-  if (injected) return injected;
+  if (injectedPorts) return injectedPorts;
   return {
     db: pg,
     runtime: loadTenantRuntime,

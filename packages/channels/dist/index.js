@@ -1423,7 +1423,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -2804,6 +2804,12 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -3164,7 +3170,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
   }
 }
 
-// src/voice-retell.ts
+// src/voice/voice-retell.ts
 import crypto2 from "crypto";
 var API = "https://api.retellai.com";
 var E1642 = /^\+[1-9]\d{6,14}$/;
@@ -3269,12 +3275,42 @@ async function listCalls(cfg, opts) {
     total: typeof out.total === "number" ? out.total : null
   };
 }
-async function getCall(cfg, callId) {
-  const r2 = await fetch(`${API}/v2/get-call/${callId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` }
-  });
-  if (!r2.ok) return null;
-  return await r2.json();
+var RETELL_READ_TIMEOUT_MS = 1e4;
+function retryAfterMs(header) {
+  if (!header) return null;
+  const h = header.trim();
+  const ms = /^\d+$/.test(h) ? Number(h) * 1e3 : Date.parse(h) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+function isCallBody(v) {
+  const o = plainObject(v);
+  return o !== null && typeof o.call_id === "string";
+}
+async function getCall(cfg, callId, opts = {}) {
+  let r2;
+  try {
+    r2 = await fetch(`${API}/v2/get-call/${callId}`, {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS)
+    });
+  } catch {
+    return { kind: "unavailable", status: null, retryAfterMs: null };
+  }
+  if (r2.ok) {
+    let body = null;
+    try {
+      body = await r2.json();
+    } catch (e) {
+      if (e instanceof Error && e.name === "TimeoutError")
+        return { kind: "unavailable", status: null, retryAfterMs: null };
+    }
+    return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
+  }
+  await r2.body?.cancel().catch(() => void 0);
+  if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
+  if (r2.status === 408 || r2.status === 425 || r2.status === 429 || r2.status >= 500)
+    return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers.get("retry-after")) };
+  return { kind: "not_found", status: r2.status };
 }
 async function getAgent(cfg, agentId) {
   const r2 = await fetch(`${API}/get-agent/${agentId}`, {
@@ -3282,26 +3318,26 @@ async function getAgent(cfg, agentId) {
   });
   if (!r2.ok) return null;
   const a = await r2.json();
-  const str5 = (k) => typeof a[k] === "string" ? a[k] : null;
-  const num3 = (k) => typeof a[k] === "number" ? a[k] : null;
+  const str2 = (k) => typeof a[k] === "string" ? a[k] : null;
+  const num = (k) => typeof a[k] === "number" ? a[k] : null;
   const bool = (k) => typeof a[k] === "boolean" ? a[k] : null;
   const engine = a.response_engine ?? {};
   return {
-    agent_id: str5("agent_id") ?? agentId,
-    agent_name: str5("agent_name"),
-    version: num3("version"),
+    agent_id: str2("agent_id") ?? agentId,
+    agent_name: str2("agent_name"),
+    version: num("version"),
     is_published: bool("is_published"),
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
     // (?key=...) and this object is meant to be printed by a diagnostic. That
     // a key rides there at all is kept as a fact, so the planner can retire it.
-    webhook_url: str5("webhook_url")?.split("?")[0] ?? null,
-    webhook_url_keyed: /[?&]key=/.test(str5("webhook_url") ?? ""),
+    webhook_url: str2("webhook_url")?.split("?")[0] ?? null,
+    webhook_url_keyed: /[?&]key=/.test(str2("webhook_url") ?? ""),
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
-    webhook_timeout_ms: num3("webhook_timeout_ms"),
-    data_storage_setting: str5("data_storage_setting"),
-    data_storage_retention_days: num3("data_storage_retention_days"),
+    webhook_timeout_ms: num("webhook_timeout_ms"),
+    data_storage_setting: str2("data_storage_setting"),
+    data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
   };
@@ -3404,14 +3440,14 @@ async function getRetellLlm(cfg, llmId, version) {
   });
   if (!r2.ok) return null;
   const l = await r2.json();
-  const str5 = (k) => typeof l[k] === "string" ? l[k] : null;
+  const str2 = (k) => typeof l[k] === "string" ? l[k] : null;
   return {
-    llm_id: str5("llm_id") ?? llmId,
+    llm_id: str2("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
-    model: str5("model"),
+    model: str2("model"),
     model_temperature: typeof l.model_temperature === "number" ? l.model_temperature : null,
-    general_prompt: str5("general_prompt"),
-    begin_message: str5("begin_message"),
+    general_prompt: str2("general_prompt"),
+    begin_message: str2("begin_message"),
     default_dynamic_variables: l.default_dynamic_variables && typeof l.default_dynamic_variables === "object" ? l.default_dynamic_variables : null,
     general_tools: Array.isArray(l.general_tools) ? l.general_tools : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? l.knowledge_base_ids.map(String) : null
@@ -3438,7 +3474,7 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   return a.length === b.length && crypto2.timingSafeEqual(a, b);
 }
 
-// src/voice-shell.ts
+// src/voice/voice-shell.ts
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
@@ -3532,7 +3568,7 @@ function desiredVoiceShell(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
     general_tools: voiceShellTools(fnUrl, bookingHeaders)
   };
 }
-var norm = (s) => (s ?? "").replace(/\r\n/g, "\n").trim();
+var normalizedText = (s) => (s ?? "").replace(/\r\n/g, "\n").trim();
 function stableJson(v) {
   if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
   if (v && typeof v === "object") {
@@ -3554,16 +3590,16 @@ function subsetEqual(live, desired) {
 function planVoiceConvergence(live, desired) {
   const drift = [];
   const patch = {};
-  if (norm(live.general_prompt) !== norm(desired.general_prompt)) {
-    const has = (v) => norm(live.general_prompt).includes(v);
+  if (normalizedText(live.general_prompt) !== normalizedText(desired.general_prompt)) {
+    const has = (v) => normalizedText(live.general_prompt).includes(v);
     drift.push(
-      `general_prompt differs (${norm(live.general_prompt).length} chars live; reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`
+      `general_prompt differs (${normalizedText(live.general_prompt).length} chars live; reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`
     );
     patch.general_prompt = desired.general_prompt;
   }
-  if (norm(live.begin_message) !== norm(desired.begin_message)) {
+  if (normalizedText(live.begin_message) !== normalizedText(desired.begin_message)) {
     drift.push(
-      `begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}\u2026), not ${desired.begin_message}`
+      `begin_message is typed in (${JSON.stringify(normalizedText(live.begin_message).slice(0, 60))}\u2026), not ${desired.begin_message}`
     );
     patch.begin_message = desired.begin_message;
   }
@@ -3703,7 +3739,7 @@ function agentSettingsDrift(live) {
   return { converged: plan.drift.length === 0, drift: plan.drift };
 }
 
-// src/voice-provision.ts
+// src/voice/voice-provision.ts
 var VOICE_LLM_DEFAULTS = {
   model: "claude-4.5-haiku",
   model_temperature: 0,
@@ -3857,7 +3893,7 @@ function planVoiceProvision(st) {
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }
 
-// src/lines.ts
+// src/lines/lines.ts
 import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
 var LINE_COSTS = {
@@ -3901,7 +3937,7 @@ function isValidSipPassword(p) {
 var isE164 = (s) => typeof s === "string" && E164.test(s);
 var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
 
-// src/lines-twilio.ts
+// src/lines/lines-twilio.ts
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -3964,242 +4000,252 @@ function rowsOf(b, key) {
   const rows = b[key];
   return Array.isArray(rows) ? rows.filter((r2) => !!r2 && typeof r2 === "object" && !Array.isArray(r2)) : [];
 }
+async function createSubaccount(http, master, friendlyName) {
+  const b = need(
+    await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
+    "create subaccount"
+  );
+  const sid2 = str(b, "sid");
+  const token = str(b, "auth_token");
+  if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
+  return { sid: sid2, token, status: str(b, "status") ?? "active" };
+}
+async function findSubaccount(http, master, friendlyName) {
+  const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
+  for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+    const sid2 = str(a, "sid");
+    const token = str(a, "auth_token");
+    if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
+  }
+  return null;
+}
+async function findTrunk(http, acct, domainName) {
+  for (const t of rowsOf(need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
+    const sid2 = str(t, "sid");
+    if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
+  }
+  return null;
+}
+async function findCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+    "list credential lists"
+  );
+  for (const l of rowsOf(b, "credential_lists")) {
+    const sid2 = str(l, "sid");
+    if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
+  }
+  return null;
+}
+async function findCredential(http, acct, listSid, username) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+    "list credentials"
+  );
+  for (const c of rowsOf(b, "credentials")) {
+    const sid2 = str(c, "sid");
+    if (sid2 && str(c, "username") === username) return { sid: sid2 };
+  }
+  return null;
+}
+async function deleteCredential(http, acct, listSid, credentialSid) {
+  const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
+}
+async function findOrigination(http, acct, trunkSid, sipUrl) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+    "list origination urls"
+  );
+  for (const o of rowsOf(b, "origination_urls")) {
+    const sid2 = str(o, "sid");
+    if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
+  }
+  return null;
+}
+async function searchLocal(http, acct, q) {
+  const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
+    AreaCode: String(q.areaCode),
+    VoiceEnabled: "true",
+    SmsEnabled: "true",
+    PageSize: String(Math.min(Math.max(q.limit, 1), 30))
+  }).toString()}`;
+  const b = need(await http(acct, "GET", url), "search numbers");
+  const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
+  return rows.map((n) => {
+    const e164 = str(n, "phone_number");
+    if (!e164) return null;
+    const caps = n.capabilities ?? {};
+    return {
+      e164,
+      friendly: str(n, "friendly_name") ?? e164,
+      locality: str(n, "locality"),
+      region: str(n, "region"),
+      capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
+    };
+  }).filter((n) => n !== null);
+}
+async function buyNumber(http, acct, e164, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
+      PhoneNumber: e164,
+      FriendlyName: friendlyName.slice(0, 64)
+    }),
+    "buy number"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
+  return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
+}
+async function ownedNumber(http, acct, e164) {
+  const a = await http(
+    acct,
+    "GET",
+    `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
+  );
+  if (a.status === 404) return null;
+  const b = need(a, "list owned numbers");
+  const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const sid2 = str(row, "sid");
+    if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
+  }
+  return null;
+}
+async function releaseNumber(http, acct, numberSid) {
+  const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
+}
+async function createTrunk(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunks, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      DomainName: o.domainName
+    }),
+    "create trunk"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
+  return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
+}
+async function deleteTrunk(http, acct, trunkSid) {
+  const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
+}
+async function createCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
+    "create credential list"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
+  return { sid: sid2 };
+}
+async function addCredential(http, acct, listSid, username, password) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
+    "add credential"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
+  return { sid: sid2 };
+}
+async function attachCredentialList(http, acct, trunkSid, listSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
+    "attach credential list"
+  );
+}
+async function addOrigination(http, acct, trunkSid, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
+      SipUrl: o.sipUrl,
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Weight: "10",
+      Priority: "10",
+      Enabled: "true"
+    }),
+    "add origination"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
+  return { sid: sid2 };
+}
+async function attachNumber(http, acct, trunkSid, numberSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
+    "attach number to trunk"
+  );
+}
+async function createMessagingService(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.messagingServices, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      InboundRequestUrl: o.inboundUrl,
+      InboundMethod: "POST",
+      UseInboundWebhookOnNumber: "false",
+      StickySender: "true",
+      SmartEncoding: "true"
+    }),
+    "create messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function addNumberToService(http, acct, serviceSid, numberSid) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
+    "add number to messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function sendSms(http, acct, o) {
+  const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+    MessagingServiceSid: o.serviceSid,
+    To: o.to,
+    Body: o.body,
+    ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+  });
+  const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+  return {
+    ok: ok2,
+    sid: str(a.body, "sid"),
+    status: a.status,
+    code: typeof a.body?.code === "number" ? a.body.code : null
+  };
+}
 function twilioProvider(http = fetchTwilio) {
   return {
     name: "twilio",
-    async createSubaccount(master, friendlyName) {
-      const b = need(
-        await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
-        "create subaccount"
-      );
-      const sid2 = str(b, "sid");
-      const token = str(b, "auth_token");
-      if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
-      return { sid: sid2, token, status: str(b, "status") ?? "active" };
-    },
-    async findSubaccount(master, friendlyName) {
-      const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
-      for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
-        const sid2 = str(a, "sid");
-        const token = str(a, "auth_token");
-        if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
-      }
-      return null;
-    },
-    async findTrunk(acct, domainName) {
-      for (const t of rowsOf(
-        need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"),
-        "trunks"
-      )) {
-        const sid2 = str(t, "sid");
-        if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
-      }
-      return null;
-    },
-    async findCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
-        "list credential lists"
-      );
-      for (const l of rowsOf(b, "credential_lists")) {
-        const sid2 = str(l, "sid");
-        if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
-      }
-      return null;
-    },
-    async findCredential(acct, listSid, username) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
-        "list credentials"
-      );
-      for (const c of rowsOf(b, "credentials")) {
-        const sid2 = str(c, "sid");
-        if (sid2 && str(c, "username") === username) return { sid: sid2 };
-      }
-      return null;
-    },
-    async deleteCredential(acct, listSid, credentialSid) {
-      const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
-    },
-    async findOrigination(acct, trunkSid, sipUrl) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
-        "list origination urls"
-      );
-      for (const o of rowsOf(b, "origination_urls")) {
-        const sid2 = str(o, "sid");
-        if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
-      }
-      return null;
-    },
-    async searchLocal(acct, q) {
-      const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
-        AreaCode: String(q.areaCode),
-        VoiceEnabled: "true",
-        SmsEnabled: "true",
-        PageSize: String(Math.min(Math.max(q.limit, 1), 30))
-      }).toString()}`;
-      const b = need(await http(acct, "GET", url), "search numbers");
-      const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
-      return rows.map((n) => {
-        const e164 = str(n, "phone_number");
-        if (!e164) return null;
-        const caps = n.capabilities ?? {};
-        return {
-          e164,
-          friendly: str(n, "friendly_name") ?? e164,
-          locality: str(n, "locality"),
-          region: str(n, "region"),
-          capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
-        };
-      }).filter((n) => n !== null);
-    },
-    async buyNumber(acct, e164, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
-          PhoneNumber: e164,
-          FriendlyName: friendlyName.slice(0, 64)
-        }),
-        "buy number"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
-      return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
-    },
-    // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
-    // exact E.164, so this is one GET and no guessing.
-    //
-    // A read that FAILS must not be reported as "we do not own it": that answer sends
-    // the saga on to buy a second number. So a non-200 throws, and the step retries
-    // rather than spending.
-    async ownedNumber(acct, e164) {
-      const a = await http(
-        acct,
-        "GET",
-        `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
-      );
-      if (a.status === 404) return null;
-      const b = need(a, "list owned numbers");
-      const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
-      for (const row of list) {
-        if (!row || typeof row !== "object") continue;
-        const sid2 = str(row, "sid");
-        if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
-      }
-      return null;
-    },
-    async releaseNumber(acct, numberSid) {
-      const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
-    },
-    async createTrunk(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunks, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          DomainName: o.domainName
-        }),
-        "create trunk"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
-      return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
-    },
-    async deleteTrunk(acct, trunkSid) {
-      const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
-    },
-    async createCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
-        "create credential list"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
-      return { sid: sid2 };
-    },
-    async addCredential(acct, listSid, username, password) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
-        "add credential"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachCredentialList(acct, trunkSid, listSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
-        "attach credential list"
-      );
-    },
-    async addOrigination(acct, trunkSid, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
-          SipUrl: o.sipUrl,
-          FriendlyName: o.friendlyName.slice(0, 64),
-          Weight: "10",
-          Priority: "10",
-          Enabled: "true"
-        }),
-        "add origination"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachNumber(acct, trunkSid, numberSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
-        "attach number to trunk"
-      );
-    },
-    // Messaging Services API (verified 2026-09-07): the service's own inbound
-    // URL wins over the number's; sticky sender and smart encoding on.
-    async createMessagingService(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.messagingServices, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          InboundRequestUrl: o.inboundUrl,
-          InboundMethod: "POST",
-          UseInboundWebhookOnNumber: "false",
-          StickySender: "true",
-          SmartEncoding: "true"
-        }),
-        "create messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async addNumberToService(acct, serviceSid, numberSid) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
-        "add number to messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async sendSms(acct, o) {
-      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
-        MessagingServiceSid: o.serviceSid,
-        To: o.to,
-        Body: o.body,
-        ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
-      });
-      const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
-      return {
-        ok: ok2,
-        sid: str(a.body, "sid"),
-        status: a.status,
-        code: typeof a.body?.code === "number" ? a.body.code : null
-      };
-    }
+    createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
+    findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
+    findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
+    findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
+    findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),
+    deleteCredential: (acct, listSid, credentialSid) => deleteCredential(http, acct, listSid, credentialSid),
+    findOrigination: (acct, trunkSid, sipUrl) => findOrigination(http, acct, trunkSid, sipUrl),
+    searchLocal: (acct, q) => searchLocal(http, acct, q),
+    buyNumber: (acct, e164, friendlyName) => buyNumber(http, acct, e164, friendlyName),
+    ownedNumber: (acct, e164) => ownedNumber(http, acct, e164),
+    releaseNumber: (acct, numberSid) => releaseNumber(http, acct, numberSid),
+    createTrunk: (acct, o) => createTrunk(http, acct, o),
+    deleteTrunk: (acct, trunkSid) => deleteTrunk(http, acct, trunkSid),
+    createCredentialList: (acct, friendlyName) => createCredentialList(http, acct, friendlyName),
+    addCredential: (acct, listSid, username, password) => addCredential(http, acct, listSid, username, password),
+    attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http, acct, trunkSid, listSid),
+    addOrigination: (acct, trunkSid, o) => addOrigination(http, acct, trunkSid, o),
+    attachNumber: (acct, trunkSid, numberSid) => attachNumber(http, acct, trunkSid, numberSid),
+    createMessagingService: (acct, o) => createMessagingService(http, acct, o),
+    addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http, acct, serviceSid, numberSid),
+    sendSms: (acct, o) => sendSms(http, acct, o)
   };
 }
 
-// src/lines-dry.ts
+// src/lines/lines-dry.ts
 var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
 function dryProvider(seed = 1) {
   let n = seed;
@@ -4332,7 +4378,7 @@ function dryProvider(seed = 1) {
   };
 }
 
-// src/lines-saga.ts
+// src/lines/lines-saga.ts
 var LINE_STEPS = [
   "subaccount",
   "number",
@@ -4369,209 +4415,249 @@ function nextLineStep(line) {
 function errorWords(e) {
   return (e instanceof Error ? e.message : String(e)).slice(0, 500);
 }
-async function runLineSaga(start, ports) {
-  let line = { ...start, facts: { ...start.facts ?? {} } };
-  const save = async (patch) => {
-    line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
-    await ports.store.save(patch);
-  };
-  const fact2 = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
-  const room = (more = 0) => {
-    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
-  };
-  const once = async (key, look, make) => {
-    const asked = `asked_${key}`;
-    room();
-    if (line.facts[asked] === true) {
-      const found = await look();
-      if (found) return found;
-      room();
-    } else {
-      await fact2(asked, true);
-    }
-    return make();
-  };
-  if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
-  if (!line.e164) {
-    await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
-    return { ok: false, step: "number", error: "no number chosen", line };
-  }
-  let secrets = await ports.store.getSecrets();
-  const putSecrets = async (s) => {
-    secrets = { ...secrets, ...s };
-    await ports.store.putSecrets(s);
-  };
-  const sub = () => {
-    if (!line.subaccount_sid || !secrets.auth_token)
-      throw new Error("the subaccount's token is missing from the vault");
-    return { sid: line.subaccount_sid, token: secrets.auth_token };
-  };
-  let step = nextLineStep(line);
-  await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
-  try {
-    while ((step = nextLineStep(line)) !== null) {
-      room();
-      await save({ step });
-      switch (step) {
-        case "subaccount": {
-          const name = subaccountName(ports.tenant.name, line.id);
-          const acct = await once(
-            "subaccount",
-            () => ports.provider.findSubaccount(ports.master, name),
-            () => ports.provider.createSubaccount(ports.master, name)
-          );
-          await putSecrets({ auth_token: acct.token });
-          await save({ subaccount_sid: acct.sid });
-          break;
-        }
-        case "number": {
-          const held = await ports.provider.ownedNumber(sub(), line.e164);
-          if (!held) room();
-          const bought = held ?? await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
-          await save({ number_sid: bought.sid, e164: bought.e164 });
-          break;
-        }
-        case "trunk": {
-          const acct = sub();
-          if (!line.trunk_sid) {
-            const domainName = trunkDomain(line.id);
-            const t = await once(
-              "trunk",
-              () => ports.provider.findTrunk(acct, domainName),
-              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
-            );
-            await save({ trunk_sid: t.sid, termination_uri: t.domainName });
-          }
-          if (!line.credential_list_sid) {
-            const name = `${ports.tenant.name} \xB7 Chanlytics`;
-            const cl = await once(
-              "credential_list",
-              () => ports.provider.findCredentialList(acct, name),
-              () => ports.provider.createCredentialList(acct, name)
-            );
-            await save({ credential_list_sid: cl.sid });
-          }
-          if (!secrets.sip_password || !secrets.sip_username) {
-            const username = sipUsername(line.id);
-            const password = sipPassword(ports.random);
-            if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            await once(
-              "credential",
-              async () => {
-                const lost = await ports.provider.findCredential(acct, line.credential_list_sid, username);
-                if (lost) {
-                  room();
-                  await ports.provider.deleteCredential(acct, line.credential_list_sid, lost.sid);
-                }
-                return null;
-              },
-              () => ports.provider.addCredential(acct, line.credential_list_sid, username, password)
-            );
-            await putSecrets({ sip_username: username, sip_password: password });
-          }
-          if (line.facts.credential_list_attached !== true) {
-            room();
-            await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
-            await fact2("credential_list_attached", true);
-          }
-          if (typeof line.facts.origination_sid !== "string") {
-            const o = await once(
-              "origination",
-              () => ports.provider.findOrigination(acct, line.trunk_sid, RETELL_ORIGINATION),
-              () => ports.provider.addOrigination(acct, line.trunk_sid, {
-                sipUrl: RETELL_ORIGINATION,
-                friendlyName: "Retell"
-              })
-            );
-            await fact2("origination_sid", o.sid);
-          }
-          if (line.facts.number_attached !== true) {
-            room();
-            await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
-            await fact2("number_attached", true);
-          }
-          await fact2("trunk_ready", true);
-          break;
-        }
-        case "agent": {
-          room(AGENT_STEP_MORE_MS);
-          const a = await ports.agent.ensure();
-          await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
-          break;
-        }
-        case "import": {
-          if (!secrets.sip_username || !secrets.sip_password)
-            throw new Error("the SIP credential is missing from the vault");
-          const body = retellImportBody({
-            e164: line.e164,
-            terminationUri: line.termination_uri,
-            username: secrets.sip_username,
-            password: secrets.sip_password,
-            agentId: line.retell_agent_id,
-            pinned: line.facts.agent_pinned === true,
-            nickname: ports.nickname,
-            inboundWebhookUrl: ports.inboundWebhookUrl
-          });
-          const r2 = await ports.retell.importNumber(body);
-          if (!r2.ok) {
-            const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
-            throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
-          }
-          await save({
-            facts: {
-              ...line.facts,
-              retell_imported: true,
-              retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
-            }
-          });
-          break;
-        }
-        case "messaging": {
-          const acct = sub();
-          if (!line.messaging_service_sid) {
-            const svc = await ports.provider.createMessagingService(acct, {
-              friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
-              inboundUrl: ports.smsInboundUrl
-            });
-            await save({ messaging_service_sid: svc.sid });
-          }
-          if (line.facts.number_in_service !== true) {
-            room();
-            await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
-            await fact2("number_in_service", true);
-          }
-          break;
-        }
-        case "channel": {
-          if (typeof line.facts.channel_id !== "string") {
-            const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
-            await fact2("channel_id", c.channelId);
-          }
-          if (typeof line.facts.sms_channel_id !== "string") {
-            const s = await ports.smsChannel.ensure({
-              e164: line.e164,
-              lineId: line.id,
-              serviceSid: line.messaging_service_sid
-            });
-            await fact2("sms_channel_id", s.channelId);
-          }
-          break;
-        }
+function lineRun(start, ports) {
+  const run = {
+    ports,
+    line: { ...start, facts: { ...start.facts ?? {} } },
+    secrets: {},
+    async save(patch) {
+      run.line = { ...run.line, ...patch, facts: patch.facts ? { ...patch.facts } : run.line.facts };
+      await ports.store.save(patch);
+    },
+    fact: async (k, v) => run.save({ facts: { ...run.line.facts, [k]: v } }),
+    room(more = 0) {
+      if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+    },
+    async once(key, look, make) {
+      const asked = `asked_${key}`;
+      run.room();
+      if (run.line.facts[asked] === true) {
+        const found = await look();
+        if (found) return found;
+        run.room();
+      } else {
+        await run.fact(asked, true);
       }
+      return make();
+    },
+    async putSecrets(s) {
+      run.secrets = { ...run.secrets, ...s };
+      await ports.store.putSecrets(s);
+    },
+    sub() {
+      if (!run.line.subaccount_sid || !run.secrets.auth_token)
+        throw new Error("the subaccount's token is missing from the vault");
+      return { sid: run.line.subaccount_sid, token: run.secrets.auth_token };
     }
-    await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
-    return { ok: true, line };
+  };
+  return run;
+}
+var ON_STEP = {
+  subaccount: subaccountStep,
+  number: numberStep,
+  trunk: trunkStep,
+  agent: agentStep,
+  import: importStep,
+  messaging: messagingStep,
+  channel: channelStep
+};
+async function runLineSaga(start, ports) {
+  const run = lineRun(start, ports);
+  if (run.line.voice_state === "answering" && nextLineStep(run.line) === null) return { ok: true, line: run.line };
+  if (!run.line.e164) {
+    await run.save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
+    return { ok: false, step: "number", error: "no number chosen", line: run.line };
+  }
+  run.secrets = await ports.store.getSecrets();
+  let step = nextLineStep(run.line);
+  await run.save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
+  try {
+    while ((step = nextLineStep(run.line)) !== null) {
+      run.room();
+      await run.save({ step });
+      await ON_STEP[step](run);
+    }
+    await run.save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
+    return { ok: true, line: run.line };
   } catch (e) {
     if (e === OUT_OF_TIME)
-      return { ok: true, later: true, step: line.step ?? step ?? "subaccount", line };
+      return { ok: true, later: true, step: run.line.step ?? step ?? "subaccount", line: run.line };
     const error = errorWords(e);
-    const at = line.step ?? step ?? "subaccount";
-    await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
-    return { ok: false, step: at, error, line };
+    const at = run.line.step ?? step ?? "subaccount";
+    await run.save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
+    return { ok: false, step: at, error, line: run.line };
+  }
+}
+async function subaccountStep(run) {
+  const { ports } = run;
+  const name = subaccountName(ports.tenant.name, run.line.id);
+  const acct = await run.once(
+    "subaccount",
+    () => ports.provider.findSubaccount(ports.master, name),
+    () => ports.provider.createSubaccount(ports.master, name)
+  );
+  await run.putSecrets({ auth_token: acct.token });
+  await run.save({ subaccount_sid: acct.sid });
+}
+async function numberStep(run) {
+  const { ports } = run;
+  const held = await ports.provider.ownedNumber(run.sub(), run.line.e164);
+  if (!held) run.room();
+  const bought = held ?? await ports.provider.buyNumber(run.sub(), run.line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
+  await run.save({ number_sid: bought.sid, e164: bought.e164 });
+}
+var TRUNK_PARTS = [
+  ensureTrunk,
+  ensureCredentialList,
+  ensureSipCredential,
+  ensureCredentialListAttached,
+  ensureOrigination,
+  ensureNumberAttached
+];
+async function trunkStep(run) {
+  const acct = run.sub();
+  for (const ensure of TRUNK_PARTS) await ensure(run, acct);
+  await run.fact("trunk_ready", true);
+}
+async function ensureTrunk(run, acct) {
+  if (run.line.trunk_sid) return;
+  const { ports } = run;
+  const domainName = trunkDomain(run.line.id);
+  const t = await run.once(
+    "trunk",
+    () => ports.provider.findTrunk(acct, domainName),
+    () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
+  );
+  await run.save({ trunk_sid: t.sid, termination_uri: t.domainName });
+}
+async function ensureCredentialList(run, acct) {
+  if (run.line.credential_list_sid) return;
+  const { ports } = run;
+  const name = `${ports.tenant.name} \xB7 Chanlytics`;
+  const cl = await run.once(
+    "credential_list",
+    () => ports.provider.findCredentialList(acct, name),
+    () => ports.provider.createCredentialList(acct, name)
+  );
+  await run.save({ credential_list_sid: cl.sid });
+}
+async function ensureSipCredential(run, acct) {
+  if (run.secrets.sip_password && run.secrets.sip_username) return;
+  const { ports } = run;
+  const username = sipUsername(run.line.id);
+  const password = sipPassword(ports.random);
+  if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
+  await run.once(
+    "credential",
+    async () => {
+      const lost = await ports.provider.findCredential(acct, run.line.credential_list_sid, username);
+      if (lost) {
+        run.room();
+        await ports.provider.deleteCredential(acct, run.line.credential_list_sid, lost.sid);
+      }
+      return null;
+    },
+    () => ports.provider.addCredential(acct, run.line.credential_list_sid, username, password)
+  );
+  await run.putSecrets({ sip_username: username, sip_password: password });
+}
+async function ensureCredentialListAttached(run, acct) {
+  if (run.line.facts.credential_list_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachCredentialList(acct, run.line.trunk_sid, run.line.credential_list_sid);
+  await run.fact("credential_list_attached", true);
+}
+async function ensureOrigination(run, acct) {
+  if (typeof run.line.facts.origination_sid === "string") return;
+  const { ports } = run;
+  const o = await run.once(
+    "origination",
+    () => ports.provider.findOrigination(acct, run.line.trunk_sid, RETELL_ORIGINATION),
+    () => ports.provider.addOrigination(acct, run.line.trunk_sid, {
+      sipUrl: RETELL_ORIGINATION,
+      friendlyName: "Retell"
+    })
+  );
+  await run.fact("origination_sid", o.sid);
+}
+async function ensureNumberAttached(run, acct) {
+  if (run.line.facts.number_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachNumber(acct, run.line.trunk_sid, run.line.number_sid);
+  await run.fact("number_attached", true);
+}
+async function agentStep(run) {
+  const { ports } = run;
+  run.room(AGENT_STEP_MORE_MS);
+  const a = await ports.agent.ensure();
+  await run.save({ retell_agent_id: a.agentId, facts: { ...run.line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
+}
+async function importStep(run) {
+  const { ports } = run;
+  if (!run.secrets.sip_username || !run.secrets.sip_password)
+    throw new Error("the SIP credential is missing from the vault");
+  const body = retellImportBody({
+    e164: run.line.e164,
+    terminationUri: run.line.termination_uri,
+    username: run.secrets.sip_username,
+    password: run.secrets.sip_password,
+    agentId: run.line.retell_agent_id,
+    pinned: run.line.facts.agent_pinned === true,
+    nickname: ports.nickname,
+    inboundWebhookUrl: ports.inboundWebhookUrl
+  });
+  const r2 = await ports.retell.importNumber(body);
+  if (!r2.ok) {
+    const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
+    throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
+  }
+  await run.save({
+    facts: {
+      ...run.line.facts,
+      retell_imported: true,
+      retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
+    }
+  });
+}
+async function messagingStep(run) {
+  const { ports } = run;
+  const acct = run.sub();
+  if (!run.line.messaging_service_sid) {
+    const svc = await ports.provider.createMessagingService(acct, {
+      friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
+      inboundUrl: ports.smsInboundUrl
+    });
+    await run.save({ messaging_service_sid: svc.sid });
+  }
+  if (run.line.facts.number_in_service !== true) {
+    run.room();
+    await ports.provider.addNumberToService(acct, run.line.messaging_service_sid, run.line.number_sid);
+    await run.fact("number_in_service", true);
+  }
+}
+async function channelStep(run) {
+  const { ports } = run;
+  if (typeof run.line.facts.channel_id !== "string") {
+    const c = await ports.channel.ensure({
+      agentId: run.line.retell_agent_id,
+      e164: run.line.e164,
+      lineId: run.line.id
+    });
+    await run.fact("channel_id", c.channelId);
+  }
+  if (typeof run.line.facts.sms_channel_id !== "string") {
+    const s = await ports.smsChannel.ensure({
+      e164: run.line.e164,
+      lineId: run.line.id,
+      serviceSid: run.line.messaging_service_sid
+    });
+    await run.fact("sms_channel_id", s.channelId);
   }
 }
 
-// src/sms.ts
+// src/lines/sms.ts
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -4683,12 +4769,11 @@ function smsStatusToRow(status) {
 function twilioSignedString(url, form2) {
   return url + Object.keys(form2).sort().map((k) => `${k}${form2[k]}`).join("");
 }
-var enc = new TextEncoder();
 async function twilioSignature(authToken, url, form2) {
-  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
     "sign"
   ]);
-  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(twilioSignedString(url, form2)));
+  const mac = await crypto.subtle.sign("HMAC", key, utf8Bytes(twilioSignedString(url, form2)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
 function sameSignature(a, b) {
@@ -4928,23 +5013,23 @@ function receivedEmailFrom(body) {
   const b = body;
   if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
   const headers2 = headersOf(b.headers);
-  const str5 = (v) => typeof v === "string" && v.length ? v : null;
+  const str2 = (v) => typeof v === "string" && v.length ? v : null;
   return {
     id: b.id,
-    from: addressOf(str5(b.from) ?? headers2.from),
+    from: addressOf(str2(b.from) ?? headers2.from),
     to: addressesOf(b.to),
     cc: addressesOf(b.cc),
-    subject: str5(b.subject) ?? str5(headers2.subject),
-    text: str5(b.text),
-    html: str5(b.html),
+    subject: str2(b.subject) ?? str2(headers2.subject),
+    text: str2(b.text),
+    html: str2(b.html),
     headers: headers2,
-    messageId: messageIdHeader(str5(b.message_id) ?? headers2["message-id"]),
-    createdAt: str5(b.created_at),
+    messageId: messageIdHeader(str2(b.message_id) ?? headers2["message-id"]),
+    createdAt: str2(b.created_at),
     attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
       const x = a ?? {};
       return {
-        filename: str5(x.filename),
-        contentType: str5(x.content_type),
+        filename: str2(x.filename),
+        contentType: str2(x.content_type),
         size: typeof x.size === "number" ? x.size : null
       };
     })
@@ -4987,16 +5072,16 @@ function emailReceiptFrom(payload) {
   if (!RECEIPT_TYPES.has(type)) return null;
   const d = p.data;
   if (typeof d.email_id !== "string" || !d.email_id) return null;
-  const str5 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const str2 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
   const said = d.bounce ?? d.failed ?? d.suppressed ?? {};
   return {
     type,
     providerId: d.email_id,
-    rfcMessageId: messageIdHeader(str5(d.message_id)),
+    rfcMessageId: messageIdHeader(str2(d.message_id)),
     to: addressesOf(d.to),
     messageId: tagOf(d.tags, "cl_message"),
     tenantId: tagOf(d.tags, "cl_tenant"),
-    detail: { kind: str5(said.type) ?? str5(said.reason), subKind: str5(said.subType), message: str5(said.message) }
+    detail: { kind: str2(said.type) ?? str2(said.reason), subKind: str2(said.subType), message: str2(said.message) }
   };
 }
 function emailReceiptEffect(r2) {
@@ -5050,7 +5135,7 @@ function mailDomainsFrom(body) {
   return out;
 }
 
-// src/email-text.ts
+// src/email/email-text.ts
 import { convert } from "html-to-text";
 function emailPlainText(e) {
   const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();
@@ -5066,7 +5151,7 @@ function emailPlainText(e) {
   return converted || null;
 }
 
-// src/email-resend.ts
+// src/email/email-resend.ts
 var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
 var SEND_DEADLINE_MS = 32e3;
@@ -5209,18 +5294,18 @@ async function fetchMailDomains(cfg) {
   return domains;
 }
 
-// src/email-domains.ts
+// src/email/email-domains.ts
 var unquote = (s) => {
   const t = s.trim();
   return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t;
 };
 function recordFrom(r2) {
   const o = r2 ?? {};
-  const str5 = (k) => typeof o[k] === "string" && o[k].trim() ? o[k] : null;
-  const label = str5("record");
-  const type = str5("type");
-  const name = str5("name");
-  const value = str5("value");
+  const str2 = (k) => typeof o[k] === "string" && o[k].trim() ? o[k] : null;
+  const label = str2("record");
+  const type = str2("type");
+  const name = str2("name");
+  const value = str2("value");
   if (!label || !type || !name || !value) return null;
   if (label.toLowerCase() === "tracking") return null;
   return {
@@ -5229,7 +5314,7 @@ function recordFrom(r2) {
     name: name.trim(),
     value: type.toUpperCase() === "TXT" ? unquote(value) : value.trim(),
     priority: typeof o.priority === "number" && Number.isFinite(o.priority) ? o.priority : null,
-    status: str5("status")?.trim() ?? "unknown"
+    status: str2("status")?.trim() ?? "unknown"
   };
 }
 function providerDomainFrom(body) {
@@ -5244,11 +5329,11 @@ function providerDomainFrom(body) {
     createdAt: typeof d.created_at === "string" && Number.isFinite(Date.parse(d.created_at)) ? d.created_at : null
   };
 }
-async function call(cfg, method, path, body) {
+async function resendCall(cfg, method, path, body) {
   const a = await resendRequest(cfg, method, `/domains${path}`, body !== void 0 ? { body } : {});
   return { status: a.status, json: a.json, raw: a.raw };
 }
-function refusal(status, json, raw) {
+function resendRefusal(status, json, raw) {
   const m = json?.message;
   return {
     ok: false,
@@ -5257,21 +5342,21 @@ function refusal(status, json, raw) {
   };
 }
 async function createMailDomain(cfg, host) {
-  const r2 = await call(cfg, "POST", "", {
+  const r2 = await resendCall(cfg, "POST", "", {
     name: host,
     region: "us-east-1",
     open_tracking: false,
     click_tracking: false,
     capabilities: { sending: "enabled", receiving: "disabled" }
   });
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   const d = providerDomainFrom(r2.json);
   return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
 }
 async function getMailDomain(cfg, id) {
-  const r2 = await call(cfg, "GET", `/${encodeURIComponent(id)}`);
+  const r2 = await resendCall(cfg, "GET", `/${encodeURIComponent(id)}`);
   if (r2.status === 404) return { ok: true, value: null };
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   const d = providerDomainFrom(r2.json);
   return d ? { ok: true, value: d } : { ok: false, status: r2.status, message: "the provider answered a shape that is not a domain" };
 }
@@ -5280,8 +5365,8 @@ async function findMailDomain(cfg, name) {
   const want = name.trim().toLowerCase();
   let after = null;
   for (let page = 0; page < FIND_PAGES_MAX; page++) {
-    const r2 = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
-    if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+    const r2 = await resendCall(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
     const body = r2.json ?? {};
     if (!Array.isArray(body.data))
       return { ok: false, status: r2.status, message: "the provider answered a shape that is not a list" };
@@ -5301,21 +5386,21 @@ async function findMailDomain(cfg, name) {
   return { ok: false, status: 0, message: `more than ${FIND_PAGES_MAX * 100} domains to look through` };
 }
 async function verifyMailDomain(cfg, id) {
-  const r2 = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  const r2 = await resendCall(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   return { ok: true, value: true };
 }
 async function removeMailDomain(cfg, id) {
-  const r2 = await call(cfg, "DELETE", `/${encodeURIComponent(id)}`);
+  const r2 = await resendCall(cfg, "DELETE", `/${encodeURIComponent(id)}`);
   if (r2.status === 404) return { ok: true, value: "gone" };
-  if (r2.status < 200 || r2.status >= 300) return refusal(r2.status, r2.json, r2.raw);
+  if (r2.status < 200 || r2.status >= 300) return resendRefusal(r2.status, r2.json, r2.raw);
   return { ok: true, value: "removed" };
 }
 function dmarcOf(txt) {
   return txt.some((chunks) => /^v=DMARC1\s*(;|$)/i.test(chunks.join("").trim())) ? "found" : "missing";
 }
 
-// src/a2p/wire.ts
+// src/lines/a2p/wire.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
@@ -5347,12 +5432,12 @@ function encodeForm(form2) {
   return q.toString();
 }
 
-// src/a2p/business-record.ts
+// src/lines/a2p/business-record.ts
 function brandTypeFor(r2) {
   return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
 
-// src/a2p/trust-hub.ts
+// src/lines/a2p/trust-hub.ts
 var attrs = (o) => JSON.stringify(o);
 function customerProfileRequest(o) {
   return {
@@ -5561,7 +5646,7 @@ function submitTrustProductRequest(bundleSid) {
   return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
 }
 
-// src/a2p/brand-campaign.ts
+// src/lines/a2p/brand-campaign.ts
 function brandRequest(o) {
   return {
     url: `${MESSAGING2}/a2p/BrandRegistrations`,
@@ -5618,7 +5703,7 @@ function deleteCampaignRequest(messagingServiceSid, campaignSid) {
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
 
-// src/a2p/steps.ts
+// src/lines/a2p/steps.ts
 var A2P_STEPS = [
   "profile",
   "business",
@@ -5669,7 +5754,7 @@ function nextA2PStep(s, brandType = "STANDARD") {
   return null;
 }
 
-// src/a2p/verdict.ts
+// src/lines/a2p/verdict.ts
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
@@ -5699,13 +5784,13 @@ function smsStateFor(o) {
 }
 function registrationVerdict(before, after, o) {
   if (before === after) return null;
-  const num3 = o.number ?? "your line";
+  const num = o.number ?? "your line";
   const rehearsal = o.mock ? " (this was a test filing, so nothing routes)" : "";
   if (after === "active") {
     return {
       kind: "number",
-      title: `Texting is on: ${num3}`,
-      body: `The carriers approved ${num3}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
+      title: `Texting is on: ${num}`,
+      body: `The carriers approved ${num}, so the receptionist answers texts to it inside your hours${rehearsal}. Customers who text first are answered; offers go only to people who said yes.`,
       route: "admin/integrations",
       event: "line.texting_on"
     };
@@ -5714,7 +5799,7 @@ function registrationVerdict(before, after, o) {
     return {
       kind: "number",
       title: "Your business is approved by the carriers",
-      body: `${num3} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
+      body: `${num} is through the slow half. One last check on the line is left, usually days; nothing is needed from you, and texting switches itself on when it clears.`,
       route: "admin/integrations",
       event: "line.texting_approved"
     };
@@ -5740,9 +5825,9 @@ function registrationVerdict(before, after, o) {
   return null;
 }
 
-// src/a2p-saga.ts
+// src/lines/a2p-saga.ts
 var sid = (a) => typeof a.body?.sid === "string" ? a.body.sid : null;
-function refusal2(a, what) {
+function twilioRefusal(a, what) {
   const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
   const code = typeof a.body?.code === "number" ? ` (Twilio ${a.body.code})` : "";
   return `${what}: ${msg}${code}`;
@@ -5757,7 +5842,7 @@ async function runA2PSaga(start, p) {
   const need2 = async (req, what) => {
     const a = await p.send(req);
     const id = sid(a);
-    if (!ok(a) || !id) throw new Error(refusal2(a, what));
+    if (!ok(a) || !id) throw new Error(twilioRefusal(a, what));
     return id;
   };
   const brandType = brandTypeFor(p.record);
@@ -5784,14 +5869,14 @@ async function runA2PSaga(start, p) {
             soleProp ? "recording who you are" : "recording the business"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, soleProp ? "attaching your details" : "attaching the business"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
         case "representative": {
           const id = await need2(representativeEndUserRequest(p.record), "recording the person who signs");
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, "attaching the person who signs"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the person who signs"));
           await save({ representativeSid: id });
           break;
         }
@@ -5804,13 +5889,13 @@ async function runA2PSaga(start, p) {
             "attaching the address"
           );
           const a = await p.send(assignRequest(state.profileSid, id));
-          if (!ok(a)) throw new Error(refusal2(a, "attaching the address document"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the address document"));
           await save({ documentSid: id });
           break;
         }
         case "primary": {
           const a = await p.send(assignRequest(state.profileSid, p.primaryProfileSid));
-          if (!ok(a)) throw new Error(refusal2(a, "naming us as the provider"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "naming us as the provider"));
           await save({ primaryAssigned: true });
           break;
         }
@@ -5821,7 +5906,7 @@ async function runA2PSaga(start, p) {
           ];
           for (const [sid2, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid2, a));
-            if (!ok(up)) throw new Error(refusal2(up, "refreshing the business on record"));
+            if (!ok(up)) throw new Error(twilioRefusal(up, "refreshing the business on record"));
           }
           const ev = await p.send(
             evaluateRequest(
@@ -5830,13 +5915,13 @@ async function runA2PSaga(start, p) {
             )
           );
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
-          if (!ok(ev)) throw new Error(refusal2(ev, "checking the profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the profile"));
           if (status !== "compliant")
             throw new Error(
               `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`
             );
           const sub = await p.send(submitProfileRequest(state.profileSid));
-          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
           break;
         }
@@ -5855,12 +5940,12 @@ async function runA2PSaga(start, p) {
           );
           for (const objectSid of [endUser, state.profileSid]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
-            if (!ok(a)) throw new Error(refusal2(a, "attaching to the messaging profile"));
+            if (!ok(a)) throw new Error(twilioRefusal(a, "attaching to the messaging profile"));
           }
           const ev = await p.send(evaluateTrustProductRequest(bundle));
-          if (!ok(ev)) throw new Error(refusal2(ev, "checking the messaging profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the messaging profile"));
           const sub = await p.send(submitTrustProductRequest(bundle));
-          if (!ok(sub)) throw new Error(refusal2(sub, "submitting the messaging profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the messaging profile"));
           await save({ a2pProfileSid: bundle });
           break;
         }
@@ -5906,7 +5991,7 @@ async function runA2PSaga(start, p) {
   }
 }
 
-// src/google-places.ts
+// src/google/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus,places.primaryTypeDisplayName";
 var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
@@ -5940,28 +6025,25 @@ function placesDetailsRequest(key, placeId, opts = {}) {
     headers: headers(key, PLACES_DETAILS_MASK)
   };
 }
-var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str2 = (v) => typeof v === "string" && v.trim() ? v : null;
-var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
 var localized = (v) => {
-  const o = obj(v);
-  return { text: str2(o?.text), languageCode: str2(o?.languageCode) };
+  const o = recordOrNull(v);
+  return { text: nonBlankOrNull(o?.text), languageCode: nonBlankOrNull(o?.languageCode) };
 };
 function candidateOf(p) {
-  const id = str2(p.id);
+  const id = nonBlankOrNull(p.id);
   const name = localized(p.displayName).text;
   if (!id || !name) return null;
   return {
     place_id: id,
     name,
-    address: str2(p.formattedAddress),
-    maps_uri: str2(p.googleMapsUri),
-    business_status: str2(p.businessStatus),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
     category: localized(p.primaryTypeDisplayName).text
   };
 }
 function reviewIdOf(name) {
-  const s = str2(name);
+  const s = nonBlankOrNull(name);
   if (!s) return null;
   const last = s.split("/").pop();
   return last && last.length > 0 ? last : null;
@@ -5969,30 +6051,30 @@ function reviewIdOf(name) {
 function reviewOf(r2) {
   const id = reviewIdOf(r2.name);
   if (!id) return null;
-  const author = obj(r2.authorAttribution);
+  const author = recordOrNull(r2.authorAttribution);
   const text = localized(r2.text);
   return {
     review_id: id,
-    rating: num(r2.rating),
-    author: str2(author?.displayName),
-    author_uri: str2(author?.uri),
-    author_photo_uri: str2(author?.photoUri),
+    rating: finiteOrNull(r2.rating),
+    author: nonBlankOrNull(author?.displayName),
+    author_uri: nonBlankOrNull(author?.uri),
+    author_photo_uri: nonBlankOrNull(author?.photoUri),
     text: text.text,
     language_code: text.languageCode,
-    published_at: str2(r2.publishTime),
-    maps_uri: str2(r2.googleMapsUri)
+    published_at: nonBlankOrNull(r2.publishTime),
+    maps_uri: nonBlankOrNull(r2.googleMapsUri)
   };
 }
 function pointOf(v) {
-  const o = obj(v);
+  const o = recordOrNull(v);
   if (!o) return null;
-  const day = num(o.day) ?? 0;
-  const hour = num(o.hour) ?? 0;
-  const minute = num(o.minute) ?? 0;
+  const day = finiteOrNull(o.day) ?? 0;
+  const hour = finiteOrNull(o.hour) ?? 0;
+  const minute = finiteOrNull(o.minute) ?? 0;
   return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
 }
 function periodOf(v) {
-  const o = obj(v);
+  const o = recordOrNull(v);
   const open = pointOf(o?.open);
   if (!o || !open) return null;
   if (o.close === void 0) return { open, close: null };
@@ -6004,56 +6086,56 @@ function e164Of(international) {
   const e164 = `+${international.replace(/\D/g, "")}`;
   return E164.test(e164) ? e164 : null;
 }
-function factsOf(p) {
-  const periods = obj(p.regularOpeningHours)?.periods;
+function listingFactsOf(p) {
+  const periods = recordOrNull(p.regularOpeningHours)?.periods;
   return {
     hours: Array.isArray(periods) ? periods.map(periodOf).filter((x) => x !== null) : null,
-    phone_e164: e164Of(str2(p.internationalPhoneNumber)),
-    phone_display: str2(p.nationalPhoneNumber),
-    website: str2(p.websiteUri),
-    primary_type: str2(p.primaryType),
+    phone_e164: e164Of(nonBlankOrNull(p.internationalPhoneNumber)),
+    phone_display: nonBlankOrNull(p.nationalPhoneNumber),
+    website: nonBlankOrNull(p.websiteUri),
+    primary_type: nonBlankOrNull(p.primaryType),
     primary_type_label: localized(p.primaryTypeDisplayName).text,
     service_area_only: p.pureServiceAreaBusiness === true,
-    time_zone: str2(obj(p.timeZone)?.id)
+    time_zone: nonBlankOrNull(recordOrNull(p.timeZone)?.id)
   };
 }
 function parsePlacesSearch(json) {
-  const places = obj(json)?.places;
+  const places = recordOrNull(json)?.places;
   if (!Array.isArray(places)) return [];
-  return places.map((p) => obj(p) ? candidateOf(obj(p)) : null).filter((c) => c !== null);
+  return places.map((p) => recordOrNull(p) ? candidateOf(recordOrNull(p)) : null).filter((c) => c !== null);
 }
 function parsePlaceDetails(json) {
-  const p = obj(json);
-  const id = str2(p?.id);
+  const p = recordOrNull(json);
+  const id = nonBlankOrNull(p?.id);
   const name = localized(p?.displayName).text;
   if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
-  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r2) => obj(r2) ? reviewOf(obj(r2)) : null).filter((r2) => r2 !== null) : [];
+  const reviews = Array.isArray(p.reviews) ? p.reviews.map((r2) => recordOrNull(r2) ? reviewOf(recordOrNull(r2)) : null).filter((r2) => r2 !== null) : [];
   return {
     place_id: id,
     name,
-    address: str2(p.formattedAddress),
-    maps_uri: str2(p.googleMapsUri),
-    business_status: str2(p.businessStatus),
-    rating: num(p.rating),
-    review_count: num(p.userRatingCount),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
+    rating: finiteOrNull(p.rating),
+    review_count: finiteOrNull(p.userRatingCount),
     reviews,
-    facts: factsOf(p)
+    facts: listingFactsOf(p)
   };
 }
-function refusal3(status, body) {
+function refusal(status, body) {
   let message = `Google answered ${status}`;
   try {
-    const e = obj(obj(JSON.parse(body))?.error);
-    const m = str2(e?.message);
-    const s = str2(e?.status);
+    const e = recordOrNull(recordOrNull(JSON.parse(body))?.error);
+    const m = nonBlankOrNull(e?.message);
+    const s = nonBlankOrNull(e?.status);
     if (m) message = s ? `${s}: ${m}` : m;
   } catch {
   }
   return new PlacesError(status, message);
 }
-async function call2(http, req) {
+async function call(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal3(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   try {
     return JSON.parse(r2.body);
   } catch {
@@ -6061,10 +6143,10 @@ async function call2(http, req) {
   }
 }
 async function searchPlaces(http, key, query, opts = {}) {
-  return parsePlacesSearch(await call2(http, placesSearchRequest(key, query, opts)));
+  return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
 }
 async function getPlace(http, key, placeId, opts = {}) {
-  return parsePlaceDetails(await call2(http, placesDetailsRequest(key, placeId, opts)));
+  return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
@@ -6079,7 +6161,7 @@ function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
 }
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
-// src/google-sync.ts
+// src/google/google-sync.ts
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
@@ -6175,7 +6257,7 @@ function planProfileSync(before, known, page, day, nowMs) {
   };
 }
 
-// src/google-oauth.ts
+// src/google/google-oauth.ts
 var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
@@ -6245,10 +6327,9 @@ function parseTokenResponse(json) {
 function grantHasScope(grant, scope) {
   return grant.scope.split(/\s+/).includes(scope);
 }
-var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 function b64url(bytes) {
-  const b = typeof bytes === "string" ? enc2.encode(bytes) : bytes;
+  const b = typeof bytes === "string" ? utf8Bytes(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -6271,10 +6352,10 @@ function idTokenClaims(idToken) {
   }
 }
 async function hmac(secret, data) {
-  const key = await crypto.subtle.importKey("raw", enc2.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign"
   ]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc2.encode(data));
+  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes(data));
   return b64url(new Uint8Array(sig));
 }
 async function signState(secret, s) {
@@ -6309,15 +6390,13 @@ function newNonce() {
   return b64url(b);
 }
 
-// src/google-profile.ts
+// src/google/google-profile.ts
 var GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 var GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
 var GBP_V4_BASE = "https://mybusiness.googleapis.com/v4";
 var GBP_LOCATIONS_READ_MASK = "name,title,storefrontAddress,metadata";
 var GBP_REVIEWS_PAGE = 50;
 var GBP_REVIEWS_MAX_PAGES = 5;
-var obj2 = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str3 = (v) => typeof v === "string" && v.trim() ? v : null;
 function bearer(token, v4 = false) {
   return { Authorization: `Bearer ${token}`, ...v4 ? { "X-GOOG-API-FORMAT-VERSION": "2" } : {} };
 }
@@ -6352,87 +6431,76 @@ function deleteReplyRequest(token, reviewName) {
   return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "DELETE", headers: bearer(token, true) };
 }
 function parseAccounts(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.accounts) ? o.accounts : [];
-  const accounts = list.map((a) => obj2(a)).filter((a) => !!a).map((a) => ({
-    name: str3(a.name) ?? "",
-    title: str3(a.accountName) ?? str3(obj2(a.organizationInfo)?.registeredDomain) ?? str3(a.name) ?? "",
-    type: str3(a.type)
+  const accounts = list.map((a) => recordOrNull(a)).filter((a) => !!a).map((a) => ({
+    name: nonBlankOrNull(a.name) ?? "",
+    title: nonBlankOrNull(a.accountName) ?? nonBlankOrNull(recordOrNull(a.organizationInfo)?.registeredDomain) ?? nonBlankOrNull(a.name) ?? "",
+    type: nonBlankOrNull(a.type)
   })).filter((a) => a.name.startsWith("accounts/"));
-  return { accounts, next: str3(o?.nextPageToken) };
+  return { accounts, next: nonBlankOrNull(o?.nextPageToken) };
 }
 function oneLineAddress(a) {
-  const o = obj2(a);
+  const o = recordOrNull(a);
   if (!o) return null;
   const lines = Array.isArray(o.addressLines) ? o.addressLines.filter((l) => typeof l === "string" && !!l.trim()) : [];
   const parts = [
     ...lines,
-    str3(o.locality),
-    [str3(o.administrativeArea), str3(o.postalCode)].filter(Boolean).join(" ")
+    nonBlankOrNull(o.locality),
+    [nonBlankOrNull(o.administrativeArea), nonBlankOrNull(o.postalCode)].filter(Boolean).join(" ")
   ].filter((p) => !!p);
   return parts.length ? parts.join(", ") : null;
 }
 function parseLocations(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.locations) ? o.locations : [];
-  const locations = list.map((l) => obj2(l)).filter((l) => !!l).map((l) => {
-    const meta = obj2(l.metadata);
+  const locations = list.map((l) => recordOrNull(l)).filter((l) => !!l).map((l) => {
+    const meta = recordOrNull(l.metadata);
     return {
-      name: str3(l.name) ?? "",
-      title: str3(l.title) ?? "",
+      name: nonBlankOrNull(l.name) ?? "",
+      title: nonBlankOrNull(l.title) ?? "",
       address: oneLineAddress(l.storefrontAddress),
-      place_id: str3(meta?.placeId),
-      maps_uri: str3(meta?.mapsUri),
-      new_review_uri: str3(meta?.newReviewUri)
+      place_id: nonBlankOrNull(meta?.placeId),
+      maps_uri: nonBlankOrNull(meta?.mapsUri),
+      new_review_uri: nonBlankOrNull(meta?.newReviewUri)
     };
   }).filter((l) => l.name.startsWith("locations/"));
-  return { locations, next: str3(o?.nextPageToken) };
+  return { locations, next: nonBlankOrNull(o?.nextPageToken) };
 }
 var STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 function starRatingNumber(v) {
   return typeof v === "string" && v in STARS ? STARS[v] : null;
 }
 function parseReviewsPage(json) {
-  const o = obj2(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.reviews) ? o.reviews : [];
-  const reviews = list.map((r2) => obj2(r2)).filter((r2) => !!r2).map((r2) => {
-    const name = str3(r2.name);
-    const id = str3(r2.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
+  const reviews = list.map((r2) => recordOrNull(r2)).filter((r2) => !!r2).map((r2) => {
+    const name = nonBlankOrNull(r2.name);
+    const id = nonBlankOrNull(r2.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
     if (!name || !id) return null;
-    const who = obj2(r2.reviewer);
-    const reply = obj2(r2.reviewReply);
+    const who = recordOrNull(r2.reviewer);
+    const reply = recordOrNull(r2.reviewReply);
     return {
       name,
       review_id: id,
       rating: starRatingNumber(r2.starRating),
-      author: who?.isAnonymous === true ? null : str3(who?.displayName),
-      author_photo_uri: str3(who?.profilePhotoUrl),
+      author: who?.isAnonymous === true ? null : nonBlankOrNull(who?.displayName),
+      author_photo_uri: nonBlankOrNull(who?.profilePhotoUrl),
       anonymous: who?.isAnonymous === true,
-      text: str3(r2.comment),
-      created_at: str3(r2.createTime),
-      updated_at: str3(r2.updateTime),
-      reply_text: str3(reply?.comment),
-      replied_at: str3(reply?.updateTime)
+      text: nonBlankOrNull(r2.comment),
+      created_at: nonBlankOrNull(r2.createTime),
+      updated_at: nonBlankOrNull(r2.updateTime),
+      reply_text: nonBlankOrNull(reply?.comment),
+      replied_at: nonBlankOrNull(reply?.updateTime)
     };
   }).filter((r2) => r2 !== null);
   const avg = typeof o?.averageRating === "number" ? o.averageRating : null;
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
-  return { reviews, average_rating: avg, total_count: total, next_page_token: str3(o?.nextPageToken) };
+  return { reviews, average_rating: avg, total_count: total, next_page_token: nonBlankOrNull(o?.nextPageToken) };
 }
-function refusal4(status, body) {
-  let message = `Google answered ${status}`;
-  try {
-    const e = obj2(obj2(JSON.parse(body))?.error);
-    const m = str3(e?.message);
-    const s = str3(e?.status);
-    if (m) message = s ? `${s}: ${m}` : m;
-  } catch {
-  }
-  return new PlacesError(status, message);
-}
-async function call3(http, req) {
+async function callProfileApi(http, req) {
   const r2 = await http(req);
-  if (r2.status < 200 || r2.status >= 300) throw refusal4(r2.status, r2.body);
+  if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   if (!r2.body.trim()) return {};
   try {
     return JSON.parse(r2.body);
@@ -6444,7 +6512,7 @@ async function listAccounts(http, token) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseAccounts(await call3(http, accountsRequest(token, page)));
+    const r2 = parseAccounts(await callProfileApi(http, accountsRequest(token, page)));
     out.push(...r2.accounts);
     page = r2.next;
     if (!page) break;
@@ -6455,7 +6523,7 @@ async function listLocations(http, token, accountName) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseLocations(await call3(http, locationsRequest(token, accountName, page)));
+    const r2 = parseLocations(await callProfileApi(http, locationsRequest(token, accountName, page)));
     out.push(...r2.locations);
     page = r2.next;
     if (!page) break;
@@ -6468,7 +6536,7 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   let avg = null;
   let total = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r2 = parseReviewsPage(await call3(http, reviewsRequest(token, parent, page)));
+    const r2 = parseReviewsPage(await callProfileApi(http, reviewsRequest(token, parent, page)));
     all.push(...r2.reviews);
     if (i === 0) {
       avg = r2.average_rating;
@@ -6480,15 +6548,18 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
 }
 async function replyToReview(http, token, reviewName, comment) {
-  const o = obj2(await call3(http, replyRequest(token, reviewName, comment)));
-  return { reply_text: str3(o?.comment) ?? comment, replied_at: str3(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString() };
+  const o = recordOrNull(await callProfileApi(http, replyRequest(token, reviewName, comment)));
+  return {
+    reply_text: nonBlankOrNull(o?.comment) ?? comment,
+    replied_at: nonBlankOrNull(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString()
+  };
 }
 var GBP_REPLY_MAX = 4096;
 function cleanReply(text) {
   return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
 
-// src/edge-token.ts
+// src/tokens/edge-token.ts
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 var EDGE_TOKEN_TTL_MS = MIN_MS;
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
@@ -6524,7 +6595,7 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
 }
 
-// src/unsubscribe-token.ts
+// src/tokens/unsubscribe-token.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
 var UNSUBSCRIBE_PATH = "/u/";
 var VERSION = 1;
@@ -6569,7 +6640,7 @@ function unsubscribeUrl(origin, token) {
   return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
 }
 
-// src/apify.ts
+// src/leads/apify.ts
 var APIFY_BASE = "https://api.apify.com/v2";
 var APIFY_TIMEOUT_MS = 2e4;
 var APIFY_RUN_END_EVENTS = [
@@ -6594,22 +6665,19 @@ var ApifyRefused = class extends Error {
   }
   status;
 };
-var obj3 = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str4 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var num2 = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
 var actorPath = (actor) => encodeURIComponent(actor.replace("/", "~"));
 function runOf(data) {
-  const d = obj3(data);
-  const id = str4(d?.id);
-  const status = str4(d?.status);
+  const d = recordOrNull(data);
+  const id = trimmedOrNull(d?.id);
+  const status = trimmedOrNull(d?.status);
   if (!d || !id || !status) throw new ApifyRefused(200, "the provider answered without a run");
   return {
     id,
     status,
-    datasetId: str4(d.defaultDatasetId),
-    usageTotalUsd: num2(d.usageTotalUsd),
-    startedAt: str4(d.startedAt),
-    finishedAt: str4(d.finishedAt)
+    datasetId: trimmedOrNull(d.defaultDatasetId),
+    usageTotalUsd: finiteOrNull(d.usageTotalUsd),
+    startedAt: trimmedOrNull(d.startedAt),
+    finishedAt: trimmedOrNull(d.finishedAt)
   };
 }
 function apifyClient(fetchImpl, token) {
@@ -6617,7 +6685,7 @@ function apifyClient(fetchImpl, token) {
     Authorization: `Bearer ${token}`,
     ...json ? { "content-type": "application/json" } : {}
   });
-  async function call4(url, init, allow = () => false) {
+  async function call2(url, init, allow = () => false) {
     let res;
     try {
       res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(APIFY_TIMEOUT_MS) });
@@ -6635,7 +6703,7 @@ function apifyClient(fetchImpl, token) {
     if (allow(res.status)) return { body: null, headers: res.headers };
     let type = `http ${res.status}`;
     try {
-      type = str4(obj3(obj3(JSON.parse(text))?.error)?.type) ?? type;
+      type = trimmedOrNull(recordOrNull(recordOrNull(JSON.parse(text))?.error)?.type) ?? type;
     } catch {
     }
     if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
@@ -6651,48 +6719,48 @@ function apifyClient(fetchImpl, token) {
         webhooks
       });
       if (opts.memoryMb) q.set("memory", String(opts.memoryMb));
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "POST",
         headers: headers2(true),
         body: JSON.stringify(input)
       });
-      const run = runOf(obj3(body)?.data);
+      const run = runOf(recordOrNull(body)?.data);
       if (!run.datasetId) throw new ApifyRefused(201, "the provider started a run with no dataset");
       return { id: run.id, datasetId: run.datasetId };
     },
     async getRun(id) {
-      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      return runOf(obj3(body)?.data);
+      return runOf(recordOrNull(body)?.data);
     },
     async listActorRuns(actor, sinceIso) {
       const q = new URLSearchParams({ desc: "1", limit: "100" });
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}/runs?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const items = obj3(obj3(body)?.data)?.items;
+      const items = recordOrNull(recordOrNull(body)?.data)?.items;
       const out = [];
       for (const it of Array.isArray(items) ? items : []) {
-        const o = obj3(it);
-        const id = str4(o?.id);
-        const status = str4(o?.status);
-        const startedAt = str4(o?.startedAt);
+        const o = recordOrNull(it);
+        const id = trimmedOrNull(o?.id);
+        const status = trimmedOrNull(o?.status);
+        const startedAt = trimmedOrNull(o?.startedAt);
         if (!o || !id || !status || !startedAt || startedAt < sinceIso) continue;
-        out.push({ id, status, startedAt, datasetId: str4(o.defaultDatasetId) });
+        out.push({ id, status, startedAt, datasetId: trimmedOrNull(o.defaultDatasetId) });
       }
       return out;
     },
     async runInput(id) {
-      const { body } = await call4(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const store = str4(obj3(obj3(body)?.data)?.defaultKeyValueStoreId);
+      const store = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.defaultKeyValueStoreId);
       if (!store) return null;
-      const rec = await call4(
+      const rec = await call2(
         `${APIFY_BASE}/key-value-stores/${encodeURIComponent(store)}/records/INPUT`,
         { method: "GET", headers: headers2(false) },
         (s) => s === 404
@@ -6706,7 +6774,7 @@ function apifyClient(fetchImpl, token) {
         fields: fields.join(","),
         format: "json"
       });
-      const { body, headers: h } = await call4(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
+      const { body, headers: h } = await call2(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?${q}`, {
         method: "GET",
         headers: headers2(false)
       });
@@ -6718,23 +6786,25 @@ function apifyClient(fetchImpl, token) {
       };
     },
     async abortRun(id) {
-      await call4(
+      await call2(
         `${APIFY_BASE}/actor-runs/${encodeURIComponent(id)}/abort`,
         { method: "POST", headers: headers2(false) },
         (s) => s >= 400 && s < 500 && s !== 401 && s !== 403 && s !== 429
       );
     },
     async eventPrices(actor) {
-      const { body } = await call4(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
+      const { body } = await call2(`${APIFY_BASE}/actors/${actorPath(actor)}`, {
         method: "GET",
         headers: headers2(false)
       });
-      const d = obj3(obj3(body)?.data);
+      const d = recordOrNull(recordOrNull(body)?.data);
       const infos = Array.isArray(d?.pricingInfos) ? d.pricingInfos : [];
-      const events = obj3(obj3(obj3(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
+      const events = recordOrNull(recordOrNull(recordOrNull(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
       const out = {};
       for (const [name, e] of Object.entries(events)) {
-        const price = num2(obj3(obj3(obj3(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd) ?? num2(obj3(e)?.eventPriceUsd);
+        const price = finiteOrNull(
+          recordOrNull(recordOrNull(recordOrNull(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd
+        ) ?? finiteOrNull(recordOrNull(e)?.eventPriceUsd);
         if (price !== null) out[name] = price;
       }
       return out;
@@ -6742,7 +6812,7 @@ function apifyClient(fetchImpl, token) {
   };
 }
 
-// src/lead-judge.ts
+// src/leads/lead-judge.ts
 import { createHash } from "crypto";
 var LEAD_JUDGE_MAX_TOKENS = 6e3;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";

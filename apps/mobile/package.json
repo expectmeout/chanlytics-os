@@ -7,9 +7,9 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "expo customize tsconfig.json && tsc --noEmit",
     "lint": "expo lint",
-    "export:check": "expo export --platform ios --output-dir ../../.expo-export-check && rm -rf ../../.expo-export-check",
+    "export:check": "expo export --platform ios --platform android",
     "check:doctor": "expo-doctor"
   },
   "dependencies": {
@@ -56,7 +56,7 @@
     "eslint": "^9.39.0",
     "eslint-config-expo": "~57.0.2",
     "expo-doctor": "^1.20.4",
-    "typescript": "~6.0.3"
+    "typescript": "catalog:"
   },
   "expo": {
     "install": {

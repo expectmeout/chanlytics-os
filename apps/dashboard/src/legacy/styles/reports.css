@@ -28,7 +28,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   padding: 7px 10px;
   border: 1px dashed var(--line);
@@ -58,7 +58,7 @@
 .rp2-tile:last-child { border-right: none; }
 .rp2-tile-label { font-family: var(--font-mono); text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rp2-tile-value { font-size: 21px; font-weight: 500; letter-spacing: -0.015em; color: var(--ink); line-height: 1.15; font-variant-numeric: tabular-nums; }
-.rp2-tile-meta { font-size: 11px; color: var(--ink-dim); line-height: 1.35; text-overflow: ellipsis; }
+.rp2-tile-meta { font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.35; text-overflow: ellipsis; }
 .rp2-tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 1100px) {
   .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -73,7 +73,7 @@
 
 /* Cards: the same frame as the strip, tighter. */
 .rp2-card { padding: 12px 14px; border-radius: var(--radius-md); gap: 8px; }
-.rp2-card .fl-card-title { font-size: 12.5px; }
+.rp2-card .fl-card-title { font-size: var(--text-sm); }
 .rp2-card .fl-card-sub { font-variant-numeric: tabular-nums; }
 /* The meaning line may take two lines before it clips. */
 .rp2-tile-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -89,9 +89,9 @@
 .rp2-review.is-new { border-color: var(--line-strong); }
 .rp2-review-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
-.rp2-review-who { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.rp2-review-when { font-size: 11px; color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.rp2-review-text { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rp2-review-who { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }
+.rp2-review-when { font-size: var(--text-xs); color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp2-review-text { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .rp2-review-text.dim { color: var(--ink-dim); font-style: italic; }
 /* The way out of the five: the whole listing, on Google, in its own tab. Sits on the card's foot under a hairline,
    because it is not a sixth review. */
@@ -103,7 +103,7 @@
 .rp2-review-composer { display: grid; gap: 6px; }
 .rp2-review-drafted { font-size: 11.5px; line-height: 1.4; color: var(--ink-muted); }
 .rp2-review-drafted.dim { color: var(--ink-dim); }
-.rp2-review-textarea { width: 100%; resize: vertical; font: inherit; font-size: 12.5px; line-height: 1.45; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
+.rp2-review-textarea { width: 100%; resize: vertical; font: inherit; font-size: var(--text-sm); line-height: 1.45; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
 .rp2-review-textarea:focus { outline: none; border-color: var(--line-strong); box-shadow: var(--focus-ring); }
 
 /* ====================================================================
@@ -122,14 +122,14 @@
 /* The one row above everything; it stays while the page scrolls, with a hairline so cards pass under an edge. */
 .rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 0 10px; background: var(--bg); box-shadow: 0 1px 0 var(--line); }
 .rpt-range { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--bg-sunken); border: 1px solid var(--line); }
-.rpt-range button { font-size: 12.5px; line-height: 1; padding: 7px 12px; border-radius: 6px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
+.rpt-range button { font-size: var(--text-sm); line-height: 1; padding: 7px 12px; border-radius: var(--radius-sm); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-range button:hover { color: var(--ink); }
 .rpt-range button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 500; }
 .rpt-range button[aria-disabled="true"] { cursor: progress; }
 .rpt-range button:focus-visible, .rpt-ask:focus-visible, .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.rpt-dates { font-size: 12.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; color: var(--ink-muted); border: 1px solid var(--line); background: var(--bg-raised); transition: color var(--duration-fast), border-color var(--duration-fast); }
+.rpt-ask { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--ink-muted); border: 1px solid var(--line); background: var(--bg-raised); transition: color var(--duration-fast), border-color var(--duration-fast); }
 .rpt-ask:hover { color: var(--ink); border-color: var(--line-strong); }
 
 .rpt-body { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; transition: opacity var(--duration-base) var(--ease-out); }
@@ -145,8 +145,8 @@
 
 .rpt-section { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .rpt-section-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.rpt-section-title { margin: 0; font-size: 14.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
-.rpt-section-meta { font-size: 12.5px; color: var(--ink-dim); }
+.rpt-section-title { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
+.rpt-section-meta { font-size: var(--text-sm); color: var(--ink-dim); }
 
 /* A part-bar under a plot or a donut in the same card is a second reading: a hairline sets it apart. It follows
    what it reads a second time and is never pushed to the card's foot -- the plot above it fills instead, so there is
@@ -160,9 +160,9 @@
 .rpt-top > .rpt-hero:only-child { grid-column: 1 / -1; }
 .rpt-hero-number { font-size: 29px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; color: var(--ink); }
 .rpt-hero-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.rpt-hero-lead { margin: 0; font-size: 16px; font-weight: 500; color: var(--ink); letter-spacing: -0.015em; }
+.rpt-hero-lead { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--ink); letter-spacing: -0.015em; }
 .rpt-hero-line { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-muted); max-width: 48ch; }
-.rpt-hero-compare { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-dim); }
+.rpt-hero-compare { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-dim); }
 .rpt-tick { width: 2px; height: 11px; border-radius: 1px; background: var(--ink-muted); display: inline-block; }
 
 .rpt-facts { grid-column: span 7; gap: 4px; padding: 14px 20px 10px; }
@@ -170,7 +170,7 @@
 .rpt-fact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .rpt-fact + .rpt-fact { border-top: 1px solid var(--line); }
 /* A fact is one row; with a door the whole row is the button. */
-.rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: 6px; }
+.rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
 button.rpt-fact-row { cursor: pointer; }
 button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
@@ -179,7 +179,7 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-fact-text { color: var(--ink); }
 .rpt-fact-sub { color: var(--ink-dim); }
 .rpt-fact-sub::before { content: ", "; }
-.rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; font-size: 12.5px; color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
+.rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
 .rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
 
 /* The strip: five counts in one frame with hairline dividers, a list of terms and their values. */
@@ -187,15 +187,15 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 .rpt-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 18px 13px; min-width: 0; }
 .rpt-tile + .rpt-tile { border-left: 1px solid var(--line); }
 .rpt-tile dt, .rpt-tile dd { margin: 0; }
-.rpt-tile-label { font-size: 12.5px; color: var(--ink-muted); }
-.rpt-tile-value { display: flex; align-items: baseline; gap: 8px; font-size: 22px; font-weight: 500; letter-spacing: -0.025em; color: var(--ink); line-height: 1.2; min-width: 0; }
+.rpt-tile-label { font-size: var(--text-sm); color: var(--ink-muted); }
+.rpt-tile-value { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.025em; color: var(--ink); line-height: 1.2; min-width: 0; }
 .rpt-tile-compare { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rpt-tile-meta { font-size: 12px; color: var(--ink-dim); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Google's tiles further down are the shared RpTile (Today draws its week with it); on this page they wear this look. */
 .rpt .rp2-tiles { border-radius: var(--radius-lg); }
 .rpt .rp2-tile { padding: 12px 18px 13px; }
-.rpt .rp2-tile-label { font-family: inherit; font-size: 12.5px; letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--ink-muted); }
-.rpt .rp2-tile-value { font-size: 22px; letter-spacing: -0.025em; line-height: 1.2; font-variant-numeric: normal; }
+.rpt .rp2-tile-label { font-family: inherit; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--ink-muted); }
+.rpt .rp2-tile-value { font-size: var(--text-2xl); letter-spacing: -0.025em; line-height: 1.2; font-variant-numeric: normal; }
 .rpt .rp2-tile-meta { font-size: 12px; }
 
 /* ---------- inside the cards ---------- */
@@ -207,9 +207,9 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
 /* Asked, then booked: the share in the room it is given, its other side on a hairline at the foot. */
 .rpt-booked { display: flex; flex-direction: column; gap: 14px; flex: 1; }
 .rpt-booked-share { display: flex; align-items: center; gap: 20px; flex: 1; }
-.rpt-booked-number { font-size: 22px; font-weight: 500; letter-spacing: -0.03em; color: var(--ink); }
-.rpt-booked-copy { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); max-width: 32ch; }
-.rpt-booked-rest { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+.rpt-booked-number { font-size: var(--text-2xl); font-weight: 500; letter-spacing: -0.03em; color: var(--ink); }
+.rpt-booked-copy { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); max-width: 32ch; }
+.rpt-booked-rest { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
 .rpt-booked-rest .icon { flex: none; margin-top: 1px; color: var(--ink-dim); }
 .rpt-booked-rest .cl-bucket-link { margin-left: 6px; }
 .rpt-booked-rest.is-done .icon { color: var(--ok); }
@@ -218,10 +218,10 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
    stock under the one hairline (.rpt-booked-rest). The kit's own type and ink; figures keep their width. */
 .rpt-deals { display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
 .rpt-deals-headline { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
-.rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .rpt-grid > .rpt-deals-lines { align-self: center; padding-left: 8px; }
 .rpt-sources { max-height: none; }
-.rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: 4px; }
+.rpt-src { font-size: 13px; color: var(--ink); font-weight: 500; text-align: left; border-radius: var(--radius-xs); }
 .rpt-src:hover { text-decoration: underline; text-underline-offset: 3px; }
 .rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
 .rpt-dim { color: var(--ink-dim); }

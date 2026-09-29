@@ -14,6 +14,7 @@
  */
 import type { LeadEmailState, LeadSearchPlan } from "@chanlytics/contracts";
 import { zctaCenter } from "./geo";
+import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
 export const MAPS_FIELDS = [
@@ -111,11 +112,7 @@ export interface LeadCardRunner {
   };
 }
 
-type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null);
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter((s): s is string => !!s) : []);
+const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(trimmedOrNull).filter((s): s is string => !!s) : []);
 
 /** The circle a ZIP or radius ask searches: the plan's center, else the ZIP table's. Null for a city ask. */
 export function areaCenter(plan: LeadSearchPlan): { lat: number; lng: number } | null {
@@ -152,43 +149,49 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
       };
     },
     mapItem(item) {
-      const o = obj(item);
-      const title = str(o?.title);
-      const placeId = str(o?.placeId);
+      const o = recordOrNull(item);
+      const title = trimmedOrNull(o?.title);
+      const placeId = trimmedOrNull(o?.placeId);
       if (!o || !title || !placeId) return null;
-      const loc = obj(o.location);
-      const lat = num(loc?.lat);
-      const lng = num(loc?.lng);
+      const loc = recordOrNull(o.location);
+      const lat = finiteOrNull(loc?.lat);
+      const lng = finiteOrNull(loc?.lng);
       return {
         placeId,
         title: title.slice(0, 120),
-        category: str(o.categoryName),
-        neighborhood: str(o.neighborhood),
-        street: str(o.street),
-        city: str(o.city),
-        state: str(o.state),
-        postalCode: str(o.postalCode),
-        countryCode: str(o.countryCode),
-        phoneRaw: str(o.phoneUnformatted) ?? str(o.phone),
+        category: trimmedOrNull(o.categoryName),
+        neighborhood: trimmedOrNull(o.neighborhood),
+        street: trimmedOrNull(o.street),
+        city: trimmedOrNull(o.city),
+        state: trimmedOrNull(o.state),
+        postalCode: trimmedOrNull(o.postalCode),
+        countryCode: trimmedOrNull(o.countryCode),
+        phoneRaw: trimmedOrNull(o.phoneUnformatted) ?? trimmedOrNull(o.phone),
         sitePhones: strs(o.phones),
-        website: str(o.website),
+        website: trimmedOrNull(o.website),
         emails: strs(o.emails),
         // Only the first: the business's own account; later ones can be staff members' (Appendix B).
         instagram: strs(o.instagrams)[0] ?? null,
-        rating: num(o.totalScore),
-        reviews: num(o.reviewsCount),
+        rating: finiteOrNull(o.totalScore),
+        reviews: finiteOrNull(o.reviewsCount),
         closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
         location: lat !== null && lng !== null ? { lat, lng } : null,
-        about: (str(o.description) ?? str(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
+        about:
+          (trimmedOrNull(o.description) ?? trimmedOrNull(o.ownerDescription))
+            ?.replace(/[\p{Cc}\p{Cf}]/gu, "")
+            .slice(0, 600) ?? null,
         hours: (Array.isArray(o.openingHours) ? o.openingHours : [])
-          .map((h) => ({ day: str(obj(h)?.day) ?? "", hours: str(obj(h)?.hours) ?? "" }))
+          .map((h) => ({
+            day: trimmedOrNull(recordOrNull(h)?.day) ?? "",
+            hours: trimmedOrNull(recordOrNull(h)?.hours) ?? "",
+          }))
           .filter((h) => h.day && h.hours)
           .slice(0, 7),
-        imageUrl: str(o.imageUrl),
+        imageUrl: trimmedOrNull(o.imageUrl),
         reviewsDist: (() => {
-          const d = obj(o.reviewsDistribution);
+          const d = recordOrNull(o.reviewsDistribution);
           if (!d) return null;
-          const n = (k: string) => num(d[k]) ?? 0;
+          const n = (k: string) => finiteOrNull(d[k]) ?? 0;
           return {
             one: n("oneStar"),
             two: n("twoStar"),
@@ -197,13 +200,13 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
             five: n("fiveStar"),
           };
         })(),
-        price: str(o.price)?.slice(0, 8) ?? null,
+        price: trimmedOrNull(o.price)?.slice(0, 8) ?? null,
         facebook: strs(o.facebooks)[0] ?? null,
         linkedin: strs(o.linkedIns)[0] ?? null,
         tiktok: strs(o.tiktoks)[0] ?? null,
         claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
-        rank: num(o.rank),
-        mapsUrl: str(o.url),
+        rank: finiteOrNull(o.rank),
+        mapsUrl: trimmedOrNull(o.url),
       };
     },
     checker: {
@@ -215,10 +218,10 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
       },
       mapItem(item) {
         // The checker's item: `status` with `is_catch_all` (read from the calibration's 141 items, Appendix B).
-        const o = obj(item);
-        const email = str(o?.email)?.toLowerCase() ?? null;
+        const o = recordOrNull(item);
+        const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
         if (!o || !email) return null;
-        const status = (str(o.status) ?? "").toLowerCase();
+        const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
         const state =
           o.is_catch_all === true || status === "risky"
             ? "catch_all"

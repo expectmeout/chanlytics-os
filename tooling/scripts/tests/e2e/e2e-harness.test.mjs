@@ -4,7 +4,7 @@
  * The harness exists so a spec that needs a session can be run and mutation-tested on this machine instead of only
  * in the nightly. Four things have to hold for a run of it to mean anything, and each is a test here:
  *
- *   - its `nightly` record is the SEEDED workspace's, derived from tooling/scripts/e2e-workspace.mjs rather than
+ *   - its `nightly` record is the SEEDED workspace's, derived from tooling/scripts/ops/e2e-workspace.mjs rather than
  *     copied. A copy is right on the day it is written and silently wrong the day the seed changes -- and a harness
  *     that shows a record the nightly does not hold is a harness that passes specs the nightly then fails;
  *   - the page's fixture publishes the tab's globals through the CONTRACTS functions the bridge publishes, not
@@ -34,7 +34,7 @@ import {
   MAX_CLOSURES,
   PROFILE_LIMITS,
 } from "@chanlytics/contracts";
-import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../e2e-workspace.mjs";
+import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
 import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture } from "../../e2e-harness/server.mjs";

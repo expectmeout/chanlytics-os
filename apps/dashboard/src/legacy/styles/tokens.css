@@ -19,6 +19,10 @@
   --text-3xl:   28px;
   --text-4xl:   36px;
   --text-5xl:   48px;
+  /* A field's words on a touch screen. Below 16px, Safari on a phone zooms the page into the field it focuses, so
+     this is not a step of the scale above and does not move with it (globals.css holds every field to it under a
+     coarse pointer; the Ask line and the phone's own fields read it too). */
+  --field-text-touch: 16px;
 
   --leading-tight: 1.2;
   --leading-snug:  1.35;
@@ -247,6 +251,53 @@
 }
 
 /* ============================================================
+   ROLES -- what a thing is for (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, 3.1)
+   A rule that draws a control, a badge, a menu or a panel reads one of these, not the scale or the colour under it,
+   so a look restyles every button, chip and menu in one place. These are Classic, the look every page wears: each is
+   made from the scales above and the theme's colours, so each equals what its readers wrote before. A look is one
+   more block that sets them (a [data-look] block, after this one).
+   They are set on every element that carries a theme, not on :root alone: a custom property is made once where it
+   is set, so a role made on the page's root would keep the root's colours inside an .app-root that stamps the other
+   theme.
+   A role arrives with its first reader. The blurs, a pane's depth and the control layer's fill have none in Classic;
+   they arrive with the look that draws them.
+   ============================================================ */
+:root, [data-theme] {
+  /* Controls: a button, a field, a segmented control. sm is a toolbar's or a picker's. */
+  --control-h-sm: 26px;
+  --control-h-md: 30px;
+  --control-radius: var(--radius-md);
+  --control-radius-sm: var(--radius-sm);
+  /* A badge's height and its round ends: a pill, a chip. */
+  --chip-h: 20px;
+  --chip-radius: var(--radius-full);
+  /* The segment that is picked. */
+  --selected-fill: var(--bg-raised);
+
+  /* Actions: the one act a view asks for, the others beside it, and the quiet ones. */
+  --primary-fill: var(--ink);
+  --primary-ink: var(--bg);
+  --primary-hover: oklch(from var(--ink) calc(l + 0.08) c h);
+  --secondary-fill: var(--bg-raised);
+  --quiet-ink: var(--ink-muted);
+
+  /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
+     the page (a menu, a toast, a tip); the wash behind a sheet. */
+  --surface-page-fill: var(--bg);
+  --surface-pane-fill: var(--bg-raised);
+  --surface-pane-edge: var(--line);
+  --surface-pane-radius: var(--radius-lg);
+  --surface-inset-fill: var(--bg-sunken);
+  --surface-inset-edge: var(--line);
+  --surface-inset-radius: var(--radius-md);
+  --surface-pop-fill: var(--bg-raised);
+  --surface-pop-edge: var(--line);
+  --surface-pop-radius: var(--radius-lg);
+  --surface-pop-depth: var(--shadow-lg);
+  --surface-scrim: oklch(from var(--bg) l c h / 0.6);
+}
+
+/* ============================================================
    BASE
    ============================================================ */
 * { box-sizing: border-box; }
@@ -259,7 +310,7 @@ html, body {
   line-height: var(--leading-normal);
   letter-spacing: var(--tracking-normal);
   color: var(--ink);
-  background: var(--bg);
+  background: var(--surface-page-fill);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

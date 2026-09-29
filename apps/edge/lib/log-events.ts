@@ -88,6 +88,8 @@ export const LOG_EVENTS = [
   "calls_sweep_no_db",
   "calls_sweep_no_retell_key",
   "calls_sweep_notes_query_failed",
+  "calls_sweep_provider_refused_key",
+  "calls_sweep_provider_unavailable",
   "calls_sweep_purge_failed",
   "calls_sweep_purged",
   "calls_sweep_query_failed",
