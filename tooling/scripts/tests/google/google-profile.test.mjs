@@ -1191,3 +1191,94 @@ test("a sync that ANSWERS reviews stays inside the injected transport too", () =
       "and nothing was posted: no model key, so the draft never happened",
     );
   }));
+
+test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan stopped, answers no review on its own", () =>
+  withOAuthEnv(async () => {
+    // The auto mode posts under the business's name. A workspace billing paused, one its last member left (00262),
+    // or one whose Stripe plan is in a state that stops the receptionist kept answering: the sweep picked the
+    // connection by its sync time alone. Counted as the test above counts it: the auto-reply's own token refresh is
+    // the second one, so a held workspace refreshes once (the sync's) and one on duty twice.
+    const { syncProfile } = await import("../../../../apps/edge/lib/google/profile-sync.ts");
+    const now = new Date("2026-09-12T00:00:00Z");
+    const run = async ({ tenant, billing }) => {
+      const seen = [];
+      const net = async (req) => {
+        seen.push(req.url);
+        if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
+        if (req.url.includes("/reviews"))
+          return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+        throw new Error(`unexpected call: ${req.url}`);
+      };
+      const conn = connected({ last_synced_at: "2026-09-11T00:00:00Z", connected_at: "2026-08-01T00:00:00Z" });
+      const tables = {
+        tenants: [{ id: "t1", name: "Ada's", timezone: "America/New_York", ...tenant }],
+        billing_accounts: billing ? [{ tenant_id: "t1", ...billing }] : [],
+        google_connections: [conn],
+        google_listings: [{ tenant_id: "t1", place_id: "p1" }],
+        google_listing_days: [],
+        google_reviews: [
+          {
+            id: "r1",
+            tenant_id: "t1",
+            review_id: "rv-1",
+            origin: "profile",
+            rating: 5,
+            author: "Bo",
+            body: "lovely",
+            published_at: "2026-09-10T00:00:00Z",
+            reply_text: null,
+          },
+        ],
+        policies: [
+          {
+            id: "pol",
+            tenant_id: "t1",
+            class: "reviews",
+            mode: "auto",
+            subject_type: null,
+            subject_id: null,
+            limits: {},
+            updated_at: "2026-09-01T00:00:00Z",
+          },
+        ],
+      };
+      const db = fakeDb(
+        tables,
+        {},
+        {
+          put_google_credentials: () => null,
+          get_google_credentials: () => ({
+            refresh_token: "rt",
+            access_token: "stale",
+            expires_at: now.getTime() - 60_000,
+            scope: "https://www.googleapis.com/auth/business.manage",
+          }),
+        },
+      );
+      const realKey = process.env.ANTHROPIC_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
+      try {
+        const r = await syncProfile(db, conn, "America/New_York", now, net);
+        assert.equal(r.ok, true, JSON.stringify(r));
+      } finally {
+        if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+        else process.env.ANTHROPIC_API_KEY = realKey;
+      }
+      return seen.filter((u) => u.includes("/token")).length;
+    };
+    const onDuty = { status: "active", left_empty_at: null };
+    assert.equal(
+      await run({ tenant: onDuty, billing: { mode: "stripe", status: "active" } }),
+      2,
+      "on duty: it answers",
+    );
+    assert.equal(await run({ tenant: onDuty, billing: { mode: "direct", status: "none" } }), 2, "billed directly");
+    for (const [why, world] of [
+      ["paused", { tenant: { status: "paused", left_empty_at: null }, billing: { mode: "stripe", status: "active" } }],
+      ["ended", { tenant: { status: "active", left_empty_at: "2026-09-01T00:00:00Z" }, billing: null }],
+      ["its plan canceled", { tenant: onDuty, billing: { mode: "stripe", status: "canceled" } }],
+      ["its plan paused at Stripe", { tenant: onDuty, billing: { mode: "stripe", status: "paused" } }],
+    ]) {
+      assert.equal(await run(world), 1, `${why}: the sync reads its reviews and answers none`);
+    }
+  }));

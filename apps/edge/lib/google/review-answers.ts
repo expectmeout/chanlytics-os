@@ -10,7 +10,9 @@ import { replyToReview, reviewParent, type PlacesHttp } from "../packages/channe
 import {
   autoReplyCandidates,
   parseTenantConfig,
+  receptionistOn,
   reviewReplyModeOf,
+  type BillingStatus,
   type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
@@ -71,6 +73,24 @@ export async function draftFor(
 }
 
 /**
+ * Whether the receptionist may answer under the business's name on its own right now. Not while the workspace is
+ * paused (tenants.status: billing stopped it, or a person did, as the WhatsApp receptionist reads it), not once its
+ * last member has left (ended, 00262: left_empty_at), and not while a plan billed through Stripe is in a state that
+ * stops the receptionist (contracts' receptionistOn). A public reply is held to all three: it goes out under the
+ * business's name, on the platform's model key, with nobody left to read it.
+ */
+async function answersOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+  const [t, b] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (t.error) throw new Error(t.error.message);
+  if (b.error) throw new Error(b.error.message);
+  if (t.data?.status === "paused" || t.data?.left_empty_at) return false;
+  return !(b.data?.mode === "stripe" && !receptionistOn(b.data.status as BillingStatus));
+}
+
+/**
  * Under the auto mode, the reviews that came in while the receptionist was
  * on duty and have no reply yet are answered on Google, a few per sync
  * (contracts autoReplyCandidates decides which). A draft that fails or a
@@ -86,6 +106,7 @@ async function answerNewReviews(
 ): Promise<Array<{ id: string; author: string | null; text: string }>> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
+  if (!(await answersOnItsOwn(db, conn.tenant_id))) return [];
   const unreplied = await db
     .from("google_reviews")
     .select("id, review_id, origin, rating, author, body, published_at, reply_text")
