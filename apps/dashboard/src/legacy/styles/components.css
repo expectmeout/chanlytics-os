@@ -3179,6 +3179,11 @@ html.legacy-on .msg-use-link { position: relative; }
   line-height: 1;
   color: var(--count-ink);
 }
+/* A hint on the place you are on stands on the lozenge, lighter than the page under a dark look: it takes the faint
+   ink the lozenge needs (tokens.css, --selected-ink-faint). */
+:where([data-look="glass"]) .nav-item.active .nav-hint {
+  color: var(--selected-ink-faint);
+}
 /* The workspace's mark and the member's face are insets of the sidebar's glass, in ink. */
 :where([data-look="glass"]) .sb-team-mark,
 :where([data-look="glass"]) .user-chip .avatar {
@@ -3190,7 +3195,9 @@ html.legacy-on .msg-use-link { position: relative; }
 
 /* The top bar is its capsules (liquid.py toolbar): the bar no ground and no rule of its own, the crumbs where they
    were, and each control a capsule of the control layer's glass with its rim: Ask's wide one with its key, the bell
-   and the theme round. The page's own act beside them is the kit's button. */
+   and the theme round. The page's own act beside them is the kit's button. The capsules blur what is behind them on
+   a desk; under 900px, where the bell stands alone over the page's still light, a blur changes nothing a person can
+   see, and a phone spends one only where the page moves behind the glass (the tab bar, Ask's circle, the drawer). */
 :where([data-look="glass"]) .topbar {
   height: 64px;
   padding: 12px 24px;
@@ -3205,7 +3212,12 @@ html.legacy-on .msg-use-link { position: relative; }
   border-radius: var(--radius-full);
   background-color: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
-  backdrop-filter: var(--surface-control-blur);
+}
+@media (min-width: 901px) {
+  :where([data-look="glass"]) .tb-ask,
+  :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
+    backdrop-filter: var(--surface-control-blur);
+  }
 }
 :where([data-look="glass"]) .tb-ask {
   padding: 0 8px 0 12px;
@@ -3220,6 +3232,20 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme):hover {
   background-color: var(--surface-control-fill);
   color: var(--ink);
+}
+/* A key's focus draws the house's ring over the capsule's own depth, which would otherwise outrank the ring's rule
+   (NUANCE PASS, above). */
+:where([data-look="glass"]) .tb-ask:focus-visible,
+:where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme):focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+/* Under a finger the house's floor makes every button 44px tall (legacy.css): the round two take 44px across too, so
+   they stay circles and never turn into ovals. */
+@media (pointer: coarse) {
+  :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
+    width: 44px;
+    height: 44px;
+  }
 }
 :where([data-look="glass"]) .tb-ask::after,
 :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme)::after {
@@ -3241,9 +3267,11 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 
 /* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own
-   inks and its own coral, which its dot, its clock and its arrow read. On a desk it stands in the top bar's row, in the
-   middle, clear of the crumbs and the capsules, and takes no room from the page; under 900px it stands under the top
-   bar, in the middle of the page's width. Still the one door to Live, and a focus still draws its ring. */
+   inks and its own coral, which its dot, its clock and its arrow read. On a desk wider than 1280px it stands in the
+   top bar's row, in the middle, clear of the crumbs and the capsules, and takes no room from the page; narrower, it
+   stands under the top bar, in the middle of the page's width, as on a phone: from 901 to about 1250px the bar's row
+   had no room between the crumbs and Ask's capsule, and the island covered Ask (112px of it at 1024) and cut its
+   own words at 901. Still the one door to Live, and a focus draws its ring over its depth. */
 :where([data-look="glass"]) .live-bar {
   --ink: var(--surface-island-ink);
   --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
@@ -3264,9 +3292,9 @@ html.legacy-on .msg-use-link { position: relative; }
   background: var(--surface-island-fill);
 }
 :where([data-look="glass"]) .live-bar:focus-visible {
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-ring), var(--surface-island-depth);
 }
-@media (min-width: 901px) {
+@media (min-width: 1281px) {
   :where([data-look="glass"]) .live-bar {
     position: absolute;
     top: 14px;
@@ -3288,4 +3316,22 @@ html.legacy-on .msg-use-link { position: relative; }
    title blocks set theirs (its padding is the capsule's own in Glass, the kit's). */
 :where([data-look="glass"]) .main > .stabs {
   margin: 0 24px 8px;
+}
+
+/* The Inbox's sending strip (inbox.css, fixed under the top bar), on a desk: at the right end of the strip of views'
+   row, which the capsule of views leaves free (it is as wide as its tabs), so it covers neither the views nor the
+   island. Centred on the window, it covered the views from 901 to 1280px (the Live tab at 1280), as Classic's still
+   does. While a call stands under the top bar (1280px and under) the row moves down by the island, and the strip goes
+   under the island with it; a phone's is mobile.css's. Named outright: inbox.css comes after this sheet. */
+@media (min-width: 901px) {
+  [data-look="glass"] .ix-sending-strip {
+    left: auto;
+    right: 24px;
+    transform: none;
+  }
+}
+@media (min-width: 901px) and (max-width: 1280px) {
+  [data-look="glass"] .main:has(> .live-bar) .ix-sending-strip {
+    top: 118px;
+  }
 }

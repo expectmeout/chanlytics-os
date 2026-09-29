@@ -768,8 +768,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
    ==================================================================== */
 @media (max-width: 900px) {
   /* The drawer blurs the page passing behind it from a layer under its words (::before): the drawer is a layer of its
-     own already, fixed over the page, so its menus stay placed against the window. */
+     own already, fixed over the page, so its menus stay placed against the window. It is as tall as what it holds, as
+     the sidebar is on a desk, and never taller than the screen (components.css): its foot is `auto`, so its height
+     never rests on how a browser aligns a fixed box between a top and a bottom. */
   :where([data-look="glass"]) .side-wrap .sidebar {
+    bottom: auto;
     background: transparent;
     box-shadow: var(--surface-control-depth);
   }
@@ -783,6 +786,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     background-image: var(--surface-control-sheen);
     backdrop-filter: var(--surface-control-blur);
     pointer-events: none;
+  }
+  /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
+     over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
+     views it stands over is what it covers in Classic too. */
+  :where([data-look="glass"]) .main:has(> .live-bar) .ix-sending-strip {
+    top: 118px;
   }
 }
 

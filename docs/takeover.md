@@ -43,7 +43,7 @@ as unknown as                       216
 table names outside packages/db     521
 unnamed durations                    69   in 36 files
 literal style values               1093   in 22 stylesheets
-primitives outside the kit         2167   selectors naming 864 classes
+primitives outside the kit         2169   selectors naming 864 classes
 inline style props                  286   in 49 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
