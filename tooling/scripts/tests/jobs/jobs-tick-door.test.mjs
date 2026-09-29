@@ -162,7 +162,8 @@ function claimDue(jobs, { p_limit, p_lease_seconds }) {
  * it. `workspace()` adds one with its owner's mailbox and, as asked, a WhatsApp
  * channel with its own credentials in the vault ("own"), one that carries none
  * ("none"), or no channel (false), and a texting line with its token in the
- * vault. `queue()` adds one reply to its outbox, and the job that sends it.
+ * vault (true), or one the vault does not answer for ("unreadable"). `queue()`
+ * adds one reply to its outbox, and the job that sends it.
  */
 function ledger({ faults = {}, claim } = {}) {
   const tables = {
@@ -188,7 +189,10 @@ function ledger({ faults = {}, claim } = {}) {
       const v = vault.channels[p_channel_id];
       return typeof v === "function" ? v() : (v ?? null);
     },
-    get_line_credentials: ({ p_line_id }) => vault.lines[p_line_id] ?? {},
+    get_line_credentials: ({ p_line_id }) => {
+      const v = vault.lines[p_line_id];
+      return typeof v === "function" ? v() : (v ?? {});
+    },
   });
   setPg(db);
   const mark = net.calls.length;
@@ -235,7 +239,12 @@ function ledger({ faults = {}, claim } = {}) {
       };
       ws.lineToken = `line-${i}-subaccount-token`;
       tables.lines.push(ws.line);
-      vault.lines[ws.line.id] = { auth_token: ws.lineToken };
+      vault.lines[ws.line.id] =
+        texting === "unreadable"
+          ? () => {
+              throw new Error("vault unavailable");
+            }
+          : { auth_token: ws.lineToken };
     }
     let n = 0;
     /** One reply in the outbox and its job: due now, or (`died`) claimed once by a run that never reported back. */
@@ -587,6 +596,42 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
     "the three ran; the lineless one's kept row leaves one push job for its owner's phone, for the next heartbeat",
   );
   assert.equal(L.tables.jobs[3].tenant_id, lineless.T, "that workspace's, nobody else's");
+});
+
+test("a texting line the vault did not answer for is not a workspace with no line: the text stays queued for a fresh job, nobody is flagged or told, and nothing goes to the carrier", async () => {
+  const L = ledger();
+  const blip = L.workspace({ whatsapp: false, texting: "unreadable" });
+  const waiting = blip.queue({ channel: "sms", to: "+16465550145", body: "See you at 7" });
+  const before = Date.now();
+
+  await listening(async (log) => {
+    assert.deepEqual(await answer(await knock()), [
+      200,
+      { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 },
+    ]);
+    assert.deepEqual(
+      log.said("sms_sender_unavailable").map((l) => [l.stream, l.tenant_id]),
+      [["error", blip.T]],
+      "the read's failure is said, under its own name",
+    );
+  });
+
+  assert.deepEqual(L.left().twilio, [], "nothing went to the carrier");
+  assert.equal(waiting.message.status, "queued", "still on its way");
+  assert.equal(waiting.message.error, undefined);
+  assert.deepEqual(L.tables.escalations, [], "the thread is not flagged");
+  assert.deepEqual(
+    L.left().mail.map((m) => m.subject),
+    ["[Chanlytics] sms: a workspace's credentials could not be read"],
+    "the platform is paged; the owner is not told a delivery failed",
+  );
+  const fresh = L.tables.jobs.filter((j) => j.tenant_id === blip.T && j.id !== waiting.job.id);
+  assert.deepEqual(
+    fresh.map((j) => [j.kind, j.state ?? "scheduled"]),
+    [["outbound_send", "scheduled"]],
+  );
+  assert.deepEqual(fresh[0].payload, { ...waiting.job.payload, resumes: 1 });
+  assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
 /* ------------------------------------------------------------ tried again */

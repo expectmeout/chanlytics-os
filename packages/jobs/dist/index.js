@@ -21029,6 +21029,20 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS = 5 * MIN_MS32;
 var CALL_CONTROL_S = 15 * 60;
+function isWireUnavailable(w) {
+  return typeof w === "object" && w !== null && "unavailable" in w && w.unavailable === true;
+}
+var WireUnavailableError = class extends Error {
+  channel;
+  constructor(channel, error) {
+    super(`deliver: the ${channel} wire could not be bound: ${error}`);
+    this.name = "WireUnavailableError";
+    this.channel = channel;
+  }
+};
+function isWireUnavailableError(e2) {
+  return e2 instanceof Error && e2.name === "WireUnavailableError";
+}
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
   if (d.kind) return d.kind;
@@ -21190,6 +21204,7 @@ function assertFrozenFor(d) {
 }
 async function putOnWire(wire, d) {
   const send = wire[d.channel];
+  if (isWireUnavailable(send)) throw new WireUnavailableError(d.channel, send.error);
   if (send === void 0)
     return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
   if (send === null)
@@ -21342,6 +21357,7 @@ var MAX_SNOOZE_MS = 30 * DAY_MS22;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS22;
+var SEND_RETRY_WAITS_MS = [MIN_MS22, 3 * MIN_MS22, 10 * MIN_MS22, 30 * MIN_MS22];
 async function sendQueued(ports, cmd) {
   const p = cmd.payload;
   let msg;
@@ -21362,26 +21378,74 @@ async function sendQueued(ports, cmd) {
     throw new Error(
       `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
     );
-  const out = await ports.deliver({
-    tenantId: cmd.tenantId,
-    conversationId: p.conversation_id,
-    contactId: null,
-    to,
-    channel,
-    // Read from the ROW, not hardcoded: under a veto window the receptionist's
-    // own reply travels this path, and stamping every send "human" would make
-    // the metrics report a bot's words as a person's.
-    sender: msg.sender ?? "human",
-    purpose,
-    proactive: p.proactive === true,
-    body: p.body ?? msg.body ?? "",
-    template: p.template,
-    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
-    ...msg.leadId ? { leadId: msg.leadId } : {},
-    messageId: p.message_id
-  });
+  let out;
+  try {
+    out = await ports.deliver({
+      tenantId: cmd.tenantId,
+      conversationId: p.conversation_id,
+      contactId: null,
+      to,
+      channel,
+      // Read from the ROW, not hardcoded: under a veto window the receptionist's
+      // own reply travels this path, and stamping every send "human" would make
+      // the metrics report a bot's words as a person's.
+      sender: msg.sender ?? "human",
+      purpose,
+      proactive: p.proactive === true,
+      body: p.body ?? msg.body ?? "",
+      template: p.template,
+      // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+      ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
+      ...msg.leadId ? { leadId: msg.leadId } : {},
+      messageId: p.message_id
+    });
+  } catch (e2) {
+    if (!isWireUnavailableError(e2)) throw e2;
+    await resendWhenBound(ports, cmd, channel, e2);
+    return;
+  }
   if (out.outcome !== "failed") return;
+  await sayItFailed(ports, cmd, { msg, channel, purpose, to, out });
+}
+async function resendWhenBound(ports, cmd, channel, e2) {
+  const p = cmd.payload;
+  const resumes = typeof p.resumes === "number" && p.resumes > 0 ? Math.floor(p.resumes) : 0;
+  const wait = SEND_RETRY_WAITS_MS[resumes];
+  if (wait === void 0)
+    throw new Error(
+      `outbound_send: the ${channel} wire could not be bound for ${resumes} fresh jobs in a row (${e2.message})`,
+      { cause: e2 }
+    );
+  await ports.page?.(
+    `wire_unavailable:${channel}`,
+    `${channel}: a workspace's credentials could not be read`,
+    `Tenant ${cmd.tenantId}, message ${p.message_id}: ${e2.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS22)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`
+  );
+  await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
+}
+async function sayItFailed(ports, cmd, f) {
+  const p = cmd.payload;
+  const { msg, channel, to, out } = f;
+  await pageTheProvider(ports, cmd, f);
+  if (channel === "email" && isCampaignEmail2(msg?.email)) return;
+  const cause = causeOf(out, channel);
+  const receptionist = msg.sender === "ai";
+  await ports.escalate(
+    p.conversation_id,
+    "send_failed",
+    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
+  );
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
+    subject: `Reply delivery failed: ${to}`,
+    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
+  });
+}
+async function pageTheProvider(ports, cmd, f) {
+  const p = cmd.payload;
+  const { channel, purpose, out } = f;
   const limit = out.limit ?? null;
   const outreach = channel === "email" && purpose === "outreach";
   if (limit === "daily" || limit === "monthly") {
@@ -21399,26 +21463,16 @@ async function sendQueued(ports, cmd) {
       `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
     );
   }
-  if (channel === "email" && isCampaignEmail2(msg?.email)) return;
+}
+function causeOf(out, channel) {
+  const limit = out.limit ?? null;
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
     // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
-  const receptionist = msg.sender === "ai";
-  await ports.escalate(
-    p.conversation_id,
-    "send_failed",
-    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
-  );
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${p.conversation_id}`,
-    about: { type: "conversation", id: p.conversation_id },
-    subject: `Reply delivery failed: ${to}`,
-    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
-  });
+  return cause;
 }
 async function provisionLine(ports, cmd) {
   const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
@@ -21655,11 +21709,7 @@ var ThrownAtTheDoor = class {
     this.error = error;
   }
 };
-async function sendBroadcastBatch(ports, cmd) {
-  const b = await ports.broadcast(cmd.broadcastId);
-  if (!b) return;
-  if (b.state !== "scheduled" && b.state !== "sending") return;
-  if (isReachOutRun(b.audience)) return;
+async function mayGoNow(ports, b) {
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
     await ports.alert({
@@ -21669,8 +21719,22 @@ async function sendBroadcastBatch(ports, cmd) {
       subject: `Broadcast \u201C${b.name}\u201D not sent`,
       body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
     });
-    return;
+    return false;
   }
+  const unbound = await ports.wireUnavailable();
+  if (unbound) {
+    console.error("broadcast_wire_unavailable", b.id, unbound);
+    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    return false;
+  }
+  return true;
+}
+async function sendBroadcastBatch(ports, cmd) {
+  const b = await ports.broadcast(cmd.broadcastId);
+  if (!b) return;
+  if (b.state !== "scheduled" && b.state !== "sending") return;
+  if (isReachOutRun(b.audience)) return;
+  if (!await mayGoNow(ports, b)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
@@ -24940,6 +25004,10 @@ function withTemplate(row) {
   const { template_name, template_language } = row;
   return template_name && template_language ? { ...row, template_name, template_language } : null;
 }
+function whatsappUnbound(ctx) {
+  const wire = ctx.wire.whatsapp;
+  return isWireUnavailable(wire) ? wire.error : null;
+}
 async function broadcastSend(ctx, job) {
   const p = job.payload;
   const db = ctx.db;
@@ -24977,12 +25045,10 @@ async function broadcastSend(ctx, job) {
       // not a template Meta withdrew: null here fails the whole broadcast and
       // emails the owner that WhatsApp rejected it, which would be a lie about
       // their Meta account told over a statement timeout.
-      template: async (name2, language) => {
-        return must(
-          `broadcast_send: cannot read template ${name2}`,
-          await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name2).eq("language", language).maybeSingle()
-        );
-      },
+      template: async (name2, language) => must(
+        `broadcast_send: cannot read template ${name2}`,
+        await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name2).eq("language", language).maybeSingle()
+      ),
       facts: () => workspaceFacts(db, job.tenant_id),
       batch: async (id, limit) => {
         const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("state", "queued").limit(limit);
@@ -25025,6 +25091,7 @@ async function broadcastSend(ctx, job) {
         );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
+      wireUnavailable: async () => whatsappUnbound(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
       // cancel reads, so a failed read here would abandon a half-sent broadcast
@@ -25291,7 +25358,24 @@ async function outboundSend(ctx, job) {
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
       escalate: (conversationId, reason, details) => upsertEscalation(ctx.db, job.tenant_id, conversationId, reason, details),
       alert: ctx.alert,
-      ...ctx.page ? { page: ctx.page } : {}
+      ...ctx.page ? { page: ctx.page } : {},
+      // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
+      // the ledger claims the new one when it is due. Said on the console, since the tick sees only a job done.
+      retry: async (dueAt, payload) => {
+        await ctx.schedule("outbound_send", dueAt, payload);
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "outbound_send_rescheduled",
+            tenant: job.tenant_id,
+            job: job.id,
+            message_id: payload.message_id,
+            resumes: payload.resumes ?? null,
+            due_at: dueAt.toISOString()
+          })
+        );
+      },
+      now: Date.now
     },
     { tenantId: job.tenant_id, payload: job.payload }
   );

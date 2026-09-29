@@ -278,7 +278,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
 }
 
 /** The read's three answers (core CredentialsRead), for the callers below. */
-export type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string }>;
+type WaCredentialsRead = CredentialsRead<{ phoneId: string; accessToken: string }>;
 
 /**
  * A tenant's WhatsApp credentials, for callers holding a tenant_id and no

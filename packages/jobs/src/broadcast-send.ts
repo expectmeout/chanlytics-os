@@ -46,6 +46,15 @@ function withTemplate<T extends { template_name: string | null; template_languag
 }
 
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
+/**
+ * A broadcast goes by WhatsApp: why the tick could not bind that wire for this tenant (the credentials read failed on
+ * the edge), or null. A wire that is null is a number that carries none, and the door's to refuse.
+ */
+function whatsappUnbound(ctx: JobContext): string | null {
+  const wire = ctx.wire.whatsapp;
+  return isWireUnavailable(wire) ? wire.error : null;
+}
+
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const p = job.payload as { broadcast_id: string; waits?: unknown };
   const db = ctx.db;
@@ -98,8 +107,8 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // not a template Meta withdrew: null here fails the whole broadcast and
       // emails the owner that WhatsApp rejected it, which would be a lie about
       // their Meta account told over a statement timeout.
-      template: async (name, language) => {
-        return must(
+      template: async (name, language) =>
+        must(
           `broadcast_send: cannot read template ${name}`,
           await db
             .from("templates")
@@ -109,8 +118,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
             .eq("name", name)
             .eq("language", language)
             .maybeSingle(),
-        );
-      },
+        ),
       facts: () => workspaceFacts(db, job.tenant_id),
       batch: async (id, limit) => {
         const { data, error } = await db
@@ -177,12 +185,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
-      // A broadcast goes by WhatsApp: the wire the tick bound for this tenant, or why it could not (the credentials
-      // read failed on the edge). A wire that is null is a number that carries none, and the door's to refuse.
-      wireUnavailable: async () => {
-        const wire = ctx.wire.whatsapp;
-        return isWireUnavailable(wire) ? wire.error : null;
-      },
+      wireUnavailable: async () => whatsappUnbound(ctx),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
       // Read by the verb as "is this broadcast still wanted"; null is how a
       // cancel reads, so a failed read here would abandon a half-sent broadcast

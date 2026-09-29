@@ -1,8 +1,96 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
+import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
 import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
+
+/**
+ * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
+ * deliver() decides whether a send may leave; these only put it on the provider's wire, and refuse a request that
+ * would leave as somebody else.
+ */
+
+/**
+ * What a read of a workspace's credentials came back as, from wherever they
+ * are kept (the edge's Vault, for WhatsApp). Three answers, because two of
+ * them used to be one: `present` is the pair; `absent` is a channel that
+ * carries none -- not connected, refused at the door and said to the owner;
+ * `unavailable` is a read that FAILED (Vault, the database) whose truth nobody
+ * has. The number may well be connected, so it is neither a refusal nor "not
+ * connected": a send that meets it waits (WireUnavailable) rather than fail
+ * for good and send the owner to reconnect a number that works.
+ */
+type CredentialsRead<C> = {
+    outcome: "present";
+    credentials: C;
+} | {
+    outcome: "absent";
+} | {
+    outcome: "unavailable";
+    error: string;
+};
+/**
+ * A wire that could not be BOUND this run: the workspace's credentials could
+ * not be read (CredentialsRead unavailable). A plain object rather than a
+ * class, because the value is built on the edge and read inside core's dist
+ * and jobs' bundle of it, and `instanceof` does not cross a bundle.
+ */
+interface WireUnavailable {
+    unavailable: true;
+    /** The read's own words, for the log and the pager; never shown to an owner. */
+    error: string;
+}
+declare const wireUnavailable: (error: string) => WireUnavailable;
+declare function isWireUnavailable(w: unknown): w is WireUnavailable;
+/**
+ * The door could not be opened: this channel's wire could not be bound
+ * (Wire's WireUnavailable). Thrown before anything is written -- a queued row
+ * stays queued, no event is emitted -- as every read that fails at the door
+ * throws: "we could not check" is not "not connected". A caller that speaks to
+ * a person tries again later (sendQueued, sendBroadcastBatch); deliverSafely
+ * says it as `wire_unreadable`. Told apart by name, not by class, for the same
+ * reason WireUnavailable is an object.
+ */
+declare class WireUnavailableError extends Error {
+    readonly channel: Channel;
+    constructor(channel: Channel, error: string);
+}
+declare function isWireUnavailableError(e: unknown): e is WireUnavailableError;
+/**
+ * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
+ * so the "+" is stripped here rather than by a caller who should not know.
+ */
+declare function whatsappSender(cfg: WaConfig | null): Sender | null;
+/** WhatsApp's wire from a credentials READ: the sender, none to refuse with, or a wire that could not be bound. */
+declare function whatsappWire(read: CredentialsRead<WaConfig>): Sender | null | WireUnavailable;
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
+interface EmailRoute {
+    lane: "hosted" | "own";
+    cfg: ResendConfig;
+    as: EmailSendsAs;
+}
+/**
+ * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider keys are the
+ * deployment's; the routes are what make the wire this workspace's: the hosted
+ * mailbox on the platform's account, and each of its own verified domains on
+ * the cold account (Reach out), so a cold email never spends the reputation
+ * every workspace's replies share. The route is chosen by the request's From,
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials). `held` is the addresses of the workspace's own domains that
+ * are held: no route, but a reply frozen with one says why it went as the
+ * mailbox.
+ */
+declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Sender | null;
 
 /**
  * deliver(): the one door a message leaves through.
@@ -79,8 +167,11 @@ type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * channel at all. `null`: the channel exists but this workspace holds no
  * credentials or line for it -- refused here, never guessed from the
  * environment, which is how one business's message left on another's line.
+ * A WireUnavailable: the channel may well be this workspace's, but its
+ * credentials could not be read just now -- nothing is sent, nothing is
+ * failed, and the caller tries again later.
  */
-type Wire = Partial<Record<Channel, Sender | null>>;
+type Wire = Partial<Record<Channel, Sender | null | WireUnavailable>>;
 interface Delivery {
     tenantId: string;
     conversationId: string;
@@ -165,46 +256,6 @@ declare function templatePurpose(db: Db, tenantId: string, template: {
  * name, and the caller alerts a person the way it does for a provider's no.
  */
 declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered>;
-
-/**
- * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
- * deliver() decides whether a send may leave; these only put it on the provider's wire, and refuse a request that
- * would leave as somebody else.
- */
-
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-declare function whatsappSender(cfg: WaConfig | null): Sender | null;
-/**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
- */
-interface EmailRoute {
-    lane: "hosted" | "own";
-    cfg: ResendConfig;
-    as: EmailSendsAs;
-}
-/**
- * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider keys are the
- * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials). `held` is the addresses of the workspace's own domains that
- * are held: no route, but a reply frozen with one says why it went as the
- * mailbox.
- */
-declare function emailSender(routes: EmailRoute[], held?: readonly string[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -631,6 +682,43 @@ interface SendQueuedPorts {
     alert(news: JobNews): Promise<void>;
     /** The platform's own pager, for a provider refusing every send on a wire. */
     page?(key: string, subject: string, body: string): Promise<unknown>;
+    /**
+     * The same send, as a FRESH job of its kind, due then (the ledger's scheduleJob). Asked when the wire could not be
+     * bound (deliver WireUnavailableError): nothing left and nothing was written, so a second job is safe where a second
+     * run of this one is not -- the ledger never tries a kind that speaks to a person again (SPEAKS_TO_A_PERSON), because
+     * a run that threw mid-send may have sent. The payload carries how many fresh jobs this send is already the result
+     * of (`resumes`, as a resumed broadcast's does), and the verb bounds them.
+     */
+    retry(dueAt: Date, payload: SendQueuedCommand["payload"]): Promise<void>;
+    /** Epoch ms; injected so the wait is testable. */
+    now?: () => number;
+}
+/** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
+interface SendQueuedCommand {
+    tenantId: string;
+    /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+    payload: {
+        message_id: string;
+        conversation_id: string;
+        to_phone?: string;
+        to_email?: string;
+        body?: string;
+        template?: {
+            name: string;
+            language: string;
+            params: string[];
+        };
+        /**
+         * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
+         * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
+         * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
+         * which the door holds to its own rules.
+         */
+        purpose?: SendPurpose;
+        proactive?: boolean;
+        /** How many fresh jobs this send is already the result of, after a wire that could not be bound (retry above). */
+        resumes?: number;
+    };
 }
 interface ProvisionLinePorts {
     /** The saga, or its resumption: the edge's, because the provider and the credentials live there. Absent in a runtime that holds none. */
@@ -720,6 +808,13 @@ interface BroadcastBatchPorts {
     }>>;
     mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
     deliver: Door;
+    /**
+     * Why the run's wire cannot be bound right now -- the workspace's credentials could not be read (deliver
+     * WireUnavailable) -- or null when the door can be asked. Asked BEFORE anyone is claimed: a claim settles only to
+     * sent or skipped (00182), never back to queued, so a wire known to be unbound claims nobody and the batch waits.
+     * A number that is ABSENT is not this port's to say: the door answers that per person, as it always did.
+     */
+    wireUnavailable(): Promise<string | null>;
     /** How many are still queued; throws when it cannot be counted. */
     remaining(id: string): Promise<number>;
     /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
@@ -753,30 +848,15 @@ interface BroadcastBatchCommand {
     waits?: number;
 }
 
-interface SendQueuedCommand {
-    tenantId: string;
-    /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
-    payload: {
-        message_id: string;
-        conversation_id: string;
-        to_phone?: string;
-        to_email?: string;
-        body?: string;
-        template?: {
-            name: string;
-            language: string;
-            params: string[];
-        };
-        /**
-         * What the send IS, when the job knows better than a template can: an offer is marketing whatever its words, and a
-         * first email starts a conversation. Both can only make the door stricter: a payload never makes a template's
-         * purpose looser, and only `true` makes a send proactive. "outreach" (a cold email, Reach out) is its own lane,
-         * which the door holds to its own rules.
-         */
-        purpose?: SendPurpose;
-        proactive?: boolean;
-    };
-}
+/**
+ * How long a reply whose wire could not be bound waits before a FRESH job tries it again, by how many fresh jobs it
+ * already is the result of (payload.resumes): a blip, a bad minute, a short outage, and one more before a person is
+ * told. The list's length is the bound: a send past its last wait fails loudly by name, and the ledger settles the
+ * row and tells the owner as it does for any run that did not finish -- never "reconnect the number", because
+ * nobody knows that it is off. Fresh rows rather than the ledger's own retry (RETRY_WAITS_MS), which is closed to a
+ * kind that speaks to a person: a run that threw mid-send may have sent, and this one provably did not.
+ */
+declare const SEND_RETRY_WAITS_MS: readonly number[];
 /**
  * outbound_send: the honest undo — the message sat status='queued' through
  * its cancel window; if it is STILL queued, send it through the door and
@@ -3204,4 +3284,4 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
  */
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

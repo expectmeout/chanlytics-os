@@ -9,7 +9,7 @@ export type {
   BroadcastBatchPorts,
   BroadcastBatchCommand,
 } from "./ports";
-export { sendQueued } from "./send";
+export { sendQueued, SEND_RETRY_WAITS_MS } from "./send";
 export type { SendQueuedCommand } from "./send";
 export { provisionLine } from "./provision-line";
 export { ingestEmail, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS } from "./email-ingest";

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const core = await importSrc("packages/core/src/messages/index.ts");
-const { WireUnavailableError } = await importSrc("packages/core/src/deliver.ts");
+const { WireUnavailableError } = await importSrc("packages/core/src/wire-senders.ts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 /** A port the runtime does not hold, as opposed to one that answers null. */
 const ABSENT = Symbol("absent");

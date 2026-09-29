@@ -12,7 +12,14 @@ import {
   resolveParams,
 } from "@chanlytics/contracts";
 import type { Delivered } from "../deliver";
-import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow, RecipientMark, RecipientRow } from "./ports";
+import type {
+  BroadcastBatchCommand,
+  BroadcastBatchPorts,
+  BroadcastRow,
+  ContactRow,
+  RecipientMark,
+  RecipientRow,
+} from "./ports";
 
 /**
  * How long a batch that reached nobody waits before it is tried again. The
@@ -51,6 +58,37 @@ class ThrownAtTheDoor {
 }
 
 /**
+ * Whether this batch may go now, asked before anyone is claimed; when it may not, it has already said so. A paused
+ * workspace (tenants.status, written by billing) sends nothing: the run fails with its reason and the owner is told,
+ * rather than a template going out under a subscription that stopped. A wire that could not be BOUND -- credentials
+ * that could not be READ (Vault, the database), which are not credentials that are absent -- claims nobody: nobody
+ * knows whether the number is connected, a claim settles only to sent or skipped (00182), never back to queued, so the
+ * whole batch waits for the next tick, its people still queued and the run as it was, the way a batch whose people
+ * could not be read waits, and nobody is told to reconnect a number that may well be connected. A number that IS
+ * absent is the door's answer, per person, as it always was.
+ */
+async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<boolean> {
+  if (await ports.workspacePaused()) {
+    await ports.fail(b.id, "paused");
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast “${b.name}” not sent`,
+      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.",
+    });
+    return false;
+  }
+  const unbound = await ports.wireUnavailable();
+  if (unbound) {
+    console.error("broadcast_wire_unavailable", b.id, unbound);
+    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    return false;
+  }
+  return true;
+}
+
+/**
  * broadcast_send: one batch of a broadcast, then the next.
  *
  * The route enrolled the recipients; this sends to up to BROADCAST_CHUNK of
@@ -70,35 +108,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // A reach-out's run has no recipients here: its sends are the reach-out clock's (Part 3). A job that reached one
   // would end it as sent to nobody, and the clock would claim nothing more from it.
   if (isReachOutRun(b.audience)) return;
-  // A paused workspace (tenants.status, written by billing) sends nothing:
-  // the run fails with its reason and the owner is told, rather than a
-  // template going out under a subscription that stopped.
-  if (await ports.workspacePaused()) {
-    await ports.fail(b.id, "paused");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: "broadcasts",
-      about: { type: "broadcast", id: b.id },
-      subject: `Broadcast “${b.name}” not sent`,
-      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.",
-    });
-    return;
-  }
-  // The wire itself, before anyone is claimed. Credentials that could not be
-  // READ (Vault, the database) are not credentials that are absent: nobody
-  // knows whether the number is connected, so nobody is claimed into a send
-  // that cannot leave -- a claim settles only to sent or skipped (00182), never
-  // back to queued -- and the whole batch waits for the next tick, its people
-  // still queued and the run as it was, the way a batch whose people could not
-  // be read waits. Nothing is said to the owner about reconnecting a number
-  // that may well be connected. A number that IS absent is the door's answer,
-  // per person, below, as it always was.
-  const unbound = await ports.wireUnavailable();
-  if (unbound) {
-    console.error("broadcast_wire_unavailable", b.id, unbound);
-    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
-    return;
-  }
+  if (!(await mayGoNow(ports, b))) return;
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;

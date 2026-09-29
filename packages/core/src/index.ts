@@ -2,17 +2,17 @@
  * Every public name, named: the send door and the booking page here, each domain in its own index.ts, never an
  * export * of a module (repo/contracts-barrels.test.mjs holds every package's).
  */
+export { deliver, templatePurpose, deliverSafely } from "./deliver";
 export {
-  deliver,
-  templatePurpose,
-  deliverSafely,
+  whatsappSender,
+  whatsappWire,
+  emailSender,
   wireUnavailable,
   isWireUnavailable,
   isWireUnavailableError,
   WireUnavailableError,
-} from "./deliver";
-export { whatsappSender, whatsappWire, emailSender } from "./wire-senders";
-export type { EmailRoute } from "./wire-senders";
+} from "./wire-senders";
+export type { EmailRoute, CredentialsRead, WireUnavailable } from "./wire-senders";
 export type {
   DeliveryRefusal,
   Db,
@@ -25,8 +25,6 @@ export type {
   Delivery,
   Delivered,
   DeliverPorts,
-  CredentialsRead,
-  WireUnavailable,
 } from "./deliver";
 export * from "./conversations";
 export * from "./messages";
