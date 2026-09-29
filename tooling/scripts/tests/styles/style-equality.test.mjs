@@ -1,12 +1,12 @@
 /**
  * The comparison the style-equality tool makes (tooling/scripts/checks/style-equality.mjs), on recordings written for
- * it, and its reading of a stylesheet's rules. Recording needs a browser and the harness, so it is a tool a person
- * runs; what decides "moved nothing" is this comparison, and it is held here
+ * it, its reading of a stylesheet's rules, and which requests refuse a page. Recording needs a browser and the
+ * harness, so it is a tool a person runs; what decides "moved nothing" is this comparison, and it is held here
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.5).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareRecordings, EDGE_TOLERANCE, rulesOf } from "../../checks/style-equality.mjs";
+import { compareRecordings, EDGE_TOLERANCE, rulesOf, sheetRefusal } from "../../checks/style-equality.mjs";
 
 const PROPERTIES = ["color", "border-top-left-radius"];
 const META = {
@@ -182,5 +182,34 @@ test("a stylesheet's rules: each named with the group rules around it, comments 
   assert.deepEqual(
     rules.map((r) => css[r.open]),
     ["{", "{", "{", "{"],
+  );
+});
+
+test("a stylesheet that did not load, or answered other than 2xx, refuses its page; one that loaded, or any other request, does not", () => {
+  const kit = "http://localhost:3210/w/studio/surfaces/kit/kit.css?v=3";
+  assert.equal(sheetRefusal({ url: kit, type: "stylesheet", status: 200 }), null);
+  assert.equal(sheetRefusal({ url: kit, type: "stylesheet", status: 204 }), null, "any 2xx is an answer");
+  // What step 2.1 met: the page drew without the kit, and the run recorded the difference instead of refusing.
+  assert.equal(
+    sheetRefusal({ url: kit, type: "stylesheet", failure: "net::ERR_ABORTED" }),
+    "the stylesheet surfaces/kit/kit.css did not load (net::ERR_ABORTED)",
+  );
+  assert.equal(
+    sheetRefusal({ url: kit, type: "stylesheet", status: 404 }),
+    "the stylesheet surfaces/kit/kit.css answered 404",
+  );
+  assert.equal(
+    sheetRefusal({ url: "http://localhost:3210/styles/tokens.css", type: "stylesheet", status: 500 }),
+    "the stylesheet styles/tokens.css answered 500",
+    "a page opened at the root names its stylesheets from there",
+  );
+  // Another host's stylesheet (the fonts) is named by its address: without it, every line of text is laid out anew.
+  const fonts = "https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=swap";
+  assert.equal(sheetRefusal({ url: fonts, type: "stylesheet", status: 503 }), `the stylesheet ${fonts} answered 503`);
+  // A script's failure is the page's to throw over, and a read's is the page's to say; neither is judged here.
+  assert.equal(sheetRefusal({ url: "http://localhost:3210/_hx/fixture.js", type: "script", status: 404 }), null);
+  assert.equal(
+    sheetRefusal({ url: "http://localhost:3210/api/v1/me", type: "fetch", failure: "net::ERR_FAILED" }),
+    null,
   );
 });

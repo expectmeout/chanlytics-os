@@ -361,6 +361,31 @@ function sheetName(url) {
 }
 
 /**
+ * Why a request refuses the page it was made for, or null. A stylesheet that did not load, or answered other than 2xx,
+ * leaves the page drawn without its rules, and a recording of it is a recording of some other tree: step 2.1 met it,
+ * when kit.css failed in one context and the run recorded 16,818 differences instead of refusing. `type` is the
+ * browser's word for what was asked (Playwright's `resourceType()`), and a request for anything but a stylesheet is
+ * not judged here; `failure` is why one never answered, `status` what one answered.
+ */
+export function sheetRefusal({ url, type, status = null, failure = null }) {
+  if (type !== "stylesheet") return null;
+  const sheet = sheetName(url) ?? url;
+  if (failure !== null) return `the stylesheet ${sheet} did not load (${failure})`;
+  return status >= 200 && status < 300 ? null : `the stylesheet ${sheet} answered ${status}`;
+}
+
+/** Refuses the page, through `errors`, for each stylesheet that did not load or answered other than 2xx. */
+function watchSheets(page, errors) {
+  const refuse = (why) => why && errors.push(why);
+  page.on("response", (r) =>
+    refuse(sheetRefusal({ url: r.url(), type: r.request().resourceType(), status: r.status() })),
+  );
+  page.on("requestfailed", (r) =>
+    refuse(sheetRefusal({ url: r.url(), type: r.resourceType(), failure: r.failure()?.errorText ?? "no answer" })),
+  );
+}
+
+/**
  * The page's requests, counted from before it opens, and a wait from now until none has been in flight for QUIET_MS:
  * so what a step's timers asked for, and what its answers asked for in turn, lands before the next step's timers.
  */
@@ -404,9 +429,12 @@ async function settle(page, quiet, what, seconds = SETTLE_SECONDS) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** Throws unless the page drew what it opened: a root, no "No surface at …" card, the theme asked for, no error. */
+/**
+ * Throws unless the page drew what it opened: a root, no "No surface at …" card, the theme asked for, and nothing in
+ * `errors`, where an error the page threw and a stylesheet that did not come in are each written as a sentence.
+ */
 async function refuseUndrawn(page, what, theme, errors) {
-  if (errors.length) throw new Error(`${what}: the page threw: ${errors[0]}`);
+  if (errors.length) throw new Error(`${what}: ${errors[0]}`);
   const why = await page.evaluate((asked) => {
     const root = document.getElementById("root");
     if (!root || !root.firstElementChild) return "#root is empty: the page never drew";
@@ -467,7 +495,8 @@ async function recordContext(browser, job) {
     const page = await context.newPage();
     page.setDefaultTimeout(PRESS_TIMEOUT_MS);
     const errors = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("pageerror", (e) => errors.push(`the page threw: ${e.message}`));
+    watchSheets(page, errors);
     const quiet = watchNetwork(page);
     await page.clock.install({ time: FIXED_NOW - CLOCK_LEAD_MS });
     await page.clock.pauseAt(FIXED_NOW);
