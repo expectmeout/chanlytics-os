@@ -44,7 +44,6 @@ import {
   stampEmailSent,
   suppressEmailOf,
   type Database,
-  type Json,
 } from "../packages/db.js";
 import { addressOf, emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "../packages/channels.js";
 import { isCampaignEmail } from "../packages/contracts.js";
@@ -85,7 +84,7 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
     if (flagged === "failed")
       throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
   }
-  if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error as Json | null });
+  if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error });
   // A complaint arrives after delivery and moves no status: the row is stamped, so the domain it left from counts it
   // (00176). Before the suppression, so a retry of a half-applied receipt still counts it once.
   if (r.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });

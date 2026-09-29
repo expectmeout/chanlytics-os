@@ -1,18 +1,18 @@
 {
+  "//": [
+    "Next resolves for the dashboard, so the base's bundler resolution stands. Next leaves a tsconfig that extends",
+    "another alone (it rewrote this one's jsx before). noUncheckedIndexedAccess waits here until the dashboard's index",
+    "reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them."
+  ],
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "noUncheckedIndexedAccess": false,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },

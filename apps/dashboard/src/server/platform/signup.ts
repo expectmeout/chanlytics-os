@@ -111,7 +111,7 @@ export async function signUp(input: SignupInput & { password: string }): Promise
     // Without this branch an ordinary second sign-up is a 500, which is both a
     // dead end for the person and an oracle for everyone else.
     if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };
-    if (!sendFailureIsOurs(error as { code?: string; status?: number; message?: string })) {
+    if (!sendFailureIsOurs(error)) {
       throw new Error(`signUp: ${error.message}`);
     }
     log.warn("signup_code_not_sent", { ourFault: true, message: error.message.slice(0, 120) });

@@ -9,7 +9,9 @@ import { PAUSED_WORDS } from "../workspace/billing";
 export type ThemePref = "light" | "dark" | "system";
 export type Theme = "light" | "dark";
 
-export const THEME_OPTIONS: ReadonlyArray<{ id: ThemePref; label: string; icon: string }> = [
+type ThemeOption = { id: ThemePref; label: string; icon: string };
+/** The three, in the order the top bar's one button steps through them; a fixed three, so each is there to read. */
+export const THEME_OPTIONS: readonly [ThemeOption, ThemeOption, ThemeOption] = [
   { id: "light", label: "Light", icon: "sun" },
   { id: "dark", label: "Dark", icon: "moon" },
   { id: "system", label: "System", icon: "monitor" },
@@ -24,12 +26,12 @@ export const isThemePref = (v: unknown): v is ThemePref => v === "light" || v ==
  */
 export function nextThemePref(pref: unknown): ThemePref {
   const at = THEME_OPTIONS.findIndex((o) => o.id === pref);
-  return (THEME_OPTIONS[(at + 1) % THEME_OPTIONS.length] as (typeof THEME_OPTIONS)[number]).id;
+  return (THEME_OPTIONS[(at + 1) % THEME_OPTIONS.length] ?? THEME_OPTIONS[0]).id;
 }
 
 /** What the top bar's theme button shows and says: the preference in force, and what a press makes it. */
 export function themeButtonWords(pref: unknown): { icon: string; label: string } {
-  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? (THEME_OPTIONS[2] as (typeof THEME_OPTIONS)[number]);
+  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
   const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id)) as (typeof THEME_OPTIONS)[number];
   return { icon: now.icon, label: `Theme: ${now.label}. Switch to ${next.label}` };
 }
@@ -155,7 +157,7 @@ export function inAppFrom(userAgent: string | null | undefined): InApp | null {
   const m = IN_APP_UA_RE.exec(userAgent ?? "");
   if (!m) return null;
   const platform = (m[2] ?? "").toLowerCase();
-  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+  return { version: m[1] ?? "", platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
 /** The class on <html> that in-app rules hang from; the legacy shell reads window.__IN_APP for the same fact. */
 export const IN_APP_CLASS = "in-app";

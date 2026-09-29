@@ -359,7 +359,7 @@ export async function triggerPools(
       pools[t.id] = null;
       continue;
     }
-    pools[t.id] = count(t.id as PlaybookDto["trigger"], null);
+    pools[t.id] = count(t.id, null);
   }
   // Every list a playbook may run on (decision 0009), counted as a run on it would count it: who is on it (membersOf),
   // then the runner's own rules, under its token (`seg:<id>` for People's, `list:<id>` for the workspace's own). A

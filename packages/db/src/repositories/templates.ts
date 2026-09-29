@@ -38,5 +38,5 @@ export async function templatesFor(db: Db, tenantId: string, channel = "whatsapp
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
   if (error) throw new Error(`templatesFor: ${error.message}`);
-  return (data ?? []) as TemplateRow[];
+  return data ?? [];
 }

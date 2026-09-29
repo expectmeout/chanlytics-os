@@ -141,7 +141,7 @@ export async function draftList(
       request: {
         max_tokens: 500,
         system: LIST_DRAFT_SYSTEM,
-        schema: LIST_DRAFT_JSON_SCHEMA as unknown as Record<string, unknown>,
+        schema: LIST_DRAFT_JSON_SCHEMA,
         messages: [{ role: "user", content: words }],
       },
     },

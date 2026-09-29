@@ -67,7 +67,7 @@ export class AppError extends Error {
   }
 
   /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
-  static [Symbol.hasInstance](value: unknown): value is AppError {
+  static override [Symbol.hasInstance](value: unknown): value is AppError {
     return typeof value === "object" && value !== null && (value as { [APP_ERROR]?: unknown })[APP_ERROR] === true;
   }
 }

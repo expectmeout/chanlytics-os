@@ -259,7 +259,7 @@ function upgrade(raw: unknown): unknown {
     v: 2,
     all: r.all.map((c) =>
       c && typeof c === "object" && Array.isArray((c as { any?: unknown }).any)
-        ? { ...(c as object), any: (c as { any: unknown[] }).any.map(upgradeFact) }
+        ? { ...c, any: (c as { any: unknown[] }).any.map(upgradeFact) }
         : upgradeFact(c),
     ),
   };
@@ -268,7 +268,7 @@ function upgrade(raw: unknown): unknown {
 /** A stored rule in version 2, or null when it is not one this build reads: such a list cannot be counted (lists.ts). */
 export function asListRule(raw: unknown): ListRule | null {
   const r = ListRuleSchema.safeParse(upgrade(raw));
-  return r.success ? (r.data as ListRule) : null;
+  return r.success ? r.data : null;
 }
 
 /** The keys each kind of fact carries beside its field and op: what a draft's fact is cut down to. */

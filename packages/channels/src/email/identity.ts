@@ -99,6 +99,6 @@ export function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolea
   return (
     addressOf(request.from)?.address === as.address &&
     request.reply_to.length === 1 &&
-    as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase())
+    request.reply_to.every((to) => as.replyRoutes.includes(to.trim().toLowerCase()))
   );
 }
