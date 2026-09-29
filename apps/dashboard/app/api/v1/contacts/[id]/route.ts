@@ -81,7 +81,7 @@ async function erasePerson(ctx: RouteContext, contact: ErasedContact) {
   const keys = await readErasureKeys(ctx, contact);
   await blockErasure(contact);
   await scrubCopiesFirst(ctx, contact, keys);
-  const storage = await removeStoredObjects(contact.id, keys.paths);
+  const storage = await removeStoredObjects(contact, keys.paths);
   const out = await eraseRows(ctx, contact, storage);
   await forgetAfterRows(ctx, contact, keys);
   const sweep = await sweepLateObjects(ctx, contact, out, keys.paths);
@@ -207,8 +207,9 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
 }
 
 /* ---- 3. Storage, before the rows that name it ---- */
-async function removeStoredObjects(id: string, paths: string[]): Promise<StorageLeg> {
-  const storage = await removeMediaObjects(paths);
+async function removeStoredObjects(contact: ErasedContact, paths: string[]): Promise<StorageLeg> {
+  const id = contact.id;
+  const storage = await removeMediaObjects(contact.tenant_id, paths);
   if (storage.error) {
     // Step 4 is irreversible and it deletes the only rows that still name these
     // objects. Stop while the request is entirely retryable rather than leaving
@@ -272,7 +273,7 @@ async function sweepLateObjects(
 ): Promise<StorageLeg | null> {
   const id = contact.id;
   const missed = (out.storage_paths ?? []).filter((p) => !paths.includes(p));
-  const sweep = missed.length ? await removeMediaObjects(missed) : null;
+  const sweep = missed.length ? await removeMediaObjects(contact.tenant_id, missed) : null;
   if (sweep) {
     // decisions has no UPDATE policy for a session, so a late leg is a second
     // row on the same subject rather than an edit of the first. Best effort

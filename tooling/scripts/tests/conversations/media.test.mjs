@@ -138,7 +138,10 @@ test("the media route: member of the named workspace, stored only, a redirect th
   assert.ok(route.includes("scope: workspace,"), "the workspace the tab named, declared on the export");
   assert.ok(route.includes('.eq("tenant_id", member.tenantId)'));
   assert.ok(route.includes('media.fetch_state !== "stored"'));
-  assert.ok(route.includes("signedMediaUrl(media.storage_path, 300)"));
+  assert.ok(
+    route.includes("signedMediaUrl(member.tenantId, media.storage_path, 300)"),
+    "signed only as this workspace's",
+  );
   assert.ok(
     route.includes("new Response(null, { status: 302, headers: { location: url } })"),
     "not Response.redirect(): its headers are immutable",

@@ -445,6 +445,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
+    // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
+    // "<tenant>:<value>", in order, null for null (contracts' legacyErasedPhoneHash is the same bytes).
+    erasure_digests: ({ p_tenant_id, p_values }) =>
+      (p_values ?? []).map((v) =>
+        v == null ? null : crypto.createHash("sha256").update(`${p_tenant_id}:${v}`, "utf8").digest("hex"),
+      ),
     // The Inbox's messages (00258), each thread's newest, from the messages the fixture holds: every suite that reads
     // GET conversations reads through it.
     newest_messages: (args) => newestMessagesIn(tables, args),

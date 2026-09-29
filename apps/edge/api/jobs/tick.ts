@@ -19,7 +19,7 @@ import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms/sms.js";
 import { emailWireFor, emailIntake } from "../../lib/email/email.js";
-import { isWireUnavailable, whatsappWire } from "../../lib/packages/core.js";
+import { isWireUnavailable, whatsappWire, wireUnavailable } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
 import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
@@ -82,7 +82,12 @@ export async function POST(request: Request): Promise<Response> {
           // it sends a frozen request only when that request leaves as this
           // workspace, and a workspace without a mailbox has no email line.
           const line = await smsSenderForTenant(db, job.tenant_id);
-          const email = await emailWireFor(db, job.tenant_id);
+          // Each wire is bound on its own: a mailbox that could not be read is email's wire unbound (core
+          // WireUnavailable), never a throw that fails a WhatsApp or SMS reply that needed no email at all.
+          const email = await emailWireFor(db, job.tenant_id).catch((e: unknown) => {
+            L.error("email_wire_unavailable", { tenant_id: job.tenant_id, error: errField(e) });
+            return wireUnavailable(errField(e));
+          });
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = emailIntake(db);
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.

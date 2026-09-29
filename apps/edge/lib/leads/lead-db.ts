@@ -6,11 +6,10 @@
  * Nothing here decides anything: the rules are in core and in SQL.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressesSuppressed, type Database, type Json } from "../packages/db.js";
+import { addressesSuppressed, erasureDigests, type Database, type Json } from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
-  leadSuppressionHash,
   type LeadRoundEnding,
   type LeadRunState,
   type LeadSearchPlan,
@@ -303,11 +302,9 @@ export function leadDb(db: Db): LeadDb {
     },
     async suppressed(tenantId, keys) {
       // An address asks the one predicate (00220: its own row, or its business's domain after a no), which answers the
-      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the keyed
-      // digest 00140's lead_suppression_hash writes (contracts erasure.ts). The two reads run together.
-      const byHash = new Map(
-        await Promise.all(keys.placeIds.map(async (p) => [await leadSuppressionHash(tenantId, p), p] as const)),
-      );
+      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the erasure
+      // digest 00140's lead_suppression_hash writes, which the database makes (00263 erasure_digests).
+      const byHash = new Map([...(await erasureDigests(db, tenantId, keys.placeIds))].map(([p, h]) => [h, p]));
       const [held, rows] = await Promise.all([
         addressesSuppressed(db, tenantId, keys.emails),
         byHash.size

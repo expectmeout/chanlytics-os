@@ -647,12 +647,19 @@ test("each function re-created whole is its source's body but for the lines it m
     );
   assert.equal(was, bodyIn(migration("00228"), "create or replace function public.reach_out_chain_report("));
 
-  for (const name of ["outreach_lead_facts", "reach_out_followers", "reach_out_booked", "reach_out_chain_report"])
+  for (const name of ["outreach_lead_facts", "reach_out_followers", "reach_out_booked"])
     assert.equal(
       liveBody(name),
       bodyIn(now, `create or replace function public.${name}(`),
       `${name}: the database runs 00241's`,
     );
+  // 00261 gave the report's membership guard a partner's second factor (0013), and changed nothing else.
+  const gated = bodyIn(migration("00261"), "create or replace function public.reach_out_chain_report(");
+  assert.equal(
+    gated.replace("\n          and (m.role <> 'partner' or public.session_shows_second_factor())) then", ") then"),
+    report,
+  );
+  assert.equal(liveBody("reach_out_chain_report"), gated, "reach_out_chain_report: the database runs 00261's");
 });
 
 test(

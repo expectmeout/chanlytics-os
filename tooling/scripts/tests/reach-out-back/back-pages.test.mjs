@@ -10,6 +10,10 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
+// The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
+// the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
+const NOW = Date.parse("2026-09-28T18:00:00.000Z");
+Date.now = () => NOW;
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";

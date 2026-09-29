@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { erasedPhoneHash } from "@chanlytics/contracts";
+import { legacyErasedPhoneHash } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -18,15 +18,15 @@ const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const PHONE = "+16465550123";
 
 test("the digest is sha256 of tenant:number, hex, and keyed by the tenant: the same number names nobody elsewhere", async () => {
-  const h = await erasedPhoneHash(T, PHONE);
+  const h = await legacyErasedPhoneHash(T, PHONE);
   assert.match(h, /^[0-9a-f]{64}$/);
-  assert.equal(h, await erasedPhoneHash(T, PHONE), "deterministic");
-  assert.notEqual(h, await erasedPhoneHash(OTHER, PHONE), "tenant-keyed");
-  assert.notEqual(h, await erasedPhoneHash(T, "+16465550124"));
+  assert.equal(h, await legacyErasedPhoneHash(T, PHONE), "deterministic");
+  assert.notEqual(h, await legacyErasedPhoneHash(OTHER, PHONE), "tenant-keyed");
+  assert.notEqual(h, await legacyErasedPhoneHash(T, "+16465550124"));
 });
 
 test("a tombstone is found by its digest, in its own workspace only; a number nobody erased is not", async () => {
-  const h = await erasedPhoneHash(T, PHONE);
+  const h = await legacyErasedPhoneHash(T, PHONE);
   const db = fakeDb({
     contacts: [
       {
@@ -58,7 +58,7 @@ test("a tombstone is found by its digest, in its own workspace only; a number no
 });
 
 test("a call begun before the request belongs to the erasure; one begun after is the person calling back", async () => {
-  const h = await erasedPhoneHash(T, PHONE);
+  const h = await legacyErasedPhoneHash(T, PHONE);
   const db = fakeDb({
     contacts: [
       {
@@ -95,7 +95,7 @@ test("a call begun before the request belongs to the erasure; one begun after is
 });
 
 test("the same of an email: one received before the request belongs to the erasure; one received after is the person writing again", async () => {
-  const { erasedEmailHash } = await import("@chanlytics/contracts");
+  const { legacyErasedEmailHash } = await import("@chanlytics/contracts");
   const ADDRESS = "ana@example.com";
   const db = fakeDb({
     contacts: [
@@ -105,7 +105,7 @@ test("the same of an email: one received before the request belongs to the erasu
         email: null,
         erased_at: "2026-09-10T12:05:00.000Z",
         erasing_since: "2026-09-10T11:59:00.000Z",
-        erased_email_hash: await erasedEmailHash(T, ADDRESS),
+        erased_email_hash: await legacyErasedEmailHash(T, ADDRESS),
       },
     ],
   });

@@ -24,6 +24,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -106,6 +107,8 @@ async function person(role, tenant = A) {
   ok(await db.from("memberships").insert({ tenant_id: tenant, user_id: made.data.user.id, role }));
   const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   ok(await c.auth.signInWithPassword({ email, password }));
+  // A partner's seat opens the finder's doors only on a session that showed its second factor (0013; 00261).
+  if (role === "partner") await showSecondFactor(c);
   return { id: made.data.user.id, c };
 }
 

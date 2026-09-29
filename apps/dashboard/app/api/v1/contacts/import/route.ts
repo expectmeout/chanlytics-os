@@ -1,13 +1,5 @@
 import { z } from "zod";
-import {
-  afterPersonRefused,
-  erasedEmailHash,
-  erasedPhoneHash,
-  normalizeEmail,
-  normalizePhone,
-  whyNotAPhone,
-  whyNotAnEmail,
-} from "@chanlytics/contracts";
+import { afterPersonRefused, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
 
@@ -62,16 +54,14 @@ export const POST = write({
         continue;
       }
       // What the row does not have is sent as empty, which the door reads as none: database.types.ts types the name,
-      // the number and the address as strings, as it does set_person_email's address. A digest is sent only for what
-      // the row has; left out, it is the door's default of none. The name is not cut here: the door keeps its first
+      // the number and the address as strings, as it does set_person_email's address. No digest is sent: the door makes
+      // its own (00263), since only the database holds the pepper. The name is not cut here: the door keeps its first
       // 80 characters, and a cut by code unit could split an emoji in half (csv.ts says the same of the reader).
       const { data, error } = await ctx.supabase.rpc("import_person", {
         p_tenant_id: tenantId,
         p_name: (r.name ?? "").trim(),
         p_phone_e164: phone ?? "",
         p_email: email ?? "",
-        p_phone_digest: phone ? await erasedPhoneHash(tenantId, phone) : undefined,
-        p_email_digest: email ? await erasedEmailHash(tenantId, email) : undefined,
       });
       if (error) {
         if (afterPersonRefused(error.code) === "skip" || error.code === ERASED) {

@@ -25,7 +25,7 @@ export const GET = read({
     if (!media?.storage_path || media.fetch_state !== "stored") {
       throw new AppError("not_found", "This message has no stored attachment.");
     }
-    const url = await signedMediaUrl(media.storage_path, 300);
+    const url = await signedMediaUrl(member.tenantId, media.storage_path, 300);
     if (!url) throw new Error("could not sign the attachment");
     return new Response(null, { status: 302, headers: { location: url } });
   },

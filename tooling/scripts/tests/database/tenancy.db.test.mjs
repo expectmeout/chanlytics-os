@@ -653,6 +653,7 @@ const OTHER_TABLES = {
   partner_payouts: "own", // a partner's own payouts (0012, P5): read through their partner row; written only by partner_payout_mark
   partner_reversals_waiting: "none", // a refund that came before its share (00207): the service role's alone
   page_vitals: "none", // a page load's timings (00255): no person, no workspace; the routes and the back office read it
+  erasure_keying: "none", // whether the erasure digests are keyed (00263): one row, read only by the definer functions
 };
 
 const seen = async (client, table, filter) => {

@@ -13,8 +13,8 @@ import assert from "node:assert/strict";
 import {
   normalizeEmail,
   whyNotAnEmail,
-  erasedEmailHash,
-  erasedPhoneHash,
+  legacyErasedEmailHash,
+  legacyErasedPhoneHash,
   addressInMessage,
 } from "@chanlytics/contracts";
 
@@ -77,18 +77,18 @@ test("the door says WHICH kind of not-an-address it was given", () => {
 test("an erased address leaves the same kind of digest a number does: keyed by the workspace, of the stored spelling", async () => {
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-  const h = await erasedEmailHash(T, "ana@example.com");
+  const h = await legacyErasedEmailHash(T, "ana@example.com");
   assert.match(h, /^[0-9a-f]{64}$/);
   assert.equal(
     h,
-    await erasedEmailHash(T, normalizeEmail(" Ana@Example.com ")),
+    await legacyErasedEmailHash(T, normalizeEmail(" Ana@Example.com ")),
     "the digest is of what normalizeEmail stores",
   );
-  assert.notEqual(h, await erasedEmailHash(OTHER, "ana@example.com"), "tenant-keyed");
-  assert.notEqual(h, await erasedEmailHash(T, "bo@example.com"));
+  assert.notEqual(h, await legacyErasedEmailHash(OTHER, "ana@example.com"), "tenant-keyed");
+  assert.notEqual(h, await legacyErasedEmailHash(T, "bo@example.com"));
   // Sharing one implementation did not move the number's digest: the rows 00124 wrote still match.
   assert.equal(
-    await erasedPhoneHash(T, "+16465550123"),
+    await legacyErasedPhoneHash(T, "+16465550123"),
     "56e86917ee6abdc0edbc7c5ee8f90437d6cb1549cdb35f0439f4e59634473588",
   );
 });

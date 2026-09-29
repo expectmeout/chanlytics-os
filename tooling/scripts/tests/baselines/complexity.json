@@ -655,7 +655,7 @@
     "depth": 2
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
-    "lines": 273,
+    "lines": 271,
     "branches": 1,
     "depth": 0
   },

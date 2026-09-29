@@ -10,6 +10,8 @@
  *   { op: "resume", tenant_id }                       → a paused subscription resumed, billing from now
  *   { op: "start_now", tenant_id }                    → a free trial's plan started now: charged today, and what the
  *                                                       trial does not cover (a number, texting, leads) opens
+ *   { op: "end", tenant_id }                          → a workspace its last member left (00262): its plan ended now;
+ *                                                       nothing to end is an answer, not a refusal
  *
  * The secret key lives here and nowhere else. Without it, and the price and
  * the webhook secret, the ops say "not_ready" and the dashboard draws
@@ -26,6 +28,7 @@ import { readBody, respond, workspaceOf, workspaceRow, type Refused } from "../.
 import {
   billingReadiness,
   checkoutFor,
+  endFor,
   invoicesFor,
   portalFor,
   priceForClient,
@@ -69,6 +72,7 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
   sync: (c) => syncFor(c.db, c.tenantId),
   resume: (c) => resumeFor(c.db, c.tenantId),
   start_now: (c) => startPlanNowFor(c.db, c.tenantId),
+  end: (c) => endFor(c.db, c.tenantId),
 };
 
 /** The slug a tenant read answered with, or null when the read did not. */

@@ -14,7 +14,7 @@
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import crypto from "node:crypto";
-import { leadSuppressionHash } from "@chanlytics/contracts";
+import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 import { PLAN, probeItems, mainItems, checkerItem, fakeApify, fakeJudge } from "./_lead-fixtures.mjs";
 
@@ -92,7 +92,7 @@ export function leadWorld({
       id: uuid(),
       tenant_id: TENANT,
       kind,
-      hash: await leadSuppressionHash(TENANT, value),
+      hash: await legacyLeadSuppressionHash(TENANT, value),
       what,
       created_at: nowIso(),
     });

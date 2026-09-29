@@ -2739,14 +2739,6 @@ var REACH_OUT_REFUSALS = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
-async function keyedDigest(tenantId, identifier) {
-  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function leadSuppressionHash(tenantId, value) {
-  return keyedDigest(tenantId, value);
-}
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
@@ -3519,6 +3511,48 @@ async function deleteSendingDomain(db, tenantId, id) {
   return (r2 ?? []).length > 0;
 }
 
+// src/repositories/people.ts
+var PEOPLE_PAGE = 1e3;
+var IDS_PER_READ = 100;
+async function namesOfPeople(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function peoplePage(db, tenantId, page = {}) {
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  const { data, error } = await db.rpc("people_list", {
+    p_tenant_id: tenantId,
+    ...page.q ? { p_query: page.q } : {},
+    ...offset > 0 ? { p_offset: offset } : {},
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data ?? [];
+}
+async function everyoneIn(db, tenantId) {
+  const all = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await peoplePage(db, tenantId, { offset });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) return all;
+  }
+}
+async function erasureDigests(db, tenantId, values) {
+  const asked = [...new Set(values.filter((v) => v !== ""))];
+  if (asked.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: asked });
+  if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
+  const digests = data ?? [];
+  if (digests.length !== asked.length) throw new Error("the erasure digests came back short");
+  return new Map(asked.map((v, i) => [v, digests[i]]));
+}
+
 // src/repositories/outreach.ts
 async function outreachFactsOf(db, p) {
   const { data, error } = await db.rpc("outreach_facts", {
@@ -3564,9 +3598,7 @@ async function addressesSuppressed(db, tenantId, addresses) {
 }
 var missingDoor = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
 async function addressesHeldBefore00220(db, tenantId, asked) {
-  const byHash = new Map(
-    await Promise.all(asked.map(async (a) => [await leadSuppressionHash(tenantId, a), a]))
-  );
+  const byHash = new Map([...await erasureDigests(db, tenantId, asked)].map(([a, h]) => [h, a]));
   const { data, error } = await db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "email").in("hash", [...byHash.keys()]);
   if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
   return new Set((data ?? []).flatMap((r2) => byHash.get(r2.hash) ?? []));
@@ -4291,39 +4323,6 @@ async function resolveChannelDetailed(db, kind, externalId) {
 }
 async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
-}
-
-// src/repositories/people.ts
-var PEOPLE_PAGE = 1e3;
-var IDS_PER_READ = 100;
-async function namesOfPeople(db, tenantId, ids) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
-    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`namesOfPeople: ${error.message}`);
-    out.push(...data ?? []);
-  }
-  return out;
-}
-async function peoplePage(db, tenantId, page = {}) {
-  const offset = page.offset ?? 0;
-  const limit = page.limit ?? PEOPLE_PAGE;
-  const { data, error } = await db.rpc("people_list", {
-    p_tenant_id: tenantId,
-    ...page.q ? { p_query: page.q } : {},
-    ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
-  });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
-}
-async function everyoneIn(db, tenantId) {
-  const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
-  }
 }
 
 // src/repositories/calls.ts
@@ -5467,6 +5466,7 @@ export {
   emailWordsFrom,
   emailWordsOf,
   emitEvent,
+  erasureDigests,
   everyoneIn,
   finishableRuns,
   followUpTouchesSince,

@@ -21751,19 +21751,19 @@ function poolListContext(o) {
 }
 
 // src/people/erasure.ts
-async function keyedDigest(tenantId, identifier) {
+async function legacyDigest(tenantId, identifier) {
   const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-function erasedPhoneHash(tenantId, phoneE164) {
-  return keyedDigest(tenantId, phoneE164);
+function legacyErasedPhoneHash(tenantId, phoneE164) {
+  return legacyDigest(tenantId, phoneE164);
 }
-function erasedEmailHash(tenantId, email) {
-  return keyedDigest(tenantId, email);
+function legacyErasedEmailHash(tenantId, email) {
+  return legacyDigest(tenantId, email);
 }
-function leadSuppressionHash(tenantId, value) {
-  return keyedDigest(tenantId, value);
+function legacyLeadSuppressionHash(tenantId, value) {
+  return legacyDigest(tenantId, value);
 }
 
 // src/shared/html.ts
@@ -29946,8 +29946,6 @@ export {
   emptyReadSet,
   endingOfRound,
   enrolRefusalWords,
-  erasedEmailHash,
-  erasedPhoneHash,
   err,
   escapeHtml,
   estimateRoundUsd,
@@ -30179,7 +30177,6 @@ export {
   leadReviewGroups,
   leadSearchWords,
   leadSlots,
-  leadSuppressionHash,
   leadTileSrc,
   leadTintOf,
   leadTodayLine,
@@ -30190,6 +30187,9 @@ export {
   leadsFirstDayWays,
   leadsRoute,
   leadsStanding,
+  legacyErasedEmailHash,
+  legacyErasedPhoneHash,
+  legacyLeadSuppressionHash,
   lineCredentialFailure,
   lineOrNull,
   lineReleaseAfterDays,

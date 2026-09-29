@@ -24,7 +24,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { leadSuppressionHash, parseReplyReading, readingPlan } from "@chanlytics/contracts";
+import { legacyLeadSuppressionHash, parseReplyReading, readingPlan } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -372,7 +372,7 @@ const rowsFor = async (kind, value) =>
       .select("what")
       .eq("tenant_id", A)
       .eq("kind", kind)
-      .eq("hash", await leadSuppressionHash(A, value)),
+      .eq("hash", await legacyLeadSuppressionHash(A, value)),
   );
 const wroteBack = async (contact) =>
   ok(await db.rpc("outreach_lead_facts", { p_tenant_id: A, p_contact_id: contact, p_to: "x@example.com" })).wrote_back;
@@ -866,7 +866,7 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
   ok(
     await db
       .from("lead_suppressions")
-      .insert({ tenant_id: A, kind: "email", hash: await leadSuppressionHash(A, before), what: "email_opt_out" }),
+      .insert({ tenant_id: A, kind: "email", hash: await legacyLeadSuppressionHash(A, before), what: "email_opt_out" }),
   );
   const count0 = await unsubscribed();
   // Their first no answers the second email, from another address of theirs; their second answers the first email.
@@ -883,7 +883,7 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
   const neighbour = await wroteTo({ host, website: host });
   const theirs = await replied(neighbour);
   await readAs(theirs, NO);
-  const domainRow = { kind: "domain", hash: await leadSuppressionHash(A, host) };
+  const domainRow = { kind: "domain", hash: await legacyLeadSuppressionHash(A, host) };
   assert.deepEqual(
     (await reading(theirs)).plan.changed.holds.filter((h) => h.kind === "domain"),
     [domainRow],

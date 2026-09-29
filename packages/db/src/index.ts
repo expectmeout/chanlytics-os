@@ -202,7 +202,14 @@ export {
   setPersonReplyMode,
 } from "./repositories/control-plane";
 export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
-export { PEOPLE_PAGE, IDS_PER_READ, namesOfPeople, peoplePage, everyoneIn } from "./repositories/people";
+export {
+  PEOPLE_PAGE,
+  IDS_PER_READ,
+  namesOfPeople,
+  peoplePage,
+  everyoneIn,
+  erasureDigests,
+} from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,
