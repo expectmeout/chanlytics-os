@@ -1,5 +1,5 @@
 /**
- * A row a member writes names only its own workspace's rows (00266), on a real Postgres with a real session. A foreign
+ * A row a member writes names only its own workspace's rows (00270), on a real Postgres with a real session. A foreign
  * key asks only that the named row exist, and ignores RLS, so each member insert policy asks it too: a member of one
  * workspace who knows another's ids (a former employee) is refused a message on the other's thread or person, a
  * broadcast of the other's template, a recipient naming the other's message, a moment on the other's list or template,

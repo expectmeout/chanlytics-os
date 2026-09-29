@@ -1,4 +1,4 @@
--- 00268 · The lead caps are written once in SQL.
+-- 00272 · The lead caps are written once in SQL.
 --
 -- The finder's caps (a workspace's 500 leads and $25 a month and $10 a day, the platform's $50 a day, and a list's 500
 -- rows) were literals in seven functions: lead_reserve (00140), the allowance's two other gates (lead_check_commit and
@@ -39,7 +39,7 @@ begin
 end;
 $$;
 comment on function public.lead_cap(text) is
-  'The lead finder''s caps, the one place SQL writes them (00268): month_leads, month_usd, day_usd, platform_day_usd, list_rows. contracts'' caps.ts and lead-import.ts say the same, and lead-caps.db.test.mjs holds the two together. A name it does not know raises.';
+  'The lead finder''s caps, the one place SQL writes them (00272): month_leads, month_usd, day_usd, platform_day_usd, list_rows. contracts'' caps.ts and lead-import.ts say the same, and lead-caps.db.test.mjs holds the two together. A name it does not know raises.';
 revoke execute on function public.lead_cap(text) from public, anon, authenticated;
 grant execute on function public.lead_cap(text) to service_role;
 
@@ -740,7 +740,7 @@ end $$;
 
 
 comment on function public.lead_reserve(uuid, text, text, text, integer, numeric) is
-  'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00268), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+  'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
 
 comment on function public.lead_search_import(uuid, text, text, jsonb, numeric) is
   'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';

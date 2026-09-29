@@ -1,4 +1,4 @@
--- 00266 · A row a member writes names only its own workspace's rows.
+-- 00270 · A row a member writes names only its own workspace's rows.
 --
 -- A member's insert policy asked that the row's own tenant_id be the member's, and a foreign key asked only that the
 -- row it names exist: a foreign-key check ignores RLS. So a member of workspace B who knew one of workspace A's ids
@@ -41,7 +41,7 @@ create policy messages_acting_member_insert on public.messages
     and status = 'queued'
     -- and no attachment: the edge stores one, under the workspace's own path, with the service role.
     and media is null
-    -- and the thread and the person are this workspace's (00266).
+    -- and the thread and the person are this workspace's (00270).
     and exists (select 1 from public.conversations c
                  where c.id = messages.conversation_id and c.tenant_id = messages.tenant_id)
     and (messages.contact_id is null
@@ -57,7 +57,7 @@ create policy broadcasts_acting_insert on public.broadcasts
   with check (
     public.is_acting_member(tenant_id)
     and created_by = (select auth.uid())
-    -- its playbook and its template are this workspace's (00266).
+    -- its playbook and its template are this workspace's (00270).
     and (broadcasts.playbook_id is null
          or exists (select 1 from public.playbooks p
                      where p.id = broadcasts.playbook_id and p.tenant_id = broadcasts.tenant_id))
@@ -73,7 +73,7 @@ create policy broadcast_recipients_acting_insert on public.broadcast_recipients
     public.is_acting_member(tenant_id)
     and exists (select 1 from public.broadcasts b where b.id = broadcast_id and b.tenant_id = broadcast_recipients.tenant_id)
     and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = broadcast_recipients.tenant_id and c.erased_at is null)
-    -- and the message it names, if any, is this workspace's (00266).
+    -- and the message it names, if any, is this workspace's (00270).
     and (broadcast_recipients.message_id is null
          or exists (select 1 from public.messages m
                      where m.id = broadcast_recipients.message_id and m.tenant_id = broadcast_recipients.tenant_id))
@@ -88,7 +88,7 @@ create policy playbooks_acting_insert on public.playbooks
     public.is_acting_member(tenant_id)
     and created_by = (select auth.uid())
     and kind = 'moment'
-    -- its list and its template are this workspace's (00266).
+    -- its list and its template are this workspace's (00270).
     and (playbooks.list_id is null
          or exists (select 1 from public.segments s
                      where s.id = playbooks.list_id and s.tenant_id = playbooks.tenant_id))

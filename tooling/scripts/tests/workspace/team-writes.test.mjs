@@ -199,7 +199,7 @@ test("a removal: an open invitation is revoked; nobody removes themself; the las
 
 test("two owners changed at once: the count before the write passes both, and the database's refusal says the same words", async () => {
   // Two owners: each request counts two and writes. The second write is refused at the end of its transaction by
-  // 00267's trigger (P0001, last_owner), and the owner reads the words the count would have said, not a 500.
+  // 00271's trigger (P0001, last_owner), and the owner reads the words the count would have said, not a 500.
   const lastOwner = {
     code: "P0001",
     message: "last_owner",

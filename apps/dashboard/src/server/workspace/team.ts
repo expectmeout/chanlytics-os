@@ -17,7 +17,7 @@ import { log } from "@/server/log";
 const ONLY_OWNER = "This is the only owner. Promote someone else first.";
 
 /**
- * A write the database refused because it left the workspace with members and no owner (00267's `last_owner`): the
+ * A write the database refused because it left the workspace with members and no owner (00271's `last_owner`): the
  * count before it is check-then-act, so two changes at once can each pass it, and the trigger at the end of the
  * transaction is the one that holds. Anything else is not ours to word.
  */

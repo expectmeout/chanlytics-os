@@ -1,5 +1,5 @@
 /**
- * The lead caps are written once in SQL (00268), beside contracts' caps, and the two say the same numbers.
+ * The lead caps are written once in SQL (00272), beside contracts' caps, and the two say the same numbers.
  *
  * `lead_cap(name)` is the one place the finder's functions read a cap; contracts' `LEAD_MONTHLY_ALLOWANCE`,
  * `LEAD_MONTHLY_BUDGET_USD`, `LEAD_DAY_CAP_USD`, `LEAD_PLATFORM_DAY_CAP_USD` and `LEAD_LIST_MAX` are what the pages

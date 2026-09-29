@@ -1,5 +1,5 @@
 /**
- * A workspace keeps an owner while anyone is in it (00267), on a real Postgres through PostgREST, as the team's door
+ * A workspace keeps an owner while anyone is in it (00271), on a real Postgres through PostgREST, as the team's door
  * writes. The door counts the owners first, for its words; two removals at once each counted two, and both wrote. The
  * deferred trigger judges each change at its end under a lock per workspace: two owners removed at once leave one, the
  * last owner is neither removed nor demoted while others remain, and the refusal is `last_owner` (P0001), which

@@ -271,6 +271,9 @@
     "00263_an_erased_person_s_digest_is_keyed.sql": "faa01645d719e0c56aca50d4d972978162c1bef02cd155c2221e54ede3caf6cb",
     "00264_an_event_says_which_version_of_its_kind_it_is.sql": "0c6e226a44ab7e074ff89f3ab67b606c71db7e8c0e3b4755181a87be06960275",
     "00265_the_database_tells_each_workspace_what_changed.sql": "ea6a806e26239bc4c23a0f737fef26202fd942794743d40070255568dfe87189",
-    "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197"
+    "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197",
+    "00270_a_member_s_row_names_only_its_own_workspace_s_rows.sql": "eff96da8726b61b4dd923664671da6cb22e2b9d176045173a7815a07777f4256",
+    "00271_a_workspace_keeps_an_owner_while_anyone_is_in_it.sql": "62ab638cf0c88cd812007dde282e65aacee5a295447598c25c512844bb2a7f79",
+    "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80"
   }
 }

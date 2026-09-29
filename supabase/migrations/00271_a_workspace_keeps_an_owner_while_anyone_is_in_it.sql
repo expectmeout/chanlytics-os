@@ -1,4 +1,4 @@
--- 00267 · A workspace keeps an owner while anyone is in it.
+-- 00271 · A workspace keeps an owner while anyone is in it.
 --
 -- The team's door (apps/dashboard/src/server/workspace/team.ts) counted the owners and then removed or demoted one:
 -- two owners removing each other at once, or one demoting the other while being demoted, each counted two and each
@@ -49,7 +49,7 @@ end;
 $$;
 
 comment on function public.memberships_keep_an_owner() is
-  'A workspace keeps an owner while anyone is in it (00267): refuses, as last_owner, a removal or demotion that leaves members and no owner, judged at the end of the transaction under a per-workspace lock. A deleted workspace, one its last member left (00262) and one a partner is handing over (00214) are let go.';
+  'A workspace keeps an owner while anyone is in it (00271): refuses, as last_owner, a removal or demotion that leaves members and no owner, judged at the end of the transaction under a per-workspace lock. A deleted workspace, one its last member left (00262) and one a partner is handing over (00214) are let go.';
 
 revoke execute on function public.memberships_keep_an_owner() from public, anon, authenticated;
 
