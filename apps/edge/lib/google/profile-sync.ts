@@ -19,6 +19,10 @@ import type { CheckResult } from "./listing-check.js";
 /** A token refusal's words for the connection's `sync_error`: Google's, when it gave some, else the code. */
 const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
 
+/** What the bell is about: the review, when it tells of one by name. */
+const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
+  answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
+
 /**
  * Every review of the connected location, decided against what is on
  * record, written, and told. The first sync replaces the five the public
@@ -148,7 +152,7 @@ export async function syncProfile(
       title: bell.title,
       body: bell.body,
       route: "reports",
-      about: answered.length === 1 ? { type: "review", id: answered[0].id } : null,
+      about: aboutOne(answered),
     });
   }
   if (plan.fresh.length) {

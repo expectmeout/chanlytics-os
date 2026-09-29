@@ -283,7 +283,7 @@ async function sweepLateObjects(
       requested: sweep.requested,
       removed: sweep.removed.length,
       error: sweep.error,
-    } as Json).catch((e: unknown) => {
+    }).catch((e: unknown) => {
       log.error("erase_sweep_decision_failed", { contact: id, error: e });
     });
   }

@@ -3,7 +3,8 @@
  * draws from the files they measure (docs/docs-tree.test.mjs).
  *
  * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
- * (repo/source-scan-ratchet.test.mjs), the wire's ratchet (routes/wire-casing.test.mjs)
+ * (repo/source-scan-ratchet.test.mjs), the wire's ratchet (routes/wire-casing.test.mjs), the index
+ * reads' (types/index-reads-are-counted.test.mjs)
  * and the register (repo/debt-register.test.mjs)
  * all read the definitions here, so a number means one thing wherever it is
  * printed. It also keeps banking honest: the node runner starts test files in
@@ -32,7 +33,7 @@ import {
   linesOf,
   windowUse,
   copiesAmong,
-  unknownCasts,
+  castsIn,
   tableNames,
   durationsIn,
   inlineStyles,
@@ -151,11 +152,18 @@ export const MEASURES = [
       "Give it one home and import it from there — a helper declared in three files is a fact spelled out three times — or, when the new one is a different thing, give it a name that says which.",
   },
   {
-    name: "as unknown as",
+    name: "casts: as unknown as, as never and x!",
     file: "casts.json",
-    measure: () => perFile(SRC, unknownCasts),
+    measure: () => {
+      const out = {};
+      for (const f of SRC) {
+        const counts = castsIn(parse(f));
+        if (Object.keys(counts).length > 0) out[f] = counts;
+      }
+      return out;
+    },
     advice:
-      "Name the shape and parse it, or narrow it with a type guard; a value laundered through unknown is a type the compiler no longer checks.",
+      "Name the shape and parse it, or narrow it with a type guard: a value laundered through unknown, told it is never, or told it is not null is a type the compiler no longer checks. An index read that can miss is guarded (const first = rows[0]; if (!first) …), never asserted with !.",
   },
   {
     name: "table names outside packages/db",
@@ -471,4 +479,76 @@ export const WIRE_CASING = {
   measure: () => offTheWire(dashboardWire()),
   advice:
     "The wire is snake_case (docs/naming.md, decision 0022): name the field in snake_case in the route's type, and turn a view model into it in a named mapping, never a converter. A field a page or the phone app reads is answered in both spellings for one release.",
+};
+
+/* ---- Index reads the compiler lets pass (types/index-reads-are-counted.test.mjs) ---- */
+
+/** A project's tsconfig as the compiler resolves it, its `extends` followed. */
+export function resolvedConfig(tsconfig) {
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    tsconfig,
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: (d) => {
+        throw new Error(ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+      },
+    },
+  );
+  if (!parsed) throw new Error(`${tsconfig} could not be read`);
+  return parsed;
+}
+
+/** Every workspace project's tsconfig.json, by its project's path: the packages and the apps. */
+export function projectConfigs() {
+  const out = [];
+  for (const group of ["packages", "apps"]) {
+    for (const name of fs.readdirSync(path.join(ROOT, group)).sort()) {
+      const tsconfig = path.join(ROOT, group, name, "tsconfig.json");
+      if (fs.existsSync(tsconfig)) out.push({ project: `${group}/${name}`, tsconfig });
+    }
+  }
+  return out;
+}
+
+/** The projects whose tsconfig turns noUncheckedIndexedAccess off, the base's flag: the ones UNCHECKED_INDEX counts. */
+export const waitingProjects = () =>
+  projectConfigs().filter(({ tsconfig }) => resolvedConfig(tsconfig).options.noUncheckedIndexedAccess !== true);
+
+/**
+ * `{ file: n }`: in each project that waits, every error noUncheckedIndexedAccess would raise, the flag on and nothing
+ * else changed, by the file it is in. Each is a read the compiler lets pass as if it could not miss (`rows[0]`,
+ * `table[key]`, a regex's `m[1]`). A count means something only over a tree that typechecks, as CI's does before the
+ * suite runs. What Next writes into `.next/` is the build's, not the project's.
+ */
+function uncheckedIndexReads() {
+  const now = {};
+  for (const { tsconfig } of waitingProjects()) {
+    const config = resolvedConfig(tsconfig);
+    const program = ts.createProgram({
+      rootNames: config.fileNames,
+      options: { ...config.options, noUncheckedIndexedAccess: true, noEmit: true, incremental: false },
+    });
+    const home = path.dirname(tsconfig) + path.sep;
+    for (const d of program.getSemanticDiagnostics()) {
+      if (!d.file || !path.resolve(d.file.fileName).startsWith(home)) continue;
+      const file = path.relative(ROOT, path.resolve(d.file.fileName)).split(path.sep).join("/");
+      if (/(^|\/)(\.next|node_modules)\//.test(file)) continue;
+      now[file] = (now[file] ?? 0) + 1;
+    }
+  }
+  return now;
+}
+
+/**
+ * The index reads' ratchet: a file of its own under tests/types, because it builds three whole programs (core,
+ * contracts, the dashboard), not the syntax trees the ratchets above read. A project that turns the flag on leaves the
+ * measure, and its entries go with the next bank.
+ */
+export const UNCHECKED_INDEX = {
+  name: "index reads the compiler lets pass",
+  file: "unchecked-index.json",
+  measure: uncheckedIndexReads,
+  advice:
+    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which casts.json counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file.",
 };

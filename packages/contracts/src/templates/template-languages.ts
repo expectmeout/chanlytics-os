@@ -195,7 +195,7 @@ export function languageName(code: string): string {
 export function languageBase(code: string | null | undefined): string | null {
   const base = String(code ?? "")
     .trim()
-    .split(/[-_]/)[0]!
+    .split(/[-_]/)[0]
     .toLowerCase();
   return /^[a-z]{2,3}$/.test(base) && base !== "und" ? base : null;
 }

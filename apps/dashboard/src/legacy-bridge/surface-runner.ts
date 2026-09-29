@@ -401,7 +401,7 @@ function joinFeedOnceBooted(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLi
       // five surfaces that never asked (three of them plpgsql aggregates).
       (row, table, event) =>
         run.realtime
-          .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> }))
+          .filter((o) => wantsRefresh(o, table, { table, event: event ?? "*", row }))
           .forEach((o) => scheduleSurfaceRefresh(run, o)),
       {
         topic: ws ? `${run.topic}:${ws}` : run.topic,

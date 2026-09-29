@@ -40,7 +40,7 @@ function googleProfileOf(listing: FirstReceptionistKnown["listing"]): BusinessPr
   if (Object.keys(week.hours).length) {
     profile.hours = Object.fromEntries(
       DAYS.filter((d) => !week.unsure.includes(d)).map((d) => [d, week.hours[d] ?? {}]),
-    ) as BusinessProfile["hours"];
+    );
   }
   const address = (listing?.address ?? "").trim();
   if (address && !facts?.service_area_only && BusinessProfileSchema.shape.address.safeParse(address).success) {
@@ -89,7 +89,7 @@ export function googleFillsOf(brain: BrainConfig, listing: FirstReceptionistKnow
   const p: BusinessProfile = brain.profile ?? {};
   const google = googleProfileOf(listing);
   const states = (v: unknown): boolean =>
-    typeof v === "string" ? v.trim() !== "" : !!v && typeof v === "object" && Object.keys(v as object).length > 0;
+    typeof v === "string" ? v.trim() !== "" : !!v && typeof v === "object" && Object.keys(v).length > 0;
   const fills = (["hours", "address", "website"] as const).filter((k) => google[k] !== undefined && !states(p[k]));
   if (!fills.length) return null;
   return { ...brain, profile: { ...p, ...Object.fromEntries(fills.map((k) => [k, google[k]])) } };

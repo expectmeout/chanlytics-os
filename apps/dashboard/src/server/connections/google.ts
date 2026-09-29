@@ -42,7 +42,7 @@ export async function listingFor(db: SupabaseClient<Database>, tenantId: string)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? (data as GoogleListingDto) : null;
+  return data ? data : null;
 }
 
 /**
@@ -72,7 +72,7 @@ export async function connectionFor(
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? (data as GoogleConnectionDto) : null;
+  return data ? data : null;
 }
 
 export async function googleFor(

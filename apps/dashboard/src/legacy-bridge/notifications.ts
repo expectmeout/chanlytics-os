@@ -169,7 +169,7 @@ export interface BellApi {
  * executed in a test without a browser.
  */
 export function installNotifications(
-  win: Window & Globals = window as unknown as Window & Globals,
+  win: Window & Globals = window,
   storage: StorageLike | null = safeStorage(),
 ): BellApi {
   const listeners = new Set<() => void>();

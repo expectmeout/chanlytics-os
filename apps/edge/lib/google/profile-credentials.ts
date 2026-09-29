@@ -7,7 +7,7 @@
  */
 import type { Json } from "../packages/db.js";
 import {
-  tokenExchangeRequest,
+  type tokenExchangeRequest,
   tokenRefreshRequest,
   parseTokenResponse,
   type PlacesHttp,

@@ -109,7 +109,7 @@ export async function draftFor(
       request: {
         max_tokens: 600,
         system: DRAFT_SYSTEM,
-        schema: LEAD_DRAFT_JSON_SCHEMA as unknown as Record<string, unknown>,
+        schema: LEAD_DRAFT_JSON_SCHEMA,
         messages: [
           {
             role: "user",

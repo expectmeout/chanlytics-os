@@ -50,6 +50,7 @@ import config, {
   LIMITED_TREES,
   rawElementsRule,
   WIDE_PARAMS,
+  withoutTypes,
 } from "../../../../eslint.config.mjs";
 import { LIMIT } from "../_measures.mjs";
 import { repoFiles } from "../_ast.mjs";
@@ -57,7 +58,8 @@ import { readBaseline } from "../_ratchet.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
-const eslint = new ESLint({ cwd: ROOT });
+// Every rule held here reads the syntax, so the probes are linted without the programs the typed rules need.
+const eslint = new ESLint({ cwd: ROOT, overrideConfigFile: true, overrideConfig: withoutTypes(config) });
 
 /** The rule ids that fired on a snippet linted as if it were `filePath`. */
 async function rulesFiredOn(filePath, code) {
@@ -202,7 +204,7 @@ test("a surface moved before its kit step waits in KIT_PENDING: its raw controls
   const moved = new ESLint({
     cwd: ROOT,
     overrideConfigFile: true,
-    overrideConfig: config.map((block) => (block === ruled[0] ? rawElementsRule([listed]) : block)),
+    overrideConfig: withoutTypes(config.map((block) => (block === ruled[0] ? rawElementsRule([listed]) : block))),
   });
   const firedIn = async (file, code) => {
     const [r] = await moved.lintText(code, { filePath: path.join(ROOT, file) });

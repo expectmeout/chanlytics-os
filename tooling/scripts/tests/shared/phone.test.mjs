@@ -139,7 +139,7 @@ test("the receptionist records a short code and does not answer it", () => {
 
   assert.ok(EVENT_KINDS.includes("ingest.unreachable_sender"), "the event is one the product knows");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
-  assert.ok(persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "message", ing!.message_id, {})'));
+  assert.ok(persist.includes('emitEvent(db, tenantId, "ingest.unreachable_sender", "message", ing.message_id, {})'));
 });
 
 test("F2: a transfer number that forwards to the receptionist is refused, and so is forwarding the transfer number", () => {

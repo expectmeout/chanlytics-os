@@ -75,9 +75,7 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
   const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(
-    runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> })'),
-  );
+  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row })'));
   const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/live.ts");
   assert.ok(seam.includes('refreshOnTables: ["calls"]'), "Live listens to calls alone");
   const rt = readCode("packages/db/src/realtime.ts");

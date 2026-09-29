@@ -73,7 +73,7 @@ export function subscribeMessagesInserts(
     // join or WALRUS registers the subscription with anon claims.
     const { data } = await client.auth.getSession();
     const token = data.session?.access_token;
-    if (token) client.realtime.setAuth(token);
+    if (token) await client.realtime.setAuth(token);
     if (removed) return;
     channel = client.channel(topic);
     for (const w of WATCHED) {

@@ -166,7 +166,5 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
   const db = readCode("packages/db/src/realtime.ts");
   assert.ok(/w\.table,\s*payload\.eventType,?\s*\)/.test(db), "the event type reaches the rule");
   const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  assert.ok(
-    runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row: row as Record<string, unknown> })'),
-  );
+  assert.ok(runner.includes('wantsRefresh(o, table, { table, event: event ?? "*", row })'));
 });

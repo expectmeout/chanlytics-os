@@ -101,7 +101,7 @@ export const decisionOf = (data: unknown): string | null => {
 };
 /** A payload id that names something, or null: a route with a hole in it is no route. */
 export const idIn = (pl: Record<string, unknown> | undefined, k: string): string | null =>
-  typeof pl?.[k] === "string" && pl[k] ? (pl[k] as string) : null;
+  typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
 /** A map's own entry, never one its prototype lends ("constructor"). */
 export const ownEntry = <T>(m: Partial<Record<string, T>>, k: string): T | undefined =>
