@@ -20,7 +20,7 @@ import {
   listUnknownWords,
   ruleNeeds,
   unmetNeed,
-  parseListToken,
+  listNamer,
   savedListLookup,
   savedListTip,
   poolListContext,
@@ -178,13 +178,7 @@ export function publishPeople(): void {
   });
   const savedLists = peopleLoaded.saved ?? [];
   const lookup = savedListLookup(savedLists);
-  const listName = (token: string): string | null => {
-    const ref = parseListToken(token);
-    if (!ref) return null;
-    return ref.kind === "builtin"
-      ? (PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null)
-      : (savedLists.find((l) => l.id === ref.id)?.name ?? null);
-  };
+  const listName = listNamer(savedLists);
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
     // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.

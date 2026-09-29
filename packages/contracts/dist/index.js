@@ -5595,6 +5595,13 @@ function savedListLookup(saved) {
     return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
   };
 }
+function listNamer(saved) {
+  return (token2) => {
+    const ref = parseListToken(token2);
+    if (!ref) return null;
+    return ref.kind === "builtin" ? PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null : saved.find((l) => l.id === ref.id)?.name ?? null;
+  };
+}
 function listNeeds(rule, lookup = () => null) {
   if (!rule) return [];
   const needs = new Set(ruleNeeds(rule));
@@ -30229,6 +30236,7 @@ export {
   listDraftFieldLines,
   listFactWords,
   listMembers,
+  listNamer,
   listNeeds,
   listRuleMatches,
   listRuleParts,
