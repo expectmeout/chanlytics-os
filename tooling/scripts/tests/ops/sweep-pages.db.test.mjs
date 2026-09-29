@@ -276,7 +276,17 @@ test("a reach-out step is on its own page, judged the same way, and never on the
       .select("id")
       .single();
   const root = ok(await reachOut("Movers")).id;
-  ok(await reachOut("Movers, ran today", { last_run_for: "2026-09-26", last_run_at: iso(Date.parse(AT) - H) }));
+  // The chain's next step (one chain per search, 00197): it ran today by its own clock.
+  ok(
+    await reachOut("Movers, ran today", {
+      trigger: "after_step",
+      lead_search_id: null,
+      after_playbook_id: root,
+      after_days: 1,
+      last_run_for: "2026-09-26",
+      last_run_at: iso(Date.parse(AT) - H),
+    }),
+  );
   const beside = await moment(ws, "A moment beside them");
 
   const reach = ok(
