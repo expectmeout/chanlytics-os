@@ -10,7 +10,7 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00069).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -24,7 +24,7 @@ const MAX_PER_TICK = 40;
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "google" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
   const places = !!placesKey();

@@ -2,12 +2,13 @@
  * A proposal follow-up: who it is for, the breath after a touch, when it would run, and the words for it. Moved whole
  * from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
-import { shiftKey } from "../calendar/calendar";
+import { shiftKey } from "../calendar/day-keys";
 import { clockNear, wallClockAt, zoneDayKey } from "../shared/clock";
 import { type AskedPurpose, purposeOfPlaybook } from "../consent/consent";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { type DealPaceVM, waitingOnProposal } from "../deals/deal-waits";
-import { type PersonRowVM, whyNotReceive } from "../people/people";
+import type { PersonRowVM } from "../people/person-row";
+import { whyNotReceive } from "../people/person-consent";
 import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
 import { PLAYBOOK_BREATH_MS } from "./playbook-triggers";

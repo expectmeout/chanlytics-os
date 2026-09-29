@@ -43,7 +43,7 @@ interface TemplateVariable {
 }
 
 const FIELDS = "id,name,language,status,category,components,quality_score,rejected_reason";
-const PAGE = 100;
+const META_TEMPLATES_PAGE = 100;
 const MAX_PAGES = 10;
 /** Creating a template is given longer than a list or a delete. */
 const CREATE_TIMEOUT_MS = 20_000;
@@ -54,7 +54,7 @@ export async function listTemplates(
 ): Promise<{ ok: true; templates: MetaTemplate[] } | { ok: false; error: string; status: number }> {
   const out: MetaTemplate[] = [];
   let url: string | null =
-    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${PAGE}`;
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${META_TEMPLATES_PAGE}`;
   for (let page = 0; url && page < MAX_PAGES; page++) {
     let res: Response;
     try {

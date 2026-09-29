@@ -15,6 +15,15 @@
  * two sweeps that lacked it, in one place so the third one to need it does not
  * invent a third version.
  *
+ * THE DEFECT AFTER THAT. A page of running playbooks, least-recently-run first,
+ * is not a page of due ones: it held playbooks that had run today and ones
+ * hours from their hour, a due one waited behind twenty-five of those, and the
+ * count of what was left behind counted them too — so past twenty-five running
+ * playbooks the sweep called itself backlogged every hour of the day. Since
+ * 00245 the database judges due-ness (playbooks_due, calendars_due, through
+ * packages/db), each page is only what is due, and `remaining` is exactly the
+ * due rows beyond it.
+ *
  * Two properties matter and both are tested against a real ordering:
  *
  *   FAIRNESS   over enough ticks every tenant is served, because the ones just
@@ -25,7 +34,14 @@
  *              to hear before a customer does.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import {
+  dueCalendars,
+  duePlaybooks,
+  type Database,
+  type DueCalendar,
+  type DuePage,
+  type DuePlaybook,
+} from "../packages/db.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,61 +57,32 @@ export const PLAYBOOKS_PER_TICK = 25;
 /** Consecutive backlogged ticks before a sweep calls itself unhealthy. */
 export const BACKLOG_TICKS_BEFORE_ALARM = 3;
 
-export interface DuePage<T> {
-  /** This tick's work, oldest first. */
-  rows: T[];
-  /** How many more were waiting behind them. 0 means the queue drained. */
-  remaining: number;
-}
+export type { DuePage, DuePlaybook };
 
 /**
- * The workspaces whose calendar is due, never-read first.
+ * The workspaces whose calendar is due, never-read first (00245 calendars_due).
  *
  * `minAgeMs` keeps a tenant from being read twice in one hour when the cap is
  * larger than the queue: without it a small deployment would re-read the same
  * three feeds every tick and burn the provider's rate limit on nothing.
  *
- * ROWS WITH A FEED ONLY, which is not a refinement — it is what makes the
- * rotation a rotation. Every workspace gets a `tenant_config` row at signup
- * and most never connect a calendar; those rows have no `calendar_checked_at`
- * and never get one (the sweep stamps on a successful READ, and there is
- * nothing to read), so they sort first under NULLS FIRST for ever. At forty of
- * them the page is entirely feedless every hour: no calendar is ever read
- * again, and `remaining` never reaches zero, so the sweep also reports a
- * permanent backlog, turns itself red and pages the platform about work that
- * does not exist. 00089 built an index for this query `where config ?
- * 'calendar'` and said so in its comment; the query never asked, and still
- * does not — Postgres cannot derive `config ? 'calendar'` from `config->>
- * 'calendar' is not null`, so the index stays unused and the tick is a scan
- * and a sort of tenant_config. That is throughput, not correctness, and at
- * the size where it matters the index predicate should be changed to match
- * rather than the filter changed to match the index: `?` would also select a
- * key explicitly set to JSON null, which is not a feed.
- *
- * Spelled `->>`, the text form, which is what every other jsonb filter in this
- * codebase uses against the real PostgREST (the jobs ledger's
- * `payload->>contact_id`, the recording sweep's `recording->>fetch_state`). A
- * key that is absent reads as SQL NULL either way; the text form also excludes
- * a key explicitly set to JSON null, which has no feed either.
+ * ROWS WITH A FEED ADDRESS ONLY, which is not a refinement — it is what makes
+ * the rotation a rotation. Every workspace gets a `tenant_config` row at
+ * signup and most never connect a calendar; those rows have no
+ * `calendar_checked_at` and never get one (the sweep stamps on a successful
+ * READ, and there is nothing to read), so they would sort first under NULLS
+ * FIRST for ever. At forty of them the page would be entirely feedless every
+ * hour: no calendar read again, `remaining` never zero, and the sweep paging
+ * the platform about work that does not exist. A `calendar` without an
+ * address is the same row in a different coat, and is judged the same.
  */
 export async function calendarDue(
   db: Db,
   now: Date,
   limit: number,
   minAgeMs = 55 * 60_000,
-): Promise<DuePage<{ tenant_id: string; config: unknown }>> {
-  const before = new Date(now.getTime() - minAgeMs).toISOString();
-  const due = `calendar_checked_at.is.null,calendar_checked_at.lt.${before}`;
-  const { data, error, count } = await db
-    .from("tenant_config")
-    .select("tenant_id, config", { count: "exact" })
-    .not("config->>calendar", "is", null)
-    .or(due)
-    .order("calendar_checked_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
-  if (error) throw new Error(`reading the calendars due: ${error.message}`);
-  const rows = data ?? [];
-  return { rows, remaining: Math.max(0, (count ?? rows.length) - rows.length) };
+): Promise<DuePage<DueCalendar>> {
+  return dueCalendars(db, { before: new Date(now.getTime() - minAgeMs), limit });
 }
 
 /** Stamp a workspace as read. Only ever on SUCCESS: a failure leaves it due, which self-heals next tick. */
@@ -108,47 +95,19 @@ export async function markCalendarChecked(db: Db, tenantId: string, now: Date): 
 }
 
 /**
- * The running playbooks due, least-recently-run first.
- *
- * Ordered on `last_run_at`, which this table has carried since 00048 — so
- * unlike the calendar this needed no new column, only the ordering and the cap
- * it never had.
+ * The running moments due at `now`, by each workspace's own clock, least-recently-run first (00245 playbooks_due).
+ * Each comes with the zone it was judged in, so the run keeps to the same clock.
  */
-export async function playbooksDue(
-  db: Db,
-  limit: number,
-): Promise<DuePage<Database["public"]["Tables"]["playbooks"]["Row"]>> {
-  const { data, error, count } = await db
-    .from("playbooks")
-    .select("*", { count: "exact" })
-    .eq("state", "running")
-    // The moments. A reach-out step runs through its own verb (Reach out, Part 3).
-    .eq("kind", "moment")
-    .order("last_run_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
-  if (error) throw new Error(`reading the playbooks due: ${error.message}`);
-  const rows = data ?? [];
-  return { rows, remaining: Math.max(0, (count ?? rows.length) - rows.length) };
+export async function playbooksDue(db: Db, now: Date, limit: number): Promise<DuePage<DuePlaybook>> {
+  return duePlaybooks(db, { kind: "moment", at: now, limit });
 }
 
 /**
- * The reach-out steps (Part 3), a page of their own, least-recently-run first as the moments are: each runs through
- * runReachOut, never the moments' run, and a workspace's moments never crowd its reach-outs out of a tick.
+ * The reach-out steps (Part 3) due at `now`, a page of their own, judged and ordered as the moments are: each runs
+ * through runReachOut, never the moments' run, and a workspace's moments never crowd its reach-outs out of a tick.
  */
-export async function reachOutsDue(
-  db: Db,
-  limit: number,
-): Promise<DuePage<Database["public"]["Tables"]["playbooks"]["Row"]>> {
-  const { data, error, count } = await db
-    .from("playbooks")
-    .select("*", { count: "exact" })
-    .eq("state", "running")
-    .eq("kind", "reach_out")
-    .order("last_run_at", { ascending: true, nullsFirst: true })
-    .limit(limit);
-  if (error) throw new Error(`reading the reach-outs due: ${error.message}`);
-  const rows = data ?? [];
-  return { rows, remaining: Math.max(0, (count ?? rows.length) - rows.length) };
+export async function reachOutsDue(db: Db, now: Date, limit: number): Promise<DuePage<DuePlaybook>> {
+  return duePlaybooks(db, { kind: "reach_out", at: now, limit });
 }
 
 /**

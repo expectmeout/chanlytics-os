@@ -33,7 +33,7 @@ import {
   WAITING_LEADS,
   WAITING_FOR_MS,
   ALL_LEAD_PLACES,
-} from "../../e2e-workspace.mjs";
+} from "../../ops/e2e-workspace.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(

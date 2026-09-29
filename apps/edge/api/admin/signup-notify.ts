@@ -8,7 +8,7 @@
  * in it. What travels is the workspace's name, slug and id and the owner's
  * address; no customer content exists yet. Diagnostic-key only.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
@@ -25,9 +25,9 @@ interface Body {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
-  if (!env.LEAD_TO || !env.LEAD_FROM) return json(503, { ok: false, error: "no_platform_mailbox" });
+  if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   let body: Body = {};
   try {
     body = JSON.parse(await request.text());
@@ -40,14 +40,14 @@ export async function POST(request: Request): Promise<Response> {
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
   if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email)
-    return json(400, { ok: false, error: "tenant_id and email are required" });
+    return refuse(400, "bad_request", "tenant_id and email are required");
   const tenant = await db
     .from("tenants")
     .select("id, name, slug, timezone, created_at")
     .eq("id", tenantId)
     .maybeSingle();
-  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
-  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   const sent = await notify(
     // The platform's own mailbox: this is about a workspace, not addressed to one.
     { tenantId: null, notifications: null, isEnvDefault: true },

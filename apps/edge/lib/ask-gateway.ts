@@ -10,11 +10,10 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, ASK_MODELS, DAY_MS } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, ASK_MODELS } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
-import { readAllRows } from "./paged.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 
@@ -27,28 +26,16 @@ export interface AskUsage {
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
-/** Ask's tokens in the last day, this workspace. Read failures count as zero, never as a refusal. */
+/**
+ * Ask's tokens in the last day, this workspace: input plus output of every usage.ask_tokens event of the last 24
+ * hours, summed in one statement (ask_tokens_day, 00240). Read failures count as zero, never as a refusal.
+ */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
   const L = logger({ tenant: tenantId });
   try {
-    // Every turn of the day, a page at a time: `.limit(2000)` was capped at PostgREST's 1,000 rows, so a day past a
-    // thousand turns was under-counted and the budget let the platform key spend on.
-    const since = new Date(Date.now() - DAY_MS).toISOString();
-    const rows = await readAllRows("ask usage, last day", (from, to) =>
-      db
-        .from("events")
-        .select("data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", ASK_USAGE_KIND)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(from, to),
-    );
-    return rows.reduce((sum, r) => {
-      const d = (r.data ?? {}) as Record<string, unknown>;
-      return sum + num(d.input_tokens) + num(d.output_tokens);
-    }, 0);
+    const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
+    if (error) throw new Error(`ask_tokens_day: ${error.message}`);
+    return num(Number(data));
   } catch (e) {
     L.error("ask_budget_read_failed", { error: errField(e) });
     return 0;
@@ -160,6 +147,8 @@ export interface GatewayRequest {
     effort?: "low" | "medium" | "high";
     format?: { type: "json_schema"; schema: Record<string, unknown> };
   };
+  /** The cache diagnostics (the Phase 6 plan, D2): the message this request follows on, or null to start comparing. */
+  diagnostics?: { previous_message_id: string | null };
 }
 
 const EFFORTS = new Set(["low", "medium", "high"]);
@@ -170,6 +159,18 @@ export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const FORMAT_MAX = 8_000;
+
+/**
+ * The cache diagnostics a request may carry (the Phase 6 plan, D2): the id of a message the API wrote, or null to start
+ * a comparison. Anything else is dropped, never refused: diagnostics change nothing the model answers.
+ */
+const MESSAGE_ID = /^msg_[A-Za-z0-9_-]{1,120}$/;
+function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: string | null } } {
+  if (!raw || typeof raw !== "object" || !("previous_message_id" in raw)) return {};
+  const id = (raw as { previous_message_id: unknown }).previous_message_id;
+  if (id === null) return { diagnostics: { previous_message_id: null } };
+  return typeof id === "string" && MESSAGE_ID.test(id) ? { diagnostics: { previous_message_id: id } } : {};
+}
 
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
@@ -198,24 +199,27 @@ export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
 export const GATEWAY_MAX_BODY = 700_000;
 
+/** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
+const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
+
 export function validateGatewayRequest(
   raw: unknown,
   purpose: GatewayPurpose = "ask",
-): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
+): { ok: true; request: GatewayRequest } | { ok: false; error: "bad_request"; detail: string } {
   const r = raw as Partial<GatewayRequest> | null;
-  if (!r || typeof r !== "object") return { ok: false, error: "request required" };
+  if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
-  if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return { ok: false, error: "unknown model" };
+  if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return badRequest("unknown model");
   const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
   const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
-    return { ok: false, error: `messages: 1-${GATEWAY_MAX_MESSAGES} turns` };
+    return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
   }
   if (r.tools !== undefined && (!Array.isArray(r.tools) || r.tools.length > GATEWAY_MAX_TOOLS)) {
-    return { ok: false, error: `tools: up to ${GATEWAY_MAX_TOOLS}` };
+    return badRequest(`tools: up to ${GATEWAY_MAX_TOOLS}`);
   }
   if (r.system !== undefined && typeof r.system !== "string" && !Array.isArray(r.system)) {
-    return { ok: false, error: "system: a string or blocks" };
+    return badRequest("system: a string or blocks");
   }
   const oc =
     r.output_config && typeof r.output_config === "object"
@@ -225,7 +229,7 @@ export function validateGatewayRequest(
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);
-  if (format === "bad") return { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
+  if (format === "bad") return badRequest("output_config.format: a JSON schema under 8,000 characters");
   return {
     ok: true,
     request: {
@@ -237,6 +241,7 @@ export function validateGatewayRequest(
       ...(r.tool_choice ? { tool_choice: r.tool_choice } : {}),
       ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
       ...(effort || format ? { output_config: { ...(effort ? { effort } : {}), ...(format ? { format } : {}) } } : {}),
+      ...diagnosticsOf(r.diagnostics),
     },
   };
 }

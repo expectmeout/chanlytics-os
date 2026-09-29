@@ -13,7 +13,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "../packages/channels.js";
-import { MIN_MS } from "../packages/contracts.js";
+import { MIN_MS, type EdgeRefusal } from "../packages/contracts.js";
 import { profileClient } from "./google-config.js";
 import { http } from "./places.js";
 import type { Db } from "./google-rows.js";
@@ -71,14 +71,15 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: Plac
 
 /**
  * An access token for the workspace's profile: the stored one while it
- * lasts, else a fresh one from the refresh token, kept for next time.
+ * lasts, else a fresh one from the refresh token, kept for next time. A
+ * refresh Google refused is `no_token`, with Google's words in `detail`.
  */
 async function tokenFor(
   db: Db,
   tenantId: string,
   now = Date.now(),
   net: PlacesHttp = http,
-): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; token: string } | EdgeRefusal> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   const creds = await readCredentials(db, tenantId);
@@ -95,7 +96,7 @@ async function tokenFor(
     });
     return { ok: true, token: grant.access_token };
   } catch (e) {
-    return { ok: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
+    return { ok: false, error: "no_token", detail: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
   }
 }
 

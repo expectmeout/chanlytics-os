@@ -24,6 +24,12 @@
  * (legacy/demo/), which the bridge asks for after the first and only in a
  * session that declared itself a demo. The harness is such a session, so its
  * list is the first and then the second.
+ *
+ * The stylesheets are one list too: the app imports them from one entry
+ * (legacy-bridge/legacy.css, since Next orders nothing across imports) and the
+ * harness links them one by one, the tokens first and the kit's right after
+ * them. The kit's lives with the kit, outside this tree (src/surfaces/kit/), at
+ * the one path the harness's server maps.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -33,6 +39,7 @@ import util from "node:util";
 import vm from "node:vm";
 import { parse } from "acorn";
 import { transformSync } from "esbuild";
+import { transform } from "lightningcss";
 import {
   identityWords,
   memberWords,
@@ -50,6 +57,7 @@ import {
 import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
 import { parse as parseTs } from "../_ast.mjs";
+import { serveStatic } from "../../serve-legacy.mjs";
 
 const LEGACY = "apps/dashboard/src/legacy";
 const html = readRaw(`${LEGACY}/Chanlytics.html`);
@@ -422,6 +430,71 @@ test("the mockup draws Reports and Today from their samples, loaded right after 
     "data/today-sample.js",
     "the demo's Today reads what installTodaySample published",
   );
+});
+
+/** The stylesheets an entry stylesheet imports, in order, as repo paths: its @import rules, read as CSS. */
+function cssImports(sheet) {
+  const urls = [];
+  transform({
+    filename: sheet,
+    code: fs.readFileSync(path.join(ROOT, sheet)),
+    visitor: { Rule: { import: (rule) => void urls.push(rule.value.url) } },
+  });
+  return urls.map((url) => path.posix.join(path.posix.dirname(sheet), url));
+}
+
+/** What the harness's static serving (serve-legacy.mjs) answers for one path the document names. */
+const served = (rel) =>
+  new Promise((resolve) => {
+    const res = {
+      writeHead: (status) => {
+        res.status = status;
+        return res;
+      },
+      end: (body) => resolve({ status: res.status, body: String(body) }),
+    };
+    serveStatic(res, path.join(ROOT, LEGACY), rel);
+  });
+
+test("the harness links the stylesheets the app imports, in its order, the kit's right after the tokens", async () => {
+  // Both of the app's entries put the kit right after the tokens (the plan's §3.3): legacy.css for the shell, and
+  // app/globals.css for the pages outside it, so a signed-out page draws the same button.
+  const tokens = `${LEGACY}/styles/tokens.css`;
+  const kit = "apps/dashboard/src/surfaces/kit/kit.css";
+  const app = cssImports("apps/dashboard/src/legacy-bridge/legacy.css");
+  assert.deepEqual(app.slice(0, 2), [tokens, kit], "the shell's entry imports the tokens, then the kit");
+  assert.deepEqual(cssImports("apps/dashboard/app/globals.css"), [tokens, kit], "and so does the other entry");
+  // The document links what the app imports, in the same order, each served as the file the app has at that place.
+  const links = [...html.matchAll(/<link rel="stylesheet" href="([^"?:]+)[^"]*"/g)].map((m) => m[1]);
+  assert.equal(links.length, app.length, `a link for each stylesheet the app imports: ${links.join(", ")}`);
+  for (const [i, link] of links.entries()) {
+    const { status, body } = await served(`/${link}`);
+    assert.equal(status, 200, `${link} is served`);
+    assert.equal(body, fs.readFileSync(path.join(ROOT, app[i]), "utf8"), `${link} is ${app[i]}, where the app has it`);
+  }
+  assert.equal((await served("/surfaces/kit/index.ts")).status, 404, "the kit's stylesheet is served, not its folder");
+});
+
+test("the harness serves nothing beside its tree, however the path spells the climb", async () => {
+  // A path reaches serveStatic decoded (serve-legacy.mjs and the e2e harness decode it first), so an encoded slash or
+  // backslash climbs out of the tree: into a folder beside it whose name begins with the tree's, which a comparison of
+  // the two paths as strings let through.
+  const at = (url) => served(decodeURIComponent(url));
+  const beside = fs.readFileSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/legacy.css"), "utf8");
+  const slashed = await at("/..%2flegacy-bridge%2flegacy.css");
+  assert.equal(slashed.status, 403, "the climb into legacy-bridge is refused");
+  const backslashed = await at("/..%5clegacy-bridge%5clegacy.css");
+  if (path.sep === "\\") assert.equal(backslashed.status, 403, "and its backslash form, a climb on Windows");
+  else
+    assert.equal(
+      backslashed.status,
+      404,
+      "and its backslash form, a name no file has where a backslash is no separator",
+    );
+  for (const answer of [slashed, backslashed])
+    assert.notEqual(answer.body, beside, "the bridge's stylesheet stays put");
+  assert.equal((await at("/..%2f..%2f..%2f..%2fpackage.json")).status, 403, "and nothing further up is served");
+  assert.equal((await at("/styles/tokens.css")).status, 200, "while the tree's own files are");
 });
 
 /**

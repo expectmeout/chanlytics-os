@@ -4,7 +4,9 @@
  */
 import { tidyCallSummary } from "../voice/call-words";
 import { clockTime } from "../shared/clock";
-import { ago, type PersonRowVM, type ReceptionistTone } from "./people";
+import { ago } from "./person-row-facts";
+import type { PersonRowVM } from "./person-row";
+import type { ReceptionistTone } from "./person-receptionist";
 import { fmtDate } from "./person-helpers";
 import { DAY_MS } from "../shared/time";
 
@@ -27,7 +29,7 @@ export interface AttentionRowVM {
 }
 
 /** One line, whitespace collapsed, cut with an ellipsis past `max`. */
-function oneLine(text: string, max: number): string {
+function clippedLine(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
@@ -53,9 +55,9 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
   let sentence: string;
   let quoted = false;
   if (p.quote) {
-    sentence = oneLine(p.quote, 160);
+    sentence = clippedLine(p.quote, 160);
     quoted = true;
-  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  } else if (p.callSummary) sentence = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   // A proposal waiting says more than a visit ahead (0004): the row's brief, "Proposal out · 6 d". A client's row
   // keeps the visit, which is the next thing about them; a pass or an end says nothing here.
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;

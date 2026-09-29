@@ -26,15 +26,32 @@ import { MIN_MS } from "../shared/time";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
-import { noNumberWords, saidYesTo, type PersonRowVM } from "../people/people";
+import { noNumberWords } from "../people/people-lists";
+import { saidYesTo } from "../people/person-consent";
+import type { PersonRowVM } from "../people/person-row";
 import type { ParamSpec } from "../templates/templates";
 import type { AskedPurpose } from "../consent/consent";
 import type { Audience } from "./broadcast-audience";
 import { broadcastFailureWords } from "./broadcast-failures";
-export * from "./broadcast-audience";
-export * from "./broadcast-failures";
-export * from "./broadcast-number";
-export * from "./run-report";
+export {
+  AUDIENCE_KINDS,
+  EVERYONE_LABEL,
+  eligibleFor,
+  audienceMembers,
+  heardWords,
+  audiencePreview,
+} from "./broadcast-audience";
+export type { AudienceKind, Audience, PreviewPerson, AudiencePreview } from "./broadcast-audience";
+export {
+  BROADCAST_FAILURE_WORDS,
+  BROADCAST_FAILURE_FIX,
+  broadcastFailureFix,
+  broadcastFailureWords,
+} from "./broadcast-failures";
+export { LIMIT_TIERS, dailyLimit, numberHealth, overLimitRefusal } from "./broadcast-number";
+export type { NumberHealthInput, NumberHealth } from "./broadcast-number";
+export { RUN_REPORT_STEPS, RUN_FILTERS, consentAnswerWords, receiptWords, toRunReportVM } from "./run-report";
+export type { RunFigureId, RunFigure, RunFilterId, RunTone, RunPersonVM, RunReplyVM, RunReportVM } from "./run-report";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -46,8 +63,18 @@ export type RecipientState = (typeof RECIPIENT_STATES)[number];
  * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
  * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
  * The check before it goes may hold it (00197): held waits for its owner, who puts it back or skips it (Part 4).
+ * A hand step's lead is handed to the team, and never moves (00228, Part 5).
  */
-export const REACH_OUT_SEND_STATES = ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"] as const;
+export const REACH_OUT_SEND_STATES = [
+  "planned",
+  "held",
+  "claimed",
+  "queued",
+  "sent",
+  "skipped",
+  "failed",
+  "handed",
+] as const;
 export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
 
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {

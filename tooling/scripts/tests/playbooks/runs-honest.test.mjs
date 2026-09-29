@@ -921,7 +921,7 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
   // The chain, run: the route's pools (server/campaigns/playbooks.ts triggerPools), the surface the bridge builds from them,
   // the words and the door it publishes (installPlaybooks), and the card that draws them.
   const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -987,7 +987,7 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
 });
 
 test("REGRESSION: a playbook's list that could not be read is not called deleted, and one of People's is named by contracts (decision 0009)", async () => {
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -1024,7 +1024,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
 
 test("a playbook on an archived list says so on its card, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
   const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = {
     ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
@@ -1108,7 +1108,7 @@ test("a playbook on an archived list says so on its card, one press from its lis
 
 test("REGRESSION: counts that could not be read are said once, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
   const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   // The route's answer when its People read failed (server/campaigns/playbooks.ts triggerPools): no moment was counted.
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -1221,7 +1221,7 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
 
 test("a proposal follow-up's card (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
   const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { playbooksOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   const { FOLLOW_UP_NEEDS_DEALS } = await import("@chanlytics/contracts");
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);

@@ -17,6 +17,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "../packages/channels.js";
+import type { EdgeRefusal } from "../packages/contracts.js";
 import { profileClient } from "./google-config.js";
 import { http } from "./places.js";
 import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
@@ -29,7 +30,7 @@ const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 export type ConnectResult =
   | { ok: true; pending: false; connection: ConnectionRow; read: CheckResult }
   | { ok: true; pending: true; connection: ConnectionRow; locations: LocationChoice[] }
-  | { ok: false; error: string; detail?: string };
+  | EdgeRefusal;
 
 export interface LocationChoice extends GbpLocation {
   account_name: string;
@@ -176,17 +177,21 @@ export async function connectProfile(
   return { ok: true, pending: true, connection: saved.data, locations: onMaps };
 }
 
-/** The locations a pending (or connected) profile may choose among, read again. */
+/** The locations a pending (or connected) profile may choose among, read again: Google's refusal is in `detail`. */
 export async function locationsFor(
   db: Db,
   tenantId: string,
-): Promise<{ ok: true; locations: LocationChoice[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; locations: LocationChoice[] } | EdgeRefusal> {
   const t = await tokenFor(db, tenantId);
   if (!t.ok) return t;
   try {
     return { ok: true, locations: (await allLocations(t.token)).filter((l) => !!l.place_id) };
   } catch (e) {
-    return { ok: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
+    return {
+      ok: false,
+      error: "accounts_unreadable",
+      detail: (e instanceof Error ? e.message : String(e)).slice(0, 300),
+    };
   }
 }
 
@@ -203,7 +208,7 @@ export async function bindLocation(
   tz: string,
   now = new Date(),
   net: PlacesHttp = http,
-): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
+): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | EdgeRefusal> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
   const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
   if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };

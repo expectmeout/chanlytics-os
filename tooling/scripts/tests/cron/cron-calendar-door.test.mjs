@@ -54,6 +54,8 @@ function ics(events) {
       `DTEND:${stamp(new Date(start.getTime() + H))}`,
       `SUMMARY:${e.title}`,
       ...(e.phone ? [`DESCRIPTION:Client: ${e.phone}`] : []),
+      ...(e.organizer ? [`ORGANIZER:mailto:${e.organizer}`] : []),
+      ...(e.guest ? [`ATTENDEE;CN=${e.guest.name}:mailto:${e.guest.email}`] : []),
       "END:VEVENT",
     );
   }
@@ -72,21 +74,31 @@ const read = (line) => line.calls.filter((c) => c.url.includes("cal.example")).m
 
 /* -------------------------------------------------------------- the world */
 
-function world({ ticks = 1, faults = {} } = {}) {
+/**
+ * The world. The booking door (00227 reach_out_booked) answers `booked(args)`: none moved by default, and a throw is the
+ * database refusing it. Each call is kept. `rpcs` answers any other door by name.
+ */
+function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
   // One handler instance keeps every feed for five minutes; each case starts with none.
   forgetFeeds();
   feeds.clear();
   const tables = { tenants: [], tenant_config: [], contacts: [], events: [], notifications: [] };
   const backlog = [];
+  const bookings = [];
   const db = fakeDb(tables, faults, {
     ...vault,
     note_sweep_backlog: (a) => {
       backlog.push(a);
       return ticks;
     },
+    reach_out_booked: (a) => {
+      bookings.push(a);
+      return booked(a);
+    },
+    ...rpcs,
   });
   setPg(db);
-  return { db, tables, backlog, tick: () => knock(POST, "calendar") };
+  return { db, tables, backlog, bookings, tick: () => knock(POST, "calendar") };
 }
 /**
  * A workspace with a calendar connected, last read at `checkedAt` (null:
@@ -181,6 +193,7 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
       added: 3,
       named: 1,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 0,
     });
@@ -243,6 +256,64 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
     assert.equal(checkedAt(w, F), tenMinutesAgo, "the fresh one untouched");
     assert.equal(checkedAt(w, X), null);
     assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "the queue drained");
+    assert.ok(
+      !w.db.seen.some((s) => s.table === "tenants"),
+      "each feed's zone comes with the page: the workspace row is not read per feed",
+    );
+  } finally {
+    line.restore();
+  }
+});
+
+/* ------------------------------------------------------------ the booking */
+
+test("the booking door is handed each appointment's address and number with its start, the owner's and the organiser's left out, and what it moved is counted", async () => {
+  const w = world({ booked: (a) => a.p_seen.length && 1 });
+  const B = "books";
+  connected(w.tables, B, null, [
+    {
+      uid: "b1",
+      title: "Intro call",
+      phone: "+1 305 555 0110",
+      organizer: "owner@business.example.com",
+      guest: { name: "Sam Rivera", email: "Sam@Brightwater.example.com" },
+      inDays: 2,
+    },
+    { uid: "b2", title: "Blocked out", inDays: 1 },
+  ]);
+  const line = wire(reply);
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.equal(body.booked, 1);
+    assert.equal(w.bookings.length, 1, "one call a workspace");
+    const [{ p_tenant_id, p_seen }] = w.bookings;
+    assert.equal(p_tenant_id, B);
+    assert.deepEqual(
+      p_seen.map((s) => s.email ?? s.phone).sort(),
+      ["+13055550110", "sam@brightwater.example.com"],
+      "the guest's address, lower-cased, and the number; never the organiser's",
+    );
+    const start = p_seen[0].start;
+    assert.ok(p_seen.every((s) => s.start === start) && Math.abs(Date.parse(start) - (Date.now() + 2 * D)) < 60_000);
+  } finally {
+    line.restore();
+  }
+});
+
+test("a booking door that refuses counts nothing and fails nothing: People is filled and the read is stamped", async () => {
+  const w = world({
+    booked: () => {
+      throw new Error("function public.reach_out_booked(uuid, jsonb) does not exist");
+    },
+  });
+  connected(w.tables, "no-door", null, [{ uid: "d1", title: "Maria Lopez - Balayage", phone: "+1 305 555 0142" }]);
+  const line = wire(reply);
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual([body.booked, body.failed, body.added], [0, 0, 1]);
+    assert.ok(fresh(checkedAt(w, "no-door")), "stamped: the appointment is read again next hour anyway");
   } finally {
     line.restore();
   }
@@ -250,7 +321,7 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
 
 /* --------------------------------------------------------------- failure */
 
-test("a feed that cannot be read fails that workspace only and leaves it due: no stamp, no row, the rest of the page served", async () => {
+test("a feed that cannot be read fails that workspace only and moves it to the back of the page: stamped as tried, so it is read again the next hour behind the feeds that can be, no row, the rest of the page served", async () => {
   const w = world();
   const G = "feed-gone",
     K = "feed-fine";
@@ -269,11 +340,12 @@ test("a feed that cannot be read fails that workspace only and leaves it due: no
       added: 1,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 1,
       remaining: 0,
     });
     assert.deepEqual(read(line), [urlG, urlK]);
-    assert.equal(checkedAt(w, G), null, "not stamped: still due, retried next tick");
+    assert.ok(fresh(checkedAt(w, G)), "stamped as tried: to the back of the page, read again the next hour");
     assert.ok(fresh(checkedAt(w, K)));
     assert.deepEqual(people(w, G), []);
     assert.deepEqual(people(w, K), [["+12125550100", null]]);
@@ -315,6 +387,7 @@ test("more due than a tick takes: forty are read, the two read most recently wai
       added: 0,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 2,
     });
@@ -354,6 +427,7 @@ test("three ticks in a row with work left behind: the sweep says so with a 503, 
       added: 0,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 1,
     });
@@ -366,14 +440,70 @@ test("three ticks in a row with work left behind: the sweep says so with a 503, 
 
 /* ------------------------------------------------------- cannot be read */
 
-test("a queue that cannot be read is a 500, and no feed is fetched", async () => {
-  const w = world({ faults: { "tenant_config.select": { message: "permission denied for table tenant_config" } } });
-  connected(w.tables, "any", null);
+test("a queue that cannot be read is a 500, and no feed is fetched: a database without the page's function included, so the edge deployed ahead of its migration is loud, never quiet", async () => {
+  for (const refusal of [
+    "permission denied for function calendars_due",
+    "Could not find the function public.calendars_due(p_before, p_limit) in the schema cache",
+  ]) {
+    const w = world({
+      rpcs: {
+        calendars_due: () => {
+          throw new Error(refusal);
+        },
+      },
+    });
+    connected(w.tables, "any", null);
+    const line = wire(reply);
+    try {
+      assert.deepEqual(await answer(await w.tick()), [500, { ok: false }], refusal);
+      assert.deepEqual(read(line), []);
+      assert.deepEqual(w.backlog, []);
+      assert.equal(checkedAt(w, "any"), null);
+    } finally {
+      line.restore();
+    }
+  }
+});
+
+/* ------------------------------------------------------ only what is due */
+
+test("a row whose calendar has no address is not a feed: it holds no place in the page and is not counted, so the fortieth feed behind it is read in the same tick", async () => {
+  // Nothing ever stamps such a row read, so a page that took it would take it
+  // first, every hour, for ever -- and count the feed it pushed out as a backlog.
+  const w = world();
+  const ids = queue(w, CALENDAR_PER_TICK);
+  w.tables.tenants.push({ id: "half", name: "Half connected", timezone: "America/New_York", status: "active" });
+  w.tables.tenant_config.push({ tenant_id: "half", config: { calendar: {} }, calendar_checked_at: null });
+  w.tables.tenants.push({ id: "blank", name: "Blank address", timezone: "America/New_York", status: "active" });
+  w.tables.tenant_config.push({
+    tenant_id: "blank",
+    config: { calendar: { ical_url: "" } },
+    calendar_checked_at: null,
+  });
+
   const line = wire(reply);
   try {
-    assert.deepEqual(await answer(await w.tick()), [500, { ok: false }]);
-    assert.deepEqual(read(line), []);
-    assert.deepEqual(w.backlog, []);
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual(body, {
+      ok: true,
+      tenants: CALENDAR_PER_TICK,
+      seen: 0,
+      added: 0,
+      named: 0,
+      emailed: 0,
+      booked: 0,
+      failed: 0,
+      remaining: 0,
+    });
+    assert.deepEqual(
+      read(line),
+      ids.map((id) => `https://cal.example/${id}.ics`),
+      "every feed read, oldest first; the rows without an address are not the queue",
+    );
+    assert.equal(ids.filter((id) => fresh(checkedAt(w, id))).length, CALENDAR_PER_TICK);
+    assert.deepEqual([checkedAt(w, "half"), checkedAt(w, "blank")], [null, null]);
+    assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "nothing due was left behind");
   } finally {
     line.restore();
   }

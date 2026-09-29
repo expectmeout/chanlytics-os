@@ -1,6 +1,7 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { edgeGoogle, readOutcome } from "@/server/connections/google";
+import { edgeRefusalWords } from "@/server/edge";
 
 /**
  * POST /api/v1/google/link — {place_id}: this is the business on Google.
@@ -33,7 +34,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(
         reason === "no_places_key" ? "conflict" : "internal",
-        SAID[reason] ?? `The listing could not be linked (${reason}).`,
+        SAID[reason] ?? `The listing could not be linked (${edgeRefusalWords(b) ?? reason}).`,
         reason === "no_places_key" ? 409 : 502,
       );
     }
@@ -51,7 +52,9 @@ export const DELETE = write({
     if (a.status !== 200 || b.ok !== true)
       throw new AppError(
         "internal",
-        typeof b.error === "string" ? (SAID[b.error] ?? b.error) : "The listing could not be removed. Try again.",
+        (typeof b.error === "string" ? SAID[b.error] : null) ??
+          edgeRefusalWords(b) ??
+          "The listing could not be removed. Try again.",
         502,
       );
     return { removed: b.removed === true };

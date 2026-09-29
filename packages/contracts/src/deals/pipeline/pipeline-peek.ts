@@ -4,7 +4,7 @@
  * page's or pipeline-words.ts's.
  */
 import { dealIsOpen } from "../deal-vm";
-import { repliesWords } from "../../people/people";
+import { repliesWords } from "../../people/person-reach";
 import type { PersonVM } from "../../people/person-profile";
 import type { PipelineGroupKey, PipelineRowVM } from "./pipeline-vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";

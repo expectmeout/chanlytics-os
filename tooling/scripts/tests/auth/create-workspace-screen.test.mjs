@@ -407,6 +407,71 @@ test("V1: another workspace, from inside the app, keeps its own form -- its titl
   assert.ok(byTestId(tree, "create-workspace-back"));
 });
 
+/* ------------------------------ the press ------------------------------ */
+
+test("a name under two characters is refused on the form, before anything is sent; a press while one is on its way asks nothing twice", async () => {
+  const w = standIn(MADE);
+  globalThis.window = w;
+  const props = { email: "owner@luna.example", onCreated() {}, onCancel() {} };
+  render(props);
+  const nameBox = () => find(last, (n) => n.type === "input" && n.props["aria-label"] === "Business name");
+  nameBox().props.onChange({ target: { value: "  L  " } });
+  let tree = draw(props);
+  await find(tree, (n) => n.type === "form").props.onSubmit(pressOf());
+  tree = draw(props);
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.role === "alert")),
+    "Give the workspace a name — the receptionist introduces itself with it.",
+  );
+  assert.deepEqual(w.asked, [], "nothing went out");
+
+  nameBox().props.onChange({ target: { value: "  Luna Studio  " } });
+  tree = draw(props);
+  void find(tree, (n) => n.type === "form").props.onSubmit(pressOf());
+  tree = draw(props);
+  assert.equal(textOf(find(tree, (n) => n.type === "button" && n.props.type === "submit")), "Creating…");
+  await find(tree, (n) => n.type === "form").props.onSubmit(pressOf());
+  await settle(props);
+  assert.deepEqual(
+    w.asked.map((a) => a.body),
+    [{ name: "Luna Studio", timezone: w.asked[0].body.timezone }],
+    "one create, with the name trimmed",
+  );
+});
+
+test("the invite code goes with the create, trimmed, only behind the invite door; sign-up's zone off the short list heads it", async () => {
+  const w = standIn(MADE);
+  globalThis.window = w;
+  const props = { email: "owner@luna.example", posture: "invite", onCreated() {} };
+  let tree = render(props);
+  find(tree, (n) => n.props?.["aria-label"] === "Business name").props.onChange({ target: { value: "Luna Studio" } });
+  find(tree, (n) => n.props?.["aria-label"] === "Invite code").props.onChange({ target: { value: "  ABC-123  " } });
+  tree = draw(props);
+  await find(tree, (n) => n.type === "form").props.onSubmit(pressOf());
+  await settle(props);
+  assert.equal(w.asked.at(-1).body.code, "ABC-123");
+
+  const another = {
+    email: "owner@luna.example",
+    initial: { name: "Luna", timezone: "Asia/Kathmandu" },
+    onCreated() {},
+    onCancel() {},
+  };
+  tree = render(another);
+  const zone = find(tree, (n) => n.type === "select");
+  assert.equal(zone.props.value, "Asia/Kathmandu", "the zone sign-up kept is the one chosen");
+  assert.deepEqual(
+    all(zone, (n) => n.type === "option")
+      .slice(0, 1)
+      .map((o) => [o.props.value, textOf(o)]),
+    [["Asia/Kathmandu", "Asia/Kathmandu"]],
+    "and it heads the list rather than vanishing into it",
+  );
+  await find(tree, (n) => n.type === "form").props.onSubmit(pressOf());
+  await settle(another);
+  assert.deepEqual(w.asked.at(-1).body, { name: "Luna", timezone: "Asia/Kathmandu" }, "no code without the door");
+});
+
 /* ------------------------------ a partner's link (0012) ------------------------------ */
 
 test("a partner's link: the screen asks before the partner joins the team, sends their code only with the yes, and forgets the link", async () => {

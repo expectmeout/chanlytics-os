@@ -6,7 +6,7 @@
  */
 import { emitEvent } from "../packages/db.js";
 import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
-import { autoReplyBell, localDate } from "../packages/contracts.js";
+import { autoReplyBell, localDate, type EdgeRefusal } from "../packages/contracts.js";
 import { recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -15,6 +15,9 @@ import type { ConnectionRow, Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
+
+/** A token refusal's words for the connection's `sync_error`: Google's, when it gave some, else the code. */
+const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
 
 /**
  * Every review of the connected location, decided against what is on
@@ -47,7 +50,7 @@ export async function syncProfile(
     return { ok: false as const, error };
   };
   const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-  if (!t.ok) return failed(t.error);
+  if (!t.ok) return failed(syncErrorOf(t));
   let page;
   try {
     page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name));

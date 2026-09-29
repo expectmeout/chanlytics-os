@@ -1,12 +1,12 @@
 /**
- * The backfill for leads found before 00161 (tooling/scripts/lead-marks-backfill.mjs): the collect's own mark step
+ * The backfill for leads found before 00161 (tooling/scripts/ops/lead-marks-backfill.mjs): the collect's own mark step
  * over the leads with a site and no copy, and a write guarded on the state each lead was planned in. The script's
  * main (the reads, the backup, the preflight) needs production and is not run here; these are the three parts it
  * is made of, run for real over a world in memory.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { markLeads, planMarks, writeMarks } from "../../lead-marks-backfill.mjs";
+import { markLeads, planMarks, writeMarks } from "../../ops/lead-marks-backfill.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { notAnImage, png } from "../_mark-images.mjs";
 

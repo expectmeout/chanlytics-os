@@ -11,7 +11,7 @@
  * delivery comes back (up to 11 times over about 32 hours). The provider is
  * called for nothing but aborting a run the row does not hold.
  */
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger, errField } from "../lib/log.js";
 import {
@@ -31,7 +31,7 @@ const MAX_BODY = 64_000;
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ door: "apify_webhook" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const u = new URL(request.url);
   const runRowId = u.searchParams.get("run") ?? "";
   const token = u.searchParams.get("token") ?? "";

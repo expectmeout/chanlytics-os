@@ -475,8 +475,8 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
 // normal chrome with the ComingSoon pane the interception chose,
 // instead of "Serenity Spa — Reports · expires in 7 days" over invented
 // numbers, ungated, in production.
-const sharedViewer = ({ theme, navigate }) => (
-  <div className="shared-root" data-theme={theme}>
+const sharedViewer = ({ theme, look, navigate }) => (
+  <div className="shared-root" data-theme={theme} data-look={look}>
     <div className="shared-banner">
       <span className="sidebar-brand-mark">C</span>
       <span className="shared-banner-title">Serenity Spa — Reports</span>
@@ -495,18 +495,18 @@ const sharedViewer = ({ theme, navigate }) => (
 );
 
 // The first run: full screen, the shell's chrome set aside, after all hooks as the shared viewer is (first-run.jsx).
-const firstRunScreen = ({ theme, param, navigate }) => (
-  <div className="fr-shell" data-theme={theme}>
+const firstRunScreen = ({ theme, look, param, navigate }) => (
+  <div className="fr-shell" data-theme={theme} data-look={look}>
     <window.FirstRun param={param} onNavigate={navigate} />
   </div>
 );
 
 /** The app's chrome around the route view: the sidebar (a drawer on a phone), the top bar, the two bars, the strip, the page, the phone's tabs and ✦, and the sheets. */
 const appChrome = (s) => {
-  const { theme, themePref, onTheme, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
+  const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
   const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
   return (
-    <div className="app-root" data-theme={theme}>
+    <div className="app-root" data-theme={theme} data-look={look}>
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
@@ -522,6 +522,8 @@ const appChrome = (s) => {
           onToggleCollapse={() => onSidebar(sidebar === "rail" ? "open" : "rail")}
           themePref={themePref}
           onTheme={onTheme}
+          look={look}
+          onLook={onLook}
         />
       </div>
       <div className="main">
@@ -581,7 +583,9 @@ const appChrome = (s) => {
 
 // ---- Shell -------------------------------------------------------------
 // The hooks below are called in the order the shell always called them, so its effects run in the order they always did.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
+// The look is stamped beside the theme on every root that carries the theme (the interface kit's §3.2), so a rule that
+// asks for both -- a look's dark side is [data-look][data-theme="dark"] -- matches wherever the theme's own rules do.
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
   const [route, setRoute] = useShellState(parseHash());
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
@@ -617,11 +621,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useShellEffect(() => { window.dispatchEvent(new CustomEvent("shell:ready")); }, []);
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
-  if (page === "shared" && !demoGated) return sharedViewer({ theme, navigate });
-  if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, param, navigate });
+  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate });
+  if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate });
 
   return appChrome({
-    theme, themePref, onTheme, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace,
+    theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace,
     page, param, ...drawn, ...fade, routeLoading: gate.routeLoading, surfaceUnavailable: gate.surfaceUnavailable,
   });
 };

@@ -4,7 +4,7 @@
  * factors a round is sized and priced with; when the question after the probe is asked and how long it waits;
  * and the month a lead counts in.
  */
-import { dayInZone } from "../../calendar/availability";
+import { dayInZone } from "../../calendar/zone-math";
 import { HOUR_MS } from "../../shared/time";
 
 /* -------------------------------------------------- the caps (§13.3, §16) -- */
