@@ -67,6 +67,17 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `trade-neutral.test.mjs` fails one trade's words in front of another's customers.
 - **Nothing in the UI states a fact the database cannot support.** A zero is shown; an invented
   number is not. `surface-registry.ts` decides what is real; `no-fabricated-data.spec.ts` checks it.
+- **One kit.** A button, switch, segmented control, pill, chip, count, mark, panel, field, select, menu, sheet, row,
+  face, meter, empty state, toast or tooltip comes from `apps/dashboard/src/surfaces/kit/`. A page composes them and
+  never declares its own; a new need is a variant in the kit, with its gallery entry. `kit-primitives.json` counts a
+  primitive's class declared or restyled outside the kit, `kit-gallery.test.mjs` fails a kit class the gallery does
+  not draw, and a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `src/surfaces` outside the kit
+  is a lint error. Before a change that draws or restyles a page, read `.claude/skills/chanlytics-interface/SKILL.md`,
+  a skill Claude Code reaches for by itself: where the tokens, the kit and its gallery are, how to add a variant, and
+  how to prove a style change.
+- **A value is a token.** A colour, type size, radius, shadow, blur or duration is read from `tokens.css`; a page
+  stylesheet declares layout only. `style-values.json` counts the type sizes, radii, shadows, colours and blurs a
+  stylesheet writes, and `inline-styles.json` the `style` props in the shell's markup.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.
@@ -132,6 +143,10 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                                                                         | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables                                                       |
 | A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `packages/contracts/src/calendar/calendar-vm.ts`                                | Pure; every sentence the page says comes from here                                                                                               |
 | A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `apps/dashboard/src/legacy-bridge/calendar.ts`                                 | Classify it in `apps/dashboard/src/legacy-bridge/surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page             |
+| A component of the kit                        | `apps/dashboard/src/surfaces/kit/button.tsx` with `apps/dashboard/src/surfaces/kit/kit.css`                                        | Its classes from `variants()`, listed in the registry beside it; a type test beside it; drawn as its gallery family draws it                     |
+| A colour, a size or an effect                 | A role in `apps/dashboard/src/legacy/styles/tokens.css`, on `:root, [data-theme]`                                                  | A kit rule reads the role, never the scale or the colour under it; a role arrives with its first reader                                          |
+| A look                                        | A `[data-look]` block in `apps/dashboard/src/legacy/styles/tokens.css`, after the roles                                            | Sets roles only, its dark side in a block of its own; Classic is the roles themselves (`docs/runbook.md`, "Add a look")                          |
+| A page's styles                               | `apps/dashboard/src/legacy/styles/<surface>.css`, then its folder in `apps/dashboard/src/surfaces/<surface>/` once it moves        | Layout only: display, grid, flex, gap, position, size, overflow. What a thing looks like is the kit's                                            |
 | An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`                                                          | `tooling/scripts/tests/repo/env-manifest.test.mjs` holds the two to the same list; blank is unset                                                |
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`                                                 | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                                                                 |
 | A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                         |
@@ -158,7 +173,8 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 - What a GET route answers: a reader in `apps/dashboard/src/server/readers/`, which Ask's tools read too, so the
   number Ask says is the number the page shows. `apps/dashboard/app/api/v1/contacts/route.ts` answers from
   `apps/dashboard/src/server/readers/people.ts`.
-- Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `apps/dashboard/src/legacy-bridge`.
+- Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `apps/dashboard/src/legacy-bridge`. It takes
+  its primitives from the kit, `apps/dashboard/src/surfaces/kit/`, and its layout lives with its surface.
 - Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
   (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
   `packages/contracts/src/mobile/app-bridge.ts`.
@@ -193,6 +209,8 @@ listed there with its date and the program it waits on.
 - A fallback that answers in anyone's voice when the database cannot be read. It holds for a person.
 - A new dependency where the repository already solves the problem (charts, calendar parsing,
   phone formatting are hand-rolled on purpose).
+- A button, chip, tab strip, card, sheet, field or face of a page's own, or a second implementation of a kit component.
+- A literal colour, type size, radius, shadow or blur in a stylesheet.
 - A migration that edits history, or a job kind without its handler and CHECK.
 - Counts in prose that go stale; measure and say when.
 
@@ -202,3 +220,6 @@ listed there with its date and the program it waits on.
 must all pass, `git status` must show no dist drift, and the pull request must say what changes
 for a customer, what to set or apply before merging (usually nothing), and which deploy order
 it needs (usually either).
+
+A change to a page draws what it adds from the kit, and a new variant has its gallery entry, shown by the spec's run
+(`docs/runbook.md`, "See the kit").
