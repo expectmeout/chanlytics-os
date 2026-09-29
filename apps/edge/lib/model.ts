@@ -1,6 +1,6 @@
 /**
  * The model port, bound where the key is (scorecard move 10): every model call the edge makes goes through here, to
- * channels' adapter (packages/channels/src/anthropic.ts: the registry's route by purpose, the fallback on a 529, a 5xx or
+ * channels' adapter (packages/channels/src/models/anthropic.ts: the registry's route by purpose, the fallback on a 529, a 5xx or
  * a timeout, one outcome), and every one is written to the usage ledger through one writer (packages/db ai-usage.ts
  * recordModelUsage): its tokens by kind, the model that answered, the dollars at list price. The receptionist, the review
  * reply, the lead judge, the notes sweep, the reach-out check, the reply reader and Ask's gateway all ask here.

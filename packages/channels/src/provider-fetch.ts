@@ -1,5 +1,5 @@
 /**
- * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic): bounded, never
+ * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic, TypeSafe): bounded, never
  * throwing, and said as one of four outcomes a caller can act on without reading the provider's answer itself.
  *
  * Before it, each adapter had its own fetch. Sixteen calls had no bound at all, and one hung connection held a
@@ -33,7 +33,7 @@
  */
 
 /** Who is called: the breaker keeps one state per name. */
-export type Provider = "meta" | "twilio" | "retell" | "resend" | "google" | "apify" | "expo" | "anthropic";
+export type Provider = "meta" | "twilio" | "retell" | "resend" | "google" | "apify" | "expo" | "anthropic" | "typesafe";
 
 /** What a call to a provider came to (the header says each). */
 export type SendOutcome = "ok" | "refused" | "retryable" | "unknown";

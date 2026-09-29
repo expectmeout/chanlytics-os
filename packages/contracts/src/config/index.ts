@@ -27,6 +27,9 @@ export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
 export type { Role } from "./workspace-config/role-perms";
 export {
   policyClassOfIntent,
+  policyClassLabel,
+  policyClassQuestion,
+  POLICY_CLASS_NONE,
   policyAskClass,
   bookingHeld,
   policyRules,

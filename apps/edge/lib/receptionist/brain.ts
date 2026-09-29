@@ -25,11 +25,14 @@ import {
   MODEL_ROUTES,
   parseBrainOutput,
   brainMetaOf,
+  receptionistPrimary,
+  receptionistShadowCall,
   type BrainMeta,
   type BrainStamp,
 } from "../packages/contracts.js";
 import { formatRejected, type ModelReply } from "../packages/channels.js";
 import { callModel, ModelUnavailable, promptHashOf, type ModelCallFor } from "../model.js";
+import { startShadow } from "../shadow.js";
 import { logger } from "../log.js";
 
 // The system prompt is TENANT CONFIG (PRD E4): it arrives as a parameter from
@@ -58,6 +61,11 @@ export interface BrainCall {
   subjectId?: string | null;
   configVersion?: number | null;
   purpose?: "receptionist" | "reply_draft";
+  /**
+   * The customer's own words, when this turn is one a second model may be put beside in shadow (decision 0023): the live
+   * inbound turn passes them; a draft, a steer and an eval do not, and are never shadowed.
+   */
+  shadowText?: string;
 }
 
 const TOKEN = /\s*\[\[HUMAN\]\]\s*/g;
@@ -109,7 +117,7 @@ function whoNote(leadNote: string): string {
 const unreadableRecord = (r: Extract<ModelReply, { outcome: "ok" }>): boolean =>
   r.message.stop_reason === "max_tokens" || (r.message.stop_reason !== "refusal" && !parseBrainOutput(r.text).ok);
 
-export async function generateReply(
+async function answerReply(
   history: ThreadTurn[],
   userText: string,
   systemPrompt: string,
@@ -241,4 +249,29 @@ export async function generateReply(
     usage,
     meta: brainMetaOf(parsed.value, r.model, stamp),
   };
+}
+
+/**
+ * The receptionist's answer to one customer message. While the second model is on (TYPESAFE_SHADOW and its key), the
+ * customer's words are also put to it, in shadow, beside this call (lib/shadow.ts): its answer is compared with the
+ * record's intent and written to the ledger, and never changes the reply, which is answerReply's alone.
+ */
+export async function generateReply(...args: Parameters<typeof answerReply>): Promise<BrainReply> {
+  const [, , , , , , , , call] = args;
+  const words = call?.shadowText;
+  const shadow =
+    words === undefined || !call
+      ? null
+      : startShadow("receptionist", { tenantId: call.tenantId, subjectId: call.subjectId }, [
+          receptionistShadowCall(words),
+        ]);
+  let reply: BrainReply | undefined;
+  try {
+    reply = await answerReply(...args);
+    return reply;
+  } finally {
+    await shadow?.settle(
+      (_ref, question) => receptionistPrimary(reply?.meta?.intent ?? null, words ?? "")[question] ?? null,
+    );
+  }
 }

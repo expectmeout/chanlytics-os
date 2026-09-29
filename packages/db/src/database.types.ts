@@ -36,8 +36,10 @@ export type Database = {
     Tables: {
       ai_usage: {
         Row: {
+          agrees: boolean | null
           cache_read_tokens: number
           cache_write_tokens: number
+          confident: boolean | null
           created_at: string
           id: number
           input_tokens: number
@@ -45,16 +47,24 @@ export type Database = {
           model_asked: string
           outcome: string
           output_tokens: number
+          port: string
+          primary_answer: string | null
           prompt_hash: string | null
           purpose: string
+          question: string | null
+          shadow: boolean
+          shadow_answer: string | null
+          shadow_confidence: number | null
           subject_id: string | null
           tenant_id: string
           usd: number | null
           user_id: string | null
         }
         Insert: {
+          agrees?: boolean | null
           cache_read_tokens?: number
           cache_write_tokens?: number
+          confident?: boolean | null
           created_at?: string
           id?: never
           input_tokens?: number
@@ -62,16 +72,24 @@ export type Database = {
           model_asked: string
           outcome: string
           output_tokens?: number
+          port?: string
+          primary_answer?: string | null
           prompt_hash?: string | null
           purpose: string
+          question?: string | null
+          shadow?: boolean
+          shadow_answer?: string | null
+          shadow_confidence?: number | null
           subject_id?: string | null
           tenant_id: string
           usd?: number | null
           user_id?: string | null
         }
         Update: {
+          agrees?: boolean | null
           cache_read_tokens?: number
           cache_write_tokens?: number
+          confident?: boolean | null
           created_at?: string
           id?: never
           input_tokens?: number
@@ -79,8 +97,14 @@ export type Database = {
           model_asked?: string
           outcome?: string
           output_tokens?: number
+          port?: string
+          primary_answer?: string | null
           prompt_hash?: string | null
           purpose?: string
+          question?: string | null
+          shadow?: boolean
+          shadow_answer?: string | null
+          shadow_confidence?: number | null
           subject_id?: string | null
           tenant_id?: string
           usd?: number | null
@@ -5104,6 +5128,23 @@ export type Database = {
           brain_errors: number
           failed_calls: number
           tenant_id: string
+        }[]
+      }
+      ai_shadow_agreement: {
+        Args: { p_days?: number }
+        Returns: {
+          agree: number
+          agreement: number
+          compared: number
+          confident: number
+          confident_agree: number
+          confident_agreement: number
+          failed_calls: number
+          input_tokens: number
+          port: string
+          purpose: string
+          question: string
+          usd: number
         }[]
       }
       ai_usage_month: {

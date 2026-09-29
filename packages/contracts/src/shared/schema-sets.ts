@@ -36,6 +36,8 @@ import type {
   TENANT_STATUSES,
 } from "./enums";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
+import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models";
+import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing";
 import type {
@@ -113,6 +115,11 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PARTNER_EARNING_KINDS>, SchemaSet<"partner_earnings.kind">>>,
   Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
   Holds<Exactly<Of<typeof PARTNER_REVERSAL_KINDS>, SchemaSet<"partner_reversals_waiting.kind">>>,
+
+  // The model ledger (00276, 00278): why the key was spent, what came of the call, and the port it left by.
+  Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
+  Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
+  Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,
 
   // Channels and the people on them.
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,

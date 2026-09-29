@@ -2,8 +2,10 @@
  * The usage ledger (00276 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
  * and the one that keeps it. A table is typed here and nowhere else.
  *
- *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it. A write that fails throws; the model
- *                         port (apps/edge/lib/model.ts) logs it and keeps the answer.
+ *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it, or the rows of one shadow call
+ *                         (contracts shadowBodies: one per question, written together). A write that fails throws; the
+ *                         model port (apps/edge/lib/model.ts) and the shadow (apps/edge/lib/shadow.ts) log it and keep
+ *                         the answer.
  *   workspaceMayUseModels whether a workspace may spend the model key on what a person asks for (contracts
  *                         mayUseModels): not paused, not ended, not unbilled. A read that fails throws.
  *   aiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
@@ -19,8 +21,8 @@ import type { Database } from "./database.types";
 
 type Db = SupabaseClient<Database>;
 
-export async function recordModelUsage(db: Db, row: AiUsageBody): Promise<void> {
-  const { error } = await db.from("ai_usage").insert(row);
+export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]): Promise<void> {
+  const { error } = await db.from("ai_usage").insert(rows);
   if (error) throw new Error(`ai_usage: ${error.message}`);
 }
 

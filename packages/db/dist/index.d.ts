@@ -34,8 +34,10 @@ type Database = {
         Tables: {
             ai_usage: {
                 Row: {
+                    agrees: boolean | null;
                     cache_read_tokens: number;
                     cache_write_tokens: number;
+                    confident: boolean | null;
                     created_at: string;
                     id: number;
                     input_tokens: number;
@@ -43,16 +45,24 @@ type Database = {
                     model_asked: string;
                     outcome: string;
                     output_tokens: number;
+                    port: string;
+                    primary_answer: string | null;
                     prompt_hash: string | null;
                     purpose: string;
+                    question: string | null;
+                    shadow: boolean;
+                    shadow_answer: string | null;
+                    shadow_confidence: number | null;
                     subject_id: string | null;
                     tenant_id: string;
                     usd: number | null;
                     user_id: string | null;
                 };
                 Insert: {
+                    agrees?: boolean | null;
                     cache_read_tokens?: number;
                     cache_write_tokens?: number;
+                    confident?: boolean | null;
                     created_at?: string;
                     id?: never;
                     input_tokens?: number;
@@ -60,16 +70,24 @@ type Database = {
                     model_asked: string;
                     outcome: string;
                     output_tokens?: number;
+                    port?: string;
+                    primary_answer?: string | null;
                     prompt_hash?: string | null;
                     purpose: string;
+                    question?: string | null;
+                    shadow?: boolean;
+                    shadow_answer?: string | null;
+                    shadow_confidence?: number | null;
                     subject_id?: string | null;
                     tenant_id: string;
                     usd?: number | null;
                     user_id?: string | null;
                 };
                 Update: {
+                    agrees?: boolean | null;
                     cache_read_tokens?: number;
                     cache_write_tokens?: number;
+                    confident?: boolean | null;
                     created_at?: string;
                     id?: never;
                     input_tokens?: number;
@@ -77,8 +95,14 @@ type Database = {
                     model_asked?: string;
                     outcome?: string;
                     output_tokens?: number;
+                    port?: string;
+                    primary_answer?: string | null;
                     prompt_hash?: string | null;
                     purpose?: string;
+                    question?: string | null;
+                    shadow?: boolean;
+                    shadow_answer?: string | null;
+                    shadow_confidence?: number | null;
                     subject_id?: string | null;
                     tenant_id?: string;
                     usd?: number | null;
@@ -5106,6 +5130,25 @@ type Database = {
                     tenant_id: string;
                 }[];
             };
+            ai_shadow_agreement: {
+                Args: {
+                    p_days?: number;
+                };
+                Returns: {
+                    agree: number;
+                    agreement: number;
+                    compared: number;
+                    confident: number;
+                    confident_agree: number;
+                    confident_agreement: number;
+                    failed_calls: number;
+                    input_tokens: number;
+                    port: string;
+                    purpose: string;
+                    question: string;
+                    usd: number;
+                }[];
+            };
             ai_usage_month: {
                 Args: {
                     p_month: string;
@@ -7925,8 +7968,10 @@ declare function recordActivation(db: Db$l, tenantId: string, milestone: Activat
  * The usage ledger (00276 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
  * and the one that keeps it. A table is typed here and nowhere else.
  *
- *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it. A write that fails throws; the model
- *                         port (apps/edge/lib/model.ts) logs it and keeps the answer.
+ *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it, or the rows of one shadow call
+ *                         (contracts shadowBodies: one per question, written together). A write that fails throws; the
+ *                         model port (apps/edge/lib/model.ts) and the shadow (apps/edge/lib/shadow.ts) log it and keep
+ *                         the answer.
  *   workspaceMayUseModels whether a workspace may spend the model key on what a person asks for (contracts
  *                         mayUseModels): not paused, not ended, not unbilled. A read that fails throws.
  *   aiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
@@ -7937,7 +7982,7 @@ declare function recordActivation(db: Db$l, tenantId: string, milestone: Activat
  */
 
 type Db$k = SupabaseClient<Database>;
-declare function recordModelUsage(db: Db$k, row: AiUsageBody): Promise<void>;
+declare function recordModelUsage(db: Db$k, rows: AiUsageBody | AiUsageBody[]): Promise<void>;
 declare function workspaceMayUseModels(db: Db$k, tenantId: string): Promise<boolean>;
 interface AiFailures {
     tenant_id: string;

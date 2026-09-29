@@ -2936,6 +2936,8 @@ interface BrainCall {
     /** tenant_config.version the prompt was composed from; null when it could not be read. */
     configVersion?: number | null;
     purpose?: "receptionist" | "reply_draft";
+    /** The customer's own words, when a second model may be put beside this turn in shadow (decision 0023). */
+    shadowText?: string;
 }
 /** What the model answered, and what the row remembers about it (the edge's brain.ts `BrainReply`). */
 interface InboundBrainReply {

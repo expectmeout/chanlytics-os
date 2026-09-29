@@ -7,7 +7,7 @@
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
  * all four and the dollars they came to.
  */
-import { MODELS, type ModelId, type ModelPurpose } from "./models";
+import { MODELS, type ModelId, type ModelPort, type ModelPurpose } from "./models";
 
 /** One call's tokens, as the API counts them. */
 export interface ModelUsage {
@@ -118,6 +118,19 @@ export interface AiUsageBody {
   user_id: string | null;
   /** What the call was about: a conversation, a call, a send, a review. */
   subject_id: string | null;
+  /**
+   * A shadow call's own columns (00278; shadow.ts): the port it left by, and, for a question it answered, the label the
+   * primary gave, the label the shadow gave, how sure it was, whether that cleared the line, and whether they agree.
+   * A row the model port writes for the primary carries none of them.
+   */
+  port?: ModelPort;
+  shadow?: boolean;
+  question?: string | null;
+  primary_answer?: string | null;
+  shadow_answer?: string | null;
+  shadow_confidence?: number | null;
+  confident?: boolean | null;
+  agrees?: boolean | null;
 }
 
 /** The ledger's row for one call, its dollars priced here. */

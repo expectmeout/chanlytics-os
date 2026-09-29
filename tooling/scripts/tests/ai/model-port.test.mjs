@@ -1,5 +1,5 @@
 /**
- * The model port (packages/channels/src/anthropic.ts), over a scripted API: the registry's route decides the model, its
+ * The model port (packages/channels/src/models/anthropic.ts), over a scripted API: the registry's route decides the model, its
  * fallback, its bound and its retries; an answer that never came (a 529, a 5xx, a timeout) is asked once of the
  * fallback; a "not now" is asked again on the same model; a 429 or a 5xx after that is unreachable, never a refusal; a
  * refused request is rejected; and the answer says which model answered and what it cost, in the four kinds of tokens.

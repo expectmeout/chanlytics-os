@@ -4,12 +4,37 @@ export {
   MODEL_IDS,
   MODEL_PURPOSES,
   MODEL_ROUTES,
+  MODEL_PORTS,
   RETELL_MODELS,
   modelRoute,
   fallbackModel,
+  shadowPortOf,
   isModelId,
 } from "./models";
-export type { ModelId, ModelPurpose, ModelRoute } from "./models";
+export type { ModelId, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models";
+export {
+  SYSTEM_ONE_MODEL,
+  SYSTEM_ONE_STATE_MAX_CHARS,
+  parseSystemOneResponse,
+  systemOneDollars,
+  systemOneState,
+} from "./system-one";
+export type { SystemOneAnswer, SystemOneQuestion, SystemOneRequest, SystemOneResponse } from "./system-one";
+export {
+  SHADOW_CALL,
+  SHADOW_CONFIDENT,
+  SHADOW_GRACE_MS,
+  SHADOW_QUESTIONS,
+  SHADOW_TIMEOUT_MS,
+  judgeShadowSpecs,
+  receptionistPrimary,
+  receptionistShadowCall,
+  replyReadPrimary,
+  replyReadShadowCall,
+  shadowBodies,
+  shadowRead,
+} from "./shadow";
+export type { ShadowCallFor, ShadowCallOutcome, ShadowCallSpec, ShadowRead } from "./shadow";
 export {
   MODEL_PRICES,
   MODEL_CALL_OUTCOMES,
@@ -22,7 +47,16 @@ export {
   usageMonthOf,
 } from "./usage";
 export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody, UsageMonthDto } from "./usage";
-export { DATA_NOT_INSTRUCTIONS, FENCE_TAGS, PROFILE_NAME_MAX, fenced, fencedInline, promptSafeName } from "./fence";
+export {
+  DATA_NOT_INSTRUCTIONS,
+  FENCE_TAGS,
+  PROFILE_NAME_MAX,
+  fenceActed,
+  fenced,
+  fencedInline,
+  injectionQuestion,
+  promptSafeName,
+} from "./fence";
 export type { FenceTag } from "./fence";
 export { FLAGS, FLAG_MECHANISMS } from "./flags";
 export type { Flag, FlagMechanism } from "./flags";

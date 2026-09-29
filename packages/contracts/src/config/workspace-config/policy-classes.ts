@@ -4,6 +4,7 @@
  * are ../policy.ts.
  */
 import type { SchemaSet } from "../../shared/schema-sets";
+import type { SystemOneQuestion } from "../../ai/system-one";
 import { z } from "zod";
 
 /* --------------------------------------------------------------- E3 policy */
@@ -197,6 +198,38 @@ export function bookingHeld(policy: Record<string, { mode: string }> | null | un
 }
 
 /**
+ * What each class a customer's message can fall under covers, in the words its prompt line says it (policyRules) and a
+ * second model is asked it (policyClassQuestion, in shadow: decision 0023): one text for each rule.
+ */
+const POLICY_COVERS = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays",
+} as const;
+
+/** The label for a message that falls under none of the classes above. */
+export const POLICY_CLASS_NONE = "none";
+
+/** The class label a receptionist's intent gives, as the shadow's question names classes: the class, or none. */
+export function policyClassLabel(intent: string | null | undefined): string {
+  return policyClassOfIntent(intent) ?? POLICY_CLASS_NONE;
+}
+
+/** Which class a customer's message falls under, put to a second model in shadow: the covered classes and none. */
+export function policyClassQuestion(): SystemOneQuestion {
+  return {
+    type: "choice",
+    instructions: "Which of these rules does the customer's message fall under?",
+    criteria: {
+      booking: POLICY_COVERS.booking,
+      faq: POLICY_COVERS.faq,
+      money: POLICY_COVERS.money,
+      [POLICY_CLASS_NONE]: "none of the above",
+    },
+  };
+}
+
+/**
  * What the Booking, FAQ and Money rows say in the prompt, per channel. "auto"
  * says nothing — the profile already tells the receptionist how to book and
  * what it offers. "ask" hands the matter to a person, in words the customer
@@ -214,22 +247,22 @@ export function policyRules(
   if (modeOf("booking") !== "auto") {
     out.push(
       voice
-        ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name."
-        : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.",
+        ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.`
+        : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`,
     );
   }
   if (modeOf("faq") !== "auto") {
     out.push(
       voice
-        ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name."
-        : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.",
+        ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.`
+        : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`,
     );
   }
   // The money row is locked to never (the charter), so its rule is said on every prompt, whatever the rows say.
   out.push(
     voice
-      ? "Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name."
-      : "Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.",
+      ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.`
+      : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`,
   );
   return out;
 }

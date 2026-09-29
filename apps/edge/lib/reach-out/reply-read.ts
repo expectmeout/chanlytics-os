@@ -16,10 +16,17 @@
  *   - draft: the receptionist's draft of an answer (reply-draft.ts, decision 0017).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REACH_OUT_READS_PER_DAY, REPLY_READ_MAX_TOKENS, REPLY_SCHEMA } from "../packages/contracts.js";
+import {
+  REACH_OUT_READS_PER_DAY,
+  REPLY_READ_MAX_TOKENS,
+  REPLY_SCHEMA,
+  replyReadPrimary,
+  replyReadShadowCall,
+} from "../packages/contracts.js";
 import { takeReplyRead, workspaceMaySpend, type Database } from "../packages/db.js";
 import type { JobContext } from "../packages/jobs.js";
-import { askJson } from "../model.js";
+import { askJson, type JsonAnswer } from "../model.js";
+import { startShadow } from "../shadow.js";
 import { env } from "../env.js";
 import { notifyOnce } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -40,17 +47,25 @@ export function replyReader(
     ask: async (system, user, deadline, forWhom) => {
       const ms = Math.min(CHECK_CALL_MS, deadline - now());
       if (ms <= 0) throw new Error("reply_read: no time left for the reader");
-      const answered = await askJson({
-        purpose: "reply_read",
-        system,
-        user,
-        schema: REPLY_SCHEMA,
-        maxTokens: REPLY_READ_MAX_TOKENS,
-        plainJsonHint: "Answer with only a JSON object in the shape asked.",
-        timeoutMs: ms,
-        signal: AbortSignal.timeout(ms),
-        for: forWhom,
-      });
+      // The reply's intent is also put to a second model in shadow, when it is on (decision 0023): never the person-or-
+      // automatic read, which the intake's header claim keeps. Its answer is compared and kept, and never read here.
+      const shadow = startShadow("reply_read", forWhom, [replyReadShadowCall(user)]);
+      let answered: JsonAnswer | null = null;
+      try {
+        answered = await askJson({
+          purpose: "reply_read",
+          system,
+          user,
+          schema: REPLY_SCHEMA,
+          maxTokens: REPLY_READ_MAX_TOKENS,
+          plainJsonHint: "Answer with only a JSON object in the shape asked.",
+          timeoutMs: ms,
+          signal: AbortSignal.timeout(ms),
+          for: forWhom,
+        });
+      } finally {
+        await shadow?.settle((_ref, question) => replyReadPrimary(answered?.answer)[question] ?? null);
+      }
       return answered?.answer ?? null;
     },
     mayRead: async (tenantId, at) => {

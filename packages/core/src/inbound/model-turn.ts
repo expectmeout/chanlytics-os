@@ -48,6 +48,34 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
   return leadNote;
 }
 
+/**
+ * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only defense (steps.ts/layerTwo). A price in the
+ * draft blocks the send outright; money, in the words or in the model's intent, is a person's; under "ask", a booking
+ * or a service/pricing question is a person's to answer whatever the model made of the prompt.
+ */
+function checked(
+  at: Answering,
+  brainCfg: BrainConfig,
+  r: { text: string; escalate: boolean; reason?: string; meta?: BrainMeta },
+): Pick<Turn, "replyText" | "escalate" | "escalationReason"> {
+  const { rt, L } = at;
+  const intent = r.meta?.intent ?? null;
+  const two = layerTwo({
+    replyText: r.text,
+    escalate: r.escalate,
+    escalationReason: r.reason ?? "human_token",
+    brainCfg,
+    policy: rt?.policy,
+    intent,
+    language: r.meta?.language ?? null,
+    known: rt?.known,
+  });
+  if (two.priceBlocked) L.warn("policy_block_price");
+  if (two.moneyHeld) L.info("wa_policy_money", { intent });
+  if (two.askClass) L.info("wa_policy_ask", { class: two.askClass, intent, complied: two.complied });
+  return { replyText: two.replyText, escalate: two.escalate, escalationReason: two.escalationReason };
+}
+
 /** The model composes and layer two checks the words, or, with no model key, the fallback goes. */
 export async function modelTurn(
   at: Answering,
@@ -101,35 +129,14 @@ export async function modelTurn(
           tenantId: at.tenantId ?? null,
           subjectId: at.ing?.conversation_id ?? null,
           configVersion: rt?.configVersion ?? null,
+          // A second model is put the customer's own words in shadow, when it is on (never a photo's framing).
+          shadowText: bodyText,
         },
       );
-      replyText = r.text;
-      escalate = r.escalate;
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      if (r.reason) escalationReason = r.reason;
-      // Layer-2 policy enforcement (Blueprint §6): prompt text is never the
-      // only defense (steps.ts/layerTwo). A price in the draft blocks the send
-      // outright; under "ask", a booking or a service/pricing question is a
-      // person's to answer whatever the model made of the prompt.
-      const two = layerTwo({
-        replyText,
-        escalate,
-        escalationReason,
-        brainCfg,
-        policy: rt?.policy,
-        intent: brainMeta?.intent ?? null,
-        language: brainMeta?.language ?? null,
-        known: rt?.known,
-      });
-      if (two.priceBlocked) L.warn("policy_block_price");
-      if (two.moneyHeld) L.info("wa_policy_money", { intent: brainMeta?.intent ?? null });
-      if (two.askClass)
-        L.info("wa_policy_ask", { class: two.askClass, intent: brainMeta?.intent ?? null, complied: two.complied });
-      replyText = two.replyText;
-      escalate = two.escalate;
-      escalationReason = two.escalationReason;
+      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r));
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
       replyText = fallbacks!.error;

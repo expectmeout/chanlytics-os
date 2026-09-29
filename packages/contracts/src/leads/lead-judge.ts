@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { LeadSearchPlan } from "./search/plan";
 import { LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS } from "./search/caps";
 import { LEAD_KIND_KEY } from "./search/class";
+import type { SystemOneQuestion } from "../ai/system-one";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -100,6 +101,16 @@ export const JUDGE_OUTPUT_SCHEMA: Record<string, unknown> = {
 /* ---------------------------------------------------------- the rubric -- */
 
 /**
+ * What each answer to a criterion asks of the judge, as the system prompt says it and as a second reader is asked it
+ * (judgeShadowCalls, in shadow: decision 0023): one text for each answer's rule.
+ */
+const JUDGE_ANSWER_RULES: Record<JudgeCriterionAnswer, string> = {
+  pass: "pass must cite a fact that is actually there",
+  fail: "fail may cite a fact that is missing (its absence is the evidence)",
+  unknown: "unknown when the facts do not say; never guess a fail",
+};
+
+/**
  * What the rubric asks under each key, in the order it asks: the kind (worded with the plan's name), every criterion
  * with its standard, every exclusion. judgeSystemPrompt's lines, and what judgeAsked fingerprints.
  */
@@ -145,11 +156,9 @@ export function judgeSystemPrompt(plan: LeadSearchPlan): string {
   );
   lines.push(`The search: ${plan.count} ${plan.name} in ${plan.area.label}.`);
   lines.push(
-    "For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say unknown when the facts do not say; never guess a fail.",
+    `For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say ${JUDGE_ANSWER_RULES.unknown}.`,
   );
-  lines.push(
-    "A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there.",
-  );
+  lines.push(`A ${JUDGE_ANSWER_RULES.fail}; a ${JUDGE_ANSWER_RULES.pass}.`);
   for (const [key, q] of Object.entries(judgeQuestions(plan))) lines.push(`- ${key}: ${q}`);
   lines.push(
     "email_index: the index of the business's own address among its emails, or null when none is theirs (a person's own inbox at a free-mail domain counts as theirs for a sole trader).",
@@ -183,6 +192,22 @@ export function judgeUserContent(places: PlaceFacts[]): string {
     phone_matches_site: p.phone_matches_site,
   }));
   return `<places>\n${JSON.stringify(quoted)}\n</places>`;
+}
+
+/**
+ * The judge's question put to a second model in shadow, place by place: the state is one place's facts as the judge is
+ * shown them, and each criterion of the rubric (judgeQuestions) is a choice among the judge's own three answers.
+ */
+export function judgeShadowCalls(
+  plan: LeadSearchPlan,
+  places: PlaceFacts[],
+): Array<{ ref: number; state: string; questions: Record<string, SystemOneQuestion> }> {
+  const criteria: Record<string, string | null> = { ...JUDGE_ANSWER_RULES };
+  const questions: Record<string, SystemOneQuestion> = {};
+  for (const [key, text] of Object.entries(judgeQuestions(plan))) {
+    questions[key] = { type: "choice", instructions: `Judge the place against this criterion: ${text}`, criteria };
+  }
+  return places.map((p) => ({ ref: p.ref, state: judgeUserContent([p]), questions }));
 }
 
 /* ----------------------------------------------------------- the parser -- */

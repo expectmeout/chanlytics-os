@@ -350,6 +350,8 @@ export const LOG_EVENTS = [
   "sending_domain_unreadable",
   "sending_domain_verify_refused",
   "setup_request_told",
+  "shadow_failed",
+  "shadow_write_failed",
   "signup_told",
   "sms_bad_signature",
   "sms_held_for_carriers",

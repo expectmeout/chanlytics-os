@@ -171,6 +171,14 @@ export const env = {
   get ANTHROPIC_API_KEY() {
     return trimmedEnv(process.env.ANTHROPIC_API_KEY);
   },
+  /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
+  get TYPESAFE_API_KEY() {
+    return trimmedEnv(process.env.TYPESAFE_API_KEY);
+  },
+  /** '1' asks the second model beside the primary, with the key set; anything else asks nothing. */
+  get TYPESAFE_SHADOW() {
+    return trimmedEnv(process.env.TYPESAFE_SHADOW);
+  },
   /** The receptionist's note suggestions (0007 phase 2): on unless 'off'. */
   get NOTE_SUGGESTIONS() {
     return trimmedEnv(process.env.NOTE_SUGGESTIONS);

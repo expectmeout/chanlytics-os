@@ -25,7 +25,7 @@
  */
 import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "@chanlytics/contracts";
 import type { ModelPurpose, ModelUsage } from "@chanlytics/contracts";
-import { providerFetch, type ProviderReply } from "./provider-fetch";
+import { providerFetch, type ProviderReply } from "../provider-fetch";
 
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";

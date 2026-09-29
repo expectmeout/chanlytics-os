@@ -6,11 +6,15 @@
  * answer, Ask's round, a review's reply, the lead judge, a note, a reach-out's opening and its reading. Each has one
  * route: the model it asks, the model it asks once more when that one is overloaded or down, how long a try may take,
  * how many tries a "not now" earns, and how many tokens an answer may write. The model port
- * (packages/channels/src/anthropic.ts) reads the route; nothing else names a model.
+ * (packages/channels/src/models/anthropic.ts) reads the route; nothing else names a model.
  *
  * A fallback is asked only for an answer that never came: a 529, a 5xx or a try that ran out of time. A refusal, a
  * bad request or a 429 is the answer. Ask's pair swaps: a deployment that runs Ask on Sonnet 5 (ASK_MODEL) falls back
  * to Opus 5.5.
+ *
+ * A purpose whose answer is a closed set may also name a shadow port (`shadow`): a second model that is put the same
+ * question beside the primary while its switch is on, in shadow (shadow.ts; decision 0023). It changes nothing a
+ * customer receives.
  *
  * Retell's models are Retell's names for the models behind a call (voice-provision.ts): the provider's words, kept
  * here so every model the platform pays for is in one list.
@@ -44,6 +48,12 @@ export const MODEL_PURPOSES = [
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
+/** The ports a model call leaves by: Anthropic's, and TypeSafe's System One (packages/channels/src/models). */
+export const MODEL_PORTS = ["anthropic", "typesafe"] as const;
+export type ModelPort = (typeof MODEL_PORTS)[number];
+/** A port a second opinion may come from: every port but the primary's. */
+export type ShadowPort = Exclude<ModelPort, "anthropic">;
+
 export interface ModelRoute {
   model: ModelId;
   /** Asked once when the model's answer never came (529, 5xx, a timeout); null when the purpose waits instead. */
@@ -54,6 +64,8 @@ export interface ModelRoute {
   retries: number;
   /** The most one answer may write. */
   maxTokens: number;
+  /** A second port put the same closed-set question in shadow; absent when the purpose has none. */
+  shadow?: ShadowPort;
 }
 
 /**
@@ -75,17 +87,39 @@ const NOTE_TRY_MS = 20_000;
 const READ_TRY_MS = 8_000;
 
 export const MODEL_ROUTES = {
-  receptionist: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
+  // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
+  receptionist: {
+    model: OPUS_5,
+    fallback: SONNET_5,
+    timeoutMs: RECEPTIONIST_TRY_MS,
+    retries: 1,
+    maxTokens: 900,
+    shadow: "typesafe",
+  },
   reply_draft: { model: OPUS_5, fallback: SONNET_5, timeoutMs: RECEPTIONIST_TRY_MS, retries: 1, maxTokens: 900 },
   ask: { model: OPUS_5_5, fallback: SONNET_5, timeoutMs: ASK_TRY_MS, retries: 0, maxTokens: 4000 },
   lead_json: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 2000 },
   template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6000 },
+  lead_judge: {
+    model: OPUS_5,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS,
+    retries: 0,
+    maxTokens: 6000,
+    shadow: "typesafe",
+  },
   note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
+  reply_read: {
+    model: HAIKU_4_5,
+    fallback: SONNET_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe",
+  },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */
@@ -102,6 +136,11 @@ export function fallbackModel(purpose: ModelPurpose, asked: string): ModelId | n
   if (!r.fallback) return null;
   const next = asked === r.fallback ? r.model : r.fallback;
   return next === asked ? null : next;
+}
+
+/** The port a purpose is put beside in shadow, or null when it has none. */
+export function shadowPortOf(purpose: ModelPurpose): ShadowPort | null {
+  return modelRoute(purpose).shadow ?? null;
 }
 
 /** Whether a string is one of the platform's model ids. */

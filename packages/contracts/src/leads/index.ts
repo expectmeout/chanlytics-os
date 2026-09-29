@@ -298,6 +298,7 @@ export type {
 } from "./lead-import";
 export {
   judgeQuestions,
+  judgeShadowCalls,
   judgeAsked,
   judgeSystemPrompt,
   judgeUserContent,

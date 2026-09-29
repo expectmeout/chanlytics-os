@@ -6,6 +6,7 @@ export {
   purposeOfTemplate,
   purposeOfPlaybook,
   OPT_OUT_REFUSAL,
+  stopRequestQuestion,
   DELIVERY_REFUSALS,
   PURPOSE_REFUSALS,
   OFFERS_BY_WHATSAPP_NOTE,
