@@ -46,6 +46,7 @@ import {
   placesQueryOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const KEY = "AIza-test-key-not-real";
@@ -855,11 +856,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
       readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"),
     ) && readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installGoogle();"),
   );
-  const rt = readCode("packages/db/src/realtime.ts");
-  assert.ok(
-    rt.includes('{ table: "google_listings", event: "*" }') &&
-      rt.includes('{ table: "google_reviews", event: "INSERT" }'),
-  );
+  assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
   const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
   assert.ok(

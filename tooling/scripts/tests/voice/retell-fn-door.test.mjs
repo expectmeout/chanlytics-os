@@ -1196,6 +1196,40 @@ test("a workspace with no approved booking template is told so, in the cause a b
   }
 });
 
+test("a workspace that holds its bookings and has no approved booking template is told the hold, not that the caller can book online", async () => {
+  // REGRESSION: the missing template was answered before the gate, so a workspace holding bookings for a person to
+  // confirm had its caller told they "can book online" -- the one thing it chose not to have said. Under the hold the
+  // link would not go whichever template there was, so the hold is the reason given, and it is recorded where a person
+  // can find it, as the gate's own refusal is.
+  for (const [templates, why] of [
+    [[], "none at all"],
+    [[{ ...BOOKING_ROW, meta_status: "pending" }], "submitted and not yet approved"],
+  ]) {
+    const w = world({ mode: "auto", booking: "ask", templates });
+    w.open();
+    const caller = w.number();
+    w.person(caller);
+    const said = await listening(async (log) => {
+      const out = await spoken(await knock(w.ask(caller)));
+      assert.deepEqual(
+        log.fields("retell_fn_refused").map((f) => f.reason),
+        ["booking_needs_a_person"],
+        why,
+      );
+      assert.deepEqual(log.said("retell_fn_no_template"), [], `${why}: the missing template is not the reason given`);
+      return out;
+    });
+    assert.equal(said, refusalScript("booking_needs_a_person", PUBLISHED), why);
+    assert.doesNotMatch(said, /book online/i, why);
+    assert.deepEqual(w.left().graph, [], `nothing reached Meta: ${why}`);
+    assert.deepEqual(
+      w.tables.events.filter((e) => e.kind === "message.send_blocked").map((e) => [e.data.reason, e.data.source]),
+      [["booking_needs_a_person", SOURCE]],
+      `the refusal is a row somebody can find: ${why}`,
+    );
+  }
+});
+
 test("the purpose is the template's own category again, so a promotion needs the offers answer and a utility message does not", async () => {
   // It was declared in the file, because the hand-written row said `marketing`
   // and purposeOfTemplate fails closed -- which would have refused the link to

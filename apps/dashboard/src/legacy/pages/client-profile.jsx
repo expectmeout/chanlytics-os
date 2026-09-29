@@ -1827,7 +1827,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 // A real workspace fetches the person; the seeded profile keeps the demo.
 // `real`: the shell knows this is a real workspace before People's rows land. A person's page no longer waits for the
 // list (surface-registry.ts routeSurfaceFor), so asked by __PEOPLE alone it drew the mockup's seeded profile until then.
-const ClientProfile = ({ real = false, ...props }) => (window.__PEOPLE || real ? <ClientProfileReal {...props} /> : <ClientProfileSeed {...props} />);
+const ClientProfile = (props) => (window.__PEOPLE || props.real ? <ClientProfileReal {...props} real={undefined} /> : <ClientProfileSeed {...props} real={undefined} />);
 
 window.ClientProfile = ClientProfile;
 // Published for the same reason `PlatformLine` is: "does this control write the

@@ -576,7 +576,11 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
  * One lead, beside the rows. role="dialog" with .pl-peek, which PL_OVERLAY names apart (the page's own overlay), so
  * J and K keep walking the rows behind it and Esc reaches the page's one listener.
  */
-const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, deck = null, phone = false, ...on }) => {
+const LeadPeek = (props) => {
+  const { vm, mode = "info", armed = null, draft = null, busy = false, deck = null, phone = false } = props;
+  // Every other prop is an act its panes call by name. Taken with window.propsWithout, never an object rest: in the
+  // standalone harness a rest's excluded keys are a `var _excluded` every file shares (data-bits says why).
+  const on = window.propsWithout(props, ["vm", "mode", "armed", "draft", "busy", "deck", "phone"]);
   if (!vm) return null;
   // Under a thumb (D5, data-bits touchSwipe): a swipe across is the deck's two buttons, and on a phone, where the
   // peek is the whole screen, a pull down from the top of what it shows is its Close -- one small X in a corner was

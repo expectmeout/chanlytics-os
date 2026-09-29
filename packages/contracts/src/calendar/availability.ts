@@ -207,25 +207,38 @@ function span(tz: string, start: number, end: number): string {
  *
  * `hasBookingLink` is required: what follows an opening is the link, or for a
  * business with none, the details the team needs (NO_LINK_DETAILS).
+ *
+ * `bookingHeld`: the Autonomy tab's Booking row is not on auto (bookingHeld,
+ * policy-classes.ts). By the owner's decision (21 Sep 2026) the times are still
+ * offered, word for word, and only the booking link is held back: what follows
+ * them is a member of the team confirming, never the link. A business with no
+ * link has nothing to hold back, so it is told what it is told without one.
+ * Left out, nothing is held: the words are auto's, byte for byte.
  */
 export function describeOpenings(
   openings: Opening[],
   tz: string,
-  opts: { maxDays?: number; daysAhead?: number; hasBookingLink: boolean },
+  opts: { maxDays?: number; daysAhead?: number; hasBookingLink: boolean; bookingHeld?: boolean },
 ): string {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   const hasLink = opts.hasBookingLink;
+  const held = hasLink && opts.bookingHeld === true;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    const instead = held
+      ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link."
+      : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings
     .slice(0, maxDays)
     .map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return (
     `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
-    (hasLink
-      ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
-      : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
+    (held
+      ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself."
+      : hasLink
+        ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
+        : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
   );
 }
