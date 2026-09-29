@@ -22,11 +22,13 @@ const sse = await import(at("apps/dashboard/src/server/ask/sse.ts"));
 test("the parser: message_start is the usage (the input side, the cache counts, the message id); message_delta's stop carries the output side; a start without usage is nothing", () => {
   assert.deepEqual(
     sse.parseFrame(
-      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_01","usage":{"input_tokens":1200,"cache_read_input_tokens":900,"cache_creation_input_tokens":300,"output_tokens":1}}}',
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_01","model":"claude-sonnet-5","usage":{"input_tokens":1200,"cache_read_input_tokens":900,"cache_creation_input_tokens":300,"output_tokens":1}}}',
     ),
     {
       type: "usage",
       messageId: "msg_01",
+      // The model that answered, in the API's own name: what the turn is stamped with.
+      model: "claude-sonnet-5",
       cacheMiss: null,
       inputTokens: 1200,
       cacheReadTokens: 900,
@@ -74,6 +76,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
     yield {
       type: "usage",
       messageId: "msg_01",
+      model: "claude-opus-5-5",
       cacheMiss: "system_changed",
       inputTokens: 100,
       cacheReadTokens: 900,
@@ -89,6 +92,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
   assert.deepEqual(r.usage, {
     messageId: "msg_01",
+    model: "claude-opus-5-5",
     cacheMiss: "system_changed",
     inputTokens: 100,
     cacheReadTokens: 900,

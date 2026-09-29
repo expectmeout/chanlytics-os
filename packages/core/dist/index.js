@@ -1140,10 +1140,24 @@ var MODEL_ROUTES = {
   template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3, shadow: "typesafe" },
+  lead_judge: {
+    model: OPUS_5,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS,
+    retries: 0,
+    maxTokens: 6e3,
+    shadow: "typesafe"
+  },
   note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400, shadow: "typesafe" }
+  reply_read: {
+    model: HAIKU_4_5,
+    fallback: SONNET_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe"
+  }
 };
 var RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" };
 var Probability = z2.number().min(0).max(1);
@@ -4381,10 +4395,24 @@ var MODEL_ROUTES2 = {
   template_draft: { model: SONNET_52, fallback: OPUS_52, timeoutMs: DRAFT_TRY_MS2, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_52, fallback: OPUS_52, timeoutMs: REVIEW_TRY_MS2, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_52, fallback: null, timeoutMs: JUDGE_TRY_MS2, retries: 0, maxTokens: 6e3, shadow: "typesafe" },
+  lead_judge: {
+    model: OPUS_52,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS2,
+    retries: 0,
+    maxTokens: 6e3,
+    shadow: "typesafe"
+  },
   note_suggest: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: NOTE_TRY_MS2, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_52, fallback: SONNET_52, timeoutMs: READ_TRY_MS2, retries: 0, maxTokens: 400, shadow: "typesafe" }
+  reply_read: {
+    model: HAIKU_4_52,
+    fallback: SONNET_52,
+    timeoutMs: READ_TRY_MS2,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe"
+  }
 };
 var Probability2 = z27.number().min(0).max(1);
 var SystemOneAnswerSchema2 = z27.discriminatedUnion("type", [
@@ -10086,10 +10114,24 @@ var MODEL_ROUTES3 = {
   template_draft: { model: SONNET_53, fallback: OPUS_53, timeoutMs: DRAFT_TRY_MS3, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_53, fallback: OPUS_53, timeoutMs: REVIEW_TRY_MS3, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_53, fallback: null, timeoutMs: JUDGE_TRY_MS3, retries: 0, maxTokens: 6e3, shadow: "typesafe" },
+  lead_judge: {
+    model: OPUS_53,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS3,
+    retries: 0,
+    maxTokens: 6e3,
+    shadow: "typesafe"
+  },
   note_suggest: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: NOTE_TRY_MS3, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_53, fallback: SONNET_53, timeoutMs: READ_TRY_MS3, retries: 0, maxTokens: 400, shadow: "typesafe" }
+  reply_read: {
+    model: HAIKU_4_53,
+    fallback: SONNET_53,
+    timeoutMs: READ_TRY_MS3,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe"
+  }
 };
 var Probability3 = z29.number().min(0).max(1);
 var SystemOneAnswerSchema3 = z29.discriminatedUnion("type", [

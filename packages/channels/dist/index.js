@@ -201,10 +201,24 @@ var MODEL_ROUTES = {
   template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3, shadow: "typesafe" },
+  lead_judge: {
+    model: OPUS_5,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS,
+    retries: 0,
+    maxTokens: 6e3,
+    shadow: "typesafe"
+  },
   note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400, shadow: "typesafe" }
+  reply_read: {
+    model: HAIKU_4_5,
+    fallback: SONNET_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe"
+  }
 };
 function modelRoute(purpose) {
   return MODEL_ROUTES[purpose];
@@ -1047,9 +1061,7 @@ function judgeSystemPrompt(plan) {
   lines.push(
     `For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say ${JUDGE_ANSWER_RULES.unknown}.`
   );
-  lines.push(
-    `A ${JUDGE_ANSWER_RULES.fail}; a ${JUDGE_ANSWER_RULES.pass}.`
-  );
+  lines.push(`A ${JUDGE_ANSWER_RULES.fail}; a ${JUDGE_ANSWER_RULES.pass}.`);
   for (const [key, q] of Object.entries(judgeQuestions(plan))) lines.push(`- ${key}: ${q}`);
   lines.push(
     "email_index: the index of the business's own address among its emails, or null when none is theirs (a person's own inbox at a free-mail domain counts as theirs for a sole trader)."
@@ -3520,7 +3532,8 @@ async function askSystemOne(key, ask, deps = {}) {
   );
   if (a.outcome !== "ok") return { outcome: failureOf(a), status: a.status, error: errorOf2(a, key) };
   const read = parseSystemOneResponse(a.json);
-  if (!read.ok) return { outcome: "unavailable", status: a.status, error: scrubbed(`unreadable answer: ${read.error}`, key) };
+  if (!read.ok)
+    return { outcome: "unavailable", status: a.status, error: scrubbed(`unreadable answer: ${read.error}`, key) };
   return {
     outcome: "ok",
     model: read.value.model,

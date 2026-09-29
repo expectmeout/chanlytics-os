@@ -1,16 +1,18 @@
 /**
- * One structured answer through the edge's gateway: the model key stays on the
- * edge, the tokens count in Ask's daily budget (ASK_USAGE_KIND), and the answer
- * is read by zod here. A refusal of any kind (the budget, a preview deployment,
- * an answer out of shape) is an AppError in words; nothing is guessed.
+ * One structured answer from the model, for the three small drafts a person asks for (a lead's message, a search's
+ * suggestions, a list's rows), asked of the edge's gateway (ask/gateway.ts streamModel) and read by zod here.
  *
- * The purposes that come through here spend Ask's ONE daily budget, so
- * they are capped three ways and add no second budget: the rate buckets
- * (`lead_draft` 60 an hour, `lead_suggest` 10 an hour -- a person, not a
- * workspace), the suggestions' seven-day cache, and small requests
- * (600 tokens for a draft, 400 for the suggestions, effort "low"). The usage
- * row records the purpose (Task 5), so a share can be read by purpose the day
- * one is wanted.
+ *   - The model is the registry's for these (contracts MODEL_ROUTES.lead_json: JSON_MODEL), never Ask's profile, and the
+ *     answer is asked for in its schema at effort "low"; the caller sets a small max_tokens, and the edge clamps it.
+ *   - The key stays on the edge, which holds the day's count: the tokens spend Ask's one daily budget (ASK_USAGE_KIND),
+ *     under the caller's own limits (the rate buckets, the suggestions' cache), and are written to the usage ledger for
+ *     the workspace under the purpose the edge maps (lead_json). No second budget is kept here.
+ *   - A stream that does not begin is said in words as an AppError, and nothing is guessed: the day's budget spent is
+ *     rate_limited, a paused or ended workspace payment_required, and a preview, a missing key, a model that could not be
+ *     reached or the API's refusal of the request are one 503 "not available"; a stream that breaks, an answer that
+ *     does not parse and one out of shape are upstream_anthropic "unreadable"; the model's own refusal is a 422.
+ *
+ * The stream is a seam: setModelStream hands a test its own.
  */
 import "server-only";
 import type { ZodType } from "zod";

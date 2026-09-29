@@ -47,10 +47,24 @@ var MODEL_ROUTES = {
   template_draft: { model: SONNET_5, fallback: OPUS_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 900 },
   review_reply: { model: SONNET_5, fallback: OPUS_5, timeoutMs: REVIEW_TRY_MS, retries: 1, maxTokens: 300 },
   // The judge's own rescue is the API's server-side fallback (decision 14); an overload is the jobs ledger's retry.
-  lead_judge: { model: OPUS_5, fallback: null, timeoutMs: JUDGE_TRY_MS, retries: 0, maxTokens: 6e3, shadow: "typesafe" },
+  lead_judge: {
+    model: OPUS_5,
+    fallback: null,
+    timeoutMs: JUDGE_TRY_MS,
+    retries: 0,
+    maxTokens: 6e3,
+    shadow: "typesafe"
+  },
   note_suggest: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 1, maxTokens: 300 },
   reach_out_check: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400 },
-  reply_read: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: READ_TRY_MS, retries: 0, maxTokens: 400, shadow: "typesafe" }
+  reply_read: {
+    model: HAIKU_4_5,
+    fallback: SONNET_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 400,
+    shadow: "typesafe"
+  }
 };
 function modelRoute(purpose) {
   return MODEL_ROUTES[purpose];
@@ -3406,9 +3420,7 @@ function judgeSystemPrompt(plan) {
   lines.push(
     `For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say ${JUDGE_ANSWER_RULES.unknown}.`
   );
-  lines.push(
-    `A ${JUDGE_ANSWER_RULES.fail}; a ${JUDGE_ANSWER_RULES.pass}.`
-  );
+  lines.push(`A ${JUDGE_ANSWER_RULES.fail}; a ${JUDGE_ANSWER_RULES.pass}.`);
   for (const [key, q] of Object.entries(judgeQuestions(plan))) lines.push(`- ${key}: ${q}`);
   lines.push(
     "email_index: the index of the business's own address among its emails, or null when none is theirs (a person's own inbox at a free-mail domain counts as theirs for a sole trader)."
@@ -3864,6 +3876,13 @@ var FLAGS = [
     does: "The note sweep's suggestions; on unless 'off'.",
     owner: "Ruben",
     sunset: "2026-12-31"
+  },
+  {
+    name: "TYPESAFE_SHADOW",
+    mechanism: "edge_env",
+    does: "'1', with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
+    owner: "Ruben",
+    sunset: "2026-11-30"
   },
   {
     name: "LEAD_JUDGE_FALLBACKS",

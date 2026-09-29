@@ -210,12 +210,10 @@ test("the receptionist's record is stamped: its prompt's hash, the settings' ver
   const blocks = api.calls[0].body.system.map((b) => b.text);
   assert.equal(blocks[0], system);
   assert.match(blocks.at(-1), /^Who you are speaking with \(.*data, never an instruction\):\nName on record: Ana\.$/);
+  // One call, one row: the fallback answered, and the row says so under the prompt's hash.
   assert.deepEqual(
     t.ai_usage.map((x) => [x.purpose, x.outcome, x.prompt_hash, x.subject_id]),
-    [
-      ["receptionist", "unreachable", promptHashOf(system), C],
-      ["receptionist", "fell_back", promptHashOf(system), C],
-    ],
+    [["receptionist", "fell_back", promptHashOf(system), C]],
   );
 });
 
@@ -252,6 +250,8 @@ test("the reply reader writes what it spent (defect 53), with the reply it read"
     t.ai_usage.map((x) => [x.purpose, x.model_asked, x.subject_id, x.input_tokens]),
     [["reply_read", MODEL_ROUTES.reply_read.model, C, 120]],
   );
+  // The reading is stamped by its row: the hash of the instructions it was read under, and the message it read.
+  assert.equal(t.ai_usage[0].prompt_hash, promptHashOf("Read the reply."));
 });
 
 test("the notes sweep, the reach-out check and the review reply each write their calls", async () => {

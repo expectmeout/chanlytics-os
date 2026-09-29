@@ -1,13 +1,20 @@
 /**
- * The model gateway's bookkeeping: Ask's own budget, and the usage tee.
+ * What the two doors that spend the platform's model key for a person share: Ask's model gateway
+ * (api/admin/llm.ts) and the reach-out sheet's preview (api/admin/reach-out-preview.ts). It is whole and wired at both: the
+ * gateway door uses all of it, the preview the day's count and the usage event.
  *
- * The dashboard runs the assistant as the signed-in person, but the model key
- * lives here and stays here. So a turn's model call passes through this edge,
- * which does two things the dashboard cannot: it spends the key, and it
- * writes the usage row with the service role. Ask's tokens are counted on
- * their own event kind so an owner asking questions never spends the
- * receptionist's customer-facing budget (budget.ts reads usage.llm_tokens
- * and nothing else).
+ *   - askTokensLast24h / recordAskUsage / teeUsage: Ask's own budget. The dashboard runs the assistant as the signed-in
+ *     person, but the key lives here, so a turn's call passes through this edge. Its tokens are counted on their own event
+ *     kind (ASK_USAGE_KIND) so an owner asking questions never spends the receptionist's customer-facing budget
+ *     (budget.ts reads usage.llm_tokens and nothing else); the day's sum is one statement (ask_tokens_day, 00240) and a
+ *     count that cannot be read holds the turn. The tee reads a round's usage off the stream as it is forwarded.
+ *   - validateGatewayRequest and its limits: what a request may ask for; anything else is refused (bad_request) before
+ *     the key is spent. The models it may name are the registry's for the two routes the gateway serves.
+ *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as.
+ *
+ * Two records of one round, on purpose: the event above is the budget's count (a sum over 24 hours, purged with the
+ * events), and the ledger row (lib/model.ts recordCall, written by the door once the stream ends) is the round's dollars,
+ * by the model that answered, kept 400 days. This module writes the first and not the second.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASK_MAX_TOKENS, MODELS, MODEL_ROUTES, type ModelPurpose } from "./packages/contracts.js";

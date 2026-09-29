@@ -83,6 +83,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "TYPESAFE_SHADOW",
+    mechanism: "edge_env",
+    does: "'1', with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
+    owner: "Ruben",
+    sunset: "2026-11-30",
+  },
+  {
     name: "LEAD_JUDGE_FALLBACKS",
     mechanism: "edge_env",
     does: "The lead judge's server-side fallback on a refusal (decision 14); on unless 'off'.",

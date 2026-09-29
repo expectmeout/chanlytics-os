@@ -25,7 +25,7 @@ import {
 } from "../packages/contracts.js";
 import { takeReplyRead, workspaceMaySpend, type Database } from "../packages/db.js";
 import type { JobContext } from "../packages/jobs.js";
-import { askJson, type JsonAnswer } from "../model.js";
+import { askJson, promptHashOf, type JsonAnswer } from "../model.js";
 import { startShadow } from "../shadow.js";
 import { env } from "../env.js";
 import { notifyOnce } from "../ops/notify.js";
@@ -61,7 +61,8 @@ export function replyReader(
           plainJsonHint: "Answer with only a JSON object in the shape asked.",
           timeoutMs: ms,
           signal: AbortSignal.timeout(ms),
-          for: forWhom,
+          // The reading is stamped by its ledger row: the message it read (subject) and the hash of what it was told.
+          for: { ...forWhom, promptHash: promptHashOf(system) },
         });
       } finally {
         await shadow?.settle((_ref, question) => replyReadPrimary(answered?.answer)[question] ?? null);

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
@@ -412,6 +413,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       proposals,
       questionAt,
       live,
+      promptHash: createHash("sha256")
+        .update(system.map((b) => b.text).join("\n"))
+        .digest("hex")
+        .slice(0, 16),
     });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
