@@ -952,6 +952,7 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var LEAD_LIST_MAX = 500;
+var LEAD_IMPORT_MAX_BYTES = 2e6;
 var nullableText = (max) => z9.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema = z9.object({
   name: z9.string().trim().min(1).max(200),
@@ -984,6 +985,8 @@ var LEAD_IMPORT_WORDS = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1e6} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -8802,6 +8805,7 @@ var SENDING_HOURS_WORDS2 = {
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS2;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * MIN_MS2;
 var LEAD_LIST_MAX2 = 500;
+var LEAD_IMPORT_MAX_BYTES2 = 2e6;
 var nullableText2 = (max) => z92.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema2 = z92.object({
   name: z92.string().trim().min(1).max(200),
@@ -8834,6 +8838,8 @@ var LEAD_IMPORT_WORDS2 = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX2} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES2 / 1e6} MB, more than a list of ${LEAD_LIST_MAX2} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -12740,6 +12746,7 @@ var SENDING_HOURS_WORDS3 = {
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * MIN_MS3;
 var LEAD_LIST_MAX3 = 500;
+var LEAD_IMPORT_MAX_BYTES3 = 2e6;
 var nullableText3 = (max) => z93.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema3 = z93.object({
   name: z93.string().trim().min(1).max(200),
@@ -12772,6 +12779,8 @@ var LEAD_IMPORT_WORDS3 = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX3} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES3 / 1e6} MB, more than a list of ${LEAD_LIST_MAX3} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -15846,6 +15855,7 @@ var SENDING_HOURS_WORDS22 = {
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS22;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * MIN_MS22;
 var LEAD_LIST_MAX22 = 500;
+var LEAD_IMPORT_MAX_BYTES22 = 2e6;
 var nullableText22 = (max) => z922.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema22 = z922.object({
   name: z922.string().trim().min(1).max(200),
@@ -15878,6 +15888,8 @@ var LEAD_IMPORT_WORDS22 = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX22} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES22 / 1e6} MB, more than a list of ${LEAD_LIST_MAX22} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -19235,6 +19247,7 @@ var SENDING_HOURS_WORDS32 = {
 var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * MIN_MS32;
 var LEAD_LIST_MAX32 = 500;
+var LEAD_IMPORT_MAX_BYTES32 = 2e6;
 var nullableText32 = (max) => z932.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema32 = z932.object({
   name: z932.string().trim().min(1).max(200),
@@ -19267,6 +19280,8 @@ var LEAD_IMPORT_WORDS32 = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX32} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES32 / 1e6} MB, more than a list of ${LEAD_LIST_MAX32} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -23188,6 +23203,7 @@ var SENDING_HOURS_WORDS4 = {
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS4;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * MIN_MS4;
 var LEAD_LIST_MAX4 = 500;
+var LEAD_IMPORT_MAX_BYTES4 = 2e6;
 var nullableText4 = (max) => z94.string().trim().max(max).nullable().optional();
 var LeadImportRowSchema4 = z94.object({
   name: z94.string().trim().min(1).max(200),
@@ -23220,6 +23236,8 @@ var LEAD_IMPORT_WORDS4 = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX4} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES4 / 1e6} MB, more than a list of ${LEAD_LIST_MAX4} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
