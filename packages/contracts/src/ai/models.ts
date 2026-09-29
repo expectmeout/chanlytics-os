@@ -124,7 +124,7 @@ export const MODEL_ROUTES = {
 
 /** A purpose's route. */
 export function modelRoute(purpose: ModelPurpose): ModelRoute {
-  return MODEL_ROUTES[purpose] as ModelRoute;
+  return MODEL_ROUTES[purpose];
 }
 
 /**

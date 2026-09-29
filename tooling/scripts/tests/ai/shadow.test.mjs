@@ -28,15 +28,18 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "TYPESAFE_API_KEY"
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
-const { setShadowFetch } = await import(at("apps/edge/lib/shadow.ts"));
 const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
 const { replyReader } = await import(at("apps/edge/lib/reach-out/reply-read.ts"));
 const { leadWires } = await import(at("apps/edge/lib/leads/lead-wires.ts"));
 after(() => {
   setPg(null);
   setModelFetch(null);
-  setShadowFetch(null);
 });
+
+/** One network for both APIs, over the model port's seam: the address asked decides who answers. */
+let primaryFetch = null;
+let shadowFetch = null;
+setModelFetch((url, init) => (String(url).includes("typesafe") ? shadowFetch(url, init) : primaryFetch(url, init)));
 
 const KEY = aKey();
 const ON = { TYPESAFE_API_KEY: KEY, TYPESAFE_SHADOW: "1" };
@@ -85,8 +88,8 @@ const RECORD = {
 /** One receptionist turn on the scripted model, with the second model as `api` under `env`; the database as it stands. */
 async function turn({ api = jev(), env = ON, text = TEXT, faults } = {}) {
   const tables = world(faults);
-  setModelFetch(scripted(json(RECORD)).fetch);
-  setShadowFetch(api.fetch);
+  primaryFetch = scripted(json(RECORD)).fetch;
+  shadowFetch = api.fetch;
   const { result, lines } = await logged(() =>
     withEnv(env, () =>
       generateReply([], text, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
@@ -123,9 +126,9 @@ test("nothing is sent while the switch is off or the key is not set: no call, no
   assert.equal(primaryRows(baseline.tables).length, 1, "the primary's own call is still written");
   // A turn that names no words for the shadow (a draft, a steer, an eval) is never shadowed, whatever is set.
   const tables = world();
-  setModelFetch(scripted(json(RECORD)).fetch);
+  primaryFetch = scripted(json(RECORD)).fetch;
   const api = jev();
-  setShadowFetch(api.fetch);
+  shadowFetch = api.fetch;
   await withEnv(ON, () =>
     generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, { tenantId: T }),
   );
@@ -243,8 +246,8 @@ test("the reader's intent is put to the shadow, and the person-or-automatic read
   const answer = { intent: "no", summary: "They do not want it.", day: null, refer_to: null };
   const ask = async (api, env = ON) => {
     const tables = world();
-    setModelFetch(scripted(json(answer)).fetch);
-    setShadowFetch(api.fetch);
+    primaryFetch = scripted(json(answer)).fetch;
+    shadowFetch = api.fetch;
     const reader = replyReader(fakeDb({}), { now: () => 0 });
     const { result } = await logged(() =>
       withEnv(env, () => reader.ask("Read the reply.", user, 60_000, { tenantId: T, subjectId: C })),
@@ -317,14 +320,12 @@ test("the judge's criteria are put to the shadow a place at a time, and its answ
   };
   const run = async (api, env = ON) => {
     const tables = world();
-    setModelFetch(
-      answering(async () => ({
-        content: [{ type: "text", text: JSON.stringify(judged) }],
-        stop_reason: "end_turn",
-        usage: { input_tokens: 500, output_tokens: 80 },
-      })).fetch,
-    );
-    setShadowFetch(api.fetch);
+    primaryFetch = answering(async () => ({
+      content: [{ type: "text", text: JSON.stringify(judged) }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 500, output_tokens: 80 },
+    })).fetch;
+    shadowFetch = api.fetch;
     const { result } = await logged(() =>
       withEnv({ ...env, APIFY_TOKEN: "apify-token-for-this-file" }, () =>
         leadWires().judge.judge(PLAN, [place(1), place(2)], T),

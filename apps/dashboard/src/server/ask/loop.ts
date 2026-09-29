@@ -40,7 +40,7 @@ import {
   type ToolContext,
   type ToolRun,
 } from "./tools";
-import { systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
+import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
@@ -337,7 +337,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
   // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
-  const system = systemBlocks(input.facts, shape);
+  const system = systemBlocks(stableSystem(input.facts), shape);
   const pageBlocks: SearchResultBlock[] = [
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),

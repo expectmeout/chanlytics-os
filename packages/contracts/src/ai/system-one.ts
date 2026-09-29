@@ -20,7 +20,7 @@ import { z } from "zod";
 /** The one model asked, by its versioned id. An alias would change under a week of data. */
 export const SYSTEM_ONE_MODEL = "jev-1.13.0";
 /** Dollars per million input tokens (TypeSafe's list, read 29 September 2026); output tokens are free. */
-export const SYSTEM_ONE_INPUT_USD_PER_MILLION = 0.042;
+const SYSTEM_ONE_INPUT_USD_PER_MILLION = 0.042;
 /** How much of a state is sent: well inside the 32,000 tokens a state and its longest question may share. */
 export const SYSTEM_ONE_STATE_MAX_CHARS = 20_000;
 

@@ -15,10 +15,10 @@ import { pageOperator, type PagePorts } from "./page-operator.js";
 import { logger, errField } from "../log.js";
 
 /** Failures in an hour, in one workspace, that page the platform: a handful is a blip, this many is a storm. */
-export const MODEL_FAILURES_PAGE_AT = 5;
+const MODEL_FAILURES_PAGE_AT = 5;
 
 /** The page's words: the workspace and the counts, never a customer. */
-export function describeModelFailures(f: AiFailures): { key: string; subject: string; body: string } {
+function describeModelFailures(f: AiFailures): { key: string; subject: string; body: string } {
   const total = f.failed_calls + f.brain_errors;
   return {
     key: `model_failures:${f.tenant_id}`,

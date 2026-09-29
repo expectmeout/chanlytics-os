@@ -18,7 +18,7 @@
  * error is logged in have been scrubbed of it. What is sent is the customer's own words or one lead's listing facts:
  * never the business's prompt, its facts or a person's name.
  */
-import { askSystemOne, type ModelDeps, type SystemOneReply } from "./packages/channels.js";
+import { askSystemOne, type SystemOneReply } from "./packages/channels.js";
 import {
   SHADOW_GRACE_MS,
   SYSTEM_ONE_MODEL,
@@ -30,26 +30,21 @@ import {
 } from "./packages/contracts.js";
 import { recordModelUsage } from "./packages/db.js";
 import { env } from "./env.js";
+import { modelDeps } from "./model.js";
 import { pg } from "./pg.js";
 import { logger, errField } from "./log.js";
-
-let deps: ModelDeps = {};
-/** For tests: the network (and a clock that does not wait) the shadow's calls use until reset (null). */
-export function setShadowFetch(f: typeof fetch | null): void {
-  deps = f ? { fetch: f, sleep: async () => {} } : {};
-}
 
 /** How many of one run's calls are in flight at once: a judge's batch is a call a place. */
 const IN_FLIGHT = 5;
 
 /** Who a shadow is for: the workspace (the ledger's row) and what the call was about. */
-export interface ShadowFor {
+interface ShadowFor {
   tenantId: string | null;
   subjectId?: string | null;
 }
 
 /** A shadow underway. `settle` compares and writes it once the primary has answered; it never throws. */
-export interface ShadowRun {
+interface ShadowRun {
   /** The primary's label for a question of a call, by the call's ref; null when the primary gave none. */
   settle(primary: (ref: string, question: string) => string | null): Promise<void>;
 }
@@ -82,7 +77,7 @@ async function runCalls(key: string, calls: ShadowCallSpec[], signal: AbortSigna
       if (spec)
         done[at] = {
           spec,
-          reply: await askSystemOne(key, { state: spec.state, questions: spec.questions, signal }, deps),
+          reply: await askSystemOne(key, { state: spec.state, questions: spec.questions, signal }, modelDeps()),
         };
     }
   };

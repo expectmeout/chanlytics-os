@@ -87,7 +87,7 @@ export async function modelTurn(
   const brainCfg = at.brainCfg as BrainConfig;
   let replyText: string;
   let escalate: boolean;
-  let escalationReason = "human_token";
+  let escalationReason: string;
   let usage: { input_tokens: number; output_tokens: number } | undefined;
   let brainMeta: BrainMeta | undefined;
   let fallback: ReturnType<typeof noModelPlan> | undefined;

@@ -54,9 +54,17 @@ const ASKED_BY_A_PERSON: ReadonlySet<ModelPurpose> = new Set<ModelPurpose>([
 ]);
 
 let deps: ModelDeps = {};
-/** For tests: the network (and a sleep that does not wait) every call uses until reset (null). */
+/**
+ * For tests: the network (and a sleep that does not wait) every model call uses until reset (null), the second model's
+ * (lib/shadow.ts, through modelDeps) as well as the primary's: a test's fetch answers by the address it is asked.
+ */
 export function setModelFetch(f: typeof fetch | null): void {
   deps = f ? { fetch: f, sleep: async () => {} } : {};
+}
+
+/** What every port's calls run over: the platform's network and clock, or a test's. */
+export function modelDeps(): ModelDeps {
+  return deps;
 }
 
 /** The first 16 hex of the sha256 of a prompt: what a stored answer names its instructions by. */
@@ -125,7 +133,7 @@ export async function mayUseModelFor(purpose: ModelPurpose, tenantId: string | n
 }
 
 /** A call the workspace may not pay for: no call, no row, and the caller says so. */
-export type ModelHeld = { outcome: "held" };
+type ModelHeld = { outcome: "held" };
 
 /** One model call through the port, written to the ledger; null with no key, `held` when the workspace may not pay. */
 export async function callModel(ask: ModelAsk, forWhom: ModelCallFor): Promise<ModelReply | ModelHeld | null> {

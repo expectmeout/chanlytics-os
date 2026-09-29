@@ -283,11 +283,11 @@ export function stableSystem(f: WorkspaceFacts): string {
  * a cache breakpoint (the loop says why there are two).
  */
 export function systemBlocks(
-  f: WorkspaceFacts,
+  rules: string,
   shape: string | null,
 ): Array<{ type: "text"; text: string; cache_control: { type: "ephemeral" } }> {
   const block = (text: string) => ({ type: "text" as const, text, cache_control: { type: "ephemeral" as const } });
-  return [block(stableSystem(f)), ...(shape ? [block(shape)] : [])];
+  return [block(rules), ...(shape ? [block(shape)] : [])];
 }
 
 /** The first 16 hex of the sha256 of the system blocks: what a turn's answer was written from (AskTurnShape.prompt_hash). */

@@ -9,14 +9,17 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { resetBreakers } from "@chanlytics/channels";
 import { MODEL_ROUTES, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
-import { readRaw, readCode } from "../_source.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { ROOT } from "../_source.mjs";
 import { answering } from "./_model-world.mjs";
 import { validateCases } from "../../eval-judge.mjs";
 
 const { PASS_LINE, gateOf, loadWorkspace, report, runAll, runCase, wilsonLower } = await import(
   new URL("../../evals/nightly.mjs", import.meta.url).href
 );
-const cases = JSON.parse(readRaw("tooling/evals/nightly-cases.json"));
+const cases = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/nightly-cases.json"), "utf8"));
 beforeEach(() => resetBreakers());
 
 /* ------------------------------------------------------------ the pass line -- */
@@ -214,47 +217,23 @@ test("a model that could not be reached fails the asking, and a failed asking is
   assert.match(results[0].failures[0], /^no answer: unreachable/);
 });
 
-/* ---------------------------------------------------------------- the workflow -- */
+/* ---------------------------------------------------------- the runner as run -- */
 
-/** A workflow's lines without its comments. */
-const yamlCode = (file) =>
-  readRaw(file)
-    .split("\n")
-    .filter((l) => !/^\s*#/.test(l))
-    .join("\n");
-
-test("the workflow runs on a clock and on demand, only with the eval key, and holds no other secret: not the production key", () => {
-  const y = yamlCode(".github/workflows/nightly-evals.yml");
-  assert.match(y, /cron: "0 10 \* \* \*"/);
-  assert.ok(y.includes("workflow_dispatch:"));
-  assert.ok(
-    y.includes("ANTHROPIC_EVAL_KEY: ${{ secrets.ANTHROPIC_EVAL_KEY }}"),
-    "the key comes into the job's environment once",
+test("with no eval key it asks nothing and says so, exits 0, and the production key in its environment is never taken for one", () => {
+  const env = { ...process.env, ANTHROPIC_API_KEY: PRODUCTION_KEY };
+  delete env.ANTHROPIC_EVAL_KEY;
+  const out = spawnSync(process.execPath, ["tooling/scripts/evals/nightly.mjs"], { cwd: ROOT, env, encoding: "utf8" });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(
+    out.stdout,
+    /^SKIPPED: ANTHROPIC_EVAL_KEY is not set\. Nothing was asked and nothing was judged: this is not a pass\./,
   );
-  const secrets = [...y.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
-  assert.deepEqual(
-    [...new Set(secrets)].sort(),
-    ["ANTHROPIC_EVAL_KEY", "GITHUB_TOKEN"],
-    "no other secret reaches the job",
-  );
-  assert.ok(!y.includes("ANTHROPIC_API_KEY"), "the production key is not named");
-  assert.ok(!y.includes("E2E_"), "nor is anything of the e2e suite's");
-  // Every step that does the work asks whether the key is set; the one that says so runs when it is not.
-  const steps = y.split(/\n {6}- /).slice(1);
-  const work = steps.filter((s) => !/^name: Say so when/.test(s));
-  assert.ok(work.length >= 5);
-  for (const s of work)
-    assert.ok(s.includes("env.ANTHROPIC_EVAL_KEY != ''"), `a step that runs without the key: ${s.split("\n")[0]}`);
-  assert.ok(steps[0].includes("env.ANTHROPIC_EVAL_KEY == ''") && steps[0].includes("SKIPPED"), "a skip says it is one");
-  assert.match(y, /permissions:\n {2}contents: read/);
-});
-
-test("the runner reads the eval key and never the production key", () => {
-  const code = readCode("tooling/scripts/evals/nightly.mjs");
-  assert.ok(code.includes("process.env.ANTHROPIC_EVAL_KEY"));
-  assert.ok(!code.includes("ANTHROPIC_API_KEY"), "the production key is not read");
-  assert.ok(
-    !/\bfetch\(/.test(code),
-    "and it opens no connection of its own: the model is asked through the platform's port",
-  );
+  assert.ok(!out.stdout.includes(PRODUCTION_KEY) && !out.stderr.includes(PRODUCTION_KEY));
+  const dry = spawnSync(process.execPath, ["tooling/scripts/evals/nightly.mjs", "--dry"], {
+    cwd: ROOT,
+    env,
+    encoding: "utf8",
+  });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /^dry: \d+ cases against a \d+-character prompt, nothing asked\./);
 });

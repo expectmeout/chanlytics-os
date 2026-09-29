@@ -1,6 +1,6 @@
 /**
  * The failure-rate alarm (change 9): the health sweep asks the ledger which workspaces' model calls or receptionist turns
- * failed MODEL_FAILURES_PAGE_AT times in the last hour, pages the platform once a window for each (never a customer, never
+ * failed five times in the last hour, pages the platform once a window for each (never a customer, never
  * a message), and keeps the ledger to its 400 days. Over a database in memory and a pager that sends nowhere; the SQL
  * itself (ai_failures_hour, ai_usage_purge) is proved on a real Postgres in ai-usage.db.test.mjs.
  */
@@ -10,9 +10,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
-const { watchModels, describeModelFailures, MODEL_FAILURES_PAGE_AT } = await import(
-  at("apps/edge/lib/ops/model-watch.ts")
-);
+const { watchModels } = await import(at("apps/edge/lib/ops/model-watch.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 after(() => setPg(null));
 
@@ -42,7 +40,6 @@ const world = (failures, purged = 0, faults = {}) => {
 const ADDRESSED = { LEAD_TO: "ops@example.com", LEAD_FROM: "alerts@example.com" };
 
 test("a workspace over the line is paged once, in words that name the workspace and the counts and no customer", async () => {
-  assert.equal(MODEL_FAILURES_PAGE_AT, 5);
   const w = world([{ tenant_id: A, failed_calls: 4, brain_errors: 3 }], 12);
   const p = pager();
   const out = await withEnv(ADDRESSED, () => watchModels(w.db, { send: p.send, now: p.now }));
@@ -63,10 +60,6 @@ test("a workspace over the line is paged once, in words that name the workspace 
       ["ai_failures_hour", { p_min: 5 }],
       ["ai_usage_purge", { p_keep: "400 days" }],
     ],
-  );
-  assert.deepEqual(
-    describeModelFailures({ tenant_id: B, failed_calls: 0, brain_errors: 5 }).key,
-    `model_failures:${B}`,
   );
 });
 

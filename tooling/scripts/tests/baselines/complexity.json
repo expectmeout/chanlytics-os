@@ -550,8 +550,8 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 490,
-    "branches": 76,
+    "lines": 488,
+    "branches": 75,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
@@ -615,7 +615,7 @@
     "depth": 4
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
-    "lines": 192,
+    "lines": 185,
     "branches": 47,
     "depth": 3
   },

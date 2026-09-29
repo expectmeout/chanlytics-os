@@ -50263,7 +50263,7 @@ async function modelTurn(at, bodyText, photo) {
   const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
-  let escalationReason = "human_token";
+  let escalationReason;
   let usage;
   let brainMeta;
   let fallback;
