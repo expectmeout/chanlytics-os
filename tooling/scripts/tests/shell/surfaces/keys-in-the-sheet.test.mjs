@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SHORTCUTS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../../_legacy-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 
@@ -89,9 +89,9 @@ test("REGRESSION: the workspace menu names the workspaces and the one being view
 });
 
 test("the sheet is the one place a key is drawn: every key the app answers to, the Calendar's among them", () => {
-  let tree = draw();
+  draw();
   W.dispatchEvent(new CustomEvent("shortcuts:open"));
-  tree = redraw();
+  const tree = redraw();
   const sheet = byTestId(tree, "shortcuts-sheet");
   assert.ok(sheet, "open");
   assert.deepEqual(
