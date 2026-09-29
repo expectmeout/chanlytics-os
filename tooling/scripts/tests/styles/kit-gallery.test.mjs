@@ -1,7 +1,7 @@
 /**
  * The kit's gallery (tooling/scripts/e2e-harness/kit-gallery.mjs), held without a browser. No workflow runs a browser
  * spec on a pull request (ci.yml names none, and the nightly runs against production, where there is no gallery), so
- * what can be held here is: e2e/kit.spec.ts holds the rest when it runs on the harness.
+ * what can be held here is: e2e/kit/kit.spec.ts holds the rest when it runs on the harness.
  *
  * - Every name in classes.json is drawn by a kit entry, and a kit entry names only the registry's names, the gallery's
  *   own layout (gx-*) and the names UNLISTED says it carries: one there that the registry lists now, or that no entry
@@ -182,21 +182,52 @@ function cssImports(sheet) {
   return urls.map((url) => path.posix.join(path.posix.dirname(sheet), url));
 }
 
-test("the gallery links the fonts, the stylesheets the app imports in its order, then the app's own rules, and loads no script by its src", () => {
-  const page = galleryDocument();
+/** The stylesheets the app imports (legacy-bridge/legacy.css), each where the harness serves it (serve-legacy.mjs). */
+const APP_SHEETS = cssImports("apps/dashboard/src/legacy-bridge/legacy.css").map((p) =>
+  p.replace(/^apps\/dashboard\/src\/(legacy\/)?/, ""),
+);
+
+/** What is wrong with a page's head: its stylesheets not the app's in the app's order then the app's rules, the fonts
+ *  not first, or a script loaded by its src. */
+function linkProblems(page, sheets = APP_SHEETS) {
   const head = page.slice(page.indexOf("<head>"), page.indexOf("</head>"));
   const links = [...head.matchAll(/<link rel="stylesheet" href="([^"?:]+)[^"]*"/g)].map((m) => m[1]);
-  // Where the harness serves each (serve-legacy.mjs): the legacy tree at its root, and the kit at surfaces/kit/.
-  const app = cssImports("apps/dashboard/src/legacy-bridge/legacy.css").map((p) =>
-    p.replace(/^apps\/dashboard\/src\/(legacy\/)?/, ""),
-  );
-  assert.deepEqual(app.slice(0, 2), ["styles/tokens.css", "surfaces/kit/kit.css"], "the tokens, then the kit");
-  assert.deepEqual(links, [...app, "/_hx/app.css"]);
+  const wanted = [...sheets, "/_hx/app.css"];
+  const problems = [];
+  if (JSON.stringify(links) !== JSON.stringify(wanted)) problems.push(`links ${links.join(", ")}`);
   const fonts = head.indexOf("https://fonts.googleapis.com/css2?family=Geist");
-  assert.ok(fonts > 0 && fonts < head.indexOf("styles/tokens.css"), "the fonts come first");
-  assert.equal(/<script\b[^>]*\bsrc=/i.test(page), false, "no React, no Babel, no fixture: nothing loaded by its src");
+  if (!(fonts > 0 && fonts < head.indexOf(`href="${sheets[0]}`))) problems.push("the fonts are not first");
+  if (/<script\b[^>]*\bsrc=/i.test(page)) problems.push("a script is loaded by its src");
+  return problems;
+}
+
+test("the gallery links the fonts, the stylesheets the app imports in its order, then the app's own rules, and loads no script by its src", () => {
+  assert.deepEqual(APP_SHEETS.slice(0, 2), ["styles/tokens.css", "surfaces/kit/kit.css"], "the tokens, then the kit");
+  const page = galleryDocument();
+  assert.deepEqual(linkProblems(page), []);
   // Every family's entries are drawn, each in its stage.
-  const entries = entriesOf(FAMILIES);
-  assert.equal([...page.matchAll(/<figure class="gx-entry" data-entry="/g)].length, entries.length);
+  assert.equal([...page.matchAll(/<figure class="gx-entry" data-entry="/g)].length, entriesOf(FAMILIES).length);
   assert.equal([...page.matchAll(/<section class="gx-family" data-family="/g)].length, FAMILIES.length);
+  // The checks, where each must find what it looks for: two stylesheets swapped, the app's rules before the others,
+  // the fonts after the tokens, and React loaded by its src.
+  const [tokens, kit] = APP_SHEETS;
+  const swap = (a, b) =>
+    page.replace(`href="${a}`, "href=\u0000").replace(`href="${b}`, `href="${a}`).replace("href=\u0000", `href="${b}`);
+  const swapped = linkProblems(swap(tokens, kit));
+  assert.equal(swapped.length, 1, "the kit before the tokens");
+  assert.match(swapped[0], /^links surfaces\/kit\/kit\.css, styles\/tokens\.css,/);
+  const early = page
+    .replace('  <link rel="stylesheet" href="/_hx/app.css" />\n', "")
+    .replace("<head>", '<head><link rel="stylesheet" href="/_hx/app.css" />');
+  assert.match(linkProblems(early).join(" "), /^links \/_hx\/app\.css, styles\/tokens\.css/);
+  const fontsLate = page.replace(
+    /(<link href="https:\/\/fonts\.googleapis\.com\/css2[^>]*>)([\s\S]*?)(<link rel="stylesheet" href="\/_hx\/app\.css" \/>)/,
+    "$2$1$3",
+  );
+  assert.deepEqual(linkProblems(fontsLate), ["the fonts are not first"]);
+  const react = page.replace(
+    "</head>",
+    '<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script></head>',
+  );
+  assert.deepEqual(linkProblems(react), ["a script is loaded by its src"]);
 });

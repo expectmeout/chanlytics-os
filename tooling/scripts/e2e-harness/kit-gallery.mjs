@@ -1,9 +1,9 @@
 /**
  * The kit's gallery (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4 and step 2.3): one page that draws
- * every class of the kit in the app's own stylesheets, for e2e/kit.spec.ts to check and for a person to review.
+ * every class of the kit in the app's own stylesheets, for e2e/kit/kit.spec.ts to check and for a person to review.
  *
  *   node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/ ; t turns the theme, l the look
- *   corepack pnpm e2e:local -- e2e/kit.spec.ts --scenario=kit   # the gallery's checks
+ *   corepack pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit   # the gallery's checks
  *
  * The harness serves it as the `kit` record's page (scenarios.mjs), and production never does (decision 7). It is
  * static markup, built on every request as the mockup's document is read (server.mjs), so an edit to an entry or to a
@@ -17,11 +17,16 @@
  *   stage   "sheet" (480px tall, and on a phone 90% of the screen, since the record sheet's phone form is 88%) or
  *           "pop" (320px), for what is fixed or placed over the page: a stage is the containing block of what is fixed
  *           inside it, so a sheet, a wash, a menu or the toasts stand in it, not over the page;
- *   except  the longhands a twin does not compare, each argued where the twin is written;
+ *   except  the longhands a twin does not compare: the spec compares every longhand of every element and pseudo-element
+ *           of the pair, so what a primitive draws differently on purpose is named here, each argued where the twin
+ *           is written;
  *   boxes   the twin also compares each element's box, relative to its stage.
- * Every class in classes.json is drawn by a kit entry, with every state its rules name as a class, an attribute or a
- * pseudo-class that is not a press: styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds the rules
- * of kit.css in a browser. The words are made up, as every fixture's are.
+ * Every class in classes.json is drawn by a kit entry, with every state its rules name as a class or an attribute (a
+ * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
+ * every selector of kit.css in a browser. The words are made up, as every fixture's are.
+ *
+ * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the record sheet this page draws
+ * places the toast stack as it stands beside a sheet, for every entry.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -32,10 +37,10 @@ const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
 
 /**
  * The names the kit's markup carries that classes.json does not list yet. A kit entry names a class of the registry, a
- * name here, or the gallery's own layout (`gx-*`): each name here is drawn by a component of the kit and styled by a
- * rule that names it beside a kit class. When step 2.1 moves that rule into kit.css the name joins the registry
- * (kit-css.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both here and there, or
- * here and drawn by no entry, is a stale line.
+ * name here, or the gallery's own layout (`gx-*`): each name here is drawn by a component of the kit, and styled by a
+ * rule that names it beside a kit class or by none. When step 2.1 moves that rule into kit.css the name joins the
+ * registry (kit-css.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both here and
+ * there, or here and drawn by no entry, is a stale line.
  */
 export const UNLISTED = {
   icon: "the glyph Icon draws (components/icons.jsx), which .btn .icon, .more-item .icon, .pp-toast > .icon and .field-error > .icon style",
@@ -51,6 +56,13 @@ export const UNLISTED = {
   active: "the picked tab (.stabs-tab.active)",
   "cl-bucket-link":
     "the quiet link button Confirm, EmptyState and FailedRead draw, under People's name for it (components.css)",
+  "confirm-danger": "Confirm's mark on a question that destroys, which no stylesheet names yet (data-bits.jsx Confirm)",
+  "pp-toast-ok":
+    "usePPToast's tone class on a confirmation, which no stylesheet names (data-bits.jsx, pp-toast-<tone>)",
+  "stabs-inbox": "the Inbox's strip as SurfaceTabs marks each group's (stabs-<group>), which no stylesheet names",
+  "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
+  "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
+  "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
 };
 
 /* The glyphs the entries draw, as components/icons.jsx draws them: a 16-unit box, a 1.5 stroke, the class `icon`. */
@@ -61,6 +73,7 @@ const GLYPHS = {
   calendar: '<rect x="2" y="3.5" width="12" height="10" rx="1"/><path d="M2 6.5h12M5 2v3M11 2v3"/>',
   check: '<path d="M3 8.5l3.5 3L13 5"/>',
   chevron: '<path d="M6 4l4 4-4 4"/>',
+  "chevron-down": '<path d="M4 6l4 4 4-4"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/>',
   edit: '<path d="M3 13h2.5l7-7-2.5-2.5-7 7V13z"/><path d="M11 4l1 1"/>',
   inbox:
@@ -78,11 +91,16 @@ const GLYPHS = {
   x: '<path d="M4 4l8 8M12 4l-8 8"/>',
 };
 
-/** Icon's markup (components/icons.jsx), its size written on the element as Icon writes it. */
-const icon = (name, size) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" ` +
-  `stroke-linecap="round" stroke-linejoin="round" class="icon" style="width: ${size}px; height: ${size}px;">` +
-  `${GLYPHS[name]}</svg>`;
+/** Icon's markup (components/icons.jsx), its size written on the element as Icon writes it. A glyph not here throws. */
+const icon = (name, size) => {
+  if (!Object.hasOwn(GLYPHS, name))
+    throw new Error(`kit-gallery.mjs draws no glyph "${name}": add its paths to GLYPHS`);
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" ` +
+    `stroke-linecap="round" stroke-linejoin="round" class="icon" style="width: ${size}px; height: ${size}px;">` +
+    `${GLYPHS[name]}</svg>`
+  );
+};
 
 /** What a role's gate puts on a control it refuses (data-bits gatedProps). */
 const gated = (why) => `data-gated="" aria-disabled="true" aria-description="${why}" data-tip="${why}"`;
@@ -134,10 +152,10 @@ const recCombo = ({ open = false, label = "Languages", placeholder = "Add a lang
   `</span>` +
   `<ul class="rec-combo-list" role="listbox" aria-label="${label}" tabindex="-1"${open ? "" : " hidden"}>` +
   (open
-    ? `<li role="option" aria-selected="true" class="rec-combo-opt"><span>Spanish</span><span class="rec-combo-meta">es</span></li>` +
-      `<li role="option" aria-selected="false" class="rec-combo-opt" data-chosen="true"><span>Spanish, Mexico</span>` +
+    ? `<li role="option" aria-selected="true" class="rec-combo-opt"><span class="rec-combo-label">Spanish</span><span class="rec-combo-meta">es</span></li>` +
+      `<li role="option" aria-selected="false" class="rec-combo-opt" data-chosen="true"><span class="rec-combo-label">Spanish, Mexico</span>` +
       `<span class="rec-combo-meta">es-MX</span></li>` +
-      `<li role="option" aria-selected="false" class="rec-combo-opt"><span>Add “Sp”</span></li>`
+      `<li role="option" aria-selected="false" class="rec-combo-opt"><span class="rec-combo-label">Add “Sp”</span></li>`
     : "") +
   `</ul></div>`;
 
@@ -394,7 +412,7 @@ export const FAMILIES = [
         stage: "pop",
         html:
           `<div class="gx-end"><div class="more-wrap">` +
-          `<button type="button" class="btn btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
+          `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
           `<div class="more-backdrop"></div>` +
           `<div class="more-menu align-right" role="menu">` +
           `<div class="more-header">Sam Ortega</div>` +
@@ -425,7 +443,7 @@ export const FAMILIES = [
         id: "more-menu-escape",
         stage: "pop",
         html:
-          `<div class="more-wrap"><button type="button" class="btn btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
+          `<div class="more-wrap"><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
           `<div class="more-backdrop"></div>` +
           `<div class="more-menu align-right escape placed up" role="menu" style="left: 16px; top: 48px;">` +
           `<button class="more-item" role="menuitem">${icon("edit", 13)}<span class="more-item-label">Rename the list</span></button>` +
@@ -435,7 +453,7 @@ export const FAMILIES = [
       {
         id: "more-menu-unplaced",
         html:
-          `<div class="more-wrap"><button type="button" class="btn btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
+          `<div class="more-wrap"><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
           `<div class="more-menu align-left escape" role="menu">` +
           `<button class="more-item" role="menuitem">${icon("copy", 13)}<span class="more-item-label">Drawn unseen until it is placed</span></button>` +
           `</div></div>`,
@@ -459,7 +477,7 @@ export const FAMILIES = [
       {
         id: "confirm-danger",
         html:
-          `<span class="confirm" role="group" aria-label="Delete the list?"><span class="confirm-words">` +
+          `<span class="confirm confirm-danger" role="group" aria-label="Delete the list?"><span class="confirm-words">` +
           `<span class="confirm-q">Delete the list?</span>` +
           `<span class="confirm-detail">The people on it stay.</span></span>` +
           `<span class="confirm-acts"><button type="button" class="btn btn-sm btn-danger">Yes, delete</button>` +
@@ -468,7 +486,8 @@ export const FAMILIES = [
       {
         id: "confirm-block",
         html:
-          `<span class="confirm confirm-block" role="group" aria-label="Erase Sam Ortega?"><span class="confirm-words">` +
+          `<span class="confirm confirm-block confirm-danger" role="group" aria-label="Erase Sam Ortega?">` +
+          `<span class="confirm-words">` +
           `<span class="confirm-q">Erase Sam Ortega?</span>` +
           `<span class="confirm-detail">Their conversations, visits and notes go, and this cannot be undone.</span></span>` +
           `<input class="confirm-typed" value="" placeholder="Sam Ortega" aria-label="Type Sam Ortega to confirm">` +
@@ -494,14 +513,17 @@ export const FAMILIES = [
   {
     family: "Toast",
     about:
-      "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, each with its ×.",
+      "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
+      "each with its ×. The stack stands where it stands beside an open record sheet, lifted over its foot on a phone " +
+      "and beside it on a desk, because this page draws one (record.css, :root:has(.rec-sheet)): its place with no " +
+      "sheet open is drawn by the style-equality recorder's toast scene, not here.",
     entries: [
       {
         id: "pp-toast",
         stage: "sheet",
         html:
           `<div class="pp-toast-stack">` +
-          `<div class="pp-toast" data-tone="ok" role="status">${icon("check", 13)}` +
+          `<div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
           `<span class="pp-toast-msg"><b>Sam Ortega</b> is off Regulars</span>` +
           `<button type="button" class="pp-toast-cta">Undo</button>` +
           `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
@@ -539,8 +561,8 @@ export const FAMILIES = [
       {
         id: "stabs",
         html:
-          `<nav class="stabs" aria-label="Section views">` +
-          `<button class="stabs-tab active">Needs you <span class="tally tally-warn" data-tone="warn">3</span></button>` +
+          `<nav class="stabs stabs-inbox" aria-label="Section views">` +
+          `<button class="stabs-tab active">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></button>` +
           `<button class="stabs-tab">Conversations</button><button class="stabs-tab">Live</button></nav>`,
       },
       {
@@ -552,7 +574,7 @@ export const FAMILIES = [
       {
         id: "stabs-glide",
         html:
-          `<nav class="stabs" aria-label="Section views" data-glide="ease" style="--glide-w: 98px; --glide-x: 110px;">` +
+          `<nav class="stabs stabs-inbox" aria-label="Section views" data-glide="ease" style="--glide-w: 98px; --glide-x: 110px;">` +
           `<button class="stabs-tab active">Needs you</button><button class="stabs-tab">Conversations</button>` +
           `<button class="stabs-tab">Live</button></nav>`,
       },
@@ -680,9 +702,9 @@ export const FAMILIES = [
         html:
           `<div class="rec-seg" role="radiogroup" aria-label="Who it answers" data-hints="true">` +
           `<button type="button" role="radio" class="rec-seg-btn" aria-checked="true" tabindex="0">` +
-          `<span>Everyone</span><span class="rec-seg-hint">Every caller and every message.</span></button>` +
+          `<span class="rec-seg-label">Everyone</span><span class="rec-seg-hint">Every caller and every message.</span></button>` +
           `<button type="button" role="radio" class="rec-seg-btn" aria-checked="false" tabindex="-1">` +
-          `<span>People it knows</span><span class="rec-seg-hint">A new number is handed to you.</span></button></div>`,
+          `<span class="rec-seg-label">People it knows</span><span class="rec-seg-hint">A new number is handed to you.</span></button></div>`,
       },
     ],
   },

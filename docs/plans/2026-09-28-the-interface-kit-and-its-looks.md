@@ -406,7 +406,7 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 | Charts                                                     | the charts kit, moved under `kit/charts/` unchanged                                                             |
 
 **The gallery.** One page that draws every kit component in every variant, in both modes and both looks. It is served
-by the e2e harness (`tooling/scripts/e2e-harness/`, a `kit` scenario) and never in production; `e2e/kit.spec.ts`
+by the e2e harness (`tooling/scripts/e2e-harness/`, a `kit` scenario) and never in production; `e2e/kit/kit.spec.ts`
 opens it and checks that each entry reads its tokens. It is the page a review screenshots and the first place a new
 variant appears (decision 7).
 
@@ -529,10 +529,12 @@ it in Phase 4 does not move: the switch (from `.rec-switch`), the segmented cont
 three surfaces (from the most common card rule), the row (from the phone row's tokens), the sheet (the record sheet
 on a desk, the phone sheet under 900px), the meter (from `SegmentBar`), the face (the phone row's 32px face), the
 composer chassis (head, rows, foot, from the record sheet). No page uses them yet. It comes after 2.3, whose gallery
-is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. _Proof:_ the gallery; style
-equality on the pages. _Done when:_ every component of §3.4 exists once in CSS.
+is its proof, and waits on the gallery rather than on 2.1: it adds rules and moves none. Four pull requests of a day
+each, where every other step is one: the panel; the face with the list row; the meter; the sheet. The switch, the
+segmented control and the composer chassis are the record kit's rules, which 2.1 moves, so 2.2 writes none of them.
+_Proof:_ the gallery; style equality on the pages. _Done when:_ every component of §3.4 exists once in CSS.
 
-**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
+**2.3 The gallery.** The harness's `kit` scenario and `e2e/kit/kit.spec.ts` (§3.4). It goes before 2.2, whose proof it is,
 and needs only 1.7; 2.1 can run beside it, and has a page that draws every class it moves once it lands. _Proof:_ the
 spec. _Done when:_ every class in `classes.json` has an entry, which the spec checks, and a node test holds in CI.
 
@@ -633,8 +635,8 @@ retires.
 (pills via `.pill`, the badge shapes) with one pointer.
 
 **6.4 The docs.** `docs/architecture.md` gains "The interface" (tokens, kit, surfaces, the looks);
-`docs/glossary.md` the words look, mode, token, role, kit, variant and gallery; `docs/runbook.md` "See the kit" and
-"Add a look".
+`docs/glossary.md` the words look, mode, token, role, kit, variant and gallery; `docs/runbook.md` "Add a look" (its
+"See the kit" came with the gallery, step 2.3).
 
 **6.5 A skill for agents,** `.claude/skills/chanlytics-interface/SKILL.md`, which Claude Code loads when a task
 touches the dashboard's interface: the seven rules; where the tokens, the kit and the gallery are; how to add a
@@ -659,7 +661,7 @@ alternatives.
 | 1.6  | The look setting                      | no               | boot tests, style equality      | 1.4                                 |
 | 1.7  | The kit's home                        | no               | lint probes, style equality     | #1205: 0015 decided                 |
 | 2.1  | Kit-grade CSS into the kit            | no               | style equality                  | 1.7                                 |
-| 2.2  | The missing primitives                | no               | gallery, style equality         | 2.3                                 |
+| 2.2  | The missing primitives (four)         | no               | gallery, style equality         | 2.3                                 |
 | 2.3  | The gallery, before 2.2               | no               | e2e spec                        | 1.7                                 |
 | 2.4  | React components, new primitives      | no               | tests                           | 2.2                                 |
 | 3.x  | 0015's thirteen steps                 | no               | equal by value                  | 0015's own holds                    |
@@ -677,8 +679,8 @@ alternatives.
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
 
-About 45 pull requests besides 0015's own: 7 in Phase 1, 4 in Phase 2, 12 in Phase 4, about 17 in Phase 5, 5 in
-Phase 6. Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before
+About 48 pull requests besides 0015's own: 7 in Phase 1, 7 in Phase 2 (2.2 is four), 12 in Phase 4, about 17 in
+Phase 5, 5 in Phase 6. Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before
 the surfaces are done, since they are not offered to members until step 5.5.
 
 ---
