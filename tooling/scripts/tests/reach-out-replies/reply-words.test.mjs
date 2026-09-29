@@ -161,9 +161,10 @@ test("the composer's line: the own address, or why it goes from the mailbox; not
 });
 
 test("a sent reply that went from the mailbox says so; one that went as frozen says nothing", () => {
-  const meta = (left_as) => ({
+  const meta = (left_as, left_as_why) => ({
     email: {
       left_as,
+      left_as_why,
       request: { from: '"Harbor" <hello@mail.example.com>' },
       own_request: { from: '"Sam at Harbor" <sam@owndomain.example.com>' },
     },
@@ -171,6 +172,11 @@ test("a sent reply that went from the mailbox says so; one that went as frozen s
   assert.equal(
     replyLeftAsOf(meta("mailbox")),
     "Went from hello@mail.example.com: sam@owndomain.example.com could not send it.",
+  );
+  assert.equal(
+    replyLeftAsOf(meta("mailbox", "domain_held")),
+    "Went from hello@mail.example.com: sam@owndomain.example.com's domain is held.",
+    "a domain held between the freeze and the send says so",
   );
   assert.equal(replyLeftAsOf(meta("own")), null);
   assert.equal(replyLeftAsOf({ email: { request: { from: "hello@mail.example.com" } } }), null);

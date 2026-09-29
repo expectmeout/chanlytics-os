@@ -120,6 +120,12 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
     layout.includes("__html: inAppBootScript()"),
     "inside the app: stamped before first paint, beside the theme",
   );
+  // next/font/google is the compiler's, so the layout cannot be run here: its markup is read. The script it inlines
+  // stamps DEFAULT_LOOK_PREF for a device that has chosen nothing (theme-boot.test.mjs), and the markup says the same.
+  assert.ok(
+    layout.includes("__html: themeBootScript()") && layout.includes("data-look={DEFAULT_LOOK_PREF}"),
+    "the document stands in the default look until the head's script stamps the one this device keeps",
+  );
   assert.ok(
     readCode("apps/dashboard/proxy.ts").includes('"/manifest.webmanifest"'),
     "the installer fetches it without a session (the public list is pinned by value in auth-gate)",

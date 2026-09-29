@@ -268,17 +268,12 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   );
 });
 
-test("the dial reaches the policy row through the route and the pane", () => {
-  const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
-  assert.ok(route.includes("minConfidence?: number"));
-  assert.ok(route.includes("limits.min_confidence = Math.round(c * 100) / 100;"));
-  assert.ok(
-    route.includes('if (mode === "" && dials.some((d) => d !== undefined)) {'),
-    "a dial edit carries no mode, like a delay edit",
-  );
+// The route's side runs in workspace/settings-routes.test.mjs: the dial taken by its row's name (and, for one release,
+// its old one), kept to two places, a dial edit keeping the row's mode.
+test("the dial reaches the policy row through the pane and the bridge", () => {
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes(
-      "const dials = Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== undefined));",
+      "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
     ),
   );
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");

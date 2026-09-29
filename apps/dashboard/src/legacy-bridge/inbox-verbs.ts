@@ -4,20 +4,16 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import {
-  conversationsOverride,
-  inboxOverride,
-  liveOverride,
-  settingsOverride,
-  todayOverride,
-  type SurfaceOverride,
-  reportsOverride,
-  setReportDays,
-  paintHeldReports,
-} from "./surface-data";
+import { conversationsOverride } from "./surfaces/conversations";
+import { inboxOverride } from "./surfaces/inbox";
+import { liveOverride } from "./surfaces/live";
+import { settingsOverride } from "./surfaces/settings";
+import { todayOverride } from "./surfaces/today";
+import type { SurfaceOverride } from "./surface-data";
+import { reportsOverride, setReportDays, paintHeldReports } from "./surfaces/reports";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
-import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";
+import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
 import {
   FALLBACK_DEFAULTS,
   INSTRUCTIONS_MAX,
@@ -410,6 +406,23 @@ export interface PolicyDials {
   pauseHours?: number;
 }
 
+type PolicyDialsBody = Omit<Input<"PUT policies">, "class" | "mode">;
+
+/**
+ * The dials as the wire names them. The pages hand the bridge memory's camelCase (`PolicyDials`) and the route takes
+ * snake_case, the names the row keeps them under (docs/naming.md): they cross here, in one named mapping, and a dial
+ * not given stays out of the body.
+ */
+function dialsOnTheWire(d: PolicyDials): PolicyDialsBody {
+  const wire: PolicyDialsBody = {};
+  if (d.replyDelayMs !== undefined) wire.reply_delay_ms = d.replyDelayMs;
+  if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;
+  if (d.maxTokensDay !== undefined) wire.max_llm_tokens_day = d.maxTokensDay;
+  if (d.maxRepliesDay !== undefined) wire.max_replies_day = d.maxRepliesDay;
+  if (d.pauseHours !== undefined) wire.pause_hours = d.pauseHours;
+  return wire;
+}
+
 /**
  * Settings → Autonomy: `window.__setPolicy(class, mode, dials?)`.
  *
@@ -423,9 +436,8 @@ export async function setPolicy(cls: string, mode: string | undefined, limits: P
   // loaded, so changing the hold window from a stale tab could quietly flip
   // Replies back to whatever that tab remembered. Every dial travels the same
   // way: only the ones given, the mode untouched.
-  const dials = Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== undefined));
   const r = await api()("PUT policies", {
-    body: { class: cls, ...(mode !== undefined ? { mode } : {}), ...dials },
+    body: { class: cls, ...(mode !== undefined ? { mode } : {}), ...dialsOnTheWire(limits) },
   });
   if (r.ok) {
     const saved = r.data.policy?.mode ?? mode;

@@ -571,7 +571,10 @@ test("search: a few words become Google's Text Search -- the key in a header, th
   });
   assert.equal(db.seen.length, 0, "a search is a question to Google, not to the database -- and needs no workspace");
 
-  const few = [400, { ok: false, error: "query must be a few words: the business name and where it is" }];
+  const few = [
+    400,
+    { ok: false, error: "bad_request", detail: "query must be a few words: the business name and where it is" },
+  ];
   assert.deepEqual(await answer(await knock({ op: "search", query: "Ha" })), few);
   assert.deepEqual(await answer(await knock({ op: "search", query: "      " })), few);
   assert.deepEqual(await answer(await knock({ op: "search" })), few);
@@ -588,7 +591,14 @@ test("search: a few words become Google's Text Search -- the key in a header, th
   );
   assert.deepEqual(
     await answer(await knock({ op: "search", query: "Harbor Moving" })),
-    [502, { ok: false, error: "PERMISSION_DENIED: Places API (New) has not been used in project 1 before" }],
+    [
+      502,
+      {
+        ok: false,
+        error: "google_refused",
+        detail: "PERMISSION_DENIED: Places API (New) has not been used in project 1 before",
+      },
+    ],
     "Google's refusal in Google's words, never a throw",
   );
   assert.equal(refused.calls.length, 1);
@@ -605,29 +615,29 @@ test("past status and search every op needs a database and a workspace on record
   await keyed(async () => {
     assert.deepEqual(
       await answer(await knock({ op: "refresh" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "tenant_id (a workspace id) is required" }],
+      [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
       "a key holder is about no workspace: the body must name one",
     );
     assert.deepEqual(
       await answer(await knock({ op: "refresh", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "tenant_id (a workspace id) is required" }],
+      [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
       "and name it by id",
     );
   });
   assert.equal(db.seen.length, 0, "refused before the workspace is read");
   assert.deepEqual(await answer(await knock({ op: "refresh" }, { "x-edge-token": token({ workspace: GHOST }) })), [
     404,
-    { ok: false, error: "no such workspace" },
+    { ok: false, error: "not_found", detail: "no such workspace" },
   ]);
   const list =
     "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft";
-  assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: list }]);
-  assert.deepEqual(await answer(await knock({})), [400, { ok: false, error: list }]);
-  assert.deepEqual(await answer(await knock("not json")), [400, { ok: false, error: list }]);
+  assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: "unknown_op", detail: list }]);
+  assert.deepEqual(await answer(await knock({})), [400, { ok: false, error: "unknown_op", detail: list }]);
+  assert.deepEqual(await answer(await knock("not json")), [400, { ok: false, error: "unknown_op", detail: list }]);
   use(world(), new Map(), { "tenants.select": { message: "permission denied for table tenants" } });
   assert.deepEqual(await answer(await knock({ op: "refresh" })), [
     503,
-    { ok: false, error: "permission denied for table tenants" },
+    { ok: false, error: "read_failed", detail: "permission denied for table tenants" },
   ]);
   assert.equal(net.calls.length, 0, "Google heard none of it");
 });
@@ -658,9 +668,12 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
 
   assert.deepEqual(await answer(await knock({ op: "link", place_id: "short" })), [
     400,
-    { ok: false, error: "place_id is required" },
+    { ok: false, error: "bad_request", detail: "place_id is required" },
   ]);
-  assert.deepEqual(await answer(await knock({ op: "link" })), [400, { ok: false, error: "place_id is required" }]);
+  assert.deepEqual(await answer(await knock({ op: "link" })), [
+    400,
+    { ok: false, error: "bad_request", detail: "place_id is required" },
+  ]);
   assert.deepEqual(
     await answer(await knock({ op: "link", place_id: "ChIJ-does-not-exist-00" })),
     [502, { ok: false, error: "unreadable", detail: "NOT_FOUND: Not found" }],
@@ -949,10 +962,13 @@ test("connect: the code from Google becomes the connection -- the token traded w
   const today = localDate(TZ, new Date());
   const t0 = Date.now();
 
-  assert.deepEqual(await answer(await knock({ op: "connect" })), [400, { ok: false, error: "code is required" }]);
+  assert.deepEqual(await answer(await knock({ op: "connect" })), [
+    400,
+    { ok: false, error: "bad_request", detail: "code is required" },
+  ]);
   assert.deepEqual(await answer(await knock({ op: "connect", code: "x".repeat(2001) })), [
     400,
-    { ok: false, error: "code is required" },
+    { ok: false, error: "bad_request", detail: "code is required" },
   ]);
   assert.equal(net.calls.length, 0);
 
@@ -1152,11 +1168,11 @@ test("connect with several locations on Maps waits for the owner's choice: the c
 
   assert.deepEqual(await answer(await knock({ op: "choose", account_name: "111", location_name: "locations/222" })), [
     400,
-    { ok: false, error: "account_name and location_name are required" },
+    { ok: false, error: "bad_request", detail: "account_name and location_name are required" },
   ]);
   assert.deepEqual(await answer(await knock({ op: "choose", account_name: "accounts/111", location_name: "222" })), [
     400,
-    { ok: false, error: "account_name and location_name are required" },
+    { ok: false, error: "bad_request", detail: "account_name and location_name are required" },
   ]);
   assert.deepEqual(
     await answer(await knock({ op: "choose", account_name: "accounts/111", location_name: "locations/999" })),
@@ -1526,15 +1542,15 @@ test("reply: the answer goes to Google as the owner under the review's own name,
   const net = google();
   assert.deepEqual(await answer(await knock({ op: "reply", id: "nope", comment: "Thank you" })), [
     400,
-    { ok: false, error: "id (the review's row) is required" },
+    { ok: false, error: "bad_request", detail: "id (the review's row) is required" },
   ]);
   assert.deepEqual(await answer(await knock({ op: "reply", id: R1, comment: "   " })), [
     400,
-    { ok: false, error: "comment is required" },
+    { ok: false, error: "bad_request", detail: "comment is required" },
   ]);
   assert.deepEqual(await answer(await knock({ op: "reply", id: R1 })), [
     400,
-    { ok: false, error: "comment is required" },
+    { ok: false, error: "bad_request", detail: "comment is required" },
   ]);
   assert.deepEqual(
     await answer(await knock({ op: "reply", id: R2, comment: "Thank you" })),
@@ -1636,7 +1652,7 @@ test("draft: the Autonomy row is read first -- Never is a 409 before the review 
   const net = silent("a draft never reaches Google, and this edge has no model key");
   assert.deepEqual(await answer(await knock({ op: "draft", id: "nope" })), [
     400,
-    { ok: false, error: "id (the review's row) is required" },
+    { ok: false, error: "bad_request", detail: "id (the review's row) is required" },
   ]);
   assert.deepEqual(
     await answer(await knock({ op: "draft", id: R1 })),

@@ -75,7 +75,7 @@
 }
 .fl-agent-body { min-width: 0; line-height: 1.25; }
 .fl-agent-name {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
   display: flex;
@@ -99,7 +99,7 @@
   color: var(--accent);
   background: var(--accent-soft);
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 
 /* ---------- Detail ---------- */
@@ -122,7 +122,7 @@
 }
 .fl-head-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .fl-head-name {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--ink);
@@ -131,7 +131,7 @@
   gap: 10px;
 }
 .fl-head-role {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   line-height: 1.45;
 }
@@ -139,7 +139,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -188,7 +188,7 @@
   display: inline-flex;
   align-items: center;
 }
-.fl-card-sub { font-size: 11px; color: var(--ink-dim); }
+.fl-card-sub { font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* Permissions */
 .fl-perm {
@@ -200,7 +200,7 @@
   border-top: 1px solid var(--line);
 }
 .fl-perm-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.fl-perm-label { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.fl-perm-label { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }
 .fl-perm-hint { font-size: 10.5px; color: var(--ink-dim); font-style: italic; }
 .fl-perm-seg { flex-shrink: 0; }
 .fl-perm-seg .cl-tab { white-space: nowrap; }
@@ -217,7 +217,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 500;
   color: var(--ink-muted);
   white-space: nowrap;
@@ -227,7 +227,7 @@
 
 /* Right now */
 .fl-now {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink);
   display: flex;
   align-items: baseline;
@@ -239,7 +239,7 @@
 }
 .fl-now-verb { font-weight: 500; }
 .fl-now-target { color: var(--ink-muted); }
-.fl-now-elapsed { margin-left: auto; font-size: 11px; color: var(--accent); }
+.fl-now-elapsed { margin-left: auto; font-size: var(--text-xs); color: var(--accent); }
 
 .fl-recent { display: flex; flex-direction: column; gap: 7px; }
 .fl-recent-row {
@@ -252,7 +252,7 @@
 .fl-recent-at { font-size: 10px; color: var(--ink-faint); text-align: right; }
 .fl-recent-dot {
   width: 5px; height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--ink-faint);
   align-self: center;
 }
@@ -264,7 +264,7 @@
 
 /* Voice */
 .fl-voice {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   line-height: 1.5;
 }
@@ -274,16 +274,16 @@
 .fl-perm-policy:hover{border-color:var(--accent);color:var(--accent)}
 .fl-perm-policy.never{color:var(--warn);border-color:color-mix(in oklab,var(--warn) 45%,var(--line))}
 .fl-perm-locked{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);background:var(--bg-sunken);border:1px dashed var(--line);border-radius:var(--radius-md);padding:6px 10px}
-.fl-matrix-link{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;padding:0}
+.fl-matrix-link{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:var(--text-xs);color:var(--info);background:none;border:none;cursor:pointer;padding:0}
 .fl-matrix-link:hover{color:var(--ink)}
 
 /* Trust card */
 .fl-trust-next{display:flex;align-items:center;gap:10px;padding:10px 14px 12px}
 .fl-trust-bar{flex:1;height:4px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
 .fl-trust-bar span{display:block;height:100%;background:var(--accent);border-radius:2px}
-.fl-trust-note{font-size:11px;color:var(--ink-dim);white-space:nowrap}
+.fl-trust-note{font-size:var(--text-xs);color:var(--ink-dim);white-space:nowrap}
 
-.fl-escalate-route{display:block;font-size:11px;color:var(--ink-dim);margin-top:6px}
+.fl-escalate-route{display:block;font-size:var(--text-xs);color:var(--ink-dim);margin-top:6px}
 
 /* "Hands to you" — live escalation chips */
 .fl-esc-chip { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: border-color 110ms, color 110ms; }

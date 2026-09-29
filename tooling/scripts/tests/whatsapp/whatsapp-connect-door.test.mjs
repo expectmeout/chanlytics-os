@@ -243,7 +243,11 @@ test("connect, the door: a token for another door, a forgery and no credential a
       403,
       { ok: false, error: "workspace_mismatch" },
     ]);
-    const required = { ok: false, error: "tenant_id, user_id, code, phone_number_id and waba_id required" };
+    const required = {
+      ok: false,
+      error: "bad_request",
+      detail: "tenant_id, user_id, code, phone_number_id and waba_id required",
+    };
     for (const body of [
       signedUp({ user_id: undefined }),
       signedUp({ user_id: "not-a-person" }),

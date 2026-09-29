@@ -25,7 +25,7 @@
  * listing, each read once for the ops past it -- the writes, the log and the
  * shape the dashboard wants back.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { readBody, respond, workspaceOf, workspaceRow, type Refused } from "../../lib/admin-door.js";
 import { emitEvent } from "../../lib/packages/db.js";
@@ -130,11 +130,11 @@ export async function POST(request: Request): Promise<Response> {
   const onWorkspace = pick(ON_WORKSPACE, op);
   if (onWorkspace) return onWorkspace(c);
   const conn = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
-  if (conn.error) return json(503, { ok: false, error: conn.error.message });
+  if (conn.error) return refuse(503, "read_failed", conn.error.message);
   const onConnection = pick(ON_CONNECTION, op);
   if (onConnection) return onConnection(c, conn.data);
   const row = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
-  if (row.error) return json(503, { ok: false, error: row.error.message });
+  if (row.error) return refuse(503, "read_failed", row.error.message);
   const onListing = pick(ON_LISTING, op);
   if (onListing) return onListing(c, conn.data, row.data);
   return respond(UNKNOWN_GOOGLE_OP);
@@ -196,7 +196,7 @@ async function link(c: GoogleCall): Promise<Response> {
     .upsert(linkRow(details, c.tenantId, c.userId, new Date()), { onConflict: "tenant_id" })
     .select("*")
     .single();
-  if (saved.error || !saved.data) return json(500, { ok: false, error: saved.error?.message ?? "write_failed" });
+  if (saved.error || !saved.data) return refuse(500, "write_failed", saved.error?.message);
   // A new listing forgets the old one's reviews and days: they were another place's.
   await c.db.from("google_reviews").delete().eq("tenant_id", c.tenantId);
   await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
@@ -278,7 +278,7 @@ async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow
   if (conn) await disconnectProfile(c.db, c.tenantId);
   if (!row) return json(200, { ok: true, removed: false });
   const del = await c.db.from("google_listings").delete().eq("tenant_id", c.tenantId);
-  if (del.error) return json(500, { ok: false, error: del.error.message });
+  if (del.error) return refuse(500, "write_failed", del.error.message);
   await emitEvent(c.db, c.tenantId, "google.unlinked", "google", "listing", null, {
     place_id: row.place_id,
     name: row.name,

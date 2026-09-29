@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     invite = await getPartnerInviteMail(at.db, at.tenantId);
   } catch (e) {
-    return json(503, { ok: false, error: errorMessage(e) });
+    return json(503, { ok: false, error: "read_failed", detail: errorMessage(e) });
   }
   // Answered, taken back, expired or never asked: there is nobody waiting to be told.
   if (!invite) return json(404, { ok: false, error: "no_open_invitation" });

@@ -7,7 +7,7 @@
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
@@ -26,7 +26,7 @@ const SWEEP_DEADLINE_MS = 50_000;
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "leads" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
   const now = Date.now();
@@ -62,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
     rounds = waiting.data ?? [];
   } catch (e) {
     L.error("leads_sweep_read_failed", { error: errField(e) });
-    return json(503, { ok: false, error: errField(e) });
+    return refuse(503, "read_failed", errField(e));
   }
 
   const actions = planLeadSweep({ runs, rounds }, now);

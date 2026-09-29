@@ -278,7 +278,7 @@ test("the door: a token for another door, a forgery and no credential are 403 be
   });
   assert.equal(w.db.seen.length, 0, "nothing was read for any of it");
   setPg(null);
-  assert.deepEqual(await answer(await knock(press)), [503, { ok: false, error: "no_db" }]);
+  assert.deepEqual(await answer(await knock(press)), [503, { ok: false, error: "no_database" }]);
 });
 
 test("the named playbook of the named workspace only: another workspace's playbook does not exist as far as this token can see, and its workspace is not even read; a key holder naming that workspace runs it, as B's", async () => {

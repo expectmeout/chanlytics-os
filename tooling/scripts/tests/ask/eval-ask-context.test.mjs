@@ -18,7 +18,7 @@ import {
   applySettingsChange,
   parseTenantConfig,
 } from "@chanlytics/contracts";
-import { workspaceConfig } from "../../e2e-workspace.mjs";
+import { workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import {
   ROW_KINDS,
   announcement,
@@ -530,6 +530,44 @@ test("opens_item: open the second goes to turn 1's answer's second item, not the
     opensItem(going(`clients/${U(11)}`), { final: final({ items: [casey, bare] }), threadId: T1 }, 2),
     [],
   );
+});
+
+test("turn 2's place is turn 1's item at that place, as the palette reads the words in an open thread (the Phase 5 plan, D7): in the answer's order, a broadcast as its run; an item no focus may be is none, never the page's row there; past the answer's items the page's rows; with no turn 1, the page's", () => {
+  const spec = { surface: "people", route: "clients", rows: "GET contacts", focus: "2" };
+  const casey = item(U(12), "Casey Example");
+  const robin = item(U(11), "Robin Example");
+  const asked = (first) => {
+    const { context } = resolveContext(spec, ANSWERS, 1, first);
+    accepted(context);
+    return context.focus;
+  };
+  // Turn 1 put the page in another order: Casey, Robin, Sam. The page's second row is Casey, turn 1's second item Robin.
+  assert.deepEqual(asked(final({ items: [casey, robin, item(U(13), "Sam Example")] })), {
+    kind: "person",
+    id: U(11),
+    label: "Robin Example",
+  });
+  assert.deepEqual(asked(null), { kind: "person", id: U(12), label: "Casey Example" }, "no turn 1: the page's");
+  assert.deepEqual(
+    asked(final({ items: [robin] })),
+    { kind: "person", id: U(12), label: "Casey Example" },
+    "one item: the page's second row",
+  );
+  const source = (kind, id, label) => ({
+    title: label,
+    meta: "",
+    line: "",
+    source: { kind, id, label, to: "", door: true },
+  });
+  assert.equal(asked(final({ items: [robin, source("deal", U(14), "Casey's move")] })), null, "a deal: none");
+  assert.deepEqual(asked(final({ items: [robin, source("broadcast", U(15), "Monday")] })), {
+    kind: "run",
+    id: U(15),
+    label: "Monday",
+  });
+  // An answer from before the Line: the rows it cited.
+  const v1 = { text: "Two.", citations: [robin.source, casey.source], navigate: null, followups: [], proposals: [] };
+  assert.deepEqual(asked(v1), { kind: "person", id: U(12), label: "Casey Example" }, "its second citation");
 });
 
 test("drops_first_scope: a turn asked on another row names turn 1's row nowhere, in its words or its citations", () => {
@@ -1078,7 +1116,8 @@ test("the case set's second turns (PR 5.2): ten new cases, each kind on two surf
     ["inbox", "settings"],
   );
   assert.ok(approve.every((c) => c.must_never && c.then.expect.no_write && c.then.expect.proposals_none));
-  // "Open the second" on a page whose second row the palette sends as the focus, as focusFromWords sets it.
+  // "Open the second" in turn 1's thread, on a page with a second row: the palette sends turn 1's second item as the
+  // focus, and the page's second row only past the answer's items (the Phase 5 plan, D7; resolveContext's `first`).
   assert.deepEqual(
     on((c) => c.then.expect.opens_item === 2),
     ["leads", "people"],

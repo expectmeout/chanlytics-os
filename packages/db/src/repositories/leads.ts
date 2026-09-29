@@ -14,7 +14,7 @@ const ONE_LEAD_COLUMNS =
   "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
 
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
-export type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at">;
+export type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at" | "website_root">;
 
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
 export interface LeadOneMember {
@@ -29,22 +29,22 @@ export interface LeadOneMember {
   judgment: Json;
 }
 
-const str = (v: Json | undefined): string | null => (typeof v === "string" ? v : null);
+const jsonString = (v: Json | undefined): string | null => (typeof v === "string" ? v : null);
 
 /** lead_member_of's jsonb, narrowed: a shape it does not answer is no membership. */
 function memberOf(data: Json | null): LeadOneMember | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = str(data.id);
-  const searchId = str(data.search_id);
-  const cls = str(data.class);
+  const id = jsonString(data.id);
+  const searchId = jsonString(data.search_id);
+  const cls = jsonString(data.class);
   if (!id || !searchId || !cls) return null;
   return {
     id,
     search_id: searchId,
     class: cls,
-    excluded_by: str(data.excluded_by),
-    fit: str(data.fit),
-    reason: str(data.reason) ?? "",
+    excluded_by: jsonString(data.excluded_by),
+    fit: jsonString(data.fit),
+    reason: jsonString(data.reason) ?? "",
     distance_m: typeof data.distance_m === "number" ? data.distance_m : null,
     counted: data.counted === true,
     judgment: data.judgment ?? null,

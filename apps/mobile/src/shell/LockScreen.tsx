@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
-import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts/phone-app";
 import { canLock, lockChoice, setLockChoice, unlock } from "./lock";
 import { mayLock, shouldLock } from "./sign-in";
 

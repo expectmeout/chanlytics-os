@@ -11,7 +11,7 @@ import { Surface } from "./Surface";
 import { doorForm, type DoorHandoff } from "./sign-in";
 import { appleAvailable, GOOGLE, signInWithApple, signInWithGoogle } from "./native-auth";
 import { isNativeDoorFailedUrl } from "@/site";
-import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts/phone-app";
 import { setState } from "./state";
 
 // The sign-in stands in the web's default theme: no page has said the member's yet.

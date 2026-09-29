@@ -12,5 +12,5 @@ phone app (`docs/superpowers/specs/2026-09-26-mobile-app-prd.md`, tier 1).
 | `screenshots.md`    | Which screens, on which devices, in which order; taken from a device build when one exists   |
 
 The identifiers, the app's category and age rating, the support and privacy URLs live in `review-notes.md`. The
-reviewer's workspace is made by `tooling/scripts/e2e-workspace.mjs` with made-up data and a reviewer email of the
+reviewer's workspace is made by `tooling/scripts/ops/e2e-workspace.mjs` with made-up data and a reviewer email of the
 platform's own domain; its address and password are set in App Store Connect, never here.

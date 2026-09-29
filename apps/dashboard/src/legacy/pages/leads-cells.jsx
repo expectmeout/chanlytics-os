@@ -65,7 +65,7 @@ const LeadRowActions = ({ l, onCall, onCopy, onCopyPhone, onLogCall, onKeep, onE
 // and nothing at all when there is no address.
 //
 // It is drawn, not named: `icons.jsx` has no `help`, `xcircle`, `spin` or `minus`, and an unknown name renders a
-// plain circle (`icons.jsx:73`), which would say the same thing about five different states. Five inline paths in
+// plain circle (`icons.jsx`, its `default` case), which would say the same thing about five different states. Five inline paths in
 // one component instead of five names that do not exist.
 //
 // **This is the one LeadShape in the release.** Task 12's peek draws the same component from `window` (its email

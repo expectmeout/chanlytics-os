@@ -6,7 +6,7 @@
  *
  * Auth: x-cron-key against the Vault-held sweep key, like every sweep (cron-auth.ts).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) {
     L.error("domains_no_db");
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
@@ -55,14 +55,14 @@ export async function POST(request: Request): Promise<Response> {
   const coldKey = env.RESEND_COLD_API_KEY;
   if (!coldKey) {
     L.error("domains_no_cold_key");
-    return json(503, { ok: false, error: "no_cold_key" });
+    return refuse(503, "no_cold_key");
   }
   let rows;
   try {
     rows = await dueSendingDomains(db, MAX_DUE);
   } catch (e) {
     L.error("domains_unreadable", { error: e instanceof Error ? e.message : String(e) });
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
   if (!rows.length) return json(200, { ok: true, checked: 0 });
 

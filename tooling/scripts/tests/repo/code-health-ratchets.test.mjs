@@ -11,7 +11,9 @@
  * Why one file: the node runner starts a process per test file, and parsing the
  * repository's 800 modules once costs a few seconds. Nine files would parse it
  * nine times. Each ratchet below is still its own pair of tests, named for the
- * number it holds.
+ * number it holds. The wire's names are held beside the routes, by the same
+ * ratchet (routes/wire-casing.test.mjs): they need the type checker's program over
+ * the dashboard, not these syntax trees.
  *
  *   UPDATE_BASELINES=1 pnpm test       # bank a reduction, and nothing else
  *   UPDATE_BASELINES=raise pnpm test   # raise a number, or seed a baseline (argued in docs/debt.md)
