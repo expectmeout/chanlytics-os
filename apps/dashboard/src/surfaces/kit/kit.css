@@ -2362,3 +2362,44 @@ textarea.rec-input {
   white-space: nowrap;
   overflow: hidden;
 }
+
+/* ---------- Meter: a whole in its parts ----------
+   Step 2.2. The charts kit's SegmentBar (charts.css:150-155): the parts in a row with 2px of ground between them, the
+   ends rounded; at 8px, as three of its four sites draw it, 10px large, 4px small (the reach bar's,
+   components.css:2009, and the confidence and setup meters'). A part's share is its flex-grow, and its colour a tone
+   (the reach bar's, components.css:1997-1999) or the series colour a chart gives it. A part of nothing is not drawn.
+   The words about a meter, a title and a legend, are the page's or the chart's. */
+.meter {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+.meter-lg {
+  height: 10px;
+}
+.meter-sm {
+  height: 4px;
+}
+.meter-part {
+  display: block;
+  min-width: 3px;
+}
+.meter-part:first-child {
+  border-radius: var(--radius-xs) 0 0 var(--radius-xs);
+}
+.meter-part:last-child {
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+.meter-part:only-child {
+  border-radius: var(--radius-xs);
+}
+.meter-ok {
+  background: var(--ok);
+}
+.meter-warn {
+  background: var(--warn);
+}
+.meter-rest {
+  flex: 1 1 auto;
+  background: var(--line-strong);
+}

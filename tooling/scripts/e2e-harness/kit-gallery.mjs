@@ -255,6 +255,31 @@ const plCard = ({ said = true, note = false } = {}) =>
   (note ? `<div class="pl-card-tail">Next step: call back on Monday</div>` : "") +
   `</div>`;
 
+/** A chart's parts, as SegmentBar is given its rows: a name, a share and a series colour. */
+const SERIES = [
+  ["WhatsApp", 12, "--chart-cat-1"],
+  ["text", 7, "--chart-cat-2"],
+  ["email", 3, "--chart-cat-3"],
+];
+/** One part of a chart's, the one part a meter has. */
+const ONE_PART = SERIES.slice(0, 1);
+/** A meter's words for a screen reader, as SegmentBar says its parts. */
+const partsLabel = (parts) => parts.map(([name, share]) => `${share} ${name}`).join(", ");
+/** The parts, each its share and its colour inline, as SegmentBar writes them (components/chart-core.jsx). */
+const partsHtml = (parts, tag, cls) =>
+  parts
+    .map(
+      ([, share, colour]) =>
+        `<${tag}${cls ? ` class="${cls}"` : ""} style="flex-grow: ${share}; background: var(${colour})"></${tag}>`,
+    )
+    .join("");
+/** A meter of a chart's parts, as the kit draws it; `size` is "", " meter-lg" or " meter-sm". */
+const meter = (size, parts = SERIES) =>
+  `<div class="meter${size}" role="img" aria-label="${partsLabel(parts)}">${partsHtml(parts, "span", "meter-part")}</div>`;
+/** The same parts as SegmentBar draws its bar: its classes, and an <i> for each part; `size` is "" or " small". */
+const segbar = (size, parts = SERIES) =>
+  `<div class="ck-segbar-bar${size}" role="img" aria-label="${partsLabel(parts)}">${partsHtml(parts, "i", null)}</div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -1080,6 +1105,31 @@ export const FAMILIES = [
         width: "phone",
         source: "styles/clients.css:2467, styles/inbox.css:276",
         html: plCard({ said: false }),
+      },
+    ],
+  },
+  {
+    family: "Meter",
+    about:
+      "kit.css's meter (step 2.2): a whole in its parts, each part's share its flex-grow and its colour a chart's " +
+      "series or a tone: 8px, large and small; one part, rounded at both ends; the tones and a rest part, as the " +
+      "reach bar draws them. Each size and the one part beside the charts kit's segment bar, which the spec holds it " +
+      "equal to, but for the tag of a part: SegmentBar draws an &lt;i&gt;, which the browser sets in italic, and a " +
+      "part has no words.",
+    entries: [
+      { id: "meter", html: meter(""), twin: "src-ck-segbar-small", except: ["font-style"] },
+      { id: "src-ck-segbar-small", source: "styles/charts.css:151", html: segbar(" small") },
+      { id: "meter-lg", html: meter(" meter-lg"), twin: "src-ck-segbar", except: ["font-style"] },
+      { id: "src-ck-segbar", source: "styles/charts.css:150", html: segbar("") },
+      { id: "meter-one", html: meter("", ONE_PART), twin: "src-ck-segbar-one", except: ["font-style"] },
+      { id: "src-ck-segbar-one", source: "styles/charts.css:155", html: segbar(" small", ONE_PART) },
+      {
+        id: "meter-sm",
+        html:
+          `<div class="meter meter-sm" role="img" aria-label="12 will get it, 3 held back">` +
+          `<span class="meter-part meter-ok" style="flex-grow: 12"></span>` +
+          `<span class="meter-part meter-warn" style="flex-grow: 3"></span>` +
+          `<span class="meter-part meter-rest"></span></div>`,
       },
     ],
   },
