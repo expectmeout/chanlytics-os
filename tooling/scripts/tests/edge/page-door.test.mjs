@@ -9,6 +9,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
@@ -131,4 +132,22 @@ test("a condition pages the platform once, remembered as the pager remembers its
     ["outside:migration_ledger", 1],
     ["outside:nightly_red", 2],
   ]);
+});
+
+test("every condition a workflow pages for is one the door accepts, so a typo cannot leave the pager mute", async () => {
+  const dir = path.join(ROOT, ".github/workflows");
+  const named = new Set();
+  for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".yml")))
+    for (const m of fs.readFileSync(path.join(dir, f), "utf8").matchAll(/--condition\s+([a-z_]+)/g)) named.add(m[1]);
+  assert.deepEqual([...named].sort(), ["migration_ledger", "nightly_red"], "the workflows page for these two");
+  setPg(fakeDb({ operator_pages: [] }));
+  const net = wire();
+  try {
+    for (const condition of named) {
+      const [status, body] = await answer(await knock({ condition, detail: "what a workflow saw" }));
+      assert.equal(status, 200, `${condition}: ${JSON.stringify(body)}`);
+    }
+  } finally {
+    net.restore();
+  }
 });

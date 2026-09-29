@@ -5,6 +5,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { ROOT } from "../../_source.mjs";
 import { applyPlan, openIssues, planRollingIssue, redRunsOf } from "../../../ops/rolling-issue.mjs";
 
 const TITLE = "Nightly e2e is red";
@@ -176,4 +180,37 @@ test("without the pager's address the issue is the only word, and says so; a ref
     detail: "x",
   });
   assert.deepEqual(done, ["the page was refused: 403 "]);
+});
+
+test("run as the workflows run it, a page the door refuses fails the step: a mute pager is not a green one", () => {
+  const stub = pathToFileURL(path.join(ROOT, "tooling/scripts/tests/ops/workflows/_github-stub.mjs")).href;
+  const run = (pageStatus) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--import",
+        stub,
+        "tooling/scripts/ops/rolling-issue.mjs",
+        ...["--state", "red", "--title", TITLE, "--match", TITLE, "--body", "3 specs failed"],
+        ...["--page-after", "1", "--condition", "nightly_red"],
+      ],
+      {
+        cwd: ROOT,
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "example/repo",
+          GH_TOKEN: "made-up",
+          PAGER_URL: "https://edge.example.com",
+          PAGER_KEY: "made-up",
+          STUB_PAGE_STATUS: String(pageStatus),
+        },
+        encoding: "utf8",
+      },
+    );
+  const paged = run(200);
+  assert.equal(paged.status, 0, paged.stdout + paged.stderr);
+  assert.match(paged.stdout, /opened #1; paged: sent/);
+  const refused = run(403);
+  assert.equal(refused.status, 1, "the issue was opened, the page was not, and the step says so");
+  assert.match(refused.stdout, /opened #1; the page was refused: 403/);
 });

@@ -19,6 +19,9 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
+/** What `applyPlan` says of a page the door refused: the script then exits 1, so a mute pager is a red step. */
+const PAGE_REFUSED = "the page was refused";
+
 /** Where an issue keeps its count of red runs in a row, in its body, where a person reading it does not see it. */
 const COUNT = /<!-- red-runs: (\d+) -->/;
 
@@ -109,9 +112,7 @@ export async function applyPlan(plan, { repo, token, fetch: fetchImpl = fetch, p
         body: JSON.stringify({ condition, detail: `${detail} (red ${a.redRuns} runs in a row)` }),
       });
       const said = await res.json().catch(() => ({}));
-      done.push(
-        res.ok ? `paged: ${said.outcome ?? "sent"}` : `the page was refused: ${res.status} ${said.error ?? ""}`,
-      );
+      done.push(res.ok ? `paged: ${said.outcome ?? "sent"}` : `${PAGE_REFUSED}: ${res.status} ${said.error ?? ""}`);
     }
   }
   return done;
@@ -177,6 +178,8 @@ async function main() {
     detail: `${title}. ${runUrl}`.trim(),
   });
   console.log(`${title}: ${state}, ${plan.redRuns} red in a row. ${done.join("; ") || "nothing to do"}`);
+  // A wrong PAGER_KEY or a condition the door does not know would otherwise leave the pager mute and the step green.
+  if (done.some((d) => d.startsWith(PAGE_REFUSED))) process.exitCode = 1;
 }
 
 // Run as a script, not when a test imports it.
