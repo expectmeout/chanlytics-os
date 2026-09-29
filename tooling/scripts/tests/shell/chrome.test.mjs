@@ -174,7 +174,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
 
   const bridge = readCode("apps/dashboard/src/legacy-bridge/shell.ts");
   assert.ok(
-    bridge.indexOf("clearSurfaceCache();") < bridge.indexOf('form.action = "/auth/signout";'),
+    bridge.indexOf("sealSurfaceCache();") < bridge.indexOf('form.action = "/auth/signout";'),
     "the cache is cleared before the server ends the session",
   );
   assert.ok(bridge.includes("form.submit();") && bridge.includes("switchWorkspace(id);"));
