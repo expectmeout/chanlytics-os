@@ -25658,14 +25658,24 @@ function saySettled(results) {
 
 // src/tick.ts
 var errText = (e2) => e2 instanceof Error ? e2.message : String(e2);
+function noteLate(lateMs, job, now) {
+  if (job.attempts !== 1) return;
+  const late = Math.max(0, now - Date.parse(job.due_at));
+  if (Number.isNaN(late)) return;
+  lateMs[job.kind] = Math.max(lateMs[job.kind] ?? 0, late);
+}
+function lateFields(lateMs) {
+  return Object.fromEntries(Object.entries(lateMs).map(([kind, ms]) => [`late_ms_${kind}`, ms]));
+}
 async function runTick(ports, opts) {
   const started = ports.now();
   const deadlineFor = (kind) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
-  while (ports.now() - started < opts.claimForMs) {
+  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {} };
+  for (let now = ports.now(); now - started < opts.claimForMs; now = ports.now()) {
     const job = await ports.claim(opts.leaseSeconds);
     if (!job) break;
     c2.claimed += 1;
+    noteLate(c2.lateMs, job, now);
     if (verdictFor(job) === "give_up") {
       await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
       c2.gaveUp += 1;
@@ -25779,6 +25789,7 @@ export {
   dispatchJob,
   failJob,
   incomingEmailOf,
+  lateFields,
   retryWait,
   runTick,
   saySettled,

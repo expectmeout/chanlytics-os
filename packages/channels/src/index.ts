@@ -39,6 +39,7 @@ export type {
   RetellConfig,
   RetellTranscriptTurn,
   RetellCall,
+  RetellCallRead,
   NormalizedCall,
   ListCallsPage,
   RetellAgentConfig,

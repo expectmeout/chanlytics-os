@@ -3279,12 +3279,42 @@ async function listCalls(cfg, opts) {
     total: typeof out.total === "number" ? out.total : null
   };
 }
-async function getCall(cfg, callId) {
-  const r2 = await fetch(`${API}/v2/get-call/${callId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` }
-  });
-  if (!r2.ok) return null;
-  return await r2.json();
+var RETELL_READ_TIMEOUT_MS = 1e4;
+function retryAfterMs(header) {
+  if (!header) return null;
+  const h = header.trim();
+  const ms = /^\d+$/.test(h) ? Number(h) * 1e3 : Date.parse(h) - Date.now();
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+function isCallBody(v) {
+  const o = plainObject(v);
+  return o !== null && typeof o.call_id === "string";
+}
+async function getCall(cfg, callId, opts = {}) {
+  let r2;
+  try {
+    r2 = await fetch(`${API}/v2/get-call/${callId}`, {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS)
+    });
+  } catch {
+    return { kind: "unavailable", status: null, retryAfterMs: null };
+  }
+  if (r2.ok) {
+    let body = null;
+    try {
+      body = await r2.json();
+    } catch (e) {
+      if (e instanceof Error && e.name === "TimeoutError")
+        return { kind: "unavailable", status: null, retryAfterMs: null };
+    }
+    return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
+  }
+  await r2.body?.cancel().catch(() => void 0);
+  if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
+  if (r2.status === 408 || r2.status === 425 || r2.status === 429 || r2.status >= 500)
+    return { kind: "unavailable", status: r2.status, retryAfterMs: retryAfterMs(r2.headers.get("retry-after")) };
+  return { kind: "not_found", status: r2.status };
 }
 async function getAgent(cfg, agentId) {
   const r2 = await fetch(`${API}/get-agent/${agentId}`, {

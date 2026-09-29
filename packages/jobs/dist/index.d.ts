@@ -462,7 +462,14 @@ interface TickCounts {
     gaveUp: number;
     /** Threw, and kept to be tried again later (ledger RETRY_WAITS_MS). */
     deferred: number;
+    /**
+     * How late each kind's first claim came, at worst, in milliseconds past its row's due time (decision 0018, step 1).
+     * A later claim of the same row is a retry or a lease that ran out, not a wait in the queue, so it is not counted.
+     */
+    lateMs: Record<string, number>;
 }
+/** The heartbeat's line is flat, so each kind's worst wait is a field of its own: `late_ms_<kind>`. */
+declare function lateFields(lateMs: Record<string, number>): Record<string, number>;
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, type PushPort, type PushReceipt, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, lateFields, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

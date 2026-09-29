@@ -667,3 +667,22 @@ test("ten failures in one heartbeat page the platform once with the counts, fail
     "and no message it was sending still shows as on its way",
   );
 });
+
+/* ------------------------------------------------------ how late (0018) */
+
+test("the heartbeat's line says how late each kind's first claim came, and its answer to pg_net keeps the counts alone (0018, step 1)", async () => {
+  const L = ledger();
+  L.workspace().queue({ to: "+13475550106", body: "See you at 3" }); // due thirty seconds ago
+
+  await listening(async (log) => {
+    const [status, body] = await answer(await knock());
+    assert.equal(status, 200);
+    assert.deepEqual(body, { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 });
+    const [tick] = log.said("jobs_tick");
+    assert.ok(
+      tick.late_ms_outbound_send >= 29_000 && tick.late_ms_outbound_send < 60_000,
+      `the reply waited about thirty seconds past its due time, not ${tick.late_ms_outbound_send} ms`,
+    );
+    assert.equal(tick.lateMs, undefined, "the line is flat: one field per kind, not an object");
+  });
+});

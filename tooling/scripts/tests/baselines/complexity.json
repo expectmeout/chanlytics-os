@@ -14,11 +14,6 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts::handle#1": {
-    "lines": 230,
-    "branches": 29,
-    "depth": 2
-  },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
     "lines": 125,
     "branches": 46,
@@ -34,20 +29,10 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/login/page.tsx::LoginPage#1": {
-    "lines": 225,
-    "branches": 11,
-    "depth": 0
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
     "depth": 0
-  },
-  "apps/dashboard/app/signup/page.tsx::SignupPage#1": {
-    "lines": 256,
-    "branches": 19,
-    "depth": 1
   },
   "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
     "lines": 155,
@@ -67,11 +52,6 @@
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
     "lines": 173,
     "branches": 4,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
-    "lines": 243,
-    "branches": 8,
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts::apply#1": {
@@ -667,11 +647,6 @@
   "apps/edge/api/cron/calendar.ts::POST#1": {
     "lines": 81,
     "branches": 32,
-    "depth": 3
-  },
-  "apps/edge/api/cron/calls.ts::POST#1": {
-    "lines": 191,
-    "branches": 36,
     "depth": 3
   },
   "apps/edge/api/cron/leads.ts::POST#1": {
