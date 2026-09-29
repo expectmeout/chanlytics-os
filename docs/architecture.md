@@ -306,6 +306,98 @@ them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
 for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
+## The interface
+
+What a page looks like is written in two places, and a page only places what
+they draw (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`): the
+tokens hold every value, and the kit draws every primitive from them. A new
+look is then an edit to the tokens, and a new kind of button an edit to the
+kit.
+
+```text
+apps/dashboard/src/legacy/styles/tokens.css   the scales, each mode's colours, the roles, the looks
+apps/dashboard/src/surfaces/kit/kit.css       each primitive, drawn once, reading the tokens
+apps/dashboard/src/surfaces/kit/*.tsx         its components, for a surface written in TSX
+a page's own stylesheet                       layout only: display, grid, flex, gap, position, size, overflow
+```
+
+**The tokens, in tiers.** The scales sit on `:root`: type, space, radii,
+motion, the tones and the accent, and the lengths every page shares (the
+measures, the rails, a list row on a phone). Each mode, light or dark, sets
+its own grounds, lines, inks and shadows under `[data-theme]`. The roles say
+what a value is for: a pane's fill, edge and radius, what pops over the page
+and its depth, a control's height, the primary action's fill and ink. They
+are made from the scales and the mode's colours, so Classic draws what the
+pages drew before them, and they are set on `:root, [data-theme]`, every
+element that stamps a mode, because a custom property is made where it is
+set: one made on the root alone would keep the root's colours inside a root
+that stamps the other mode. A kit rule reads a role, never the scale under
+it, and a role arrives with its first reader. A component's own values, the
+third tier, are declared on its class in `kit.css` (`--sheet-in`), and no
+look sets them.
+
+**The kit** is `apps/dashboard/src/surfaces/kit/`. `kit.css` draws each
+primitive once, on a class of its own: the buttons, the badges, the fields
+and the record kit's controls, the menu, Confirm, the empty states, the
+toast, the tooltip, the tab strip, the panel, the face, the list row, the
+meter and the sheet, with one phone breakpoint, 900px. `classes.json` is its
+registry: the house's own names, with no prefix, which the measures read, so
+a listed class declared in any other stylesheet is a primitive outside the
+kit. Each component is a module that renders those classes, typed and named
+in `index.ts` (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`),
+its props mapped to classes by `variants.ts`, so a legacy page that writes
+the classes and a surface that draws the component draw the same markup. The
+shell reaches the kit through its classes, since
+`apps/dashboard/src/legacy-bridge/legacy.css` imports `kit.css` right after
+the tokens. A page reaches a component once decision 0015 moves it into TSX,
+and the house's components over the kit's classes (`StatePill`, `MoreMenu`,
+the record kit) are written in TSX by the first surface that moves with them.
+Whether the kit's interactive components are built on Base UI is not decided
+yet, and the Sheet's component waits on it.
+
+**The gallery** draws every class of the registry in every state its rules
+name, in both modes and both looks, at a desk and a phone width:
+`tooling/scripts/e2e-harness/kit-gallery.mjs`, the local e2e harness's `kit`
+record, never served in production. `e2e/kit/kit.spec.ts` checks in a
+browser that every class and every selector of `kit.css` is drawn and reads
+its tokens, and `tooling/scripts/tests/styles/` holds the registry, the
+gallery's classes and the components' markup in `corepack pnpm test`
+(`docs/runbook.md`, "See the kit").
+
+**Surfaces.** `apps/dashboard/src/surfaces/` is where a page goes when it
+leaves the shell (decision 0015), a folder per surface beside `kit/`. It is
+browser code, under the layers' rules and the function limits from its first
+file, and in it a raw `<button>`, `<input>`, `<select>`, `<textarea>` or
+`<dialog>` outside the kit is a lint error that names the kit's component to
+take instead. A surface moved before its kit step waits in `KIT_PENDING`
+(`eslint.config.mjs`), which lifts that one rule for its folder.
+
+**The looks.** A look is a set of role values, chosen beside the mode.
+Classic, the app as it is drawn, is the roles block itself; Glass, the
+canvases' finish, is to be a `[data-look="glass"]` block after it, with
+`[data-look="glass"][data-theme="dark"]` for its dark side. The look travels
+as the theme does (`packages/contracts/src/shell/chrome.ts`): kept on the
+device in the same stored object, and only once chosen, so a device that
+never chose follows the default; stamped as `data-look` on `<html>` by the
+head's script before first paint, and on `.app-root`, `.shared-root` and
+`.fr-shell` beside their `data-theme`, so a look's dark side matches wherever
+a mode's rules do; and chosen in the account menu. Two constants roll a look
+out: `LOOK_OFFERED` puts it in the menu, and `DEFAULT_LOOK_PREF` makes it the
+look of every device that never chose. Like the theme, the look is the
+browser's, not the member's, so no table holds it. The theme's other readers
+(the browser's bars, the phone app, the lead map, the mascot, the charts'
+palette) follow `data-theme` alone. `docs/runbook.md`, "Add a look".
+
+**The holds.** The pages still write values and primitives of their own,
+which leave as each surface moves onto the kit (the plan's Phase 4), and three
+measures keep them from growing: the type sizes, radii, shadows, colours and
+blurs a stylesheet writes as literals (`style-values.json`), a primitive's
+class declared or restyled outside the kit (`kit-primitives.json`), and the
+`style` props in the shell's markup (`inline-styles.json`), read as CSS and as
+syntax (`tooling/scripts/tests/_css.mjs`). A change that must move nothing on
+screen is recorded before and after and compared (`docs/runbook.md`, "Prove a
+style change").
+
 ## What is where
 
 Each code tree and the folders its modules are grouped in, by name, and last
@@ -478,6 +570,7 @@ Every path is from the repository's root, and
 | Phone numbers and carrier registration | `packages/channels/src/lines/` (the A2P wire under `packages/channels/src/lines/a2p/`), `apps/edge/lib/lines/`                                                                                                                     |
 | Email                                  | `packages/channels/src/email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                                                               |
 | Voice                                  | `packages/channels/src/voice/`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                         |
+| How a page looks                       | `apps/dashboard/src/legacy/styles/tokens.css` (a value, a look), `apps/dashboard/src/surfaces/kit/` (a primitive, a variant), `tooling/scripts/e2e-harness/kit-gallery.mjs` (the gallery)                                          |
 
 ## Tests
 
@@ -500,7 +593,7 @@ root, and so does a domain's only spec until its second.
 `docs/decisions/` holds the designs, and its README says which are built. The
 four not built that change the shape of the system: a channel-neutral inbound
 pipeline (0001), an appointment as a first-class record (0002), assignment for
-a team (0003), and the shell leaving surface by surface (0015, proposed). A deal
+a team (0003), and the shell leaving surface by surface (0015, decided). A deal
 as a record (0004) is built. Smaller and known: the shell's hash routes and the
 API's old nouns (`docs/glossary.md` lists them), and `contracts` carrying view
 models that belong to the dashboard.

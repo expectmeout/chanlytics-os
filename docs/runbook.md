@@ -325,6 +325,47 @@ What it cannot prove, so a pull request does not claim it:
 It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
 machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
 
+### Add a look
+
+A look is a set of role values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Classic,
+the app as it is drawn, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Every other look is
+a block after it, drawn only on a device that keeps it, which no member can choose until it is offered. Glass, the
+canvases' finish, is the next, and its name is already a `LookPref`. A third look also adds its name to `LookPref`,
+`LOOK_OPTIONS` and `isLookPref` in `packages/contracts/src/shell/chrome.ts` (the head's script reads the list), to the
+list's pins in `tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` and `l` key
+(`tooling/scripts/e2e-harness/kit-gallery.mjs`), and to the looks `e2e/kit/kit.spec.ts` runs.
+
+1. **The block.** `[data-look="glass"]` after the roles block, and `[data-look="glass"][data-theme="dark"]` after that
+   for its dark side. It sets roles: the surfaces' fills, edges, radii and depths, the controls, the actions, and the
+   mode's own colours (`--bg*`, `--ink*`, `--line*`, the tones, the accent) where the look's differ. A colour the
+   first block sets is set again in the dark one: written after the modes' blocks, the first holds in both modes
+   otherwise. It sets no scale, and no token a kit rule keeps for itself. A role the look needs that nothing reads yet
+   comes with its reader in `apps/dashboard/src/surfaces/kit/kit.css`, and with Classic's value in the roles block, so
+   Classic draws what it drew: a blur is `blur(0)` there, never `none`, which the build drops beside its prefixed twin
+   (#929). A translucent fill falls back to an opaque one under `@supports not (backdrop-filter: blur(1px))` and under
+   `prefers-reduced-transparency: reduce`.
+2. **It reaches nobody yet.** The recorder draws every page in Classic, the look the harness's documents stamp
+   (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery without `?look=`), in both modes:
+   a recording from before the block and one after it are equal ("Prove a style change", above).
+3. **It draws.** The gallery in the look, in both modes, at a desk and on a phone: `?theme=light&look=glass`, or `l` on
+   the page ("See the kit", above). `e2e/kit/kit.spec.ts` runs every width, mode and look and holds each entry to the
+   tokens it reads there; it compares a twin with its source under Classic alone, since a source reads the mode's
+   colours where the kit reads the look's roles. The pull request shows the gallery shot in the four pairings, at both
+   widths. Two readers of the tokens stand outside the gallery: the mascot reads the document's `--bg`, `--ink`,
+   `--accent` and `--accent-fg`, and reads them again only when `data-theme` changes
+   (`apps/dashboard/src/legacy-bridge/mascot/driver.ts`), and the charts' palette was validated against the surfaces
+   it sits on (`apps/dashboard/src/legacy/styles/charts.css`, whose header says how). A look that changes those is
+   looked at on them, and the palette's validator runs again. To see the look on the app itself before it is offered,
+   set `look` to its name in the object this device keeps under `chanlytics-os-prefs` in local storage, and reload:
+   the head's script stamps it before first paint.
+4. **Offered.** `LOOK_OFFERED` in `chrome.ts` turns true, and the account menu draws Look under Theme. The flag's pins
+   change with it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`, which expects no Look while it is off), and
+   the packages' `dist` is rebuilt and committed. Ruben walks it on production.
+5. **The default.** `DEFAULT_LOOK_PREF` becomes the look: every device that never chose one draws it from its next
+   load, since a device keeps a look only once it is chosen (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and
+   a member who chose Classic keeps it. `chrome.test.mjs` and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin
+   the default, and `apps/dashboard/app/layout.tsx` stamps it on the document the server sends.
+
 ## What CI proves
 
 | Workflow                          | On                                                    | Proves                                                                                                                                                                                                                                                                             |
