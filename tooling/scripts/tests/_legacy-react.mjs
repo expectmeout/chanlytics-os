@@ -17,7 +17,7 @@
  */
 import { csvCell } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
-import { useSurfaceWith } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
+import { surfaceHook } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
 
 const listeners = {};
 const storage = () => {
@@ -162,7 +162,7 @@ export function installLegacyReact(extra = {}) {
   globalThis.ReactDOM = { createPortal: (node) => node };
   // The bridge's one hook (legacy-bridge/surface-status.ts), made over this React as LegacyApp makes it over the
   // app's: a page redraws when a surface it draws moves.
-  globalThis.useSurface = useSurfaceWith(globalThis.React);
+  globalThis.useSurface = surfaceHook(globalThis.React);
 }
 
 /** A new tree: every hook cell and every listener forgotten. */

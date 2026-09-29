@@ -420,7 +420,7 @@ globalThis.React = {
   },
 };
 // The bridge's hook the shell redraws on (surface-status.ts), over this React.
-globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts")).useSurfaceWith(
+globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts")).surfaceHook(
   globalThis.React,
 );
 await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");

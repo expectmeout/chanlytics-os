@@ -189,17 +189,13 @@ export type SurfaceNames = string | readonly string[] | { page: string; param?: 
  * key, a list, or a route, which `routeKeys` turns into the surfaces its page is drawn from (surface-registry.ts
  * routeSurfaces); the list is compared by its words, so a new array each draw is the same subscription.
  */
-export function useSurfaceWith(
+export function surfaceHook(
   react: SurfaceReact,
   routeKeys?: (page: string, param?: string | null) => readonly string[],
 ): (names: SurfaceNames) => number {
   return function useSurface(names) {
     const list =
-      typeof names === "string"
-        ? [names]
-        : "page" in names
-          ? (routeKeys?.(names.page, names.param) ?? [])
-          : (names as readonly string[]);
+      typeof names === "string" ? [names] : "page" in names ? (routeKeys?.(names.page, names.param) ?? []) : names;
     const words = list.join(",");
     // The words are what the subscription is of: the list itself is a new array on most draws.
     const subscribe = react.useCallback((fn: () => void) => onSurfaceMoved(words ? words.split(",") : [], fn), [words]);

@@ -240,7 +240,7 @@ globalThis.React = {
     return snapshot();
   },
 };
-globalThis.useSurface = status.useSurfaceWith(globalThis.React, registry.routeSurfaces);
+globalThis.useSurface = status.surfaceHook(globalThis.React, registry.routeSurfaces);
 for (const name of ["Sidebar", "Topbar", "LiveCallBar", "ShellStatusBar", "SurfaceTabs", "AskBar", "ShortcutsSheet"])
   globalThis[name] = name;
 registry.installRouteGate();

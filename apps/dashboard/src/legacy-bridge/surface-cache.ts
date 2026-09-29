@@ -47,20 +47,20 @@ interface CacheBlob {
  * this tab's own, so what it holds is what was last written here: it is read again (a string, compared) but parsed only
  * when it is not that.
  */
-let kept: { raw: string; blob: CacheBlob | null } | null = null;
+let parsedCopy: { raw: string; blob: CacheBlob | null } | null = null;
 
 /** The slot, parsed; `own` for a copy of its own, which the page's globals may take and change. */
 function readCacheBlob(own = false): CacheBlob | null {
   try {
     const raw = sessionStorage.getItem(CACHE_NAME);
     if (!raw) return null;
-    if (!own && kept?.raw === raw) return kept.blob;
+    if (!own && parsedCopy?.raw === raw) return parsedCopy.blob;
     const parsed = JSON.parse(raw) as CacheBlob;
     // A deploy can change a viewmodel's shape; restoring the old shape would
     // render garbage or throw inside a legacy component. Build-keyed, so a
     // new deploy simply starts cold.
     const blob = parsed && parsed.build === BUILD && parsed.surfaces ? parsed : null;
-    if (!own) kept = { raw, blob };
+    if (!own) parsedCopy = { raw, blob };
     return blob;
   } catch {
     return null; // private mode, quota, corrupt entry — behave as a cold boot
@@ -87,7 +87,7 @@ function write(blob: CacheBlob): void {
       raw = JSON.stringify(blob);
     }
     sessionStorage.setItem(CACHE_NAME, raw);
-    kept = { raw, blob };
+    parsedCopy = { raw, blob };
   } catch {
     /* quota or private mode — caching is an optimisation, never a requirement */
   }

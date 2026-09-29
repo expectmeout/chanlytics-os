@@ -44,7 +44,7 @@ import {
   type JoinLiveFeed,
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
-import { hearSurfaces, useSurfaceWith } from "./surface-status";
+import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier, warmPersonOnScreen } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
@@ -181,7 +181,7 @@ const SURFACES = [
  * pages redraw on it through `useSurface` (seed-globals.ts), and this component on the workspace's.
  */
 hearSurfaces(SURFACES);
-const useSurface = useSurfaceWith({ useCallback, useSyncExternalStore });
+const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
 // A surface that let a message pass while its page was elsewhere is read once as its page comes on screen
 // (surface-registry.ts onlyOnItsPage).
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
