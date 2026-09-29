@@ -2200,3 +2200,56 @@ textarea.rec-input {
     background: none;
   }
 }
+
+/* ---------- Panel: a pane of content, an inset inside one, what pops over the page ----------
+   Step 2.2. The surface is a role (tokens.css, the surfaces): the pane is the most-drawn card's (.fl-card,
+   fleet.css:170), the inset Confirm's block's (.confirm-block, above), the pop the record kit's tip card's
+   (.rec-card-tip, above). The padding is a size: the pane's own; a small one for an inset or a pop; none for a panel of
+   rows edge to edge, which it clips (.card, components.css:430). Where a panel stands, how wide it is and whether it
+   may shrink in a grid are the page's: a pop is placed by what opens it. */
+.panel {
+  background: var(--surface-pane-fill);
+  border: 1px solid var(--surface-pane-edge);
+  border-radius: var(--surface-pane-radius);
+  padding: 14px var(--space-4);
+}
+.panel-inset {
+  background: var(--surface-inset-fill);
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--surface-inset-radius);
+}
+.panel-pop {
+  background: var(--surface-pop-fill);
+  border-color: var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth);
+}
+.panel-sm {
+  padding: 10px var(--space-3);
+}
+.panel-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ---------- The quiet link button: words that act, with no ground ----------
+   Step 2.2. Confirm's No, EmptyState's and FailedRead's acts on a line, and the pages' (.cl-bucket-link,
+   components.css:1875-1886, People's name for it). Its danger form is red at rest and the ink when hovered: the hover
+   outranks it here by specificity, where the source relies on coming later. Not a .btn modifier: it has no height,
+   padding, border or ground of a button's. */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  font-size: var(--text-xs);
+  color: var(--quiet-ink);
+  cursor: pointer;
+}
+.link-btn-danger {
+  color: var(--danger);
+}
+.link-btn:hover {
+  color: var(--ink);
+}

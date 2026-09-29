@@ -216,6 +216,15 @@ const recFoldSheet = (leaving = false) =>
 /** Rows in a card (the record's card). */
 const recCard = (rows, head = "") => `<section class="rec-card">${head}${rows}</section>`;
 
+/* ---- what step 2.2's primitives and their sources hold alike, so a twin and its source differ only in their own ---- */
+
+/** A pane's words: a heading and a line. */
+const PANE_WORDS = `<h3>Hours</h3><p>Open today until six.</p>`;
+/** Rows edge to edge, as a flush panel holds them: the gallery's own rows, a hairline between them. */
+const PANE_ROWS = ["Consultation", "Follow-up visit", "Full treatment"]
+  .map((name) => `<div class="gx-panel-row">${name}</div>`)
+  .join("");
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -852,6 +861,101 @@ export const FAMILIES = [
       },
     ],
   },
+  {
+    family: "Panel",
+    about:
+      "kit.css's panel (step 2.2): a pane of content, an inset inside one, what pops over the page; md padding, sm, or " +
+      "none for rows edge to edge, which it clips. Each beside the rule it reproduces, which the spec holds it equal " +
+      "to, but for what that rule sets of its own page's: a card's shrinking in a grid, Confirm's column and entrance, " +
+      "the tip card's width, the bell's place and entrance.",
+    entries: [
+      {
+        id: "panel",
+        html: `<section class="panel">${PANE_WORDS}</section>`,
+        twin: "src-fl-card",
+        except: ["min-width"],
+      },
+      { id: "src-fl-card", source: "styles/fleet.css:170", html: `<section class="fl-card">${PANE_WORDS}</section>` },
+      { id: "panel-flush", html: `<section class="panel panel-flush">${PANE_ROWS}</section>`, twin: "src-card" },
+      { id: "src-card", source: "styles/components.css:430", html: `<section class="card">${PANE_ROWS}</section>` },
+      {
+        id: "panel-inset",
+        html: `<div class="panel panel-inset panel-sm">Their conversations and notes go with them.</div>`,
+        twin: "src-confirm-block",
+        // Confirm's own: its column of words and acts, its place under the row, its measure and its entrance.
+        except: [
+          ...["display", "flex-direction", "align-items", "row-gap", "column-gap", "margin-top", "max-width"],
+          ...["animation-name", "animation-duration", "animation-timing-function"],
+        ],
+      },
+      {
+        id: "src-confirm-block",
+        source: "surfaces/kit/kit.css:642",
+        html: `<div class="confirm-block">Their conversations and notes go with them.</div>`,
+      },
+      {
+        id: "panel-pop",
+        html: `<div class="panel panel-pop panel-sm">Your hours come from Google once it is linked.</div>`,
+        twin: "src-rec-card-tip",
+        // The tip card's own: a column of its title, words and act, 236px wide.
+        except: ["display", "flex-direction", "row-gap", "column-gap", "width", "max-width"],
+      },
+      {
+        id: "src-rec-card-tip",
+        source: "surfaces/kit/kit.css:2150",
+        html: `<div class="rec-card-tip">Your hours come from Google once it is linked.</div>`,
+      },
+      {
+        id: "panel-pop-flush",
+        stage: "pop",
+        // On a phone the bell's list is a sheet from the bottom edge, no pop: the twin is a desk's.
+        width: "desk",
+        html: `<div class="gx-anchor"><section class="panel panel-pop panel-flush">${PANE_ROWS}</section></div>`,
+        twin: "src-tbn-pop",
+        // The bell's own: where it hangs from its button, how wide and tall it may be, its column, its layer and its
+        // entrance. A panel sets no place: what opens a pop places it.
+        except: [
+          ...["position", "top", "right", "width", "max-width", "max-height", "display", "flex-direction", "z-index"],
+          ...["animation-name", "animation-duration", "animation-timing-function"],
+        ],
+      },
+      {
+        id: "src-tbn-pop",
+        stage: "pop",
+        width: "desk",
+        source: "styles/components.css:974",
+        html: `<div class="gx-anchor"><section class="tbn-pop">${PANE_ROWS}</section></div>`,
+      },
+    ],
+  },
+  {
+    family: "Link button",
+    about:
+      "kit.css's quiet link button (step 2.2): words that act with no ground, as Confirm's No and a line's acts draw " +
+      "them, and its danger form. Each beside the rule it reproduces (.cl-bucket-link), which the spec holds it equal to.",
+    entries: [
+      {
+        id: "link-btn",
+        html: `<button type="button" class="link-btn">Write one${icon("arrow-right", 10)}</button>`,
+        twin: "src-cl-bucket-link",
+      },
+      {
+        id: "src-cl-bucket-link",
+        source: "styles/components.css:1875",
+        html: `<button type="button" class="cl-bucket-link">Write one${icon("arrow-right", 10)}</button>`,
+      },
+      {
+        id: "link-btn-danger",
+        html: `<button type="button" class="link-btn link-btn-danger">Delete the list</button>`,
+        twin: "src-cl-bucket-link-danger",
+      },
+      {
+        id: "src-cl-bucket-link-danger",
+        source: "styles/components.css:1885",
+        html: `<button type="button" class="cl-bucket-link danger">Delete the list</button>`,
+      },
+    ],
+  },
 ];
 
 /* ---- the document ---- */
@@ -891,6 +995,9 @@ const GALLERY_CSS = `
     .gx-caption { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
     .gx-end { display: flex; justify-content: flex-end; }
     .gx-row { display: flex; align-items: center; gap: var(--space-2); }
+    .gx-anchor { position: relative; }
+    .gx-panel-row { padding: var(--space-2) var(--space-3); }
+    .gx-panel-row + .gx-panel-row { border-top: 1px solid var(--line); }
     .gx-narrow { max-width: 220px; }
 `;
 

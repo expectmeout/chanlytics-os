@@ -45,11 +45,13 @@ function coverage(families, names, unlisted) {
   };
 }
 
-/** A source's stylesheets, from its `file:line` list: a path under the legacy tree is written from there. */
+/** A source's stylesheets, from its `file:line` list: the legacy tree's and the kit's are written from the dashboard's
+ *  src (styles/…, surfaces/…), anything else from the repository's root. */
 const sheetsOf = (source) =>
   source.split(/,\s*/).map((at) => {
     const file = at.replace(/:\d+(-\d+)?$/, "");
-    return file.startsWith("styles/") ? `${LEGACY}/${file}` : file;
+    if (file.startsWith("styles/")) return `${LEGACY}/${file}`;
+    return file.startsWith("surfaces/") ? `apps/dashboard/src/${file}` : file;
   });
 
 /** What is wrong with the entries as data: their ids, their twins, their sources and the fields the spec reads. */
