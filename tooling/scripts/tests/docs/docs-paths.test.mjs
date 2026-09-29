@@ -1,8 +1,9 @@
 /**
  * The paths the maps name open something.
  *
- * Four passages are where a reader, a person or an agent, goes to find a thing: CLAUDE.md's canonical examples and
- * "Where new code goes", docs/architecture.md's "Where to look", and docs/takeover.md's takeover test, answered.
+ * Five passages are where a reader, a person or an agent, goes to find a thing: CLAUDE.md's canonical examples and
+ * "Where new code goes", docs/architecture.md's "Where to look", docs/takeover.md's takeover test, answered, and
+ * docs/data-model.md's owner of each table (generated, and held to its generator by data-model.test.mjs).
  * Nothing checked the paths they name, so a file that moved left its map pointing at a hole, and a bare name sent a
  * reader to whichever of its files they found first.
  *
@@ -34,6 +35,7 @@ const MAPS = [
   { page: "CLAUDE.md", heading: "The canonical example of each thing" },
   { page: "CLAUDE.md", heading: "Where new code goes" },
   { page: "docs/architecture.md", heading: "Where to look" },
+  { page: "docs/data-model.md", heading: "Owners" },
   {
     page: "docs/takeover.md",
     heading: "The takeover test, answered",

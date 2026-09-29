@@ -433,9 +433,9 @@ const NOT_A_TABLE = new Set([
   "String",
 ]);
 
-/** `.from("<table>")`: a table named by its string, in this file. `Buffer.from("…")` is not one. */
-export function tableNames(sf) {
-  let n = 0;
+/** `.from("<table>")`: each table named by its string in this file, once per call. `Buffer.from("…")` is not one. */
+export function tablesNamedIn(sf) {
+  const names = [];
   const visit = (m) => {
     if (
       ts.isCallExpression(m) &&
@@ -446,13 +446,16 @@ export function tableNames(sf) {
       ts.isStringLiteralLike(m.arguments[0]) &&
       /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text)
     ) {
-      n++;
+      names.push(m.arguments[0].text);
     }
     ts.forEachChild(m, visit);
   };
   visit(sf);
-  return n;
+  return names;
 }
+
+/** How many `.from("<table>")` calls this file makes: what the tables ratchet counts. */
+export const tableNames = (sf) => tablesNamedIn(sf).length;
 
 /* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
 

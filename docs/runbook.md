@@ -728,6 +728,8 @@ bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap 
 2. Replay it locally: `supabase db reset`. Then regenerate what the schema
    drives: `corepack pnpm gen:schema-sets` and `corepack pnpm gen:db-types`,
    and rebuild `dist` if a package changed. Commit the generated files.
+   With the stack still up, `corepack pnpm gen:schema-snapshot` writes `supabase/schema.sql` (the schema it built);
+   then `corepack pnpm gen:data-model` writes `docs/data-model.md` from that file, with no stack. Commit both.
 3. Let CI replay it from zero and run the database suites against it.
 4. Merge, and let both apps deploy.
 5. Apply to production from a laptop linked to the project:

@@ -8,6 +8,8 @@
     "test:db": "node --conditions=react-server --import tsx --test \"tooling/scripts/tests/**/*.db.test.mjs\" \"tooling/scripts/tests/**/*.integration.test.mjs\"",
     "gen:schema-sets": "node tooling/scripts/gen/schema-sets.mjs",
     "gen:db-types": "node tooling/scripts/gen/db-types.mjs",
+    "gen:schema-snapshot": "node tooling/scripts/gen/schema-snapshot.mjs",
+    "gen:data-model": "node tooling/scripts/gen/data-model.mjs",
     "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
     "check:dist": "node tooling/scripts/checks/dist.mjs",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",

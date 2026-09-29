@@ -30,6 +30,8 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "packages/contracts/src/schema-sets.generated.ts",
     "tooling/scripts/gen/schema-sets.mjs",
     "tooling/scripts/gen/db-types.mjs",
+    "tooling/scripts/gen/schema-snapshot.mjs",
+    "supabase/schema.sql",
     ".github/workflows/database.yml",
     "tooling/scripts/checks/db-paths-changed.mjs",
     "package.json",
