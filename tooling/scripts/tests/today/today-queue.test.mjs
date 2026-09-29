@@ -363,8 +363,8 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'testid="brief-run-row"',
     'testid="brief-run-soon"',
     'data-testid="brief-live-call"',
-    "surface:live",
-    "surface:broadcasts",
+    'useSurface("live")',
+    'useSurface("broadcasts")',
     "verb(r, r.also.verb)",
   ])
     assert.ok(queue.includes(s), s);

@@ -4326,6 +4326,7 @@ function importCounts(rows) {
 
 // src/leads/lead-import.ts
 var LEAD_LIST_MAX = 500;
+var LEAD_IMPORT_MAX_BYTES = 2e6;
 var LEAD_LIST_VIAS = ["import", "chosen"];
 var isLeadList = (s) => !!s && LEAD_LIST_VIAS.includes(s.via ?? "");
 var WORDS = {
@@ -4466,6 +4467,8 @@ var LEAD_IMPORT_WORDS = {
   askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1e6} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
@@ -29299,6 +29302,7 @@ export {
   LEAD_FIRST_DAY_TITLE,
   LEAD_FITS,
   LEAD_FIT_WORDS,
+  LEAD_IMPORT_MAX_BYTES,
   LEAD_IMPORT_WORDS,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,

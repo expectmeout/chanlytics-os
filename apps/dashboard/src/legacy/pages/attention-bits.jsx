@@ -74,7 +74,7 @@ const AttnRow = ({
       </div>
     </div>
     {(cta || also) && (
-      <span className="cl-attn-acts" onClick={(e) => e.stopPropagation()}>
+      <span className="cl-attn-acts" role="presentation" onClick={(e) => e.stopPropagation()}>
         {also && (
           <button className="cl-attn-cta ghost" onClick={also.onClick} disabled={!!also.busy} aria-busy={also.busy ? true : undefined} {...(also.gate || {})} data-testid={also.testid || "attention-also"}>{also.label}</button>
         )}

@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm, StatePill */
+/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm, StatePill, useSurface */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -473,14 +473,9 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   const snoozed = thread.state === "snoozed";
   // People lands last on a cold boot (its rows are the heaviest read): a thread opened before it draws the chip below
   // once it does, rather than at the next message.
-  const [, peopleTick] = React.useReducer((n) => n + 1, 0);
+  useSurface("people"); // drawn again when People's rows land (surface-status.ts)
   // The header's toast: what its step's Done says, which outlives the line as People is read again.
   const [toastNode, flash] = window.usePPToast();
-  React.useEffect(() => {
-    if (!window.addEventListener) return undefined;
-    window.addEventListener("surface:clients", peopleTick);
-    return () => window.removeEventListener("surface:clients", peopleTick);
-  }, []);
   // Who this is, in one chip beside the wires: their deal when it says more than a visit (0004) -- a client, a
   // proposal waiting -- else a visit ahead on the calendar (People's own day and time), else the last one behind
   // them; nothing when People has none of these, or is not read yet. One chip. Not the band's words: the band says
@@ -780,7 +775,7 @@ const ApprovalCard = ({ thread, approval, onDecide = () => {}, planParam = 0, on
         <ExpanderPanel>
           <div className="ix-approval-evidence">
             {approval.evidence?.map((e, i) => (
-              <div key={i} className={`ix-evid ${e.to ? "linked" : ""}`} onClick={e.to ? () => window.CHANLY.nav(e.to) : undefined} role={e.to ? "button" : undefined}>
+              <div key={i} className={`ix-evid ${e.to ? "linked" : ""}`} onClick={e.to ? () => window.CHANLY.nav(e.to) : undefined} onKeyDown={e.to ? window.keyPress(() => window.CHANLY.nav(e.to)) : undefined} role={e.to ? "button" : undefined} tabIndex={e.to ? 0 : undefined}>
                 <span className={`ix-evid-kind kind-${e.kind}`}>{e.kind}</span>
                 <div className="ix-evid-body">
                   <div className="ix-evid-label">{e.label}{e.to && <Icon name="arrow-right" size={9} style={{ marginLeft: 5, color: "var(--ink-faint)" }} />}</div>

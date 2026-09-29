@@ -14,6 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   SHORTCUTS,
@@ -362,9 +363,11 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
+installRoleStore();
 // Menus and questions as their props: the items are what these tests press, drawn by hookless stand-ins.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
@@ -398,6 +401,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
@@ -3749,6 +3754,149 @@ test("a fresh mount draws its first rows and the next draw every row; a place to
   } finally {
     clearTabMemory();
     delete globalThis.window.__tabMemory;
+  }
+});
+
+test("a long list draws a window of its rows: its foot is watched and grows the window, and the cursor walks past it -- a thousand people were a thousand rows on every keystroke", async () => {
+  // Measured on a salon's 500 people, a keystroke in the search box redrew every row (85 ms), and the rows a person
+  // scrolls to are a few dozen of a list that can be thousands. The window is PL_WINDOW_ROWS, a foot after it is watched,
+  // and each time it comes near the window grows by a step; a browser that cannot watch draws every row.
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
+  const footOf = (tree) => find(tree, (n) => n.type === "tr" && n.props?.id === "pl-foot");
+  const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
+  const watchers = [];
+  // The foot sits in a box that scrolls, and is watched from inside it: a margin on the page's viewport does not widen the
+  // clip of a scroller between the two.
+  const scroller = { overflowY: "auto", parentElement: null };
+  const foot = { parentElement: scroller };
+  const keepStyle = globalThis.window.getComputedStyle;
+  globalThis.window.getComputedStyle = (n) => ({ overflowY: n.overflowY });
+  const keepWatcher = globalThis.IntersectionObserver;
+  const keepGet = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "pl-foot" ? foot : null);
+  globalThis.IntersectionObserver = class {
+    constructor(seen, options) {
+      this.seen = seen;
+      this.options = options;
+      watchers.push(this);
+    }
+    observe() {}
+    disconnect() {
+      this.gone = true;
+    }
+  };
+  try {
+    await freshPage({ people: everyone });
+    draw();
+    let tree = draw();
+    assert.equal(rowsOf(tree), globalThis.window.PL_WINDOW_ROWS, "a window of the rows, not all of them");
+    assert.ok(footOf(tree), "with its foot drawn, so it can be watched");
+    assert.equal(footOf(tree).props["aria-hidden"], "true", "nothing for a screen reader to say");
+    const watcher = watchers.at(-1);
+    assert.ok(watcher && !watcher.gone, "the foot is watched");
+    assert.equal(watcher.options.root, scroller, "from inside the box that scrolls it");
+    assert.equal(watcher.options.rootMargin, "800px 0px", "from a screen's height before it is on screen");
+    watcher.seen([{ isIntersecting: false }]);
+    assert.equal(rowsOf(draw()), globalThis.window.PL_WINDOW_ROWS, "out of range: nothing grows");
+    watcher.seen([{ isIntersecting: true }]);
+    tree = draw();
+    assert.equal(
+      rowsOf(tree),
+      globalThis.window.PL_WINDOW_ROWS + globalThis.window.PL_WINDOW_STEP,
+      "the foot came near: a step more",
+    );
+    assert.ok(watcher.gone, "the old foot is let go, the new one watched");
+
+    // The cursor walks to a row past the window: it is drawn, and holds the cursor.
+    await freshPage({ people: everyone });
+    draw();
+    draw();
+    const past = globalThis.window.PL_WINDOW_ROWS + 5;
+    // A draw between short runs of keys, as a person's are: the window reaches a step past the cursor each time.
+    for (let i = 0; i < past; i += 1) {
+      press("j");
+      if (i % 20 === 19) draw();
+    }
+    tree = draw();
+    const focused = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
+    assert.equal(
+      focused?.props.id,
+      `person-p${past}`,
+      "the row the cursor walked to past the window is there to hold it",
+    );
+    assert.ok(rowsOf(tree) >= past, "the window reached it");
+
+    // A place to put back is reached, not every row: a cursor's row and a step past it, a scroll's height and a step past it.
+    const { installTabMemory, clearTabMemory } =
+      await import("../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+    installTabMemory(globalThis.window);
+    try {
+      clearTabMemory();
+      await freshPage({ people: everyone });
+      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: "p700", top: 0 });
+      cells = [];
+      assert.equal(
+        rowsOf(draw()),
+        699 + globalThis.window.PL_WINDOW_STEP,
+        "a cursor on the 700th (index 699): a step past its index, not a thousand",
+      );
+      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: null, top: 20000 });
+      cells = [];
+      assert.equal(
+        rowsOf(draw()),
+        20000 / 40 + globalThis.window.PL_WINDOW_STEP,
+        "a scroll of 20,000px at 40px a row: as many rows and a step more",
+      );
+    } finally {
+      clearTabMemory();
+      delete globalThis.window.__tabMemory;
+    }
+
+    // No way to watch a foot, no window: every row, as before.
+    delete globalThis.IntersectionObserver;
+    await freshPage({ people: everyone });
+    draw();
+    draw();
+    assert.equal(rowsOf(draw()), 1000, "a browser that cannot watch draws every row");
+  } finally {
+    globalThis.IntersectionObserver = keepWatcher;
+    globalThis.document.getElementById = keepGet;
+    globalThis.window.getComputedStyle = keepStyle;
+  }
+});
+
+test("the cursor's row is drawn wherever the cursor came from: a sort that carries it past the window keeps it on the page", async () => {
+  // Only J and K reached past the window, and a sort keeps the cursor: it moved to a row that was not drawn, and the table
+  // was left with no tab stop. Names sort as words, so \"Person 1\" is first ascending and last descending.
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
+  const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
+  const keepGet = globalThis.document.getElementById;
+  const keepWatcher = globalThis.IntersectionObserver;
+  delete globalThis.IntersectionObserver;
+  globalThis.document.getElementById = () => null;
+  try {
+    await freshPage({ people: everyone });
+    draw();
+    let tree = draw();
+    assert.equal(rowsOf(tree), globalThis.window.PL_WINDOW_ROWS, "a window of the rows");
+    press("j");
+    tree = draw();
+    const isPerson = (n) =>
+      n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith("Person");
+    find(tree, isPerson).props.onClick();
+    find(draw(), isPerson).props.onClick();
+    tree = draw();
+    tree = draw();
+    const cursor = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
+    assert.equal(
+      cursor?.props.id,
+      "person-p1",
+      "the cursor is on the row it was on, which the sort moved to the foot of the list",
+    );
+    assert.ok(rowsOf(tree) >= 1000 - 1, "the window reached it");
+  } finally {
+    globalThis.IntersectionObserver = keepWatcher;
+    globalThis.document.getElementById = keepGet;
   }
 });
 

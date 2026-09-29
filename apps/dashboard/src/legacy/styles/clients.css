@@ -2557,6 +2557,9 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    they come to, in the table's own small ink-dim, on the rows' ground, with a hairline under it; a folded section's
    toggle is a quiet word at the line's end. It is words, not a row to press: no pointer, no hover, and the cursor
    passes it (it has no id). */
+/* The foot of a long table's window (people-table.jsx PL_WINDOW_ROWS): a row with nothing in it, there to be watched. */
+.cl-table tbody tr.pl-foot, .pl-table tbody tr.pl-foot { display: block; height: 1px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.cl-table tbody tr.pl-foot > td { display: none; }
 .cl-table tbody tr.pl-sec-head { cursor: default; }
 .cl-table tbody tr.pl-sec-head:hover { background: transparent; }
 .pl-sec-head > th { padding: 14px 12px 6px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-regular); line-height: 18px; color: var(--ink-dim); background: var(--bg); border-bottom: 1px solid var(--line); }

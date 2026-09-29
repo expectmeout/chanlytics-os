@@ -29,8 +29,8 @@ const ShortcutsSheet = () => {
   const groups = window.__chrome.shortcutGroups(window.__chrome.shortcuts);
   return (
     <>
-      <div className="sb-sheet-backdrop" onClick={() => setOpen(false)} />
-      <div className="sb-sheet" role="dialog" aria-label="Keyboard shortcuts" data-testid="shortcuts-sheet">
+      <div className="sb-sheet-backdrop" role="presentation" onClick={() => setOpen(false)} />
+      <div className="sb-sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" ref={window.dialogRef ? window.dialogRef("shortcuts") : undefined} data-testid="shortcuts-sheet">
         <div className="sb-sheet-head">
           <span className="sb-sheet-title">Keyboard shortcuts</span>
           <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setOpen(false)} aria-label="Close"><Icon name="x" size={14} /></button>

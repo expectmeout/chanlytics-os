@@ -1,4 +1,4 @@
-/* global React, Icon, FailedRead */
+/* global React, Icon, FailedRead, useSurface */
 // Today's first band and its third: the standing line above the work, and the day's own card under it.
 //
 // The standing line says the day and the time the business keeps, and whether its lines are up: one line, where a
@@ -10,15 +10,6 @@
 // a review that landed, what ran, the receipts); then the last seven days in one line with the
 // one door to Reports on the page. Every sentence with a number is contracts' (toTodayVM, todayPeriodLine,
 // todayRunWords); this file draws them. A borrowed read that failed says so where its line would be (FailedRead).
-const useTcTick = (key) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    const names = key.split(",");
-    names.forEach((n) => window.addEventListener(n, bump));
-    return () => names.forEach((n) => window.removeEventListener(n, bump));
-  }, [key]);
-};
-
 // A surface as the bridge published it; in the standalone mockup only, as the sample holds it (legacy-bridge/
 // today-sample.ts publishes window.__TODAY_SAMPLE, the way Reports reads window.__reportsSample). The sample never sets
 // the bridge's own names: the mockup's other pages switch to their real variants on those. Today's other files read
@@ -29,7 +20,7 @@ const todaySurface = (key) => (window[key] !== undefined ? window[key] : window.
 // and the ones under a Stop, are rows of the queue (dashboard-a-command.jsx). Today, and the time it went, are the
 // business's (window.__clock), not the browser's; the counts are contracts' words (todayRunWords).
 const RunsDone = ({ nav }) => {
-  useTcTick("surface:broadcasts");
+  useSurface("broadcasts");
   const B = todaySurface("__BROADCASTS");
   const all = (B && B.rows) || [];
   const C = todaySurface("__clock");
@@ -56,7 +47,7 @@ const RunsDone = ({ nav }) => {
 // card's compact rows (setup.jsx SetupRows look="card", SetupCardRow). On a phone the card is that one row, the
 // next thing with its button beside it and the count under its name (canvas P9, mobile.css).
 const TodaySetup = () => {
-  useTcTick("surface:setup");
+  useSurface("setup");
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = window.usePPToast();
   const S = window.__SETUP;
@@ -107,7 +98,7 @@ const TodaySetup = () => {
 // first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
 // old news.
 const ReviewLine = ({ nav }) => {
-  useTcTick("surface:google");
+  useSurface("google");
   const G = window.__GOOGLE;
   if (!G || !G.dto.listing || !window.__google) return null;
   const line = window.__google.vm(G.dto, 30).todayLine;
@@ -138,7 +129,7 @@ const TodayAlert = ({ vm }) => {
 };
 
 const HeroBrief = () => {
-  useTcTick("surface:today");
+  useSurface("today");
   return window.TODAY_DATA ? <TodayAlert vm={window.TODAY_DATA} /> : null;
 };
 
@@ -192,7 +183,7 @@ const TodayReceipt = ({ f, i, last, nav }) => (
 );
 
 const TodayCard = () => {
-  useTcTick("surface:today,surface:reports");
+  useSurface(["today", "reports"]);
   const [open, setOpen] = React.useState(null);
   // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
   // page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a figure's own key reached it only from the figure.

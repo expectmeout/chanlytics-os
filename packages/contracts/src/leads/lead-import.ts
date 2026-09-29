@@ -22,6 +22,13 @@ import type { LeadSearchRoundDto } from "./lead-dtos";
 /** The most rows a file may bring, and leads one press may choose: one checker run's batch (CHECK_BATCH, J5). */
 export const LEAD_LIST_MAX = 500;
 
+/**
+ * The largest file the sheet reads (G:1): a list of 500 rows with every column a business has fits in a fraction of it.
+ * The sheet read and parsed any file whole on the main thread before the row cap applied, so an export of tens of
+ * megabytes froze the tab; one past this is refused before it is read.
+ */
+export const LEAD_IMPORT_MAX_BYTES = 2_000_000;
+
 /** The two ways a search is a list of the owner's own (J1). */
 export const LEAD_LIST_VIAS = ["import", "chosen"] as const satisfies readonly LeadSearchVia[];
 export type LeadListVia = (typeof LEAD_LIST_VIAS)[number];
@@ -243,6 +250,8 @@ export const LEAD_IMPORT_WORDS = {
   askedHint: "A line about them for the emails, like “gyms I met at the Austin expo”. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1_000_000} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",

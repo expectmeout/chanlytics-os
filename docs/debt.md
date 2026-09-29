@@ -56,7 +56,7 @@ it is deleted in the same change. The plan that orders the work is
 ## Rises, each with its reason
 
 A number that rises is raised with `UPDATE_BASELINES=raise corepack pnpm test` (dead exports, lint warnings and the
-bundle budget with their script's `--raise`: `check:dead-exports`, `lint`, `check:bundle`, each `-- --raise`) in the
+bundle budget with their script's `--raise`: `check:dead-exports`, `lint`, each `-- --raise`, and `check:bundle -- --raise js=<bytes>`, by the gzipped growth the row argues, never to what was measured) in the
 same change as its row here: what rose and by how much, why nothing that exists would do, and what takes it back down.
 `UPDATE_BASELINES=1` does not bank a rise, or a new offender, and neither does a script's `--update`: it banks only
 what fell, and the build stays red until the rise is raised or undone. The row leaves when its number falls back.
@@ -101,6 +101,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Primitives outside the kit +12 (the interface kit, step 5.3): `components.css` `avatar`, `nav-badge`, `sb-team-mark`, `stabs`, `user-chip` +1 each; `mobile.css` `phone-tab`, `phone-tabs` +2 each, `phone-tab-badge`, `pp-toast-stack`, `stabs` +1   | The frame's Glass forms live with its rules (the plan's step 5.3), under `[data-look="glass"]` and matching nothing in Classic: the sidebar's mark, face and counts, the phone's tab bar and its count. Its classes name a primitive by their words and stay the frame's; of the kit's three it names, it places the strip and the toast, and restyles the face | The frame moves on the kit with the shell's exit (decision 0015, step 13), or Classic retires (step 5.7)                     |
 | Primitives outside the kit +2 (the interface kit, the review of steps 5.1 to 5.3): `clients.css` `stabs-people` +2                                                                                                                                    | People's own strip in Glass, set in from the page's edge where the shell sets its strip of views: the review found it against the page's edge at a desk and the window's on a phone. Two selectors, under `[data-look="glass"]` and matching nothing in Classic, place the kit's strip and restyle nothing                                                      | People moves on the kit with the shell's exit (decision 0015, step 13), or Classic retires (step 5.7)                        |
 | Workspace route CSS 125.8 → 130.2 KB gzipped (the interface kit, steps 5.1 to 5.3: the Glass look's tokens, the kit and the frame in Glass; the JS stays in its band)                                                                                 | Glass is one block of values in `tokens.css` and its rules under `[data-look="glass"]` in `kit.css`, `components.css`, `mobile.css`, `ask.css` and `clients.css`: 760.4 KB raw, from 734.0; 130.5 KB gzipped after the review, in the band. Every workspace loads them whichever look it wears: a look is chosen on the device before first paint               | Classic retires (step 5.7, decision 6) and the rules only it reads leave, or route-level splitting (0015)                    |
+| Files over 800 lines: `legacy/components/data-bits.jsx` 1,234 → 1,281 (+47, the shell lane)                                                                                                                                                           | One focus helper for every modal (`trapFocus`, `dialogRef`; the Calendar kept a second, wrong trap), `keyPress` and `mayAtLeast`, beside `trapTab` and `gate` in the file every page loads: a module of their own would put `legacy/components` over its directory cap                                                                                          | The shell leaves (decision 0015), or data-bits is split                                                                      |
 
 ## The numbers
 
@@ -110,13 +111,13 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            178   of which over 200 lines: 43
+functions over the limit            177   of which over 200 lines: 43
 files over 800 lines                 13
 directories over 20 modules           5
 window globals                      200   names
-window publishers                   448   sites in 166 files
+window publishers                   443   sites in 164 files
 copies                               52   of 14 names
-as unknown as                       189
+as unknown as                       188
 as never                             13
 non-null assertions, x!             131
 index reads the compiler lets pass  450   in 113 files
@@ -124,12 +125,12 @@ table names outside packages/db     521
 unnamed durations                    69   in 36 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes
-inline style props                  286   in 49 files
+inline style props                  274   in 47 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     155
 source-text reads in tests          812
-lint warnings                       597   in 197 files, 128 of them exhaustive-deps
-workspace route JS, KB gzipped      982   the shell included
+lint warnings                       511   in 188 files, 128 of them exhaustive-deps
+workspace route JS, KB gzipped      973   the shell included
 workspace route CSS, KB gzipped     130
 ```
 
