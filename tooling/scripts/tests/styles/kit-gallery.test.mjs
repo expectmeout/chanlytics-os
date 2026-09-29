@@ -3,9 +3,10 @@
  * spec on a pull request (ci.yml names none, and the nightly runs against production, where there is no gallery), so
  * what can be held here is: e2e/kit/kit.spec.ts holds the rest when it runs on the harness.
  *
- * - Every name in classes.json is drawn by a kit entry, and a kit entry names only the registry's names, the gallery's
- *   own layout (gx-*) and the names UNLISTED says it carries: one there that the registry lists now, or that no entry
- *   draws, is a stale line. A pull request that adds a kit class without its entry is red here.
+ * - Every name in classes.json, a class or a modifier, is drawn by a kit entry, and a kit entry names only the
+ *   registry's names, the gallery's own layout (gx-*) and the names UNLISTED says it carries: one there that the
+ *   registry lists now, or that no entry draws, is a stale line. A pull request that adds a kit class without its entry
+ *   is red here.
  * - Each entry's id is its own; a twin names a source entry; every source entry is some entry's twin, and the
  *   stylesheets its `source` names declare the classes it draws, but the kit's own (read with _css.mjs; the line is
  *   for the reader); a width, a stage and a list of exceptions are ones the spec knows.
@@ -22,7 +23,9 @@ import { cssOf, KIT_REGISTRY } from "../_css.mjs";
 import { ROOT } from "../_source.mjs";
 import { FAMILIES, galleryDocument, UNLISTED } from "../../e2e-harness/kit-gallery.mjs";
 
-const registry = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8")).classes;
+/** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
+const json = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8"));
+const registry = [...json.classes, ...(json.modifiers ?? [])];
 const LEGACY = "apps/dashboard/src/legacy";
 
 /** The classes an entry's markup names, as a browser reads its class attributes. */

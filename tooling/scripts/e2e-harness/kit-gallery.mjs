@@ -36,24 +36,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
 
 /**
- * The names the kit's markup carries that classes.json does not list yet. A kit entry names a class of the registry, a
- * name here, or the gallery's own layout (`gx-*`): each name here is drawn by a component of the kit, and styled by a
- * rule that names it beside a kit class or by none. When step 2.1 moves that rule into kit.css the name joins the
- * registry (kit-css.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both here and
- * there, or here and drawn by no entry, is a stale line.
+ * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
+ * of those, a name here, or the gallery's own layout (`gx-*`): each name here is drawn by a component of the kit and
+ * styled by no kit rule, by a page's rule, or by one that has not moved into kit.css. When a kit rule names one, it
+ * joins the registry (kit-css.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both
+ * here and there, or here and drawn by no entry, is a stale line.
  */
 export const UNLISTED = {
-  icon: "the glyph Icon draws (components/icons.jsx), which .btn .icon, .more-item .icon, .pp-toast > .icon and .field-error > .icon style",
-  danger: "the quiet danger form of a button and of a menu item (.btn.danger, .more-item.danger)",
-  "live-dot": "StatePill's dot in a live pill (components.css .live-dot)",
-  "align-left": "MoreMenu's side, a menu hung from its trigger's left (.more-menu.align-left)",
-  "align-right": "MoreMenu's side, from its trigger's right (.more-menu.align-right)",
-  escape:
-    "MoreMenu's menu placed against the window, so a pane that scrolls cannot cut it (.more-wrap > .more-menu.escape)",
-  placed: "an escaping menu once moreFit has placed it (.more-menu.escape:not(.placed) is drawn unseen)",
-  up: "an escaping menu that opens upward (.more-menu.escape.up)",
-  show: "the tooltip while it is shown (.ui-tip.show)",
-  active: "the picked tab (.stabs-tab.active)",
   "cl-bucket-link":
     "the quiet link button Confirm, EmptyState and FailedRead draw, under People's name for it (components.css)",
   "confirm-danger": "Confirm's mark on a question that destroys, which no stylesheet names yet (data-bits.jsx Confirm)",
@@ -278,7 +267,9 @@ export const FAMILIES = [
   {
     family: "Pill",
     about:
-      "A state, as StatePill draws it: at rest its dot and its word (plain, ok); asking to be seen, its tone's ground (warn, info, danger, the live accent); a glyph in place of the dot.",
+      "A state, as StatePill draws it: at rest its dot and its word (plain, ok); asking to be seen, its tone's ground " +
+      "(warn, info, danger, the live accent, with its live dot); a glyph in place of the dot; a dot drawn by hand, " +
+      "which the pill hides; and the live dot on its own.",
     entries: [
       { id: "pill", html: `<span class="pill" data-tone="plain">Draft</span>` },
       { id: "pill-ok", html: `<span class="pill pill-ok" data-tone="ok">Confirmed</span>` },
@@ -290,6 +281,23 @@ export const FAMILIES = [
         html: `<span class="pill pill-accent" data-tone="accent"><span class="live-dot" style="width: 5px; height: 5px;"></span>On a call</span>`,
       },
       { id: "pill-glyph", html: `<span class="pill pill-ok" data-tone="ok">${icon("check", 11)}Sent</span>` },
+      { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
+      { id: "live-dot", html: `<div class="gx-row"><span class="live-dot"></span>On a call now</div>` },
+    ],
+  },
+  {
+    family: "Field",
+    about:
+      "The house's box outside the record kit: an input a page draws with .input on it, and the search box, its " +
+      "glyph, its words and the key that finds it.",
+    entries: [
+      { id: "input", html: `<input class="input" value="Northside Studio" aria-label="Business name">` },
+      {
+        id: "input-search",
+        html:
+          `<div class="input">${icon("search", 14)}` +
+          `<input placeholder="Search people" aria-label="Search people"><span class="kbd">/</span></div>`,
+      },
     ],
   },
   {
@@ -882,6 +890,7 @@ const GALLERY_CSS = `
     @media (max-width: 900px) { .gx-stage[data-stage="sheet"] { height: 90vh; } }
     .gx-caption { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
     .gx-end { display: flex; justify-content: flex-end; }
+    .gx-row { display: flex; align-items: center; gap: var(--space-2); }
     .gx-narrow { max-width: 220px; }
 `;
 

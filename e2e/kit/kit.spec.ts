@@ -37,9 +37,11 @@ test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 
 const KIT_SHEET = "surfaces/kit/kit.css";
 const STILL_ID = "kit-still";
-const REGISTRY: string[] = JSON.parse(
+/** Every name classes.json holds: the kit's classes, and the modifiers kit.css names beside them (.active, .icon…). */
+const LISTS: { classes: string[]; modifiers?: string[] } = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../../apps/dashboard/src/surfaces/kit/classes.json"), "utf8"),
-).classes;
+);
+const REGISTRY = [...LISTS.classes, ...(LISTS.modifiers ?? [])];
 
 /**
  * The recorder's still stylesheet, its two widths, its tolerance for an edge and its laid-out longhands
@@ -134,14 +136,54 @@ async function pressing<T>(page: Page, run: () => Promise<T>): Promise<T> {
 
 const ask = (page: Page, question: KitAsk): Promise<KitAnswer> => page.evaluate(kitChecks, question);
 const rulesQ = (pressed: boolean): KitAsk => ({ check: "rules", sheet: KIT_SHEET, presses: PRESSES, pressed });
-const tokensQ = (width: Width, pressed: boolean): KitAsk => ({
+/**
+ * Check 3's question for a run. A run with reduced motion plants only what reduced motion alone holds (a rule inside
+ * `prefers-reduced-motion`): the other runs plant the rest, and the house's reduced-motion rules still a kit rule's
+ * motion there, as they should.
+ */
+const tokensQ = (width: Width, pressed: boolean, reduced = false): KitAsk => ({
   check: "tokens",
   sheet: KIT_SHEET,
   presses: PRESSES,
   pressed,
   width,
   still: STILL_ID,
+  ...(reduced ? { media: "prefers-reduced-motion" } : {}),
 });
+
+/**
+ * Where a stylesheet other than kit.css keeps what a kit rule draws, each known and each waiting for the Phase 4 step
+ * named (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, Phase 4, in 0015's order): check 3 names every
+ * longhand a planted token does not move, and a failure one of these explains, in the runs it names, is expected. An
+ * entry no run meets any more fails the test and comes out of the list, so the check stays strict for everything else.
+ */
+const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [
+  {
+    by:
+      "settings.css:1388, `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: var(--control-h-md) }`: " +
+      "the Business tab's sheets hold a small button at the medium height",
+    until: "Phase 4's Settings step (0015 step 11), where the Business tab's sheets take the kit's sizes",
+    runs: /./,
+    failure:
+      /^rec-fold-sheet(?:-leaving)?: .* > button\.btn\.btn-sm\.btn-(?:primary|ghost) height: planting --control-h-sm changed nothing/,
+  },
+  {
+    by: "legacy.css, `@media (pointer: coarse) { html.legacy-on .chip { min-height: 0 } }`: the shell's touch floor, undone for a chip",
+    until:
+      "Phase 4's step for the frame (0015 step 13), where legacy.css leaves with the shell and the kit keeps its own floor",
+    runs: /^phone /,
+    failure: /^chip-wrap: .* span\.chip\.chip-wrap min-height: planting --chip-h changed nothing/,
+  },
+  {
+    by:
+      "record.css, `@media (max-width: 760px)`: the record kit's phone form (a fold's label and fields, the inline " +
+      "editor, the sheet's edge), which kit.css's one breakpoint cannot hold without moving 761 to 900px (step 2.1)",
+    until: "Phase 4's People step (0015 step 5), where the record kit takes 900px, as REC_PHONE_QUERY",
+    runs: /^phone /,
+    failure:
+      /^rec-[a-z-]+: .* (?:[a-z-]+: planting --rec-key changed nothing|border-left: planting --line-strong changed nothing)/,
+  },
+];
 const twinsQ = async (width: Width): Promise<KitAsk> => {
   const { EDGE_TOLERANCE, LAID_OUT } = await recorder();
   return { check: "twins", sheet: KIT_SHEET, width, still: STILL_ID, tolerance: EDGE_TOLERANCE, laidOut: LAID_OUT };
@@ -171,7 +213,8 @@ test("every class in classes.json is drawn by an entry", async ({ browser, baseU
     const a = await ask(page, { check: "classes", classes: REGISTRY });
     console.log(
       `the gallery: ${a.families} families, ${a.entries} entries (${a.kitEntries} of the kit, ${a.twins} with a ` +
-        `twin, ${a.entries - a.kitEntries} sources), drawing the ${REGISTRY.length} classes of classes.json`,
+        `twin, ${a.entries - a.kitEntries} sources), drawing the ${LISTS.classes.length} classes and ` +
+        `${REGISTRY.length - LISTS.classes.length} modifiers of classes.json`,
     );
     expect(a.missing, "classes of the kit no entry draws").toEqual([]);
   } finally {
@@ -203,23 +246,36 @@ test("every selector of every rule of kit.css is drawn by an entry, a press's wi
   expect(missed.map(named), "selectors of kit.css no entry draws, in any run").toEqual([]);
 });
 
-test("each entry reads its tokens, a press rule's with the presses forced, in every run", async ({
+test("each entry reads its tokens, a press rule's with the presses forced, in every run, but the known overrides", async ({
   browser,
   baseURL,
 }) => {
-  const failures: string[] = [];
+  const found: { run: string; text: string }[] = [];
   const reads: string[] = [];
   let exempt = 0;
   await eachRun(browser, baseURL, EVERY, async (page, run) => {
-    const plain = await ask(page, tokensQ(run.width, false));
-    const held = await pressing(page, () => ask(page, tokensQ(run.width, true)));
+    const plain = await ask(page, tokensQ(run.width, false, run.reduced));
+    const held = await pressing(page, () => ask(page, tokensQ(run.width, true, run.reduced)));
     reads.push(`${label(run)} ${plain.reads} and ${held.reads} pressed`);
-    exempt = plain.exempt.length;
-    failures.push(...plain.failures.map((f) => `${label(run)}: ${f}`));
-    failures.push(...held.failures.map((f) => `${label(run)} pressed: ${f}`));
+    if (!run.reduced) exempt = plain.exempt.length;
+    found.push(...plain.failures.map((text) => ({ run: label(run), text })));
+    found.push(...held.failures.map((text) => ({ run: `${label(run)} pressed`, text })));
   });
-  console.log(`token reads per run: ${reads.join("; ")}; entries no rule of kit.css draws yet, so exempt: ${exempt}`);
-  expect(failures, "a kit rule that does not read its token where the entry stands").toEqual([]);
+  const known = (o: (typeof KNOWN_OVERRIDES)[number], f: { run: string; text: string }) =>
+    o.runs.test(f.run) && o.failure.test(f.text);
+  const explained = found.filter((f) => KNOWN_OVERRIDES.some((o) => known(o, f)));
+  console.log(
+    `token reads per run: ${reads.join("; ")}; entries no rule of kit.css draws yet, so exempt: ${exempt}; ` +
+      `${explained.length} plants the ${KNOWN_OVERRIDES.length} known overrides keep from moving`,
+  );
+  expect(
+    found.filter((f) => !explained.includes(f)).map((f) => `${f.run}: ${f.text}`),
+    "a kit rule that does not read its token where the entry stands",
+  ).toEqual([]);
+  expect(
+    KNOWN_OVERRIDES.filter((o) => !found.some((f) => known(o, f))).map((o) => `${o.by}: keeps nothing any more`),
+    "a known override no run meets: take it out of KNOWN_OVERRIDES",
+  ).toEqual([]);
 });
 
 test("each new primitive computes every longhand its source computes, pressed or not: dark and light, Classic", async ({
@@ -400,7 +456,7 @@ test("check 3 names a token overridden in whole or in part, one not defined, a p
         "@media (prefers-reduced-motion: reduce) { .gx-probe-f { background-color: var(--gx-no-such-still); } }",
       ]);
       await plantEntries(p, entry("probe-f", '<div class="gx-probe-f">A probe</div>'));
-      const found = theirs(await ask(p, tokensQ("desk", false)), "probe-f");
+      const found = theirs(await ask(p, tokensQ("desk", false, reduced)), "probe-f");
       expect(found.some((f) => f.includes("reads --gx-no-such-still, which is not defined there"))).toBe(reduced);
     } finally {
       await c.close();

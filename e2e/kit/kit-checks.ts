@@ -21,15 +21,16 @@
  *            order): each token it reads is written on the element, and every longhand those tokens feed, read
  *            before, planted and after, must change and then come back; a longhand another rule keeps is named.
  *            A number is planted twice over, so a value clamped to its range (an opacity at 1) still moves.
- *            Pressed, only a press rule's declarations are planted. A var() with no fallback must name a token
+ *            Pressed, only a press rule's declarations are planted; asked with `media`, only those of a rule in a
+ *            group whose condition names it (a reduced-motion run's). A var() with no fallback must name a token
  *            defined there, and an entry some kit rule draws must read a token;
  *   twins    a kit entry and its source, element by element in document order: every longhand each pair computes (the
  *            physical ones: a logical one says one of them again) must be the same on both, but those in
- *            `data-except`, whatever rule sets it, and so must their
- *            pseudo-elements' (the ones either side draws, a first letter, a list item's marker, a placeholder
- *            shown, and any a kit selector names); with `data-boxes` each box must stand within the tolerance,
- *            relative to its stage. An element's values are the computed ones (Typed OM); a pseudo-element's are
- *            the browser's resolved values, the laid-out ones held to the tolerance as the recorder holds them.
+ *            `data-except`, whatever rule sets it, and so must their pseudo-elements' (the ones either side draws, a
+ *            first letter, a list item's marker, a placeholder shown, and any a kit selector names); with
+ *            `data-boxes` each box must stand within the tolerance, relative to its stage. An element's values are
+ *            the computed ones (Typed OM); a pseudo-element's are the browser's resolved values, the laid-out ones
+ *            held to the tolerance as the recorder holds them.
  * Motion (animation, transition and the caret) is read with the spec's still stylesheet off, since it stops them with
  * !important; everything else with it on, so a transition never shows a value on its way.
  *
@@ -51,7 +52,16 @@ export type Width = "desk" | "phone";
 export type KitAsk =
   | { check: "classes"; classes: string[] }
   | { check: "rules"; sheet: string; presses: string[]; pressed: boolean }
-  | { check: "tokens"; sheet: string; presses: string[]; pressed: boolean; width: Width; still: string }
+  | {
+      check: "tokens";
+      sheet: string;
+      presses: string[];
+      pressed: boolean;
+      width: Width;
+      still: string;
+      /** Plant only the declarations of rules inside a group whose condition names this: a reduced-motion run's. */
+      media?: string;
+    }
   | { check: "twins"; sheet: string; width: Width; still: string; tolerance: number; laidOut: string[] };
 
 /** One selector of a rule of the kit's stylesheet, as one run saw it. */
@@ -98,6 +108,7 @@ export function kitChecks(ask: KitAsk): KitAnswer {
   const presses = "presses" in ask ? ask.presses : [];
   const PRESS = presses.length ? new RegExp(`:(?:${presses.join("|")})(?![\\w-])`, "i") : null;
   const pressed = "pressed" in ask && ask.pressed;
+  const only = ask.check === "tokens" ? ask.media : undefined;
   const MOTION = /^(?:animation|transition)(?:-|$)|^caret-color$/;
   const LEGACY_ELEMENTS = ["before", "after", "first-letter", "first-line"];
 
@@ -481,10 +492,10 @@ export function kitChecks(ask: KitAsk): KitAnswer {
           }
         }
       }
-      const byDecl = new Map<Decl, { names: string[]; press: boolean }>();
+      const byDecl = new Map<Decl, { names: string[]; press: boolean; media: string }>();
       for (const [name, w] of won) {
         if (!/var\(/.test(w.decl.value)) continue;
-        const d = byDecl.get(w.decl) ?? { names: [], press: w.press };
+        const d = byDecl.get(w.decl) ?? { names: [], press: w.press, media: w.rule.media };
         d.names.push(name);
         byDecl.set(w.decl, d);
       }
@@ -536,8 +547,8 @@ export function kitChecks(ask: KitAsk): KitAnswer {
             answer.failures.push(`${entry}: ${at}: the browser reads no style for it, so nothing there can be planted`);
             continue;
           }
-          for (const [decl, { names, press }] of winners(list)) {
-            if (pressed && !press) continue;
+          for (const [decl, { names, press, media }] of winners(list)) {
+            if ((pressed && !press) || (only && !media.includes(only))) continue;
             const values = new Map<string, string>();
             for (const v of varsIn(decl.value)) {
               values.set(v.name, here.getPropertyValue(v.name).trim());
@@ -551,8 +562,8 @@ export function kitChecks(ask: KitAsk): KitAnswer {
         }
       }
       answer.readsBy[entry] = plans.length;
-      if (!pressed && !hits.size) answer.exempt.push(entry);
-      else if (!pressed && !plans.length) answer.failures.push(`${entry}: its kit rules read no token`);
+      if (!pressed && !only && !hits.size) answer.exempt.push(entry);
+      else if (!pressed && !only && !plans.length) answer.failures.push(`${entry}: its kit rules read no token`);
       return plans;
     };
 
