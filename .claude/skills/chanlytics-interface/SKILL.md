@@ -7,10 +7,11 @@ description: The dashboard's interface kit, its tokens and its looks. Use when a
 
 The plan's aim (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`): a look is a set of token values, a
 primitive is written once in the kit, and a page only composes. Phases 1 and 2 built the ground: the tokens and their
-roles, the kit's own rules in one stylesheet, six React components, and a gallery that draws the kit whole. Glass, the
-canvases' look, is drawn, and not yet offered to members. The pages still carry values and primitives of their own,
-and move onto the kit surface by surface (the plan's Phase 4, after each surface leaves the shell under decision 0015).
-Until then the build holds what it counts (The holds, below): each count may only fall, and a new entry is a red build.
+roles, the kit's own rules in one stylesheet, its React components (ten of them with behaviour of their own, on Base
+UI, step 2.5), and a gallery that draws the kit whole. Glass, the canvases' look, is drawn, and not yet offered to
+members. The pages still carry values and primitives of their own, and move onto the kit surface by surface (the
+plan's Phase 4, after each surface leaves the shell under decision 0015). Until then the build holds what it counts
+(The holds, below): each count may only fall, and a new entry is a red build.
 
 ## The seven rules
 
@@ -43,10 +44,10 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | The tokens | `apps/dashboard/src/legacy/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
-| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`: a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
+| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `StatePill`, `MoreMenu`, `Confirm`, `EmptyState`, `FailedRead`, `FieldError` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`; `SurfaceTabs`; the record kit (`apps/dashboard/src/legacy/components/record-*.jsx`); `Icon`. JSX, which a surface cannot import (Draw with the kit, step 2) |
-| The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look); `docs/runbook.md`, "See the kit" |
-| Its checks | `e2e/kit/kit.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
+| The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
+| Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
 | The measures | `tooling/scripts/tests/_measures.mjs`, reading the stylesheets through `tooling/scripts/tests/_css.mjs` and the markup through `tooling/scripts/tests/_ast.mjs`; the baselines in `tooling/scripts/tests/baselines/`; the register, `docs/debt.md` |
 
 ## Draw with the kit
@@ -55,10 +56,11 @@ The plan's contract (its §2.1), with what the build holds of each today.
 2. On a legacy page (`apps/dashboard/src/legacy/`), draw the house component where one exists (`MoreMenu` for a menu,
    never its markup typed again), and otherwise write the entry's classes (a button, a chip, a panel). On a surface
    under `apps/dashboard/src/surfaces/`, import the component from the kit's `index.ts`: a press that opens a page
-   takes `href` and is drawn as a link, and `className` carries layout alone. A surface cannot import the house's JSX,
-   and the lint names a Field, Switch, Select, Sheet and Confirm the kit does not have yet. The first surface that
-   needs one moves the house's JSX into the kit as TSX, drawing what it drew (the plan's Phase 3 table). A sheet, a
-   menu, a picker or anything else with behaviour of its own is built on Base UI instead (below).
+   takes `href` and is drawn as a link, and `className` carries layout alone. A surface cannot import the house's JSX:
+   the lint's refusals name the kit's Button, Field, Switch, Select, Combobox and Sheet by their folders, and Confirm,
+   the house's until the first surface that needs it moves it into the kit as TSX, drawing what it drew (the plan's
+   Phase 3 table), as it moves any other house component the kit lacks. A sheet, a menu, a picker or anything else
+   with behaviour of its own is the kit's, on Base UI (below).
 3. Place it from the page's own stylesheet with display, grid, flex, gap, position, size and overflow, through a class
    of the page's own that names no kit class and holds no primitive's word: `.cal-copy` is not counted, where
    `.cal-copy-btn` and `.cal-tools > .btn` both are. Which variant it draws at which width (a glyph alone on a phone)
@@ -84,10 +86,13 @@ colour or blur; no class that draws a primitive, and no selector naming a kit cl
    variant that reproduces a page's own rule takes a `twin`: a `source` entry drawing the page's class, which the spec
    holds equal to it, longhand for longhand.
 5. **The drawing**, where the family has a component: the entry's id and the call that draws it, in the family's map
-   in `tooling/scripts/tests/styles/kit-components.test.mjs` (`BUTTONS`, `PANELS`, …).
+   in `tooling/scripts/tests/styles/kit-components.test.mjs` (`BUTTONS`, `PANELS`, …); for a component on Base UI, the
+   entry on the running page with the same id (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`), and in
+   `e2e/kit/kit-behaves.spec.ts` how a person brings it to that state.
 6. **Run** `corepack pnpm --filter "./packages/*" build`, then `corepack pnpm -r typecheck`, which compiles the type
    test, `corepack pnpm lint`, `corepack pnpm test`, and `corepack pnpm e2e:local -- e2e/kit/kit.spec.ts
-   --scenario=kit`. Show the spec's run in the pull request.
+   --scenario=kit` (and `e2e/kit/kit-behaves.spec.ts` for a component on Base UI). Show the spec's run in the pull
+   request.
 
 Done when all of them are green: the type test compiles, and the spec draws every selector of the new rule, and each
 token it reads moves what it feeds.
@@ -140,7 +145,10 @@ A new token says, in a comment beside it, what it is for.
 | the raw-element lint (`eslint.config.mjs`) | a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>` in `apps/dashboard/src/surfaces` outside the kit; a surface moved before its kit step waits in `KIT_PENDING` |
 | `tooling/scripts/tests/styles/kit-css.test.mjs` | a class the kit's stylesheet declares and the registry lacks; an `@media` width in it other than 900px; a page outside the shell drawing a kit class while `apps/dashboard/app/globals.css` does not import the kit |
 | `tooling/scripts/tests/styles/kit-gallery.test.mjs` | a registry name no entry draws |
-| `tooling/scripts/tests/styles/kit-components.test.mjs` | a component and its gallery family parting, in a tag, a class, or an attribute a stylesheet or a screen reader reads |
+| `tooling/scripts/tests/styles/kit-components.test.mjs` | a component of step 2.4 and its gallery family parting, in a tag, a class, or an attribute a stylesheet or a screen reader reads |
+| `tooling/scripts/tests/styles/kit-behaves.test.mjs` | the running page and the gallery's families on Base UI parting (an entry on one side alone); a switch, a segmented control or a field drawn on a server otherwise than its entry; a second React, or another Base UI, in the page's bundle |
+| `tooling/scripts/tests/styles/kit-base-ui.test.mjs` | Base UI pinned with a caret or a tag, or at a version the install did not make; a licence not MIT, a peer range without the dashboard's React, or an install script anywhere in what it brings |
+| the Base UI lint (`eslint.config.mjs`, `BASE_UI_INDEX`) | Base UI's index (`@base-ui/react`) imported, or re-exported, anywhere in the dashboard: each component imports its own part |
 | `corepack pnpm check:bundle` (CI, after the build) | the workspace route's CSS past its budget |
 
 A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too, and the
@@ -166,17 +174,17 @@ and now alone. Words in a tone take its `-ink` token.
 
 The families the plan found built more than once (its Appendix A), with what a page takes instead. A legacy page draws
 each as it stands. A surface imports the kit's own components (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`,
-`Meter`); the rest are the house's JSX, which the first surface to need one moves into the kit as TSX (Draw with the
-kit, step 2).
+`Meter`, and those on Base UI); the rest are the house's JSX, which the first surface to need one moves into the kit as
+TSX (Draw with the kit, step 2).
 
 | A page's own | The kit's |
 | --- | --- |
 | close or back button | `Button` with `iconOnly` and its `aria-label` (`.btn.btn-icon`) |
-| segmented control | `RecordToggleGroup` (`.rec-seg`) |
-| switch | `RecordSwitch` (`.rec-switch`) |
-| sheet, modal | `RecordSheet` (`.rec-sheet`); the kit's `.sheet` is drawn by no page yet |
-| menu, popover | `MoreMenu` (`.more-*`); a popover's surface is `Panel` with `variant="pop"` |
-| select, picker | `RecordCombobox` (`.rec-combo`), `RecordField` (`.rec-field`), `.input` |
+| segmented control | `Segmented` (`.rec-seg`); `RecordToggleGroup` on a legacy page |
+| switch | `Switch` (`.rec-switch`); `RecordSwitch` on a legacy page |
+| sheet, modal | `Sheet` (`.sheet`), which no page draws yet; `RecordSheet` (`.rec-sheet`) on a legacy page |
+| menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a legacy page |
+| select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a legacy page |
 | face, initials | `Face` (`.face`) |
 | empty state | `EmptyState`, and `FailedRead` for a read that failed (`.empty*`) |
 | state pill | `StatePill` (`.pill`) |
@@ -184,27 +192,55 @@ kit, step 2).
 | tab strip | `.stabs`, as `SurfaceTabs` draws it |
 | card | `Panel`: `pane`, `inset` or `pop`; `sm` or `flush` |
 | meter, bar | `Meter` (`.meter`) |
-| tooltip, a native `title` | a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus; `RecordTip` in the record kit |
+| tooltip, a native `title` | `Tooltip` (`.ui-tip`); on a legacy page a `data-tip` attribute, drawn by `.ui-tip` on hover and on keyboard focus, and `RecordTip` in the record kit |
 | quiet link | `LinkButton` (`.link-btn`) |
 | list row | `ListRow` (`.list-row`) |
-| confirmation, flash | `Confirm` (`.confirm*`), `usePPToast` (`.pp-toast*`) |
+| confirmation, flash | `Confirm` (`.confirm*`); `useToast` (`.pp-toast*`), `usePPToast` on a legacy page |
 | glyph | `Icon` (`apps/dashboard/src/legacy/components/icons.jsx`) |
 
 ## Behaviour: Base UI
 
-The kit builds every component with behaviour of its own (a sheet or dialog, a menu or popover, a select or combobox,
-a tooltip, a toast, a switch, tabs and the segmented control, a field) on Base UI (`@base-ui/react`): Ruben's decision
-of 29 September, the plan's decision 15 and step 2.5. Base UI brings the behaviour (focus held inside, Escape, the
-keyboard, the page behind held still, what a screen reader is told), and the kit's classes draw its parts, since Base
-UI draws nothing.
+The kit builds every component with behaviour of its own on Base UI (`@base-ui/react`, one exact version pinned in
+`apps/dashboard/package.json`): Ruben's decision of 29 September, the plan's decision 15, built in step 2.5. Base UI
+brings the behaviour (focus held inside, Escape, the keyboard, the page behind held still, what a screen reader is
+told), and the kit's classes draw its parts, since Base UI draws nothing.
+
+| Component | Base UI's part | What it draws |
+| --- | --- | --- |
+| `Sheet` | Dialog, modal | `.sheet-backdrop`, and `.sheet` with its handle and the record sheet's head, tools, rows and foot; Base UI's closing state is the kit's `data-leaving` |
+| `Menu` | Menu | `.more-menu` on its positioner (`.pop-place`): `.more-item` (a link where it opens a page, `danger` where it destroys), `.more-header` over a group, `.more-divider` between two, a set to choose one of as radio items |
+| `Popover` | Popover | the panel's pop (`Panel`, `variant="pop"`) on `.pop-place` |
+| `Select` | Select | the record kit's box as a button (`.rec-input.rec-select`), its list on the panel's pop (`.rec-combo-pop`, `.rec-combo-list`, `.rec-combo-opt`) |
+| `Combobox` | Combobox | the record kit's box (`.rec-combo`), its list as the select's |
+| `Tooltip` | Tooltip | `.ui-tip` on its positioner (`.tip-place`); Base UI's open state is the kit's `.show` |
+| `useToast` | Toast, with a manager of its own | `.pp-toast-stack` and `.pp-toast-<tone>`, raised by a `flash` as usePPToast's is |
+| `Switch` | Switch | `.rec-switch` and its knob, a real button |
+| `Segmented` | RadioGroup and Radio | `.rec-seg` and `.rec-seg-btn`, a sentence under each option where it has one |
+| `Field` | Field | `.rec-field`: the label, the box (`.rec-input`, with its unit) or another of the kit's controls, and the hint (`.rec-hint`) or what is wrong (`.field-error`) |
 
 - Write none of that behaviour by hand in new code: no focus trap, Escape listener, outside-click handler or scroll
-  lock of your own. Import the kit's component; if the kit lacks it, it is built in the kit, on Base UI.
-- One exact version is pinned, and each component imports its own part (`@base-ui/react/dialog`), never the package's
-  index.
+  lock of your own. Import the kit's component; if the kit lacks it, build it in the kit, on Base UI's part.
+- Each component imports its own part (`@base-ui/react/dialog`), never the package's index: the lint refuses the index
+  anywhere in the dashboard (`BASE_UI_INDEX` in `eslint.config.mjs`).
+- A popup goes through Base UI's portal to the document's body, where nothing holds it: in the Glass look a pane or a
+  bar with a backdrop filter is the containing block of what is fixed inside it.
+- A state Base UI marks is drawn by the kit's own state where the kit has one (`data-leaving` for a sheet leaving,
+  `.show` for a tip, `data-chosen` for the option chosen, `hidden` for a list nothing matches), through the part's
+  `render` or `className` function. The rules kit.css added for Base UI are few, read no literal, and each is drawn by
+  the gallery: the positioners' layers (`.pop-place`, `.tip-place`), the menu and the tip in flow on them, a menu item
+  that is a link, an option walked to (`[data-highlighted]`), the floating list (`.rec-combo-pop`) and the select's box
+  (`.rec-select`).
+- A glyph is the page's: a component that draws one (the sheet's Close, the select's chevron, the combobox's glass, a
+  field's problem, a toast's tone and its ×, a menu item's and a set's tick) takes it as a prop, the Icon at the
+  house's size, as the Button and the Face do, until the Icon moves into the kit (the plan's Phase 3).
 - A legacy page keeps the house's component (`RecordSheet`, `MoreMenu`, `RecordCombobox`, `usePPToast`, `[data-tip]`)
-  until its surface's Phase 4 step swaps it for the kit's. The swap is a listed difference, not a byte-equal move. It
-  deletes the surface's hand-written behaviour in the same change, and the first Base UI component a surface draws
-  raises the workspace route's JS budget there, with the reason.
-- Until step 2.5 lands, the kit holds none of them: `kit.css` draws `.sheet`, the menu and the tooltip, and the
-  gallery holds them.
+  until its surface's Phase 4 step swaps it for the kit's. The swap is a listed difference, not a byte-equal move (the
+  plan's step 2.5 lists what each draws and does otherwise): it deletes the surface's hand-written behaviour in the same
+  change, and the first Base UI component a surface draws raises the workspace route's JS budget there, with the
+  reason.
+- A surface's views that change the address are links, never Base UI's Tabs: a door is a link, and `.stabs` stays a
+  strip of links when `SurfaceTabs` moves.
+- Held: each is drawn on the harness's running page (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`, at
+  `/behaves`), which `e2e/kit/kit-behaves.spec.ts` drives with a keyboard and a pointer, at both widths, in both themes
+  and looks, and holds, state by state, to its gallery family "on Base UI"; `kit-behaves.test.mjs` holds what a server
+  can draw in `corepack pnpm test`. A new state or variant adds its entry on both pages, with the same id.

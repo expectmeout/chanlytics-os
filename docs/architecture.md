@@ -348,24 +348,30 @@ design until Phase 4 takes the house's out: `.avatar` beside `.face`,
 `.confirm-block` beside `.panel-pop` and `.panel-inset`. `classes.json` is its
 registry: the house's own names, with no prefix, which the measures read, so
 a listed class declared in any other stylesheet is a primitive outside the
-kit. Each component is a module that renders those classes, typed and named
-in `index.ts` (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`),
-its props mapped to classes by `variants.ts`, so a legacy page that writes
-the classes and a surface that draws the component draw the same markup. The
+kit. Each component is a folder of its own, the module that renders those
+classes and its type test, named in `index.ts` (`Button`, `LinkButton`,
+`Panel`, `Face`, `ListRow`, `Meter`), its props mapped to classes by
+`variants.ts`, so a legacy page that writes the classes and a surface that
+draws the component draw the same markup. The
 shell reaches the kit through its classes, since
 `apps/dashboard/src/legacy-bridge/legacy.css` imports `kit.css` right after
 the tokens. A surface in TSX cannot import the house's JSX components over
 the kit's classes (`StatePill`, `Confirm`, the record kit's fields): the
 first surface that needs one moves it into the kit as TSX, drawing what it
-drew (the plan's Phase 3). A component with behaviour of its own (a sheet,
-a menu, a picker, a tooltip, a toast, a switch, tabs, a field) is built in
-the kit on Base UI's unstyled parts (`@base-ui/react`, one pinned version,
-each part imported alone), which bring focus, Escape, the keyboard and the
-page held still behind a sheet, while the kit's classes draw them (the
-plan's decision 15 and step 2.5). A surface swaps the house's for it at its
-kit step, as a listed difference, and deletes the hand-written behaviour
-there. The lint's messages name the kit's Field, Switch, Select, Sheet and
-Confirm, which arrive by one of these two roads.
+drew (the plan's Phase 3). The components with behaviour of their own are
+built in the kit on Base UI's unstyled parts (`@base-ui/react`, one exact
+version, each part imported alone, which the lint holds): `Sheet` (a modal
+dialog), `Menu`, `Popover`, `Select`, `Combobox`, `Tooltip`, `useToast`,
+`Switch`, `Segmented` (a radio group) and `Field` (the plan's decision 15 and
+step 2.5). Base UI brings focus held inside, Escape, the keyboard, the page
+held still behind a sheet and what a screen reader is told, and portals each
+popup to the body; the kit's classes draw them, a state Base UI marks drawn
+by the kit's own where it has one. A glyph such a part draws is the page's,
+handed in, until the Icon moves into the kit. No page draws them yet: a
+surface swaps the house's for one at its kit step, as a listed difference,
+and deletes the hand-written behaviour there. The lint's refusals of a raw
+control name the kit's Button, Field, Switch, Select, Combobox and Sheet by
+their folders, and Confirm, which a surface moves into the kit.
 
 **The gallery** draws every class of the registry in every state its rules
 name, in both themes and both looks, at a desk and a phone width:
@@ -373,8 +379,11 @@ name, in both themes and both looks, at a desk and a phone width:
 record, never served in production. `e2e/kit/kit.spec.ts` checks in a
 browser that every class and every selector of `kit.css` is drawn and reads
 its tokens, and `tooling/scripts/tests/styles/` holds the registry, the
-gallery's classes and the components' markup in `corepack pnpm test`
-(`docs/runbook.md`, "See the kit").
+gallery's classes and the components' markup in `corepack pnpm test`. The
+same harness runs the Base UI components on a page of their own
+(`/behaves`), where `e2e/kit/kit-behaves.spec.ts` drives each with a
+keyboard and a pointer and holds what it draws, state by state, to its
+family in the gallery (`docs/runbook.md`, "See the kit").
 
 **Surfaces.** `apps/dashboard/src/surfaces/` is where a page goes when it
 leaves the shell (decision 0015), a folder per surface beside `kit/`. It is

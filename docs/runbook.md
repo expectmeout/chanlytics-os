@@ -270,6 +270,26 @@ production the spec skips, and the nightly's skip ceiling does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 
+The kit's components with behaviour of their own, on Base UI (the Sheet, the Menu, the Popover, the Select, the
+Combobox, the Tooltip, the toast, the Switch, the Segmented control and the Field), run on a page of their own on the
+same harness, at `/behaves` (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`, bundled with the dashboard's React
+and the pinned Base UI as the harness starts):
+
+```bash
+corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts --scenario=kit   # how they behave, and what they draw
+node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/behaves
+```
+
+Its spec drives each with a keyboard and a pointer, at a desk and on a phone, in both themes and both looks: Escape
+closes the sheet, a menu and the popover and gives focus back to what opened them; Tab stays in the sheet and the page
+behind it holds still; a menu's arrows walk it and typing finds an item; a switch answers Space and the segmented
+control the arrows; the combobox narrows and chooses by the keys; the tooltip shows on hover and on focus and hides on
+Escape; a toast arrives in a region a screen reader hears and goes on its ×; a field's problem reaches its box's
+`aria-describedby` and `aria-invalid`. In Glass it checks that no popup is held under a blurred pane or bar. And it
+holds what each draws, state by state, to its family "on Base UI" in the gallery, so the gallery the first spec reads
+draws what the components draw; `tooling/scripts/tests/styles/kit-behaves.test.mjs` holds what a server can draw of
+them in `corepack pnpm test`. It waits by condition, never for a fixed time, and fails on faults planted in the page.
+
 ### Prove a style change
 
 A change that must not move anything on screen (a literal that becomes its token, a rule that moves into the kit, a
