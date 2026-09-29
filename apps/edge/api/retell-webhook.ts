@@ -112,7 +112,7 @@ async function recordWebhookAuth(
   try {
     const db = pg();
     if (!db) return;
-    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {
+    await emitEvent(db, PLATFORM_TENANT, "webhook.auth", null, {
       provider: "retell",
       sig,
       key,
@@ -342,7 +342,7 @@ async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind:
 /** A call nobody's agent owns: dead-lettered under the platform, never guessed into a tenant. */
 async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
   L.error("retell_unroutable_agent", { agent_id: n.agentId });
-  await emitEvent(db, PLATFORM_TENANT, "ingest.unroutable", "ingest", null, null, {
+  await emitEvent(db, PLATFORM_TENANT, "ingest.unroutable", null, {
     channel: "voice",
     agent_id: n.agentId,
   }).catch(() => {});
@@ -362,7 +362,7 @@ async function recordDelivery(
   data: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await emitEvent(db, tenantId, "webhook.delivery", "ingest", callId ? "call" : null, callId, {
+    await emitEvent(db, tenantId, "webhook.delivery", callId ? { type: "call", id: callId } : null, {
       provider: "retell",
       ...data,
     });

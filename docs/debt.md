@@ -109,8 +109,8 @@ directories over 20 modules           5
 window globals                      200   names
 window publishers                   448   sites in 166 files
 copies                               52   of 14 names
-as unknown as                       221
-table names outside packages/db     526
+as unknown as                       216
+table names outside packages/db     521
 unnamed durations                    69   in 36 files
 literal style values               1093   in 21 stylesheets
 primitives outside the kit         2569   selectors naming 964 classes

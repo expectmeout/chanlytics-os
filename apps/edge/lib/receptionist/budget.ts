@@ -10,7 +10,7 @@
  * usage is written, so the budget reads every token the receptionist spent.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, type Database, type Json } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
 import { DAY_MS } from "../packages/contracts.js";
 import { MAX_ROWS } from "../paged.js";
 import { logger, errField } from "../log.js";
@@ -25,9 +25,9 @@ export async function recordTokens(
   db: SupabaseClient<Database>,
   tenantId: string,
   conversationId: string,
-  usage: Json,
+  usage: Record<string, unknown>,
 ): Promise<void> {
-  await emitEvent(db, tenantId, "usage.llm_tokens", "usage", "conversation", conversationId, usage);
+  await emitEvent(db, tenantId, "usage.llm_tokens", { type: "conversation", id: conversationId }, usage);
 }
 
 /** More rows than any workspace writes in a day; a bound, not a target. */

@@ -251,7 +251,7 @@ export async function addSendingDomain(
     await deleteSendingDomain(p.db, i.tenantId, reservation.id).catch(() => false);
     throw e;
   }
-  await emitEvent(p.db, i.tenantId, "sending_domain.added", "setup", "sending_domain", row.id, { host } as Json);
+  await emitEvent(p.db, i.tenantId, "sending_domain.added", { type: "sending_domain", id: row.id }, { host });
   return { ok: true, domain: domainDto(row) };
 }
 
@@ -292,8 +292,8 @@ async function takeOver(p: DomainPorts, tenantId: string, host: string, holder: 
         status: gone.status,
       });
   }
-  const data = { host, why: "unverified" } as Json;
-  await emitEvent(p.db, holder.tenant_id, "sending_domain.removed", "setup", "sending_domain", holder.id, data);
+  const data = { host, why: "unverified" };
+  await emitEvent(p.db, holder.tenant_id, "sending_domain.removed", { type: "sending_domain", id: holder.id }, data);
   p.log.info("sending_domain_taken_over", { host, from: holder.tenant_id, to: tenantId });
   return true;
 }
@@ -492,7 +492,7 @@ async function sayDomainChange(
             ...(platform ? { resume_by: "platform" } : {}),
           }
         : {}),
-    } as Json;
+    };
     // A DNS hold tells its owner once a day, however often the records flap; a reputation hold always tells (only
     // they can resume it), and a provider hold tells the platform instead. Asked before this hold is written.
     const toldToday =
@@ -513,9 +513,7 @@ async function sayDomainChange(
         : judged.change === "held"
           ? "sending_domain.held"
           : "sending_domain.released",
-      "setup",
-      "sending_domain",
-      row.id,
+      { type: "sending_domain", id: row.id },
       data,
     );
     if (judged.change === "held" && judged.held_why === "provider")
@@ -603,8 +601,8 @@ export async function resumeSendingDomain(
     resume_by: "owner",
   });
   if (!written) return say(409, "moved", `${row.host} changed just now. Look again, then resume it.`);
-  const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}), by } as Json;
-  await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", "setup", "sending_domain", row.id, data);
+  const data = { host: row.host, ...(row.held_why ? { why: row.held_why } : {}), by };
+  await emitEvent(p.db, row.tenant_id, "sending_domain.resumed", { type: "sending_domain", id: row.id }, data);
   // The platform lifted what its owner could not: the owner is told, as the hold's notice promised.
   if (by === "platform") await tellDomainResumed(p, written);
   // Read now, not at the next tick: a reputation hold is never read while it stands, so records that broke meanwhile
@@ -691,8 +689,8 @@ export async function removeSendingDomain(p: DomainPorts, row: SendingDomainRow)
     if (!gone.ok) return say(502, "provider", `The mail provider could not remove ${row.host} just now. Try again.`);
   }
   if (await deleteSendingDomain(p.db, row.tenant_id, row.id)) {
-    const data = { host: row.host } as Json;
-    await emitEvent(p.db, row.tenant_id, "sending_domain.removed", "setup", "sending_domain", row.id, data);
+    const data = { host: row.host };
+    await emitEvent(p.db, row.tenant_id, "sending_domain.removed", { type: "sending_domain", id: row.id }, data);
   }
   return { ok: true };
 }

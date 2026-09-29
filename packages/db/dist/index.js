@@ -1,3 +1,74 @@
+// src/events.ts
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subject, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subject?.type ?? null,
+    subject_id: subject?.id ?? null,
+    data
+  };
+}
+async function recordEvent(db, tenantId, kind, subject, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subject, data));
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subject, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subject, data);
+  if (error) console.error("emit_event_failed", kind, error);
+}
+
 // src/service-client.ts
 import { createClient } from "@supabase/supabase-js";
 function createServiceClient(cfg) {
@@ -3070,7 +3141,7 @@ async function recordCarrierOptOut(db, p) {
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", { type: "contact", id: p.contactId }, change);
   return true;
 }
 async function markProcessed(db, tenantId, messageId) {
@@ -3103,7 +3174,7 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", { type: "message", id: data.id }, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
 }
@@ -3204,17 +3275,6 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
   const { error: wErr } = await withdraw;
   if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
   return true;
-}
-async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
-  });
-  if (error) console.error("emit_event_failed", kind, error.message);
 }
 
 // src/repositories/email.ts
@@ -4158,15 +4218,8 @@ async function leadWritten(db, p) {
   if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
   if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
   const said = { by: "reach_out", send_id: p.sendId };
-  const { error: e3 } = await db.from("events").insert({
-    tenant_id: p.tenantId,
-    kind: "lead.emailed",
-    category: "lead",
-    subject_type: "lead",
-    subject_id: p.leadId,
-    data: said
-  });
-  if (e3) throw new Error(`cannot record the lead's email: ${e3.message}`);
+  const { error: e3 } = await recordEvent(db, p.tenantId, "lead.emailed", { type: "lead", id: p.leadId }, said);
+  if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
   return true;
 }
 var num = (v) => v === null || v === void 0 || v === "" ? null : Number(v);
@@ -5549,6 +5602,7 @@ export {
   recordEchoAndPause,
   recordEmailNo,
   recordEmailStatus,
+  recordEvent,
   recordOutbound,
   recordPartnerSecondFactorReset,
   recordProviderDomain,

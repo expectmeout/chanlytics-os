@@ -140,7 +140,9 @@ test("the receptionist records a short code and does not answer it", () => {
   assert.ok(EVENT_KINDS.includes("ingest.unreachable_sender"), "the event is one the product knows");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(
-    persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'),
+    persist.includes(
+      'emitEvent(db!, tenantId!, "ingest.unreachable_sender", { type: "message", id: ing!.message_id }, {})',
+    ),
   );
 });
 

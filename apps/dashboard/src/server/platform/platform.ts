@@ -32,7 +32,7 @@ import {
   setPartnerStatus,
   type PartnerPayoutAnswer,
 } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
+import { recordEvent, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AppError,
@@ -301,14 +301,17 @@ export async function platformLineAct(
   tenantId: string,
   lineId: string,
 ): Promise<PlatformActionResult> {
-  const { error: auditErr } = await office.db.from("events").insert({
-    tenant_id: tenantId,
-    kind: "platform.acted",
-    category: "platform",
-    subject_type: "line",
-    subject_id: lineId,
-    data: { action, by: ctx.userId, by_email: ctx.email ?? null },
-  });
+  const { error: auditErr } = await recordEvent(
+    office.db,
+    tenantId,
+    "platform.acted",
+    { type: "line", id: lineId },
+    {
+      action,
+      by: ctx.userId,
+      by_email: ctx.email ?? null,
+    },
+  );
   if (auditErr)
     throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
 

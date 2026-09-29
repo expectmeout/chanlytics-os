@@ -4,7 +4,7 @@
  */
 import { parseTenantConfig } from "@chanlytics/contracts";
 import { deliver, isWireUnavailable, sendBroadcastBatch, type BroadcastBatchPorts } from "@chanlytics/core";
-import { type Database, resolveOutboundTarget } from "@chanlytics/db";
+import { type Database, recordEvent, resolveOutboundTarget } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
 
@@ -226,17 +226,8 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
             .eq("tenant_id", job.tenant_id)
             .eq("state", "sending"),
         );
-        must(
-          "broadcast_send: cannot record the broadcast's tally",
-          await db.from("events").insert({
-            tenant_id: job.tenant_id,
-            kind: "broadcast.sent",
-            category: "message",
-            subject_type: "broadcast",
-            subject_id: id,
-            data: tally,
-          }),
-        );
+        const told = await recordEvent(db, job.tenant_id, "broadcast.sent", { type: "broadcast", id }, tally);
+        if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
       },
       alert: ctx.alert,
       now: Date.now,

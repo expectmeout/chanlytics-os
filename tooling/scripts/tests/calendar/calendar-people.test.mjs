@@ -873,7 +873,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   assert.ok(
     lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name, email })") &&
       lib.includes('if (iErr.code !== "23505") throw') &&
-      /kind: "contact\.added",\s*category: "contact"/.test(lib),
+      lib.includes('emitEvent(db, tenantId, "contact.added", { type: "contact", id: created.id }'),
     "get-or-create with the service role, an event for each person created",
   );
   assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");

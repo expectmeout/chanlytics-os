@@ -15,7 +15,7 @@
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
-    "lines": 125,
+    "lines": 120,
     "branches": 46,
     "depth": 2
   },
@@ -660,7 +660,7 @@
     "depth": 0
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 159,
+    "lines": 158,
     "branches": 32,
     "depth": 2
   },
@@ -895,7 +895,7 @@
     "depth": 3
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
-    "lines": 184,
+    "lines": 175,
     "branches": 1,
     "depth": 0
   },

@@ -33,11 +33,24 @@ export type RegistrationSync = {
   told?: boolean;
 };
 
-/** One read of the registration as `acct`, the status kept: no answer at all throws, as the bare fetch it replaces did. */
-async function readAsTwilio(url: string, acct: { sid: string; token: string }) {
-  const r = await twilioRequest(acct, "GET", url, { timeoutMs: SYNC_READ_MS });
+/**
+ * One read of the registration as `acct`, by its path under Twilio's messaging API, the status kept: no answer at all
+ * throws, as the bare fetch it replaces did.
+ */
+async function readAsTwilio(path: string, acct: { sid: string; token: string }) {
+  const r = await twilioRequest(acct, "GET", `https://messaging.twilio.com/v1${path}`, { timeoutMs: SYNC_READ_MS });
   if (r.status === 0) throw new Error(`twilio: ${r.error ?? "no answer"}`);
   return { status: r.status, body: answerObject(r) };
+}
+
+/** The brand and the campaign as Twilio holds them, each read as `acct`, or null for one the line never filed. */
+async function askRegistration(line: LineRow, acct: { sid: string; token: string }) {
+  return {
+    brand: line.brand_sid ? await readAsTwilio(`/a2p/BrandRegistrations/${line.brand_sid}`, acct) : null,
+    campaign: line.messaging_service_sid
+      ? await readAsTwilio(`/Services/${line.messaging_service_sid}/Compliance/Usa2p`, acct)
+      : null,
+  };
 }
 
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
@@ -71,17 +84,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   // "we could not ask" is a different fact from "they have not answered", and
   // conflating the two is how a registration sits still for a week looking
   // exactly like one that is progressing.
-  const ask = async (acct: { sid: string; token: string }) => ({
-    brand: line.brand_sid
-      ? await readAsTwilio(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${line.brand_sid}`, acct)
-      : null,
-    campaign: line.messaging_service_sid
-      ? await readAsTwilio(
-          `https://messaging.twilio.com/v1/Services/${line.messaging_service_sid}/Compliance/Usa2p`,
-          acct,
-        )
-      : null,
-  });
+  const ask = (acct: { sid: string; token: string }) => askRegistration(line, acct);
   const refused = (a: { brand: { status: number } | null; campaign: { status: number } | null }) =>
     [a.brand, a.campaign].some((x) => x && (x.status === 401 || x.status === 403));
 
@@ -188,12 +191,18 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
       route: verdict.route,
       about: { type: "line", id: line.id },
     });
-    await emitEvent(db, line.tenant_id, verdict.event, "setup", "line", line.id, {
-      e164: line.e164,
-      from: line.sms_state,
-      to: smsState,
-      mock,
-    }).catch(() => {});
+    await emitEvent(
+      db,
+      line.tenant_id,
+      verdict.event,
+      { type: "line", id: line.id },
+      {
+        e164: line.e164,
+        from: line.sms_state,
+        to: smsState,
+        mock,
+      },
+    ).catch(() => {});
   }
   return {
     ok: true,

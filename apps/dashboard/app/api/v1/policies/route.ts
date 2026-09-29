@@ -10,7 +10,8 @@ import {
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { listPolicies, setPolicyMode } from "@chanlytics/db";
+import { emitEvent, listPolicies, setPolicyMode } from "@chanlytics/db";
+import { serviceDb } from "@/server/service-db";
 import { load, readerContext } from "@/server/readers";
 import { autonomy } from "@/server/readers/autonomy";
 
@@ -192,19 +193,20 @@ export const PUT = write({
       // class, the mode, which limits moved -- never their values -- who, and
       // whether a card was tapped. Best effort, as the settings audit is: a
       // ledger row that failed to write must not fail the change that landed.
-      await ctx.supabase
-        .from("events")
-        .insert({
-          tenant_id: member.tenantId,
-          kind: "policy.changed",
-          category: "system",
-          subject_type: "workspace",
-          subject_id: member.tenantId,
-          data: { class: cls, mode, fields: Object.keys(limits), by: ctx.userId, ...(ctx.via ? { via: ctx.via } : {}) },
-        })
-        .then(({ error }) => {
-          if (error) console.error("policy_event_failed", error.message);
-        });
+      // As the service role: a session may not insert into events, so it never landed.
+      await emitEvent(
+        serviceDb(),
+        member.tenantId,
+        "policy.changed",
+        { type: "workspace", id: member.tenantId },
+        {
+          class: cls,
+          mode,
+          fields: Object.keys(limits),
+          by: ctx.userId,
+          ...(ctx.via ? { via: ctx.via } : {}),
+        },
+      );
       return { policy: row };
     } catch (e) {
       if (e instanceof AppError) throw e;

@@ -43,7 +43,6 @@ import {
   purposeOfTemplate,
   type DeliveryRefusal,
   type SendPurpose,
-  type EventKind,
 } from "@chanlytics/contracts";
 import {
   emitEvent,
@@ -52,6 +51,7 @@ import {
   recordCarrierOptOut,
   recordOutbound,
   type Database,
+  type EventData,
   type Json,
 } from "@chanlytics/db";
 import { putOnWire, type WireUnavailable } from "./wire-senders";
@@ -489,14 +489,17 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
 }
 
 /** The same writer every other event goes through: a failed insert is logged there, never dropped. */
-function event(
+/** The message kinds the send door writes. */
+type MessageKind = "message.send_blocked" | "message.send_raced_cancel" | "message.sent" | "message.send_failed";
+
+function event<K extends MessageKind>(
   db: Db,
   d: Delivery,
-  kind: EventKind,
+  kind: K,
   messageId: string | null,
-  data: Record<string, Json>,
+  data: EventData[K],
 ): Promise<void> {
-  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+  return emitEvent(db, d.tenantId, kind, { type: "message", id: messageId }, data);
 }
 
 /** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */

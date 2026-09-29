@@ -26,7 +26,7 @@ import { logger, errField } from "../lib/log.js";
 import { coldReplyDomains, emailDomain } from "../lib/email/email.js";
 import { planResendEvent } from "../lib/email/email-ingress.js";
 import { applyEmailReceipt } from "../lib/email/email-receipts.js";
-import { emitEvent, type Json } from "../lib/packages/db.js";
+import { emitEvent } from "../lib/packages/db.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
 import { env } from "../lib/env.js";
 import { MIN_MS } from "../lib/packages/contracts.js";
@@ -92,10 +92,10 @@ export async function POST(request: Request): Promise<Response> {
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {
     lastUnroutableRow = Date.now();
-    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", "ingest", null, null, {
+    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, {
       channel: "email",
       addresses: verdict.unroutable,
-    } as Json).catch(() => {});
+    }).catch(() => {});
   }
   if (verdict.kind === "ignore") {
     L.info(verdict.log);

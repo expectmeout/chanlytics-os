@@ -410,14 +410,20 @@ async function announceLeg(
     about: { type: "setup", id: channelId },
   });
   try {
-    await emitEvent(db, tenantId, "voice.provisioned", "setup", "tenant_channel", channelId, {
-      agent_id: agentId,
-      llm_id: llmId,
-      number,
-      pinned,
-      bought,
-      number_type: numberType,
-    });
+    await emitEvent(
+      db,
+      tenantId,
+      "voice.provisioned",
+      { type: "tenant_channel", id: channelId },
+      {
+        agent_id: agentId,
+        llm_id: llmId,
+        number,
+        pinned,
+        bought,
+        number_type: numberType,
+      },
+    );
   } catch (e) {
     L.error("voice_provision_event_failed", { error: errField(e) });
   }

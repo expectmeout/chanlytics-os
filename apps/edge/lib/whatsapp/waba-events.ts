@@ -226,10 +226,8 @@ export async function handleWabaChange(
     db,
     routed.tenantId,
     `channel.${change.field}` as WabaEventKind,
-    "system",
-    "channel",
-    routed.channelId,
-    { waba_id: wabaId, ...change.value } as unknown as Json,
+    { type: "channel", id: routed.channelId },
+    { waba_id: wabaId, ...change.value },
   ).catch((e: unknown) => {
     L.error("waba_event_write_failed", { error: errField(e) });
   });

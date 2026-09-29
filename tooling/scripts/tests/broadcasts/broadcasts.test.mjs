@@ -292,7 +292,7 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
     ),
     "the next batch is one more row, as this tenant, now unless the batch stalled or WhatsApp said not now",
   );
-  assert.ok(h.includes('kind: "broadcast.sent"'));
+  assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", { type: "broadcast", id }, tally)'));
   // Not one port answers from a read whose error it dropped. Every one of them
   // is a question the run then acts on, and `{ data }` alone turns a read that
   // failed into a confident wrong answer -- always in the direction of a real

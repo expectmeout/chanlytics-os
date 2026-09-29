@@ -18406,6 +18406,75 @@ var PARTNER_INVITE_WORDS22 = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subject, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subject?.type ?? null,
+    subject_id: subject?.id ?? null,
+    data
+  };
+}
+async function recordEvent(db, tenantId, kind, subject, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subject, data));
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subject, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subject, data);
+  if (error) console.error("emit_event_failed", kind, error);
+}
 z272.config({ jitless: true });
 var MIN_MS32 = 6e4;
 var HOUR_MS32 = 36e5;
@@ -21251,7 +21320,7 @@ async function recordCarrierOptOut(db, p) {
   if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
   if (!data || data.length === 0) return false;
   const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
-  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  await emitEvent(db, p.tenantId, "contact.consent_changed", { type: "contact", id: p.contactId }, change);
   return true;
 }
 async function recordOutbound(db, p) {
@@ -21277,20 +21346,9 @@ async function recordOutbound(db, p) {
   const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", { type: "message", id: data.id }, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
-}
-async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {
-  const { error } = await db.from("events").insert({
-    tenant_id: tenantId,
-    kind,
-    category,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
-  });
-  if (error) console.error("emit_event_failed", kind, error.message);
 }
 async function stampEmailLeftAs(db, p) {
   const { data, error } = await db.rpc("stamp_email_left_as", {
@@ -21511,7 +21569,7 @@ async function overtakenByHuman(db, d) {
   return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
-  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+  return emitEvent(db, d.tenantId, kind, { type: "message", id: messageId }, data);
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
@@ -22295,6 +22353,71 @@ import { z as z214 } from "zod";
 import { z as z224 } from "zod";
 import { z as z234 } from "zod";
 import { z as z244 } from "zod";
+var WRITES2 = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: 1 },
+  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: 1 },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 }
+};
+var WABA_WRITE2 = { category: "system", version: 1 };
+function rowOf2(tenantId, kind, subject, data) {
+  const write = kind in WRITES2 ? WRITES2[kind] : WABA_WRITE2;
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subject?.type ?? null,
+    subject_id: subject?.id ?? null,
+    data
+  };
+}
+async function recordEvent2(db, tenantId, kind, subject, data) {
+  const { error } = await db.from("events").insert(rowOf2(tenantId, kind, subject, data));
+  return { error: error?.message ?? null };
+}
 z29.config({ jitless: true });
 var MIN_MS4 = 6e4;
 var HOUR_MS4 = 36e5;
@@ -25527,17 +25650,8 @@ async function broadcastSend(ctx, job) {
           "broadcast_send: cannot close the broadcast",
           await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending")
         );
-        must(
-          "broadcast_send: cannot record the broadcast's tally",
-          await db.from("events").insert({
-            tenant_id: job.tenant_id,
-            kind: "broadcast.sent",
-            category: "message",
-            subject_type: "broadcast",
-            subject_id: id,
-            data: tally
-          })
-        );
+        const told = await recordEvent2(db, job.tenant_id, "broadcast.sent", { type: "broadcast", id }, tally);
+        if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
       },
       alert: ctx.alert,
       now: Date.now,

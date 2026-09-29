@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PurposeBearing, EventKind, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
+import { WabaEventKind, PurposeBearing, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -1141,6 +1141,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1151,6 +1152,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1161,6 +1163,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1174,6 +1177,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1184,6 +1188,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1194,6 +1199,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1207,6 +1213,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1217,6 +1224,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1227,6 +1235,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1240,6 +1249,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1250,6 +1260,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1260,6 +1271,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1273,6 +1285,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1283,6 +1296,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1293,6 +1307,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1306,6 +1321,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1316,6 +1332,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1326,6 +1343,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1339,6 +1357,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1349,6 +1368,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1359,6 +1379,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1372,6 +1393,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1382,6 +1404,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1392,6 +1415,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1405,6 +1429,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1415,6 +1440,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1425,6 +1451,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1438,6 +1465,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1448,6 +1476,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1458,6 +1487,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1471,6 +1501,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1481,6 +1512,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1491,6 +1523,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1504,6 +1537,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1514,6 +1548,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1524,6 +1559,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1537,6 +1573,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1547,6 +1584,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1557,6 +1595,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1570,6 +1609,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1580,6 +1620,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1590,6 +1631,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1603,6 +1645,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1613,6 +1656,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1623,6 +1667,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -1636,6 +1681,7 @@ type Database = {
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
+                    version: number;
                 };
                 Insert: {
                     category?: string;
@@ -1646,6 +1692,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
+                    version?: number;
                 };
                 Update: {
                     category?: string;
@@ -1656,6 +1703,7 @@ type Database = {
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
+                    version?: number;
                 };
                 Relationships: [];
             };
@@ -7516,6 +7564,236 @@ type Database = {
 };
 
 /**
+ * The ledger's one writer (events). A kind declares its data's shape, its category and the version its data is
+ * written at, once, here. A caller names the kind, the subject and the data, and the compiler holds the data to the
+ * kind.
+ *
+ * It replaced emitEvent's seven loose arguments. Each call spelled its own category, its data was cast to Json
+ * wherever it was built, and six writers skipped it for an insert of their own.
+ *
+ * `version` (00264, events.version) is the version of the kind's data. It is raised when a kind's shape changes, so a
+ * reader can tell an old row from a new one. Every kind starts at 1, and the migrations' own inserts are version 1 by
+ * the column's default.
+ */
+
+type Db$k = SupabaseClient<Database>;
+/** A JSON object whose keys are open: a provider's own payload, or a tally, forwarded as it came. */
+type Open = {
+    [key: string]: Json | undefined;
+};
+/** A kind that carries nothing but its subject. */
+type Nothing = Record<string, never>;
+type BillingData = {
+    source: string;
+    status: string;
+    subscription?: string;
+    price_id?: string | null;
+};
+type TextingData = {
+    e164: string | null;
+    from: string | null;
+    to: string;
+    mock: boolean;
+};
+/** Each kind the product writes from TypeScript, and the data it carries: the table's own kinds. */
+interface TableData {
+    "billing.paused": BillingData;
+    "billing.resumed": BillingData;
+    "billing.updated": BillingData;
+    "broadcast.sent": Open;
+    "business.recorded": {
+        legal_name: string | null;
+        path: string;
+    };
+    "channel.connected": {
+        kind: "whatsapp";
+        phone_number_id: string;
+        waba_id: string;
+        number_e164: string | null;
+        verified_name: string | null;
+        by: string | null;
+    };
+    "contact.added": {
+        source: "calendar";
+        title: string | null;
+        uid: string | null;
+        start: string;
+    };
+    "contact.consent_changed": {
+        consent: string;
+        previous: string | null;
+        source: string;
+        channel: string;
+    };
+    "contact.email_suppressed": {
+        reason: string;
+    };
+    "google.connected": {
+        email: string | null;
+        accounts: number;
+        locations: number;
+        on_maps: number;
+        by: string | null;
+    };
+    "google.disconnected": {
+        email: string | null;
+        location: string | null;
+        revoked: boolean;
+    };
+    "google.linked": {
+        place_id: string;
+        name: string | null;
+        by: string | null;
+        read: boolean;
+    };
+    "google.replied": {
+        review_id: string;
+        chars: number;
+        by?: "receptionist";
+        usage?: Open | null;
+    };
+    "google.reviews": {
+        source: "places" | "profile";
+        fresh: number;
+        counted: number;
+        rating: number | null;
+        review_count: number | null;
+    };
+    "google.unlinked": {
+        place_id: string;
+        name: string | null;
+        had_profile: boolean;
+    };
+    "ingest.allowlist_skip": Nothing;
+    "ingest.unreachable_sender": Nothing;
+    "ingest.unroutable": {
+        channel: "email" | "voice" | "whatsapp";
+    } & Open;
+    "lead.emailed": {
+        by: "reach_out";
+        send_id: string;
+    };
+    "line.answering": {
+        e164: string | null;
+        provider: string;
+        agent_id: string | null;
+        by: string | null;
+    };
+    "line.failed": {
+        step: string;
+        error: string;
+        provider: string;
+        by: string | null;
+    };
+    "line.forwarding_verified": {
+        from: string | null;
+        call_id: string;
+        proof: string;
+    };
+    "line.released": {
+        e164: string | null;
+        provider: string;
+    } & Open;
+    "line.texting_approved": TextingData;
+    "line.texting_on": TextingData;
+    "line.texting_rejected": TextingData;
+    "message.send_blocked": {
+        reason: string | null;
+    } & Open;
+    "message.send_failed": {
+        http_status: number;
+        body: string | null;
+        reason: string;
+    } & Open;
+    "message.send_raced_cancel": {
+        wamid: string | null;
+    };
+    "message.sent": {
+        sender: string;
+    };
+    "platform.acted": {
+        action: string;
+        by: string;
+        by_email: string | null;
+    };
+    "playbook.run": Record<string, unknown>;
+    "policy.changed": {
+        class: string;
+        mode: string;
+        fields: string[];
+        by: string;
+        via?: string;
+    };
+    "policy.veto_window_skipped": {
+        delay_ms: number;
+        source: string;
+        reason: string;
+    };
+    "sending_domain.added": {
+        host: string;
+    };
+    "sending_domain.held": {
+        host: string;
+    } & Open;
+    "sending_domain.released": {
+        host: string;
+    } & Open;
+    "sending_domain.removed": {
+        host: string;
+        why?: string;
+    };
+    "sending_domain.resumed": {
+        host: string;
+        why?: string;
+        by: string;
+    };
+    "sending_domain.verified": {
+        host: string;
+    } & Open;
+    "settings.changed": {
+        fields: string[];
+        by: string;
+        version: number | string | null;
+        via?: string;
+    };
+    "usage.ask_tokens": Open;
+    "usage.llm_tokens": Record<string, unknown>;
+    "voice.provisioned": Open & {
+        agent_id: string;
+        llm_id: string;
+    };
+    "webhook.auth": {
+        provider: "retell";
+    } & Open;
+    "webhook.delivery": {
+        provider: "retell";
+    } & Open;
+}
+/** Meta's account webhooks, one kind per field (contracts WABA_FIELDS): the payload as Meta sent it. */
+type WabaData = {
+    waba_id: string;
+} & Open;
+/** Every kind this module writes, and its data: the table above, and Meta's family. */
+type EventData = TableData & {
+    [K in WabaEventKind]: WabaData;
+};
+type EmittedKind = keyof EventData;
+/** What an event is about: a row of some table, or nothing but the workspace. */
+interface EventSubject {
+    type: string;
+    id: string | null;
+}
+/**
+ * One event on the ledger, and whether it was written. For a writer whose next step needs the record to exist (the
+ * back office records before it acts; a broadcast's tally; a lead's email): it reads the error and says so.
+ */
+declare function recordEvent<K extends EmittedKind>(db: Db$k, tenantId: string, kind: K, subject: EventSubject | null, data: EventData[K]): Promise<{
+    error: string | null;
+}>;
+/** One event on the ledger, best effort: a write that fails is logged by its kind, never thrown. */
+declare function emitEvent<K extends EmittedKind>(db: Db$k, tenantId: string, kind: K, subject: EventSubject | null, data: EventData[K]): Promise<void>;
+
+/**
  * Service-role client factory — ingestion, jobs, and platform-admin paths ONLY.
  * App-plane (/api/v1) handlers must use the session-scoped client so RLS is
  * the enforcement (Blueprint P6/§8); the dashboard wraps this behind a
@@ -7704,7 +7982,6 @@ declare function pauseConversation(db: Db$j, tenantId: string, conversationId: s
 opts?: {
     keepMessageId?: string | null;
 }): Promise<boolean>;
-declare function emitEvent(db: Db$j, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /**
  * Email's rows: a workspace's mailbox, taking a received email in, the email a
@@ -9977,4 +10254,4 @@ declare function dueCalendars(db: Db, p: {
     tenantId?: string;
 }): Promise<DuePage<DueCalendar>>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type EventSubject, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

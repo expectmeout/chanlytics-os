@@ -13,7 +13,7 @@
  * came from, so the profile can say "Added from your calendar".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
 import type { CalendarPerson } from "../packages/contracts.js";
 import { erasedTombstones } from "../erased.js";
 
@@ -98,14 +98,18 @@ export async function addPeopleFromCalendar(
       continue;
     }
     out.added += 1;
-    await db.from("events").insert({
-      tenant_id: tenantId,
-      kind: "contact.added",
-      category: "contact",
-      subject_type: "contact",
-      subject_id: created.id,
-      data: { source: "calendar", title: r.title, uid: r.uid, start: new Date(r.start).toISOString() },
-    });
+    await emitEvent(
+      db,
+      tenantId,
+      "contact.added",
+      { type: "contact", id: created.id },
+      {
+        source: "calendar",
+        title: r.title,
+        uid: r.uid,
+        start: new Date(r.start).toISOString(),
+      },
+    );
   }
   return out;
 }

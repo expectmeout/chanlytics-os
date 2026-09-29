@@ -125,12 +125,18 @@ async function answerNewReviews(
       .eq("id", r.id)
       .eq("tenant_id", conn.tenant_id);
     if (up.error) throw new Error(up.error.message);
-    await emitEvent(db, conn.tenant_id, "google.replied", "google", "review", r.id, {
-      review_id: r.review_id,
-      chars: d.text.length,
-      by: "receptionist",
-      usage: d.usage,
-    }).catch(() => {});
+    await emitEvent(
+      db,
+      conn.tenant_id,
+      "google.replied",
+      { type: "review", id: r.id },
+      {
+        review_id: r.review_id,
+        chars: d.text.length,
+        by: "receptionist",
+        usage: d.usage,
+      },
+    ).catch(() => {});
     answered.push({ id: r.id, author: r.author, text: d.text });
   }
   return answered;
@@ -174,10 +180,16 @@ export async function replyOnProfile(
     .eq("id", rowId)
     .eq("tenant_id", tenantId);
   if (up.error) return { ok: false, error: "review_write_failed", detail: up.error.message };
-  await emitEvent(db, tenantId, "google.replied", "google", "review", rowId, {
-    review_id: review.data.review_id,
-    chars: comment.length,
-  }).catch(() => {});
+  await emitEvent(
+    db,
+    tenantId,
+    "google.replied",
+    { type: "review", id: rowId },
+    {
+      review_id: review.data.review_id,
+      chars: comment.length,
+    },
+  ).catch(() => {});
   return { ok: true, ...reply };
 }
 

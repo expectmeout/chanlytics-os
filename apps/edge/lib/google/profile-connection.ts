@@ -162,13 +162,19 @@ export async function connectProfile(
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
-  await emitEvent(db, tenantId, "google.connected", "google", "listing", null, {
-    email: claims.email,
-    accounts: new Set(locations.map((l) => l.account_name)).size,
-    locations: locations.length,
-    on_maps: onMaps.length,
-    by: userId,
-  }).catch(() => {});
+  await emitEvent(
+    db,
+    tenantId,
+    "google.connected",
+    { type: "listing", id: null },
+    {
+      email: claims.email,
+      accounts: new Set(locations.map((l) => l.account_name)).size,
+      locations: locations.length,
+      on_maps: onMaps.length,
+      by: userId,
+    },
+  ).catch(() => {});
   if (onMaps.length === 1) {
     const bound = await bindLocation(db, saved.data, first, userId, tz, now, net);
     if (!bound.ok) return { ok: false, error: bound.error, detail: bound.detail };
@@ -281,10 +287,16 @@ export async function disconnectProfile(
   if (gone.error) throw new Error(gone.error.message);
   const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);
   if (del.error) throw new Error(del.error.message);
-  await emitEvent(db, tenantId, "google.disconnected", "google", "listing", null, {
-    email: conn.google_email,
-    location: conn.location_name,
-    revoked,
-  }).catch(() => {});
+  await emitEvent(
+    db,
+    tenantId,
+    "google.disconnected",
+    { type: "listing", id: null },
+    {
+      email: conn.google_email,
+      location: conn.location_name,
+      revoked,
+    },
+  ).catch(() => {});
   return { ok: true, removed: true, revoked };
 }

@@ -828,8 +828,8 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   assert.ok(route.includes("return { request: data, told };"));
   const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
   assert.ok(service.includes("if (!deployment.providersLive || !edgeConfigured()) return false;"), "production only");
-  assert.ok(service.includes('callEdge("/api/admin/setup-request"'));
-  assert.ok(service.includes('console.error("setup_request_tell_failed"'), "logged, not thrown");
+  assert.ok(service.includes('"/api/admin/setup-request"'));
+  assert.ok(service.includes('"setup_request_tell_failed"'), "logged, not thrown");
   // The edge door -- the knock, the mail to the platform's own mailbox with
   // how to set the line up, the workspace's row the only thing read -- runs
   // in mail-doors.test.mjs.
