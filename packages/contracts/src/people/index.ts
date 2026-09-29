@@ -143,5 +143,5 @@ export {
   poolListContext,
 } from "./audience-pool";
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
-export { erasedPhoneHash, erasedEmailHash, leadSuppressionHash } from "./erasure";
+export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./erasure";
 export { CARRIER_CONSENT_SOURCE } from "./person-consent";

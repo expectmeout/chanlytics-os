@@ -20,8 +20,14 @@
 --                                   keep for their undo (reach_out_replies.plan) -- then marks the database keyed. Only
 --                                   rows not yet keyed are touched (the 'h1:' prefix), so a second run changes nothing.
 --                                   A run kept to one workspace (a test's) keys its rows and leaves the mark alone.
+--                                   A never-again row whose keyed twin already stands (the same value suppressed again
+--                                   after the mark, while a row written during the re-key stayed legacy) goes, the
+--                                   twin keeping the stronger reason, so the table's key stays unique.
 --                                   tooling/scripts/ops/erasure-rekey.mjs runs it: a dry run by default, a JSONL
 --                                   backup of every row it will change before it writes, --apply to mean it.
+--   the two triggers                once the mark is set, a legacy digest that still arrives (a writer deployed before
+--                                   it, a statement that began before the re-key committed) is keyed where it lands,
+--                                   on contacts and on lead_suppressions, so nothing legacy is stored after the mark.
 --   import_person (00170)           reads the database's own digest; the one it was handed is ignored.
 --
 -- Additive until the re-key runs: until then every digest is exactly what it was. Apply before the apps (the edge and
@@ -83,6 +89,7 @@ begin
   return 'h1:' || encode(extensions.hmac(p_digest, v_pepper, 'sha256'), 'hex');
 end $$;
 revoke execute on function public.erasure_key(text) from public, anon, authenticated;
+grant execute on function public.erasure_key(text) to service_role;
 
 -- The one place a digest is made: legacy until the re-key, keyed after it.
 create or replace function public.erasure_digest(p_tenant_id uuid, p_value text)
@@ -162,8 +169,25 @@ begin
      where erased_phone_hash is not null and erased_phone_hash not like 'h1:%' and (p_tenant_id is null or tenant_id = p_tenant_id);
     update contacts set erased_email_hash = erasure_key(erased_email_hash)
      where erased_email_hash is not null and erased_email_hash not like 'h1:%' and (p_tenant_id is null or tenant_id = p_tenant_id);
-    update lead_suppressions set hash = erasure_key(hash)
-     where hash not like 'h1:%' and (p_tenant_id is null or tenant_id = p_tenant_id);
+    -- A legacy row whose keyed twin stands: the twin keeps the stronger reason (an erasure wins, as 00177's writers
+    -- say), and the legacy row goes, so re-keying it cannot collide on (tenant_id, kind, hash).
+    create temporary table erasure_rekey_twins on commit drop as
+      select s.id, s.tenant_id, s.kind, s.what, erasure_key(s.hash) as keyed
+        from lead_suppressions s
+       where s.hash not like 'h1:%' and (p_tenant_id is null or s.tenant_id = p_tenant_id);
+    update lead_suppressions k set what = 'erased'
+      from erasure_rekey_twins t
+     where t.what = 'erased' and k.what <> 'erased'
+       and k.tenant_id = t.tenant_id and k.kind = t.kind and k.hash = t.keyed;
+    delete from lead_suppressions s
+     using erasure_rekey_twins t
+     where s.id = t.id
+       and exists (select 1 from lead_suppressions k
+                    where k.tenant_id = t.tenant_id and k.kind = t.kind and k.hash = t.keyed);
+    update lead_suppressions s set hash = t.keyed
+      from erasure_rekey_twins t
+     where s.id = t.id;
+    drop table erasure_rekey_twins;
     -- Only the two lists a reply keeps for its undo, each where it is; the rest of the plan as it was.
     update reach_out_replies o
        set plan = o.plan || jsonb_build_object('changed', (o.plan->'changed')
@@ -205,12 +229,50 @@ as $$
   select case
     when p_list is null or jsonb_typeof(p_list) <> 'array' then p_list
     else coalesce((
-      select jsonb_agg(case when x ? 'hash' then jsonb_set(x, '{hash}', to_jsonb(public.erasure_key(x->>'hash'))) else x end
+      select jsonb_agg(case when jsonb_typeof(x->'hash') = 'string'
+                            then jsonb_set(x, '{hash}', to_jsonb(public.erasure_key(x->>'hash')))
+                            else x end
                        order by n)
         from jsonb_array_elements(p_list) with ordinality as e(x, n)), '[]'::jsonb)
   end
 $$;
 revoke execute on function public.erasure_rekey_hashes(jsonb) from public, anon, authenticated;
+
+-- Once keyed, a legacy digest that still arrives is keyed where it lands: a writer deployed before the mark, or a
+-- statement that began before the re-key committed. Before the mark it is left as it is, as every digest then is.
+create or replace function public.erasure_digest_keyed_on_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if (select k.keyed_at from public.erasure_keying k where k.id) is null then
+    return NEW;
+  end if;
+  if TG_TABLE_NAME = 'contacts' then
+    NEW.erased_phone_hash := public.erasure_key(NEW.erased_phone_hash);
+    NEW.erased_email_hash := public.erasure_key(NEW.erased_email_hash);
+  else
+    NEW.hash := public.erasure_key(NEW.hash);
+  end if;
+  return NEW;
+end $;
+revoke execute on function public.erasure_digest_keyed_on_write() from public, anon, authenticated;
+
+drop trigger if exists contacts_erasure_digest_keyed on public.contacts;
+create trigger contacts_erasure_digest_keyed
+  before insert or update of erased_phone_hash, erased_email_hash on public.contacts
+  for each row
+  when (coalesce(NEW.erased_phone_hash, 'h1:') not like 'h1:%' or coalesce(NEW.erased_email_hash, 'h1:') not like 'h1:%')
+  execute function public.erasure_digest_keyed_on_write();
+
+drop trigger if exists lead_suppressions_erasure_digest_keyed on public.lead_suppressions;
+create trigger lead_suppressions_erasure_digest_keyed
+  before insert or update of hash on public.lead_suppressions
+  for each row
+  when (NEW.hash not like 'h1:%')
+  execute function public.erasure_digest_keyed_on_write();
 
 create or replace function public.import_person(
   p_tenant_id    uuid,

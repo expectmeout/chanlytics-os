@@ -1,7 +1,8 @@
 /**
  * A person deletes their own account (00190), on a real Postgres with real sessions: the only owner of a workspace
- * with other members is refused by name; a person who is the only member leaves a workspace with nobody in it, kept;
- * a member who is not the only owner goes, and their phones and marks go with them; the auth user is gone after.
+ * with other members is refused by name; a person who is the only member leaves a workspace with nobody in it, kept
+ * and ended (00248: paused, marked, its open invitations revoked); a member who is not the only owner goes, and their
+ * phones and marks go with them; the auth user is gone after.
  * Runs against the database `supabase start` builds on this machine, never production.
  */
 import { test, before, after } from "node:test";
@@ -84,6 +85,12 @@ test(
     const t = await workspace("only");
     await member(only.id, t, "owner");
     await admin.from("push_devices").insert({ user_id: only.id, token: `tok-${only.id}`, platform: "ios" });
+    const invited = await admin
+      .from("invitations")
+      .insert({ tenant_id: t, email: `joiner-${Date.now()}@example.com`, role: "operator", invited_by: only.id })
+      .select("id")
+      .single();
+    assert.equal(invited.error, null, invited.error?.message);
     const s = await sessionOf(only.email);
     const { data, error } = await s.rpc("delete_my_account");
     assert.equal(error, null, error?.message);
@@ -94,6 +101,8 @@ test(
     const { data: ended } = await admin.from("tenants").select("status, left_empty_at").eq("id", t).single();
     assert.equal(ended.status, "paused", "and it is ended (00248): its receptionist stops");
     assert.ok(ended.left_empty_at, "marked, so billing never resumes it");
+    const { data: invite } = await admin.from("invitations").select("revoked_at").eq("id", invited.data.id).single();
+    assert.ok(invite.revoked_at, "and nobody joins it: the invitation it had out is revoked");
     const { data: phones } = await admin.from("push_devices").select("id").eq("user_id", only.id);
     assert.deepEqual(phones, []);
     const { data: members } = await admin.from("memberships").select("id").eq("tenant_id", t);
@@ -173,7 +182,7 @@ test("a person with history goes, and the history stays without them (00208)", {
   const s = await sessionOf(b.email);
   const { data, error } = await s.rpc("delete_my_account");
   assert.equal(error, null, error?.message);
-  assert.deepEqual(data, { deleted: true, workspaces_left_empty: 0 });
+  assert.deepEqual(data, { deleted: true, workspaces_left_empty: 0, workspaces_emptied: [] });
   assert.ok(!(await userExists(b.id)), "the auth user is gone");
   const left = {
     message: (await admin.from("messages").select("sent_by, sender").eq("conversation_id", conv.id).single()).data,
@@ -245,7 +254,7 @@ test("a member who is not the only owner simply goes", { skip }, async () => {
   const s = await sessionOf(b.email);
   const { data, error } = await s.rpc("delete_my_account");
   assert.equal(error, null, error?.message);
-  assert.deepEqual(data, { deleted: true, workspaces_left_empty: 0 });
+  assert.deepEqual(data, { deleted: true, workspaces_left_empty: 0, workspaces_emptied: [] });
   const { data: members } = await admin.from("memberships").select("user_id").eq("tenant_id", t);
   assert.deepEqual(
     members.map((m) => m.user_id),

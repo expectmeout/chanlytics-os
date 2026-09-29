@@ -73,11 +73,13 @@ export async function erasedBeforeEmail(
   address: string,
   receivedAtIso: string,
 ): Promise<boolean> {
+  const digest = (await erasureDigests(db, tenantId, [address])).get(address);
+  if (!digest) throw new Error("erased_tombstones: the database made no digest of the address");
   const { data, error } = await db
     .from("contacts")
     .select("erased_at, erasing_since")
     .eq("tenant_id", tenantId)
-    .eq("erased_email_hash", (await erasureDigests(db, tenantId, [address])).get(address) as string);
+    .eq("erased_email_hash", digest);
   if (error) throw new Error(`erased_tombstones: ${error.message}`);
   return ((data ?? []) as Tombstone[]).some((t) => {
     const since = t.erasing_since ?? t.erased_at;

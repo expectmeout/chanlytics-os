@@ -14,7 +14,12 @@
  * each digest cut to its first eight characters (a whole legacy digest is as good as the number it hides). An apply
  * reads every row it will change, writes them to tooling/backups/erasure-rekey-<stamp>.jsonl (one {table, row} per
  * line), then calls erasure_rekey(true), which changes only rows not yet keyed ('h1:'), so a second apply changes
- * nothing; it reads the counts again, and they must be zero.
+ * nothing; it reads the counts again, and they must be zero. A row written while the re-key ran, by a statement that
+ * began before the mark committed, can stay legacy: the script then backs it up and applies once more (from the mark
+ * on, 00249's triggers key whatever arrives), and the counts must be zero after that.
+ *
+ * The backup holds the LEGACY digests, which are as good as the numbers they hide: it is for undoing a failed run, not
+ * for keeping. Delete it once the counts read zero and the apps are seen answering.
  *
  * Needs 00249 applied: it asks for the function first and stops without it. Run it after the edge and the dashboard
  * that ask the database for their digests (erasure_digests) have deployed.
@@ -126,14 +131,32 @@ async function main() {
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `erasure-rekey-${stamp}.jsonl`);
+  backUp(backupPath, rows);
+
+  let left = await applyOnce(db);
+  if (left !== 0) {
+    // Written while it ran, before the mark committed: backed up, and keyed by a second pass.
+    console.log(`${left} written during the run are still legacy: backing them up and applying once more.`);
+    backUp(backupPath, await affected(db));
+    left = await applyOnce(db);
+  }
+  if (left !== 0) process.exitCode = 1;
+  console.log(`The backup holds legacy digests: delete ${backupPath} once the apps are seen answering.`);
+}
+
+/** The rows a pass will change, appended to the backup before it writes: one {table, row} per line. */
+function backUp(path, rows) {
   const lines = [
     ...rows.contacts.map((row) => JSON.stringify({ table: "contacts", row })),
     ...rows.suppressions.map((row) => JSON.stringify({ table: "lead_suppressions", row })),
     ...rows.replies.map((row) => JSON.stringify({ table: "reach_out_replies", row })),
   ];
-  writeFileSync(backupPath, lines.join("\n") + "\n");
-  console.log(`backup: ${lines.length} rows -> ${backupPath}`);
+  writeFileSync(path, lines.length ? lines.join("\n") + "\n" : "", { flag: "a" });
+  console.log(`backup: ${lines.length} rows -> ${path}`);
+}
 
+/** One pass of the database's re-key, and how many digests are still legacy after it. */
+async function applyOnce(db) {
   const done = await db.rpc("erasure_rekey", { p_apply: true });
   if (done.error) {
     console.error(`the re-key refused: ${done.error.message}`);
@@ -147,7 +170,7 @@ async function main() {
   const left =
     after.data.contacts_phone + after.data.contacts_email + after.data.lead_suppressions + after.data.reach_out_replies;
   console.log(`re-keyed; keyed_at ${after.data.keyed_at}; still legacy after: ${left}.`);
-  if (left !== 0) process.exitCode = 1;
+  return left;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

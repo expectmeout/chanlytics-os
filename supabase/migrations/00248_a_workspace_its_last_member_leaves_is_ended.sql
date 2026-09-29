@@ -8,8 +8,10 @@
 -- The rule, written with this change (no decision note or runbook section had one): a workspace its last member
 -- leaves is ENDED and kept. Ended means: paused at once (tenants.status, as billing pauses a workspace whose plan
 -- stopped, so the receptionist, the playbooks and the broadcasts stop), marked with when (tenants.left_empty_at, new),
+-- closed to joiners (its open team and partner invitations revoked),
 -- and its plan canceled at once by the edge (the dashboard's DELETE /me asks the billing door's "end"; a subscription
--- event that still finds the plan live cancels it then). Billing never resumes a workspace with the mark. Kept means:
+-- event that still finds the plan live cancels it then). Billing never resumes a workspace with the mark, and no plan is
+-- bought for one (checkout, resume and start-now refuse it). Kept means:
 -- nothing is erased here; the platform erases it on its own rule, later, as before. A line whose plan ended is
 -- released by the lines sweep's existing grace (A2).
 --
@@ -71,6 +73,11 @@ begin
     and not exists (select 1 from memberships o where o.tenant_id = m.tenant_id and o.user_id <> v_user);
   update tenants set status = 'paused', left_empty_at = now()
    where id = any(v_emptied) and left_empty_at is null;
+  -- Nobody joins an ended workspace: the invitations still open for it go with it (a team invite seats an operator
+  -- or a viewer, never an owner, so one accepted now would seat someone who could not even pay for it).
+  update invitations set revoked_at = now()
+   where tenant_id = any(v_emptied) and accepted_at is null and revoked_at is null;
+  delete from partner_invitations where tenant_id = any(v_emptied);
   delete from push_devices where user_id = v_user;
   delete from notification_marks where user_id = v_user;
   delete from notification_reads where user_id = v_user;

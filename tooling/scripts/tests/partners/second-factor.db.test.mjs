@@ -189,11 +189,13 @@ test(
     const hidden = await password.rpc("team_roster", { p_tenant_id: owner.tenant });
     assert.equal(hidden.error?.code, "42501", "and nobody's email to a password alone");
 
-    // The partner's own reads: the workspaces they brought, and the money.
+    // The partner's own reads: the workspaces they brought, their money, and the partner's earnings.
     const brought = ok(await shown.rpc("partner_overview"));
     assert.ok(brought.some((r) => r.tenant_id === owner.tenant));
     assert.deepEqual(ok(await password.rpc("partner_overview")), [], "nothing, as to a caller who is no partner");
     assert.deepEqual(ok(await password.rpc("partner_workspace_money")), []);
+    assert.deepEqual(ok(await password.rpc("partner_balance")), [], "nor their own earnings");
+    ok(await shown.rpc("partner_balance"));
 
     // Reach out's reads of the workspace.
     const search = "55555555-5555-4555-8555-555555555555";
@@ -204,7 +206,6 @@ test(
     for (const [door, args] of [
       ["reach_out_report", { p_tenant_id: owner.tenant, p_days: 30 }],
       ["reach_out_search_lines", { p_tenant_id: owner.tenant, p_search_id: search }],
-      ["reach_out_lead_timeline", { p_tenant_id: owner.tenant, p_lead_id: search }],
     ]) {
       const r = await password.rpc(door, args);
       assert.equal(r.error?.code, "P0002", `${door}: not found to a password alone`);

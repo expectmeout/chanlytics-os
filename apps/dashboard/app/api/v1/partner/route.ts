@@ -27,6 +27,9 @@ export const GET = read({
   handle: async ({ ctx }): Promise<{ partner: PartnerDto | null; balance: PartnerBalanceRow[] }> => {
     const row = await getOwnPartner(ctx.supabase);
     if (!row) return { partner: null, balance: [] };
+    // A partner's own account is read past the second factor, as their seats are (0013, M3; the database answers
+    // nothing of the money to a session without it, 00247).
+    requireSecondFactor(ctx);
     // The count of workspaces brought is the ledger's (partner_tenants), not the seats held now: a pause or an owner
     // taking the partner off a team changes the seats, never how many the link brought.
     const [balance, brought, letters] = await Promise.all([

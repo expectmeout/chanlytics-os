@@ -30,10 +30,12 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
  */
 export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
   const list = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
-  for (const tenantId of list) {
-    const r = await edgeBilling({ op: "end", tenant_id: tenantId });
-    if (r.status !== 200) console.error("account_delete_plan_not_ended", tenantId, r.status, JSON.stringify(r.body));
-  }
+  await Promise.all(
+    list.map(async (tenantId) => {
+      const r = await edgeBilling({ op: "end", tenant_id: tenantId });
+      if (r.status !== 200) console.error("account_delete_plan_not_ended", tenantId, r.status, JSON.stringify(r.body));
+    }),
+  );
 }
 
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */

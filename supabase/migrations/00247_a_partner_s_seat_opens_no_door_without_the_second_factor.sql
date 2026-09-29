@@ -4,11 +4,11 @@
 -- caller_has_permission on aal2, and said has_permission (the service role's, about any user) was unchanged. But the
 -- SECURITY DEFINER doors a session calls straight through PostgREST check the caller themselves, and a definer
 -- function never sees the restrictive policy: the lead finder's eleven doors ask has_permission(auth.uid(), …,
--- 'find'), team_roster and Reach out's five reads (reach_out_reach, reach_out_chain_report, reach_out_report,
--- reach_out_search_lines, reach_out_lead_timeline) ask memberships, and partner_overview and
--- partner_workspace_money read the partner record. So a session signed in with a partner's password alone could start
--- a search and spend the workspace's month, read every member's email, and read each brought workspace's numbers,
--- billing and money (the re-score of 28 September 2026).
+-- 'find'), team_roster and Reach out's reads (reach_out_reach, reach_out_chain_report, reach_out_report,
+-- reach_out_search_lines, reach_out_lead_timeline) ask memberships, and partner_overview, partner_workspace_money and
+-- partner_balance read the partner record. So a session signed in with a partner's password alone could start a
+-- search and spend the workspace's month, read every member's email, and read each brought workspace's numbers,
+-- billing and money, and the partner's own earnings (the re-score of 28 September 2026).
 --
 -- Now each asks what 00218 asks: a partner's seat counts for the calling session only once it showed its second
 -- factor (session_shows_second_factor). has_permission gates only the question about the caller itself
@@ -16,9 +16,17 @@
 -- dashboard's own door refuses the same session first (seatNeedsSecondFactor). The partner's own reads answer nothing
 -- to a session without it, as they answer nothing to a caller who is no partner. Every other role is unchanged.
 --
--- Each function is its latest definition (00201, 00068, 00204, 00211, 00241, 00241, 00241, 00241) with the one clause
--- added; grants stand, since create or replace keeps them. Re-runnable. A later change to any of them keeps the clause
--- (partners/second-factor.db.test.mjs holds it).
+-- Each of the nine functions is its latest definition, with the one clause added: has_permission 00201,
+-- team_roster 00068, partner_overview 00204, partner_workspace_money 00204, partner_balance 00203,
+-- reach_out_reach 00211, reach_out_chain_report 00241,
+-- reach_out_report 00241, reach_out_search_lines 00241.
+-- Grants stand, since create or replace keeps them. Re-runnable. A later change to any of them keeps the clause
+-- (partners/second-factor.db.test.mjs holds it). The row policies a partner's own reads pass through (partners,
+-- partner_tenants, partner_earnings on user_id = auth.uid()) are 00218's concern and unchanged here.
+--
+-- Not here: reach_out_lead_timeline. Reach out's Part 7 redefined it in 00242, applied to production before this file
+-- and not yet on the branch it was written on, so a copy of 00241's here would undo that change. It takes the same
+-- clause in Reach out's next change to it.
 
 create or replace function public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text)
 returns boolean
@@ -161,6 +169,20 @@ as $$
     ) e on true
    where p.user_id = (select auth.uid()) and public.session_shows_second_factor()
    order by t.name, e.currency
+$$;
+
+create or replace function public.partner_balance()
+returns table (currency text, state text, earned_cents bigint, next_payable_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select e.currency, e.state, sum(e.earned_cents)::bigint, min(e.payable_at) filter (where e.state = 'held')
+    from public.partner_earnings e
+    join public.partners p on p.id = e.partner_id
+   where p.user_id = (select auth.uid()) and e.state <> 'void' and public.session_shows_second_factor()
+   group by e.currency, e.state
 $$;
 
 create or replace function public.reach_out_reach(p_tenant_id uuid, p_search_id uuid)
@@ -555,113 +577,5 @@ begin
           from (select * from per order by ord desc nulls first, lead_id limit 2000) p
           join public.leads l on l.id = p.lead_id and l.tenant_id = p_tenant_id), '[]'::jsonb)
     )
-  );
-end $$;
-
-create or replace function public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-declare
-  v_lead public.leads%rowtype;
-  v_root uuid;
-begin
-  if auth.uid() is null or not exists (
-       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
-          and (m.role <> 'partner' or public.session_shows_second_factor())) then
-    raise exception 'Workspace not found.' using errcode = 'P0002';
-  end if;
-  select * into v_lead from public.leads l
-   where l.id = p_lead_id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null;
-  if not found then
-    return null;
-  end if;
-  select s.root_id into v_root from public.reach_out_sends s
-   where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
-   order by s.created_at desc
-   limit 1;
-  return jsonb_build_object(
-    'lead_id', v_lead.id,
-    'business_name', v_lead.business_name,
-    'stage', v_lead.stage,
-    'closed_reason', v_lead.closed_reason,
-    'found_at', v_lead.found_at,
-    'email_state', v_lead.email_state,
-    'resume_at', v_lead.resume_at,
-    'booked_at', v_lead.booked_at,
-    'stopped_at', v_lead.reach_out_stopped_at,
-    'chain', (select jsonb_build_object('root_id', p.id, 'name', p.name, 'state', p.state)
-                from public.playbooks p where p.id = v_root and p.tenant_id = p_tenant_id),
-    -- The chain's search when there is one, else the newest search that found the lead.
-    'search', coalesce(
-      (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
-         from public.playbooks p
-         join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id
-         left join public.lead_search_members sm on sm.search_id = q.id and sm.lead_id = v_lead.id
-        where p.id = v_root),
-      (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
-         from public.lead_search_members sm
-         join public.lead_searches q on q.id = sm.search_id and q.removed_at is null
-        where sm.tenant_id = p_tenant_id and sm.lead_id = v_lead.id and sm.blanked_at is null
-        order by sm.created_at desc
-        limit 1)),
-    -- The person's email thread: where the reach-out's emails, and the answers to them, are.
-    'conversation_id', (select m.conversation_id from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                         where s.tenant_id = p_tenant_id and s.lead_id = v_lead.id and s.state = 'sent'
-                         order by s.sent_at desc
-                         limit 1),
-    'sends', coalesce((
-      with recursive c as (
-        select p.id, 0 as n from public.playbooks p where p.id = v_root
-        union all
-        select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
-      )
-      select jsonb_agg(jsonb_build_object(
-               'id', s.id,
-               'n', c.n,
-               'hand', p.hand->>'kind',
-               'state', s.state,
-               'reason', s.reason,
-               'send_at', s.send_at,
-               'sent_at', coalesce(s.sent_at, case when s.state = 'failed' and public.email_left(m.status, m.error)
-                                                  then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),
-               'left', s.state = 'sent' or (s.state = 'failed' and coalesce(public.email_left(m.status, m.error), false)),
-               'angle', s.angle,
-               'host', d.host,
-               'message_id', s.message_id,
-               'email_status', m.status,
-               'bounced', coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false))
-             order by coalesce(s.sent_at, s.send_at, s.created_at), s.id)
-        from (select * from public.reach_out_sends x
-               where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id and x.root_id = v_root
-               order by x.created_at desc
-               limit 20) s
-        left join c on c.id = s.playbook_id
-        left join public.playbooks p on p.id = s.playbook_id
-        left join public.sending_domains d on d.id = s.domain_id
-        left join public.messages m on m.id = s.message_id), '[]'::jsonb),
-    'readings', coalesce((
-      select jsonb_agg(jsonb_build_object(
-               'message_id', r.message_id,
-               'read_at', r.read_at,
-               'intent', r.intent,
-               'claim', r.claim,
-               'summary', r.summary,
-               'undone', r.undone_at is not null,
-               'until_at', r.until_at,
-               -- What the reading did, as its door recorded it (contracts readingPlan): the page says it, never re-derives it.
-               'stops', coalesce((r.plan->>'stops')::boolean, false),
-               'convert', coalesce((r.plan->>'convert')::boolean, false),
-               'said_no', coalesce((r.plan->>'saidNo')::boolean, false),
-               'can_undo', public.reach_out_reply_undoable(r.message_id) is null)
-             order by r.read_at desc)
-        from (select * from public.reach_out_replies x
-               where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id
-               order by x.read_at desc
-               limit 10) r), '[]'::jsonb),
-    'can_stop', v_root is not null and v_lead.reach_out_stopped_at is null
   );
 end $$;

@@ -20,7 +20,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { leadSuppressionHash } from "@chanlytics/contracts";
+import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -232,8 +232,8 @@ test(
     // The place and the number keep their own arms of the never-again test.
     ok(
       await db.from("lead_suppressions").insert([
-        { tenant_id: A, kind: "place", hash: await leadSuppressionHash(A, placeOf), what: "customer" },
-        { tenant_id: A, kind: "phone", hash: await leadSuppressionHash(A, "+15125550188"), what: "erased" },
+        { tenant_id: A, kind: "place", hash: await legacyLeadSuppressionHash(A, placeOf), what: "customer" },
+        { tenant_id: A, kind: "phone", hash: await legacyLeadSuppressionHash(A, "+15125550188"), what: "erased" },
       ]),
     );
     assert.deepEqual(await audience(), [ours, theirs].sort(), "a place's row and a number's row still hold");
@@ -243,13 +243,13 @@ test(
     ok(
       await db
         .from("lead_suppressions")
-        .insert({ tenant_id: A, kind: "domain", hash: await leadSuppressionHash(A, own), what: "said_no" }),
+        .insert({ tenant_id: A, kind: "domain", hash: await legacyLeadSuppressionHash(A, own), what: "said_no" }),
     );
     // A domain row for nothing never holds an address that ends at its "@".
     ok(
       await db
         .from("lead_suppressions")
-        .insert({ tenant_id: A, kind: "domain", hash: await leadSuppressionHash(A, ""), what: "said_no" }),
+        .insert({ tenant_id: A, kind: "domain", hash: await legacyLeadSuppressionHash(A, ""), what: "said_no" }),
     );
     assert.deepEqual(
       await set(asked),
@@ -265,9 +265,12 @@ test(
 
     // An address's own row holds that address alone.
     ok(
-      await db
-        .from("lead_suppressions")
-        .insert({ tenant_id: A, kind: "email", hash: await leadSuppressionHash(A, `hello@${other}`), what: "said_no" }),
+      await db.from("lead_suppressions").insert({
+        tenant_id: A,
+        kind: "email",
+        hash: await legacyLeadSuppressionHash(A, `hello@${other}`),
+        what: "said_no",
+      }),
     );
     assert.deepEqual(await set([`hello@${other}`, `dana@${other}`]), [`hello@${other}`]);
     assert.equal(await facts(`hello@${other}`), true);
@@ -303,7 +306,7 @@ test(
       assert.deepEqual([row.stage, row.closed_reason], ["archived", "said_no"]);
       assert.equal((await eventsOf(l, "lead.stage"))[0].data.source, "reply");
     }
-    const hash = await leadSuppressionHash(A, `reply-${stamp}@fixture-never.example`);
+    const hash = await legacyLeadSuppressionHash(A, `reply-${stamp}@fixture-never.example`);
     const listed = () =>
       db.from("lead_suppressions").select("what").eq("tenant_id", A).eq("kind", "email").eq("hash", hash);
     assert.deepEqual(ok(await listed()), [{ what: "said_no" }], "a reply's no is on the list as said no");

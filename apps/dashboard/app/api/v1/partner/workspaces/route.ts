@@ -6,7 +6,7 @@ import {
   type PartnerWorkspaceMoneyDto,
   type PlatformTenantDto,
 } from "@chanlytics/contracts";
-import { createWorkspaceForBusiness, getPartnerHandovers, getPartnerWorkspaces } from "@chanlytics/db";
+import { createWorkspaceForBusiness, getOwnPartner, getPartnerHandovers, getPartnerWorkspaces } from "@chanlytics/db";
 import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover";
 
 /**
@@ -25,6 +25,8 @@ export const GET = read({
     money: PartnerWorkspaceMoneyDto[];
     handovers: PartnerHandoverDto[];
   }> => {
+    // What a partner brought is read past the second factor, as their seats are (0013, M3; 00247 in the database).
+    if (await getOwnPartner(ctx.supabase)) requireSecondFactor(ctx);
     const [{ overview, money }, handovers] = await Promise.all([
       getPartnerWorkspaces(ctx.supabase),
       getPartnerHandovers(ctx.supabase),

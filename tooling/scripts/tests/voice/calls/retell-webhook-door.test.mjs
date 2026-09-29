@@ -24,7 +24,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { frameGuardrail, RECORDING_RETENTION_DAYS, erasedPhoneHash } from "@chanlytics/contracts";
+import { frameGuardrail, RECORDING_RETENTION_DAYS, legacyErasedPhoneHash } from "@chanlytics/contracts";
 import {
   at,
   openDoor,
@@ -1418,7 +1418,7 @@ test("REGRESSION: the erasure guard fails CLOSED when its own routing read fails
       phone_e164: null,
       erased_at: null,
       erasing_since: iso(NOW - 60_000),
-      erased_phone_hash: await erasedPhoneHash(w.T, CALLER),
+      erased_phone_hash: await legacyErasedPhoneHash(w.T, CALLER),
     });
     const down = w.open({ "tenant_channels.select": { message: "statement timeout" } });
     const res = await deliver("call_ended", w.analysed(id));

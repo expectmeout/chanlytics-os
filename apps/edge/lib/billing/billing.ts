@@ -15,6 +15,7 @@ import {
   BILLING_TRIAL_DAYS,
   CHECKOUT_RETURN_ROUTE,
   planBilling,
+  type BillingPlan,
   type CheckoutReturn,
   type BillingInvoiceDto,
   type BillingPriceDto,
@@ -102,6 +103,19 @@ async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
   if (error) throw new Error(error.message);
   return data;
 }
+
+/** The workspace's switch, and when its last member left it (00248); null for no such workspace. */
+async function tenantState(db: Db, tenantId: string): Promise<{ status: string; left_empty_at: string | null } | null> {
+  const { data, error } = await db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Whether the workspace's last member left it (00248): ended, so no plan is bought, resumed or started for it. */
+async function leftEmpty(db: Db, tenantId: string): Promise<boolean> {
+  return !!(await tenantState(db, tenantId))?.left_empty_at;
+}
+const ENDED_WORDS = "Nobody is in this workspace any more: it was ended when its last member left.";
 
 /** The plan as Stripe states it, cached a few minutes per instance: the amount is never a literal here. */
 let priceCache: { at: number; value: BillingPriceDto | null } | null = null;
@@ -192,23 +206,23 @@ export async function applySubscription(
   now = new Date(),
 ): Promise<{ switched: "paused" | "resumed" | null; status: BillingStatus }> {
   const L = logger({ tenant: row.tenant_id, subscription: sub.id });
-  const tenant = await db.from("tenants").select("status, left_empty_at").eq("id", row.tenant_id).maybeSingle();
-  if (tenant.error) throw new Error(tenant.error.message);
+  const tenant = await tenantState(db, row.tenant_id);
   // A workspace its last member left (00248) is ended: billing never resumes it, and a plan still live is ended now.
-  const leftEmpty = !!tenant.data?.left_empty_at;
+  const ended = !!tenant?.left_empty_at;
   const facts = subscriptionFacts(sub);
   // The card's mark for the partner sweep (0012): kept apart from the row every member reads, and before the
   // compare-and-set below, so a reading that loses the race still leaves it.
   await markCard(db, row.tenant_id, cardFingerprintOf(sub), L);
-  const plan = planBilling(
+  const planned = planBilling(
     {
       mode: row.mode === "direct" ? "direct" : "stripe",
       status: (row.status as BillingStatus) ?? "none",
-      tenant_status: tenant.data?.status ?? "active",
+      tenant_status: tenant?.status ?? "active",
     },
     facts,
     now.getTime(),
   );
+  const plan = ended ? keptEnded(planned) : planned;
   const customerId = idOf(sub.customer);
   // Written only if the row is still what this reading was planned against.
   // Stripe sends several events for one change within milliseconds
@@ -228,11 +242,11 @@ export async function applySubscription(
     L.info("billing_apply_raced", { source, status: facts.status });
     return { switched: null, status: facts.status };
   }
-  if (plan.tenantStatus && !(leftEmpty && plan.tenantStatus === "active")) {
+  if (plan.tenantStatus) {
     const t = await db.from("tenants").update({ status: plan.tenantStatus }).eq("id", row.tenant_id);
     if (t.error) throw new Error(t.error.message);
   }
-  if (leftEmpty && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
+  if (ended && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, L);
   if (plan.bell) {
     await recordNotification(row.tenant_id, {
       kind: "billing",
@@ -278,6 +292,17 @@ async function customerFor(
   return c.id;
 }
 
+/** A workspace its last member left stays paused: a reading never turns it on, nor rings or records that it did. */
+function keptEnded(p: BillingPlan): BillingPlan {
+  const resumed = p.switched === "resumed";
+  return {
+    ...p,
+    tenantStatus: p.tenantStatus === "active" ? null : p.tenantStatus,
+    switched: resumed ? null : p.switched,
+    bell: resumed ? null : p.bell,
+  };
+}
+
 /** A plan in one of these states charges nothing more: nothing to end. */
 const PLAN_ENDED: ReadonlySet<string> = new Set(["none", "canceled", "incomplete_expired"]);
 
@@ -299,7 +324,8 @@ async function endLeftEmpty(subscriptionId: string, L: ReturnType<typeof logger>
 /**
  * A workspace nobody is in any more (delete_my_account, 00248): its plan ended now, and the ending applied at once, so
  * a card whose holder can no longer sign in is charged nothing more. Nothing to end is an answer, not a refusal: a
- * workspace with no billing row, a direct one, one with no plan, one whose plan already ended.
+ * workspace with no billing row, a direct one, one with no plan, one whose plan already ended. A workspace someone is
+ * still in is refused: its plan is its owner's to end, from Billing.
  */
 export async function endFor(
   db: Db,
@@ -308,6 +334,8 @@ export async function endFor(
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   if (!s) return { ok: false, error: "not_ready" };
+  if (!(await leftEmpty(db, tenantId)))
+    return { ok: false, error: "not_paused", detail: "Someone is still in this workspace: its owner ends its plan." };
   const row = await accountOf(db, tenantId);
   const status = (row?.status as BillingStatus | undefined) ?? "none";
   if (!row || row.mode === "direct" || !row.stripe_subscription_id || PLAN_ENDED.has(status))
@@ -330,6 +358,7 @@ type BillingFailure =
   | "no_subscription"
   | "not_paused"
   | "not_trialing"
+  | "platform_hold"
   | "stripe_refused";
 
 /** The way to Checkout: a card, the trial, and back to Billing (or the first run that asked) with the outcome. */
@@ -344,6 +373,7 @@ export async function checkoutFor(
   const s = stripe();
   const price = priceId();
   if (!s || !price || !billingReadiness().ready) return { ok: false, error: "not_ready" };
+  if (await leftEmpty(db, tenantId)) return { ok: false, error: "platform_hold", detail: ENDED_WORDS };
   const row = await accountOf(db, tenantId);
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
@@ -477,6 +507,7 @@ export async function resumeFor(
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
   if (!row.stripe_subscription_id) return { ok: false, error: "no_subscription" };
+  if (await leftEmpty(db, tenantId)) return { ok: false, error: "platform_hold", detail: ENDED_WORDS };
   if (row.status !== "paused") return { ok: false, error: "not_paused" };
   try {
     const sub = await s.subscriptions.resume(row.stripe_subscription_id, {
@@ -507,6 +538,7 @@ export async function startPlanNowFor(
   if (!row) return { ok: false, error: "no_account" };
   if (row.mode === "direct") return { ok: false, error: "direct" };
   if (!row.stripe_subscription_id) return { ok: false, error: "no_subscription" };
+  if (await leftEmpty(db, tenantId)) return { ok: false, error: "platform_hold", detail: ENDED_WORDS };
   if (row.status !== "trialing") return { ok: false, error: "not_trialing" };
   try {
     const sub = await s.subscriptions.update(row.stripe_subscription_id, {

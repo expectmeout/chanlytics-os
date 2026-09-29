@@ -9,7 +9,7 @@ import { serviceDb } from "../service-db";
  * the only thing that says whose the object is: a path that names another workspace is never signed, whatever wrote
  * it (00246 stops a member writing one on a message).
  */
-function inWorkspace(tenantId: string, storagePath: string): boolean {
+export function inWorkspace(tenantId: string, storagePath: string): boolean {
   const parts = storagePath.split("/");
   return parts.length >= 2 && parts[0] === tenantId && parts.every((p) => p !== "" && p !== "." && p !== "..");
 }

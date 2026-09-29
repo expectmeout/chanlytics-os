@@ -2,6 +2,7 @@ import "server-only";
 import { formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
 import { erasureDigests, readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
+import { inWorkspace } from "../conversations/media";
 
 /** A North American number as formatPhoneDisplay writes it, `+1 (AAA) EEE-NNNN`, read back into its three groups. */
 const NORTH_AMERICAN = /^\+1 \((\d{3})\) (\d{3})-(\d{4})$/;
@@ -98,9 +99,16 @@ export async function beginErasure(
   if (error) throw new Error(`begin_erasure: ${error.message}`);
 }
 
+/**
+ * The stored objects an erased person's rows name, removed. Only this workspace's own (`<tenant>/…`, inWorkspace): a
+ * row that names another workspace's object, which a member could write before 00246, never has it removed here.
+ */
 export async function removeMediaObjects(
-  paths: string[],
+  tenantId: string,
+  named: string[],
 ): Promise<{ requested: number; removed: string[]; error: string | null }> {
+  const paths = named.filter((p) => inWorkspace(tenantId, p));
+  if (paths.length < named.length) console.error("media_remove_refused", tenantId, named.length - paths.length);
   if (!paths.length) return { requested: 0, removed: [], error: null };
   const { data, error } = await serviceDb().storage.from("media").remove(paths);
   if (error) {

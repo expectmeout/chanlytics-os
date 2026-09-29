@@ -5,13 +5,20 @@
  * digests -- contacts, the never-again list, a reply's undo lists -- once, and a second run changes nothing; and
  * import_person reads the database's own digest, whatever it was handed. Runs against the stack `supabase start`
  * builds, never production. The re-key here is kept to this suite's workspace: the mark that switches every digest to
- * keyed is the whole database's, and the suites running beside this one read legacy digests.
+ * keyed is the whole database's, and the suites running beside this one read legacy digests. What the mark changes is
+ * read inside one transaction that never commits, through the CLI (SUPABASE_CLI names the binary when `supabase` is
+ * not on PATH), as sweep-registry.db.test.mjs turns a clock.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
+import { legacyErasedEmailHash, legacyErasedPhoneHash } from "@chanlytics/contracts";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const CLI = process.env.SUPABASE_CLI || "supabase";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.SUPABASE_ANON_KEY;
@@ -29,6 +36,26 @@ const ok = (r, what = "call") => {
   assert.equal(r.error, null, `${what}: ${r.error?.message}`);
   return r.data;
 };
+/**
+ * A transaction on this machine's database that never commits: `body` runs inside a DO block that ends by raising what
+ * it put in `seen`, as hex, so the mark it sets is never seen by the suites beside this one.
+ */
+function rolledBack(body) {
+  const sql = `do $ declare seen jsonb := '{}'; begin ${body} raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex'); end $`;
+  const r = spawnSync(CLI, ["db", "query", "--local", sql], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  const said = [r.stdout, r.stderr]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+  const seen = /seen (7b[0-9a-f]*)/.exec(said);
+  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-800)}`);
+  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
+}
 const PHONE = "+16465550177";
 const EMAIL = "gone@example.com";
 
@@ -60,7 +87,7 @@ test(
   { skip },
   async () => {
     const t = await workspace("made");
-    const legacy = await erasedPhoneHash(t, PHONE);
+    const legacy = await legacyErasedPhoneHash(t, PHONE);
     assert.equal(
       ok(await db.rpc("erasure_digest", { p_tenant_id: t, p_value: PHONE })),
       legacy,
@@ -68,7 +95,7 @@ test(
     );
     assert.deepEqual(
       ok(await db.rpc("erasure_digests", { p_tenant_id: t, p_values: [PHONE, EMAIL, PHONE] })),
-      [legacy, await erasedEmailHash(t, EMAIL), legacy],
+      [legacy, await legacyErasedEmailHash(t, EMAIL), legacy],
       "in order, one per value",
     );
     const keyed = ok(await db.rpc("erasure_key", { p_digest: legacy }));
@@ -78,7 +105,7 @@ test(
     assert.notEqual(keyed.slice(3), legacy, "not the legacy digest dressed up");
     const other = await workspace("other");
     assert.notEqual(
-      ok(await db.rpc("erasure_key", { p_digest: await erasedPhoneHash(other, PHONE) })),
+      ok(await db.rpc("erasure_key", { p_digest: await legacyErasedPhoneHash(other, PHONE) })),
       keyed,
       "still tenant-keyed underneath",
     );
@@ -96,8 +123,8 @@ test(
   { skip },
   async () => {
     const t = await workspace("rekey");
-    const phone = await erasedPhoneHash(t, PHONE);
-    const email = await erasedEmailHash(t, EMAIL);
+    const phone = await legacyErasedPhoneHash(t, PHONE);
+    const email = await legacyErasedEmailHash(t, EMAIL);
     ok(
       await db.from("contacts").insert({
         tenant_id: t,
@@ -149,13 +176,71 @@ test(
   "a reply's undo lists are keyed where they stand, and the rest of its plan is left as it was",
   { skip },
   async () => {
-    const list = [{ kind: "email", hash: "legacydigest1" }, { kind: "domain", hash: "h1:already" }, { kind: "email" }];
+    const list = [
+      { kind: "email", hash: "legacydigest1" },
+      { kind: "domain", hash: "h1:already" },
+      { kind: "email" },
+      { kind: "email", hash: null },
+    ];
     const keyed = ok(await db.rpc("erasure_rekey_hashes", { p_list: list }));
-    assert.equal(keyed.length, 3);
+    assert.equal(keyed.length, 4);
     assert.equal(keyed[0].hash, ok(await db.rpc("erasure_key", { p_digest: "legacydigest1" })));
     assert.deepEqual(keyed[1], list[1], "a keyed hash as it was");
     assert.deepEqual(keyed[2], list[2], "an element with no hash as it was");
+    assert.deepEqual(keyed[3], list[3], "and one whose hash is null");
     assert.equal(ok(await db.rpc("erasure_rekey_hashes", { p_list: null })), null);
+  },
+);
+
+test(
+  "once the database is marked keyed, every digest it makes is keyed, a legacy one that still arrives is keyed where it lands, and a legacy row beside its keyed twin goes, the twin keeping the stronger reason",
+  { skip },
+  () => {
+    const seen = rolledBack(`
+      declare
+        t uuid;
+        legacy_phone text;
+        legacy_email text;
+        supp jsonb;
+      begin
+        insert into public.tenants (slug, name) values ('digest-mark-' || gen_random_uuid(), 'Mark') returning id into t;
+        legacy_phone := public.erasure_digest_legacy(t, '${PHONE}');
+        legacy_email := public.erasure_digest_legacy(t, '${EMAIL}');
+        -- Written before the mark: a legacy row, as every row then is.
+        insert into public.lead_suppressions (tenant_id, kind, hash, what) values (t, 'email', legacy_email, 'erased');
+        update public.erasure_keying set keyed_at = now() where id;
+        -- After it: a writer that still hands a legacy digest.
+        insert into public.contacts (tenant_id, erased_at, erased_phone_hash, erased_email_hash)
+          values (t, now(), legacy_phone, legacy_email);
+        insert into public.lead_suppressions (tenant_id, kind, hash, what) values (t, 'phone', legacy_phone, 'customer');
+        -- The same address suppressed again after the mark: its keyed twin, beside the legacy row.
+        insert into public.lead_suppressions (tenant_id, kind, hash, what) values (t, 'email', legacy_email, 'email_opt_out');
+        seen := jsonb_build_object(
+          'digest', public.erasure_digest(t, '${PHONE}'),
+          'keyed_phone', public.erasure_key(legacy_phone),
+          'keyed_email', public.erasure_key(legacy_email),
+          'contact', (select to_jsonb(c) from (select erased_phone_hash, erased_email_hash from public.contacts where tenant_id = t) c),
+          'phone_row', (select hash from public.lead_suppressions where tenant_id = t and kind = 'phone'),
+          'email_rows_before', (select count(*) from public.lead_suppressions where tenant_id = t and kind = 'email'));
+        perform public.erasure_rekey(true, t);
+        select jsonb_agg(jsonb_build_object('hash', hash, 'what', what)) into supp
+          from public.lead_suppressions where tenant_id = t and kind = 'email';
+        seen := seen || jsonb_build_object('email_rows_after', supp);
+      end;
+    `);
+    assert.equal(seen.digest, seen.keyed_phone, "the digest the database makes is keyed once it is marked");
+    assert.deepEqual(
+      seen.contact,
+      { erased_phone_hash: seen.keyed_phone, erased_email_hash: seen.keyed_email },
+      "a legacy digest written to a contact is keyed where it lands",
+    );
+    assert.equal(seen.phone_row, seen.keyed_phone, "and one written to the never-again list");
+    assert.equal(seen.email_rows_before, 2, "the legacy row and its keyed twin, side by side");
+    assert.deepEqual(
+      seen.email_rows_after,
+      [{ hash: seen.keyed_email, what: "erased" }],
+      "one row left, keyed, keeping the erasure",
+    );
   },
 );
 
@@ -169,7 +254,7 @@ test(
       await db.from("contacts").insert({
         tenant_id: t,
         erased_at: new Date().toISOString(),
-        erased_phone_hash: await erasedPhoneHash(t, PHONE),
+        erased_phone_hash: await legacyErasedPhoneHash(t, PHONE),
       }),
       "an erased contact",
     );

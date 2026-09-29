@@ -45,6 +45,7 @@ const STATUS_OF: Partial<Record<EdgeErrorCode, number>> = {
   no_subscription: 409,
   not_paused: 409,
   not_trialing: 409,
+  platform_hold: 409,
   stripe_refused: 502,
 };
 
