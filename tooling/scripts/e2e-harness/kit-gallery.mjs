@@ -25,8 +25,8 @@
  * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
  * every selector of kit.css in a browser. The words are made up, as every fixture's are.
  *
- * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the record sheet this page draws
- * places the toast stack as it stands beside a sheet, for every entry.
+ * A rule keyed to the whole document (`:root:has(…)`) holds for the whole page: the record sheet and the kit's sheet
+ * this page draws place the toast stack as it stands beside a sheet, for every entry.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -279,6 +279,51 @@ const meter = (size, parts = SERIES) =>
 /** The same parts as SegmentBar draws its bar: its classes, and an <i> for each part; `size` is "" or " small". */
 const segbar = (size, parts = SERIES) =>
   `<div class="ck-segbar-bar${size}" role="img" aria-label="${partsLabel(parts)}">${partsHtml(parts, "i", null)}</div>`;
+
+/** What 2.4's Sheet holds, the composer: the record sheet's head, its rows and its foot. */
+const SHEET_PARTS =
+  recSheetHead("Services", "What you offer, and how long each takes.") +
+  `<div class="rec-sheet-body">${SERVICE_ROWS}</div>` +
+  `<footer class="rec-sheet-foot">${recFoot({ note: "Saved for every line." })}</footer>`;
+/** The one attribute the still copies that play a leaving carry (data-bits leaving). */
+const going = (leaving) => (leaving ? ' data-leaving="true"' : "");
+/**
+ * The kit's sheet over its wash, the composer inside; `handle` draws the handle a phone shows (a desk hides it, and the
+ * record sheet, a desk's twin, has none), `leaving` the still copies that play its leaving.
+ */
+const sheet = ({ handle = true, leaving = false } = {}) =>
+  `<div class="sheet-scrim" aria-hidden="true"${going(leaving)}></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
+  (handle ? `<div class="sheet-handle" aria-hidden="true"></div>` : "") +
+  `${SHEET_PARTS}</section>`;
+/** The same composer in RecordSheet's frame (components/record-sheet.jsx), a desk's twin. */
+const recSheetFrame = (leaving = false) =>
+  `<div class="rec-sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
+  `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
+  `${SHEET_PARTS}</section>`;
+/** The same composer in PhoneSheet's frame and its handle (pages/people.jsx), a phone's twin. */
+const phoneSheetFrame = (leaving = false) =>
+  `<div class="sb-sheet-backdrop"${going(leaving)}></div>` +
+  `<div class="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label="Services"${going(leaving)}>` +
+  `<div class="pp-sheet-handle" aria-hidden="true"></div>${SHEET_PARTS}</div>`;
+/** A toast raised while the sheet is open, which stands clear of its foot. */
+const SHEET_TOAST =
+  `<div class="pp-toast-stack"><div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
+  `<span class="pp-toast-msg"><b>Follow-up visit</b> is 45 minutes now</span>` +
+  `<button type="button" class="pp-toast-cta">Undo</button>` +
+  `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div></div>`;
+/**
+ * What the phone's twin does not compare. The one difference on purpose (the plan's spec, 3.5): a column where
+ * PhoneSheet is a block, so its display and direction, and the handle's shrinking, which a column reads and a block
+ * never does; the twin compares every element's box instead, which a column that laid out otherwise would move. And
+ * the ring a focus draws: PhoneSheet takes no focus (it has no tabindex), so the ring the browser draws on it under the
+ * spec's forced focus is one no member sees, where the kit's sheet takes focus as it opens, so a screen reader names
+ * it, and draws no ring, as the record sheet does (kit.css, .rec-sheet:focus; the desk's twin holds the two equal).
+ */
+const SHEET_APART = [
+  ...["display", "flex-direction", "flex-shrink"],
+  ...["outline-color", "outline-style", "outline-width"],
+];
 
 /* ---- the families ---- */
 
@@ -1130,6 +1175,73 @@ export const FAMILIES = [
           `<span class="meter-part meter-ok" style="flex-grow: 12"></span>` +
           `<span class="meter-part meter-warn" style="flex-grow: 3"></span>` +
           `<span class="meter-part meter-rest"></span></div>`,
+      },
+    ],
+  },
+  {
+    family: "Sheet",
+    about:
+      "kit.css's sheet (step 2.2): on a desk a side pane at the window's right edge, the page faded behind it; on a " +
+      "phone from the bottom edge, as tall as what it holds, a handle over its head and the ink's wash behind it; a " +
+      "column at both widths, so the composer's foot stays at its foot, where a toast raised while it is open stands " +
+      "clear. At each width beside the frame it reproduces, open and leaving, which the spec holds it equal to: the " +
+      "record sheet on a desk, and on a phone People's phone sheet, but for a column where PhoneSheet is a block " +
+      "(the spec compares every box instead) and the ring of a focus PhoneSheet never takes.",
+    entries: [
+      { id: "sheet", stage: "sheet", html: sheet() + SHEET_TOAST },
+      { id: "sheet-leaving", stage: "sheet", html: sheet({ leaving: true }) },
+      { id: "sheet-desk", stage: "sheet", width: "desk", html: sheet({ handle: false }), twin: "src-rec-sheet" },
+      {
+        id: "src-rec-sheet",
+        stage: "sheet",
+        width: "desk",
+        source: "surfaces/kit/kit.css:1735",
+        html: recSheetFrame(),
+      },
+      {
+        id: "sheet-desk-leaving",
+        stage: "sheet",
+        width: "desk",
+        html: sheet({ handle: false, leaving: true }),
+        twin: "src-rec-sheet-leaving",
+      },
+      {
+        id: "src-rec-sheet-leaving",
+        stage: "sheet",
+        width: "desk",
+        source: "surfaces/kit/kit.css:1135, styles/components.css:3043",
+        html: recSheetFrame(true),
+      },
+      {
+        id: "sheet-phone",
+        stage: "sheet",
+        width: "phone",
+        html: sheet(),
+        twin: "src-phone-sheet",
+        except: SHEET_APART,
+        boxes: true,
+      },
+      {
+        id: "src-phone-sheet",
+        stage: "sheet",
+        width: "phone",
+        source: "styles/components.css:1856, styles/mobile.css:170, styles/clients.css:2406",
+        html: phoneSheetFrame(),
+      },
+      {
+        id: "sheet-phone-leaving",
+        stage: "sheet",
+        width: "phone",
+        html: sheet({ leaving: true }),
+        twin: "src-phone-sheet-leaving",
+        except: SHEET_APART,
+      },
+      {
+        id: "src-phone-sheet-leaving",
+        stage: "sheet",
+        width: "phone",
+        source: "styles/components.css:3068, styles/mobile.css:170, styles/clients.css:2406",
+        html: phoneSheetFrame(true),
       },
     ],
   },

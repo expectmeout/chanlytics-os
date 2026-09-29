@@ -2403,3 +2403,105 @@ textarea.rec-input {
   flex: 1 1 auto;
   background: var(--line-strong);
 }
+
+/* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
+   Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
+   components.css:3033-3046): the window's height at its right edge, the page faded behind it. Under 900px, People's
+   phone sheet (components.css:1856-1863, mobile.css:170, clients.css:2406-2407, components.css:3066-3071): from the
+   bottom edge, standing on the keyboard (--kb), as tall as what it holds and never over 82% of the screen, a handle
+   over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
+   while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
+   keyframes (above), and holds still under reduced motion. */
+.sheet-scrim {
+  --sheet-wash-out: 160ms;
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  max-width: none;
+  background: var(--surface-scrim);
+  animation: wash-in var(--duration-base) var(--ease-out);
+}
+.sheet-scrim[data-leaving="true"] {
+  animation: wash-out var(--sheet-wash-out) var(--ease-in) forwards;
+}
+.sheet {
+  --sheet-in: 260ms;
+  --sheet-out: 180ms;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 401;
+  display: flex;
+  flex-direction: column;
+  width: min(540px, 92vw);
+  max-width: none;
+  background: var(--surface-pop-fill);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--surface-pop-depth);
+  animation: side-in var(--sheet-in) var(--ease-out);
+}
+.sheet:focus {
+  outline: none;
+}
+.sheet[data-leaving="true"] {
+  animation: side-out var(--sheet-out) var(--ease-in) forwards;
+}
+.sheet-handle {
+  display: none;
+}
+/* A toast while a sheet is open clears the sheet's foot, where its Save is (the record sheet's, above, and
+   record.css:23-26). */
+:root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+  bottom: calc(184px + env(safe-area-inset-bottom));
+}
+@media (width > 900px) {
+  :root:has(.sheet:not([data-leaving])) .pp-toast-stack {
+    bottom: 18px;
+    left: calc((100vw - min(540px, 92vw)) / 2);
+  }
+  :root:has(.sheet:not([data-leaving])) .pp-toast {
+    max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px));
+  }
+}
+@media (max-width: 900px) {
+  .sheet-scrim {
+    background: var(--surface-scrim-modal);
+  }
+  .sheet {
+    top: auto;
+    left: 0;
+    bottom: var(--kb, 0px);
+    width: auto;
+    max-height: calc(82vh - var(--kb, 0px));
+    max-height: calc(82dvh - var(--kb, 0px));
+    overflow: auto;
+    overscroll-behavior-y: none;
+    border: 1px solid var(--surface-pop-edge);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+    animation-name: sheet-in;
+  }
+  .sheet[data-leaving="true"] {
+    animation-name: sheet-out;
+  }
+  .sheet-handle {
+    display: block;
+    flex: none;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 4px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-scrim {
+    animation: none;
+  }
+  .sheet[data-leaving],
+  .sheet-scrim[data-leaving] {
+    display: none;
+  }
+}
