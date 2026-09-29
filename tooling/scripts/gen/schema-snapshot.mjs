@@ -86,6 +86,10 @@ export function normalise(dump) {
 
 const WORD = /[A-Za-z0-9_$]/;
 const DOLLAR_TAG = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
+/** Whether a token is this word, in any case. */
+export const isWord = (t, word) => t?.type === "word" && t.value.toLowerCase() === word;
+/** Whether a token is this punctuation. */
+export const isPunct = (t, c) => t?.type === "punct" && t.value === c;
 
 /**
  * SQL as tokens, each with where it starts and ends in `sql`: a word, a quoted
@@ -93,7 +97,7 @@ const DOLLAR_TAG = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
  * pg_proc keeps of a body), or one character of punctuation. Comments and
  * blanks are not tokens; everything a token covers is kept as written.
  */
-export function tokensOf(sql) {
+function tokensOf(sql) {
   const out = [];
   const n = sql.length;
   let i = 0;
@@ -159,7 +163,7 @@ export function statementsOf(sql) {
     tokens = [];
   };
   for (const t of tokensOf(sql)) {
-    if (t.type === "punct" && t.value === ";") close();
+    if (isPunct(t, ";")) close();
     else tokens.push(t);
   }
   close();
@@ -184,13 +188,11 @@ export function splitTopLevel(tokens, sep = ",") {
   for (const t of tokens) {
     if (t.type === "punct" && (t.value === "(" || t.value === "[")) depth++;
     if (t.type === "punct" && (t.value === ")" || t.value === "]")) depth--;
-    if (depth === 0 && t.type === "punct" && t.value === sep) parts.push([]);
+    if (depth === 0 && isPunct(t, sep)) parts.push([]);
     else parts[parts.length - 1].push(t);
   }
   return parts.filter((p) => p.length > 0);
 }
-
-const is = (t, word) => t?.type === "word" && t.value.toLowerCase() === word;
 
 /** A type's spellings that Postgres reads as one: the name pg_dump writes, for any alias a migration may use. */
 const TYPE_NAMES = {
@@ -213,7 +215,7 @@ const TYPE_NAMES = {
 };
 
 /** A parameter's type as its identity reads it: lower case, no modifier, no schema, one spelling per type. */
-export function canonicalType(text) {
+function canonicalType(text) {
   const arrays = (text.match(/\[\s*\d*\s*\]/g) ?? []).length;
   const base = text
     .replace(/\[\s*\d*\s*\]/g, "")
@@ -238,7 +240,7 @@ const MULTI_WORD_TYPE =
  */
 function parameterOf(tokens, sql) {
   let ts = tokens;
-  const cut = ts.findIndex((t, i) => i > 0 && (is(t, "default") || (t.type === "punct" && t.value === "=")));
+  const cut = ts.findIndex((t, i) => i > 0 && (isWord(t, "default") || isPunct(t, "=")));
   if (cut > 0) ts = ts.slice(0, cut);
   let mode = "in";
   if (ts.length > 1 && ts[0].type === "word" && MODES.has(ts[0].value.toLowerCase())) {
@@ -265,7 +267,7 @@ export function qualifiedName(tokens, at) {
   let i = at;
   const part = (t) => (t?.type === "word" || t?.type === "ident" ? t.value : null);
   let name = part(tokens[i]);
-  if (tokens[i + 1]?.type === "punct" && tokens[i + 1].value === ".") {
+  if (isPunct(tokens[i + 1], ".")) {
     if (name?.toLowerCase() !== "public") return { name: null, next: i };
     i += 2;
     name = part(tokens[i]);
@@ -281,8 +283,8 @@ export function qualifiedName(tokens, at) {
  */
 export function functionChangesIn(sql) {
   return statementsOf(sql).flatMap(({ tokens }) => {
-    if (is(tokens[0], "create")) return createdBy(tokens, sql);
-    if (is(tokens[0], "drop") && (is(tokens[1], "function") || is(tokens[1], "procedure")))
+    if (isWord(tokens[0], "create")) return createdBy(tokens, sql);
+    if (isWord(tokens[0], "drop") && (isWord(tokens[1], "function") || isWord(tokens[1], "procedure")))
       return droppedBy(tokens, sql);
     return [];
   });
@@ -290,14 +292,14 @@ export function functionChangesIn(sql) {
 
 /** `create [or replace] function public.name(…) … as $$body$$`, as a change, or none for any other CREATE. */
 function createdBy(tokens, sql) {
-  const at = is(tokens[1], "or") && is(tokens[2], "replace") ? 3 : 1;
-  if (!is(tokens[at], "function") && !is(tokens[at], "procedure")) return [];
+  const at = isWord(tokens[1], "or") && isWord(tokens[2], "replace") ? 3 : 1;
+  if (!isWord(tokens[at], "function") && !isWord(tokens[at], "procedure")) return [];
   const { name, next } = qualifiedName(tokens, at + 1);
   if (!name || tokens[next]?.value !== "(") return [];
   const end = closing(tokens, next);
   // The body is the string after AS: dollar-quoted as a rule, single-quoted now and then.
   const body = tokens.find(
-    (t, k) => k > end && (t.type === "dollar" || (t.type === "string" && is(tokens[k - 1], "as"))),
+    (t, k) => k > end && (t.type === "dollar" || (t.type === "string" && isWord(tokens[k - 1], "as"))),
   );
   return [
     { kind: "create", name, identity: identityOf(name, tokens.slice(next + 1, end), sql), body: body?.value ?? null },
@@ -306,8 +308,8 @@ function createdBy(tokens, sql) {
 
 /** `drop function [if exists] public.a(…), public.b(…) [cascade]`, one change per function it names. */
 function droppedBy(tokens, sql) {
-  const from = is(tokens[2], "if") && is(tokens[3], "exists") ? 4 : 2;
-  const named = tokens.slice(from).filter((t) => !is(t, "cascade") && !is(t, "restrict"));
+  const from = isWord(tokens[2], "if") && isWord(tokens[3], "exists") ? 4 : 2;
+  const named = tokens.slice(from).filter((t) => !isWord(t, "cascade") && !isWord(t, "restrict"));
   return splitTopLevel(named).flatMap((one) => {
     const { name, next } = qualifiedName(one, 0);
     if (!name) return [];

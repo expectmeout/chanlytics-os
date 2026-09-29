@@ -18,15 +18,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { OUT as SNAPSHOT, closing, qualifiedName, splitTopLevel, statementsOf } from "./schema-snapshot.mjs";
+import {
+  OUT as SNAPSHOT,
+  closing,
+  isPunct,
+  isWord,
+  qualifiedName,
+  splitTopLevel,
+  statementsOf,
+} from "./schema-snapshot.mjs";
 import { parse, repoFiles, tablesNamedIn } from "../tests/_ast.mjs";
 
 export const OUT = "docs/data-model.md";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPOSITORIES = "packages/db/src";
-
-const is = (t, word) => t?.type === "word" && t.value.toLowerCase() === word;
-const isPunct = (t, c) => t?.type === "punct" && t.value === c;
 
 /** The text a run of tokens covers in `sql`, as written. */
 const textOf = (sql, tokens) => (tokens.length ? sql.slice(tokens[0].start, tokens[tokens.length - 1].end) : "");
@@ -42,7 +47,7 @@ function columnOf(tokens, sql) {
   const name = tokens[0].value;
   let end = tokens.length;
   let notNull = false;
-  if (is(tokens[end - 2], "not") && is(tokens[end - 1], "null")) {
+  if (isWord(tokens[end - 2], "not") && isWord(tokens[end - 1], "null")) {
     notNull = true;
     end -= 2;
   }
@@ -50,8 +55,8 @@ function columnOf(tokens, sql) {
   while (t < end && !(tokens[t].type === "word" && AFTER_TYPE.has(tokens[t].value.toLowerCase()))) t++;
   const type = textOf(sql, tokens.slice(1, t));
   let fill = null;
-  const at = tokens.findIndex((x, i) => i >= t && i < end && (is(x, "default") || is(x, "generated")));
-  if (at >= 0 && is(tokens[at], "default")) fill = textOf(sql, tokens.slice(at + 1, end));
+  const at = tokens.findIndex((x, i) => i >= t && i < end && (isWord(x, "default") || isWord(x, "generated")));
+  if (at >= 0 && isWord(tokens[at], "default")) fill = textOf(sql, tokens.slice(at + 1, end));
   else if (at >= 0) {
     // GENERATED ALWAYS AS (expression) STORED
     const open = tokens.findIndex((x, i) => i > at && isPunct(x, "("));
@@ -86,9 +91,12 @@ export function modelOf(sql) {
   const table = (name) => tables.get(name) ?? views.get(name) ?? null;
   for (const { tokens } of statementsOf(sql)) {
     const w = (i) => tokens[i]?.value.toLowerCase();
-    if (is(tokens[0], "create") && (is(tokens[1], "table") || (is(tokens[1], "unlogged") && is(tokens[2], "table")))) {
-      let i = is(tokens[1], "table") ? 2 : 3;
-      if (is(tokens[i], "if")) i += 3;
+    if (
+      isWord(tokens[0], "create") &&
+      (isWord(tokens[1], "table") || (isWord(tokens[1], "unlogged") && isWord(tokens[2], "table")))
+    ) {
+      let i = isWord(tokens[1], "table") ? 2 : 3;
+      if (isWord(tokens[i], "if")) i += 3;
       const { name, next } = qualifiedName(tokens, i);
       if (!name || !isPunct(tokens[next], "(")) continue;
       const end = closing(tokens, next);
@@ -98,41 +106,44 @@ export function modelOf(sql) {
           continue;
         t.columns.push(columnOf(item, sql));
       }
-      if (is(tokens[end + 1], "partition") && is(tokens[end + 2], "by")) {
+      if (isWord(tokens[end + 1], "partition") && isWord(tokens[end + 2], "by")) {
         t.partitionBy = textOf(sql, tokens.slice(end + 3)).toLowerCase();
       }
       tables.set(name, t);
-    } else if (is(tokens[0], "create") && (is(tokens[1], "view") || (is(tokens[1], "or") && is(tokens[3], "view")))) {
-      const { name } = qualifiedName(tokens, is(tokens[1], "view") ? 2 : 4);
+    } else if (
+      isWord(tokens[0], "create") &&
+      (isWord(tokens[1], "view") || (isWord(tokens[1], "or") && isWord(tokens[3], "view")))
+    ) {
+      const { name } = qualifiedName(tokens, isWord(tokens[1], "view") ? 2 : 4);
       if (name) views.set(name, { name, comment: null, view: true });
-    } else if (is(tokens[0], "alter") && is(tokens[1], "table")) {
+    } else if (isWord(tokens[0], "alter") && isWord(tokens[1], "table")) {
       let i = 2;
-      if (is(tokens[i], "only")) i++;
+      if (isWord(tokens[i], "only")) i++;
       const { name, next } = qualifiedName(tokens, i);
       const t = name && tables.get(name);
       if (!t) continue;
       i = next;
-      if (is(tokens[i], "add") && is(tokens[i + 1], "constraint")) {
+      if (isWord(tokens[i], "add") && isWord(tokens[i + 1], "constraint")) {
         const constraint = tokens[i + 2].value;
         const k = i + 3;
-        if (is(tokens[k], "primary")) t.primaryKey = namesIn(tokens, k + 2);
-        if (is(tokens[k], "foreign")) {
-          const refAt = tokens.findIndex((x, j) => j > k && is(x, "references"));
+        if (isWord(tokens[k], "primary")) t.primaryKey = namesIn(tokens, k + 2);
+        if (isWord(tokens[k], "foreign")) {
+          const refAt = tokens.findIndex((x, j) => j > k && isWord(x, "references"));
           // A table in another schema (auth.users) keeps its schema; public's go without.
-          const elsewhere = isPunct(tokens[refAt + 2], ".") && !is(tokens[refAt + 1], "public");
+          const elsewhere = isPunct(tokens[refAt + 2], ".") && !isWord(tokens[refAt + 1], "public");
           const ref = elsewhere
             ? { name: `${tokens[refAt + 1].value}.${tokens[refAt + 3].value}`, next: refAt + 4 }
             : qualifiedName(tokens, refAt + 1);
           const actions = [];
           for (let j = ref.next; j < tokens.length; j++) {
-            if (is(tokens[j], "on") && (is(tokens[j + 1], "delete") || is(tokens[j + 1], "update"))) {
+            if (isWord(tokens[j], "on") && (isWord(tokens[j + 1], "delete") || isWord(tokens[j + 1], "update"))) {
               let e = j + 2;
               const words = [];
               while (
                 e < tokens.length &&
                 tokens[e].type === "word" &&
-                !is(tokens[e], "on") &&
-                !is(tokens[e], "deferrable")
+                !isWord(tokens[e], "on") &&
+                !isWord(tokens[e], "deferrable")
               ) {
                 words.push(tokens[e].value.toLowerCase());
                 e++;
@@ -148,52 +159,53 @@ export function modelOf(sql) {
             actions,
           });
         }
-      } else if (is(tokens[i], "alter") && is(tokens[i + 1], "column")) {
+      } else if (isWord(tokens[i], "alter") && isWord(tokens[i + 1], "column")) {
         const column = t.columns.find((c) => c.name === tokens[i + 2].value);
         if (!column) continue;
-        if (is(tokens[i + 3], "set") && is(tokens[i + 4], "default")) column.fill = textOf(sql, tokens.slice(i + 5));
-        if (is(tokens[i + 3], "add") && is(tokens[i + 4], "generated")) {
+        if (isWord(tokens[i + 3], "set") && isWord(tokens[i + 4], "default"))
+          column.fill = textOf(sql, tokens.slice(i + 5));
+        if (isWord(tokens[i + 3], "add") && isWord(tokens[i + 4], "generated")) {
           column.fill = `identity (${w(i + 5) === "always" ? "always" : "by default"})`;
         }
-      } else if (is(tokens[i + 1], "row") && is(tokens[i + 2], "level")) {
-        if (is(tokens[i], "enable")) t.rls = true;
-        if (is(tokens[i], "force")) t.forced = true;
-      } else if (is(tokens[i], "attach") && is(tokens[i + 1], "partition")) {
+      } else if (isWord(tokens[i + 1], "row") && isWord(tokens[i + 2], "level")) {
+        if (isWord(tokens[i], "enable")) t.rls = true;
+        if (isWord(tokens[i], "force")) t.forced = true;
+      } else if (isWord(tokens[i], "attach") && isWord(tokens[i + 1], "partition")) {
         const child = qualifiedName(tokens, i + 2);
         t.partitions.push({ name: child.name, bound: textOf(sql, tokens.slice(child.next)).toLowerCase() });
       }
-    } else if (is(tokens[0], "create") && is(tokens[1], "policy")) {
+    } else if (isWord(tokens[0], "create") && isWord(tokens[1], "policy")) {
       const policy = tokens[2].value;
       const on = qualifiedName(tokens, 4);
       const t = on.name && tables.get(on.name);
       if (!t) continue;
       const p = { name: policy, restrictive: false, command: "all", roles: [], using: null, check: null };
       for (let i = on.next; i < tokens.length; i++) {
-        if (is(tokens[i], "as")) p.restrictive = is(tokens[++i], "restrictive");
-        else if (is(tokens[i], "for")) p.command = w(++i);
-        else if (is(tokens[i], "to")) {
-          while (tokens[i + 1] && !is(tokens[i + 1], "using") && !is(tokens[i + 1], "with")) {
+        if (isWord(tokens[i], "as")) p.restrictive = isWord(tokens[++i], "restrictive");
+        else if (isWord(tokens[i], "for")) p.command = w(++i);
+        else if (isWord(tokens[i], "to")) {
+          while (tokens[i + 1] && !isWord(tokens[i + 1], "using") && !isWord(tokens[i + 1], "with")) {
             i++;
             if (!isPunct(tokens[i], ",")) p.roles.push(tokens[i].value);
           }
-        } else if (is(tokens[i], "using") && isPunct(tokens[i + 1], "(")) {
+        } else if (isWord(tokens[i], "using") && isPunct(tokens[i + 1], "(")) {
           const e = closing(tokens, i + 1);
           p.using = textOf(sql, tokens.slice(i + 2, e));
           i = e;
-        } else if (is(tokens[i], "with") && is(tokens[i + 1], "check")) {
+        } else if (isWord(tokens[i], "with") && isWord(tokens[i + 1], "check")) {
           const e = closing(tokens, i + 2);
           p.check = textOf(sql, tokens.slice(i + 3, e));
           i = e;
         }
       }
       t.policies.push(p);
-    } else if (is(tokens[0], "comment") && is(tokens[1], "on")) {
+    } else if (isWord(tokens[0], "comment") && isWord(tokens[1], "on")) {
       const said = tokens.at(-1)?.type === "string" ? tokens.at(-1).value : null;
       if (said === null) continue;
-      if (is(tokens[2], "table") || is(tokens[2], "view")) {
+      if (isWord(tokens[2], "table") || isWord(tokens[2], "view")) {
         const t = table(qualifiedName(tokens, 3).name);
         if (t) t.comment = said;
-      } else if (is(tokens[2], "column") && isPunct(tokens[4], ".") && isPunct(tokens[6], ".")) {
+      } else if (isWord(tokens[2], "column") && isPunct(tokens[4], ".") && isPunct(tokens[6], ".")) {
         const column = tables.get(tokens[5].value)?.columns.find((c) => c.name === tokens[7].value);
         if (column) column.comment = said;
       }
