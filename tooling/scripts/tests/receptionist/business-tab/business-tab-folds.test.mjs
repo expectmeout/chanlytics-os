@@ -31,7 +31,7 @@ import {
   normalizeLink,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "../../_legacy-react.mjs";
-import { withStanding } from "../../_prompt-rules.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 
 // As the bridge publishes them (inbox-verbs.ts): what a new receptionist starts with, what the instructions box opens
 // with and holds, the product's wording for the three messages, and the names in a message nothing fills in.

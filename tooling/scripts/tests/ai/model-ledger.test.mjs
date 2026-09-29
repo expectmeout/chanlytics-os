@@ -13,7 +13,7 @@ import { MODEL_ROUTES, MODELS, BRAIN_OUTPUT_JSON_SCHEMA } from "@chanlytics/cont
 import { resetBreakers } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
-import { scripted, said, json, status } from "../_model-world.mjs";
+import { scripted, said, json, status } from "./_model-world.mjs";
 
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];

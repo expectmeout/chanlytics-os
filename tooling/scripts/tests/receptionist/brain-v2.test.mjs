@@ -25,7 +25,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { at } from "../_cron-doors-world.mjs";
-import { scripted, said, json } from "../_model-world.mjs";
+import { scripted, said, json } from "../ai/_model-world.mjs";
 
 process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];

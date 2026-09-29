@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
-import { withStanding } from "../../_prompt-rules.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 import {
   bookingLinkOptional,
   composeSystemPrompt,

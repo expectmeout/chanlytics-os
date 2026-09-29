@@ -22,7 +22,7 @@ import {
   hasProfile,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
-import { withStanding } from "../../_prompt-rules.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 
 const brain = {
   business_name: "Marisa's Beauty Salon",

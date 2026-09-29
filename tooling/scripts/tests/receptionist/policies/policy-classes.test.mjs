@@ -20,7 +20,7 @@ import {
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { readCode, ROOT } from "../../_source.mjs";
-import { withStanding } from "../../_prompt-rules.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 
 const { layerTwo } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 

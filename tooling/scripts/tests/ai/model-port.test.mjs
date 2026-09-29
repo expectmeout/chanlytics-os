@@ -8,7 +8,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { askModel, streamModel, formatRejected, resetBreakers } from "@chanlytics/channels";
 import { MODEL_ROUTES } from "@chanlytics/contracts";
-import { scripted, said, status, hang, thrown, streamed } from "../_model-world.mjs";
+import { scripted, said, status, hang, thrown, streamed } from "./_model-world.mjs";
 
 const KEY = "model-key-for-this-file";
 const noWait = { sleep: async () => {} };

@@ -97,3 +97,33 @@ export function scripted(...replies) {
   };
   return { fetch, calls };
 }
+
+/**
+ * A scripted API that answers by a function, for a test that decides the answer from the request (the writer's prompt
+ * and the reader's): `handler(body)` returns the message's own fields (content, stop_reason, usage) or throws an error
+ * with a `status` (an overloaded API is `Object.assign(new Error("overloaded"), { status: 529 })`). Returns
+ * { fetch, calls } as `scripted` does; the calls are the parsed bodies.
+ */
+export function answering(handler) {
+  const calls = [];
+  const fetch = async (url, init = {}) => {
+    const body = init.body ? JSON.parse(init.body) : {};
+    calls.push(body);
+    try {
+      const m = await handler(body, init);
+      return new Response(
+        JSON.stringify({ id: "msg_scripted", type: "message", role: "assistant", model: body.model, ...m }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    } catch (e) {
+      const code = e && typeof e.status === "number" ? e.status : null;
+      if (code === null) throw e;
+      const type = code === 529 ? "overloaded_error" : code === 429 ? "rate_limit_error" : "invalid_request_error";
+      return new Response(JSON.stringify({ type: "error", error: { type, message: e.message } }), {
+        status: code,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  };
+  return { fetch, calls };
+}
