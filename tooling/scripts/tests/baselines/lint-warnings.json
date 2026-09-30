@@ -146,9 +146,6 @@
     "jsx-a11y-x/interactive-supports-focus": 1,
     "jsx-a11y-x/no-noninteractive-element-interactions": 1
   },
-  "apps/dashboard/src/legacy/components/chart-core.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
   "apps/dashboard/src/legacy/components/data-bits.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 2,
     "jsx-a11y-x/interactive-supports-focus": 1,
@@ -319,12 +316,6 @@
   },
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx": {
     "jsx-a11y-x/no-noninteractive-tabindex": 1
-  },
-  "apps/dashboard/src/legacy/pages/reports-sections.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/pages/reports.jsx": {
-    "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/settings.jsx": {
     "jsx-a11y-x/no-autofocus": 1,
