@@ -437,7 +437,6 @@ const LeadsScope = (p) => {
                 <div className="cl-search-wrap">
                   <Icon name="search" size={13} />
                   <input ref={p.searchRef} placeholder="Search leads" aria-label="Search leads" value={p.q} onChange={(e) => p.onQ(e.target.value)} />
-                  <span className="kbd">/</span>
                 </div>
                 <div className="cl-controls-right">
                   {/* Values ⁄ Signals (D5): the number and the address in the row, for anyone who dials from a desk phone; kept per viewer. */}
@@ -451,7 +450,7 @@ const LeadsScope = (p) => {
                   <LeadsReachOutDoor search={search} />
                   {/* Ask's door on a desktop (spec F1): the three's still mark, never a second live canvas. */}
                   <button type="button" className="btn btn-primary btn-sm" onClick={p.onFind} data-testid="leads-find" {...(p.canFind ? {} : window.gate("find", "find leads"))}>
-                    <Icon name="three" size={12} /> Find leads <span className="kbd">F</span>
+                    <Icon name="three" size={12} /> Find leads
                   </button>
                 </div>
               </div>

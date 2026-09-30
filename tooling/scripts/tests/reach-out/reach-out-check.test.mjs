@@ -233,6 +233,8 @@ test("a listing's hours, as words; the backoff, 1, 2, 4, 8, then 15 minutes", ()
     [1, 2, 3, 4, 5, 9].map((n) => backoffMs(n) / MIN),
     [1, 2, 4, 8, 15, 15],
   );
+  // A count of tries that is not a number has no step to wait by: it is refused, never a wait of NaN.
+  assert.throws(() => backoffMs(Number.NaN), RangeError);
 });
 
 /* ------------------------------------------------------------------ the tick -- */

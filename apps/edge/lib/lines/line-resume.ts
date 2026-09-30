@@ -90,7 +90,7 @@ export async function claimLineForResume(
     voice_state: "provisioning",
     state_since: new Date(nowMs).toISOString(),
     last_error: null,
-    ...(by === "sweep" ? {} : { facts: { ...factsOf(row), automatic_resumes: 0 } as Json }),
+    ...(by === "sweep" ? {} : { facts: { ...factsOf(row), automatic_resumes: 0 } }),
   };
   if (row.voice_state === "failed") {
     const { data, error } = await db

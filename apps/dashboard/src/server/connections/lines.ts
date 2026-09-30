@@ -19,7 +19,7 @@ const LINE_COLUMNS =
 function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
   if (kind !== "forwarded" || !facts || typeof facts !== "object" || Array.isArray(facts)) return null;
   const f = facts as Record<string, unknown>;
-  const str = (k: string) => (typeof f[k] === "string" ? (f[k] as string) : null);
+  const str = (k: string) => (typeof f[k] === "string" ? f[k] : null);
   return {
     carrier: str("carrier") ?? "other",
     mode: str("mode") ?? "unanswered",

@@ -6,7 +6,7 @@
  * Nothing here decides anything: the rules are in core and in SQL.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressesSuppressed, erasureDigests, type Database, type Json } from "../packages/db.js";
+import { addressesSuppressed, erasureDigests, type Database } from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
@@ -99,13 +99,13 @@ export function leadDb(db: Db): LeadDb {
         p_gen: gen,
         p_from_offset: fromOffset,
         p_to_offset: toOffset,
-        p_page: page as unknown as Json,
+        p_page: page,
       }),
     checkCommit: (roundId, runId, results, usageUsd, last) =>
       json<{ ok: boolean }>("lead_check_commit", {
         p_round_id: roundId,
         p_run_id: runId,
-        p_results: results as unknown as Json,
+        p_results: results,
         p_usage_usd: usageUsd,
         p_last: last,
       }),
@@ -114,11 +114,11 @@ export function leadDb(db: Db): LeadDb {
       json<RejudgeResult>("lead_round_rejudge", {
         p_round_id: roundId,
         p_plan_version: planVersion,
-        p_places: places as unknown as Json,
-        p_judgment: (judgment ?? null) as unknown as Json,
+        p_places: places,
+        p_judgment: judgment ?? null,
       }),
     async runsEnsure(rows) {
-      if (!rows.length) return [];
+      if (!rows[0]) return [];
       // The id is derived from the round, the phase and the term (core runIdFor): a second inserter meets the first row and inserts nothing.
       const ins = await db.from("lead_runs").upsert(
         rows.map((r) => ({
@@ -277,7 +277,7 @@ export function leadDb(db: Db): LeadDb {
           `leads by ${col}`,
           await db.from("leads").select(`id, ${col}`).eq("tenant_id", tenantId).in(col, values).is("erased_at", null),
         );
-        for (const r of rows) if (r[col]) out.push({ key: r[col] as string, share: { kind, lead_id: r.id as string } });
+        for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
       };
       await lead("phone_e164", "phone", keys.phones);
       await lead("email", "email", keys.emails);
@@ -294,7 +294,7 @@ export function leadDb(db: Db): LeadDb {
             .is("erased_at", null),
         );
         for (const r of rows)
-          if (r[col]) out.push({ key: r[col] as string, share: { kind, contact_id: asContactId(r.id as string) } });
+          if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
       };
       await person("phone_e164", "phone", keys.phones);
       await person("email", "email", keys.emails);

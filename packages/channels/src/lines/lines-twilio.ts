@@ -107,8 +107,7 @@ export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
   return { status: a.status, body, outcome: a.outcome };
 };
 
-const str = (o: Record<string, unknown> | null, k: string): string | null =>
-  typeof o?.[k] === "string" ? (o[k] as string) : null;
+const str = (o: Record<string, unknown> | null, k: string): string | null => (typeof o?.[k] === "string" ? o[k] : null);
 
 function need(a: TwilioAnswer, what: string): Record<string, unknown> {
   if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, what);
@@ -394,7 +393,7 @@ async function sendSms(
     ok,
     sid: str(a.body, "sid"),
     status: a.status,
-    code: typeof a.body?.code === "number" ? (a.body.code as number) : null,
+    code: typeof a.body?.code === "number" ? a.body.code : null,
     ...(a.outcome ? { outcome: ok ? ("ok" as const) : a.outcome === "ok" ? ("unknown" as const) : a.outcome } : {}),
   };
 }

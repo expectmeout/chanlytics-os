@@ -30,6 +30,7 @@ import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { linePorts, releaseRoutingRows } from "../../../../apps/edge/lib/lines/lines.ts";
+import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
 const LINE_ID = "0f3c2a1e-1111-4222-8333-444455556666";
 const freshLine = (over = {}) => ({
@@ -585,10 +586,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "revoke execute on function public.get_line_credentials(uuid) from public, anon, authenticated;",
   ])
     assert.ok(mig.includes(pin), pin);
-  assert.ok(
-    readCode("packages/db/src/realtime.ts").includes('{ table: "lines", event: "*" }'),
-    "a callback repaints Setup",
-  );
+  assert.deepEqual(toldFor("lines"), EVERY_EVENT, "a callback repaints Setup");
   // The package hands the edge every value the saga's four modules export: its barrel names each one.
   const channels = await import("@chanlytics/channels");
   for (const m of ["lines", "lines-twilio", "lines-dry", "lines-saga"]) {

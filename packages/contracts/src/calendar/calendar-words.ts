@@ -118,7 +118,7 @@ export function feedNotes(
 export function hoursLines(hours: Record<string, Hours | undefined> | null | undefined): string[] {
   if (!hours) return [];
   const clean: Record<string, Hours> = {};
-  for (const d of DAYS) if (hours[d]) clean[d] = hours[d] as Hours;
+  for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
   return hoursRuns(clean).map(
     (r) =>
       `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`,

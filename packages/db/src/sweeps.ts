@@ -22,8 +22,9 @@ export interface DuePage<T> {
 
 /** What is left beyond a page whose every row carries the count of all that were due. An empty page left nothing. */
 function remainingOf(rows: Array<{ due_total: unknown }>): number {
-  if (rows.length === 0) return 0;
-  const total = rows[0].due_total;
+  const first = rows[0];
+  if (first === undefined) return 0;
+  const total = first.due_total;
   if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
   return Math.max(0, total - rows.length);
 }

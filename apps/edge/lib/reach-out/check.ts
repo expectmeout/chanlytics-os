@@ -352,7 +352,9 @@ function stored(o: WrittenOpening | null): Pick<ReachOutSendRow, "opening" | "an
 /** How long a send waits after its nth failed try (R4). */
 export function backoffMs(tries: number): number {
   const i = Math.min(Math.max(tries, 1), CHECK_BACKOFF_MINUTES.length) - 1;
-  return CHECK_BACKOFF_MINUTES[i] * 60_000;
+  const minutes = CHECK_BACKOFF_MINUTES[i];
+  if (minutes === undefined) throw new RangeError(`no backoff after ${tries} tries`);
+  return minutes * 60_000;
 }
 
 export interface CheckCounts {

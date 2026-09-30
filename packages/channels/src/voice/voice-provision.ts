@@ -92,7 +92,7 @@ export function withKey(url: string, secret: string): string {
 
 /** The URL without its query string — the only form a response or a log may carry. */
 export function stripKey(url: string | null | undefined): string | null {
-  return typeof url === "string" ? url.split("?")[0] : null;
+  return typeof url === "string" ? (url.split("?")[0] ?? url) : null;
 }
 
 /** POST /create-retell-llm: the shell, with the secret on its tools. */

@@ -447,6 +447,43 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-latest[data-over-next="1"] { bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 126px); }
 }
 
+/* ---- Ask's glass circle, on a phone (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3) ----
+   In the Glass look the ✦ is its own glass circle beside the tab bar's capsule, as tall as the bar (decision 12;
+   liquid.py tabbar): the disc of 25 September drawn in the control layer's glass, with its sheen, its rim and its
+   depth, and its usage dot riding the circle's rim. The bar and the room the page keeps for both are mobile.css's.
+   Each rule names the look inside :where() and comes after the rule it restyles; none matches in Classic. */
+@media (max-width: 720px) {
+  :where([data-look="glass"]) .phone-ask {
+    right: 14px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: 62px;
+    height: 62px;
+  }
+  :where([data-look="glass"]) .phone-ask .ask-disc {
+    inset: 0;
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    backdrop-filter: var(--surface-control-blur);
+  }
+  :where([data-look="glass"]) .phone-ask .ask-disc::before {
+    top: 6px;
+    right: 6px;
+  }
+  :where([data-look="glass"]) .phone-ask .ask-disc::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+
 /* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
 @media (prefers-reduced-motion: reduce) {
   /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */

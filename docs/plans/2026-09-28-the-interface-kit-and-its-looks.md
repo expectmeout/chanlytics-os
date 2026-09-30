@@ -283,8 +283,12 @@ a surface's own stylesheet   layout only
   and a chart kit already in shadcn's shape.
 - **The legacy pages cannot import a component** until 0015 moves them. A CSS class reaches them today.
 - **What shadcn gives is what §3 builds:** owned components, semantic variables and variants. Radix's accessible
-  primitives are the strongest argument for it; the kit keeps the house's own focus, escape and keyboard rules
-  (`RecordSheet`'s focus return, `MoreMenu`'s escape, `trapTab`), which are already tested.
+  primitives are the strongest argument for it. This bullet first answered that the kit keeps the house's own focus,
+  escape and keyboard rules (`RecordSheet`'s focus return, `MoreMenu`'s escape, `trapTab`), which are already tested.
+  On 29 September Ruben took the other road for behaviour alone (decision 15): the kit's interactive components are
+  built on Base UI (`@base-ui/react`), a library of unstyled accessible parts, and each hand-written behaviour is
+  deleted as its Base UI version lands. The rest of this answer stands: Base UI draws no CSS, so its parts wear the
+  kit's classes, and no page's class changes.
 
 ---
 
@@ -292,10 +296,12 @@ a surface's own stylesheet   layout only
 
 ### 3.1 Tokens in three tiers, and two settings
 
-- **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale
-  (`--blur-0` is `blur(0)`, never `none`: the build drops `backdrop-filter: none` written beside its prefixed twin,
-  #929) and a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought
-  with the face, its first reader.
+- **Tier 1, scales.** Unchanged in meaning: the palette, type, space, radius, shadow and motion. New: a blur scale and
+  a saturation step for glass; and `--radius-circle` (50%, a circle whatever the box), which step 2.2 brought with the
+  face, its first reader. A blur role's Classic value is `none`, read through `var()` so the build cannot drop it: the
+  build drops `backdrop-filter: none` written beside its prefixed twin (#929). `blur(0)` is not `none`: any value but
+  `none` makes its element a containing block for its fixed children and a stacking context (Phase 6's review, 29
+  September, in the harness's Chromium).
 - **Tier 2, roles.** New: what a thing is for, set by a look.
   - Surfaces: `--surface-page` (the backdrop), `--surface-pane` (a content panel: a list, a peek, a composer),
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
@@ -320,7 +326,8 @@ a surface's own stylesheet   layout only
   root that carries both. A third look later is one more block.
 - **Material rules.** The glass rim is a masked gradient on a pseudo-element, never an extra element in the markup.
   `@supports not (backdrop-filter: blur(1px))` and `prefers-reduced-transparency: reduce` fall back to opaque fills.
-  Reduced motion keeps its rule.
+  Reduced motion keeps its rule. Safari matches no `prefers-reduced-transparency`, so an iPhone with Reduce
+  Transparency on keeps the glass: a platform limit, which the real-phone check before step 5.5 looks at (§6).
 - **What does not change.** The five non-CSS readers of the theme (§1.3) keep reading `data-theme`. The mascot reads
   tokens, so it is checked against glass surfaces in Phase 5.
 
@@ -383,6 +390,11 @@ The rollout is two constants: the flag turns the menu entry on (step 5.5), and `
 - **The React side.** One module per component: typed props, `variant`, `size` and `tone` as unions, `className`
   accepted for layout only, refs forwarded, and a door is a link (the `routeDoor` rule: a thing with a page of its own
   is an `<a>`). A component renders the kit's classes, so a legacy page and a moved page draw the same markup.
+- **Behaviour.** A component with behaviour of its own (the menu and the popover, the sheet and the dialog, the select
+  and the combobox, the tooltip, the toast, the switch, the tabs and the segmented control, the field) is built on
+  Base UI's unstyled part (decision 15, step 2.5). Base UI holds focus, Escape, the keyboard, the page behind and what
+  a screen reader is told; the kit's classes draw it. One exact version is pinned, and each component imports its own
+  part (`@base-ui/react/dialog`), never the package's index.
 - **How the legacy shell reaches it.** Through the classes, today. A React component reaches a legacy page only when
   0015 moves it with its first surface; then `legacy-bridge/seed-globals.ts` publishes it under its old name, and the
   site moves from the JSX file to the bridge, so the publishers count does not rise (0015, "What is shared moves
@@ -571,11 +583,25 @@ when its first surface moves (Phase 3), as a move, so it is never written twice.
 its props' type, named in the kit's index, and its type test; and
 `tooling/scripts/tests/styles/kit-components.test.mjs`, which holds every entry of their gallery families to what they
 draw, element for element: the tag, the classes and the attributes a stylesheet or a screen reader reads. So an entry
-or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet waits
-on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`): its behaviour
-(focus held inside, Escape, the page behind still) is what that decision settles, so its component is written with
-it; until then `kit.css` draws `.sheet`, and the gallery holds it. _Proof:_ the tests. _Done when:_ a moved surface can
-import every primitive, the Sheet's once that decision is taken.
+or a component changed alone in any of those is red, and the gallery and the components cannot part. The Sheet
+waited on Ruben's decision whether the kit builds its interactive components on Base UI (`@base-ui/react`), since its
+behaviour (focus held inside, Escape, the page behind still) is what that decision settles. He took it on 29
+September (decision 15), so the Sheet is 2.5's, with every component that has behaviour of its own. _Proof:_ the
+tests. _Done when:_ a moved surface can import every primitive that has no behaviour of its own.
+
+**2.5 The interactive components, on Base UI.** Decision 15, as one pull request of its own after Phase 2's: the menu
+and the popover, the sheet and the dialog (a side pane on a desk, full screen on a phone), the select and the
+combobox, the tooltip, the toast, the switch, the tabs and the segmented control, and the field. Each is Base UI's
+part wearing the kit's classes, typed as 2.4's are, named in the kit's index, with its type test, and drawn in the
+gallery in its states. Base UI's exact version is pinned in the dashboard's `package.json`, and each component imports
+its own part. The kit first takes a folder per family, as Phase 3 says it will, since these components would take it
+past the 20 modules a directory may hold. No page draws one yet: each replaces house JSX (`RecordSheet`,
+`PhoneSheet`, `MoreMenu`, `RecordCombobox`, `DsSelect`, `CmPicker`, `usePPToast`, `RecordTip`, `SetToggle`,
+`SurfaceTabs`) at its surface's Phase 4 step, which deletes the hand-written behaviour in the same change. _Proof:_
+the tests, the gallery spec, and each component's behaviour driven in a browser: Escape closes a sheet, a menu or a
+popover and returns focus to what opened it, Tab stays inside a modal sheet, the page behind it does not scroll, a
+menu's arrows move and its typeahead finds, a switch and a tab answer Space and the arrows. _Done when:_ a moved
+surface can import every primitive of §3.4.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
@@ -600,6 +626,11 @@ and a directory holds at most 20 (the tree-shape measure, `docs/debt.md`).
 | 12        | Ask                                        | the Ask face                                                                                                       |
 | 13        | The frame, then the tree                   | `Icon`, the tooltip, `SurfaceTabs`, the gestures, role gating; the sidebar and top bar stay the frame's            |
 
+Decision 15 changes no move. A component with behaviour of its own (`MoreMenu`, `usePPToast`, `PhoneSheet`, the deal
+and step sheets, `CmPicker`, `SetToggle`, the tooltip, `SurfaceTabs`) moves as written and draws what it drew. Each
+surface's Phase 4 step swaps it for 2.5's Base UI component, and the house's is deleted with the last page that draws
+it.
+
 ### Phase 4 · Every surface on the kit (nothing a member can see, but for the listed harmonies)
 
 One pull request per surface, in 0015's order, after its move (decision 10). In it:
@@ -611,8 +642,13 @@ One pull request per surface, in 0015's order, after its move (decision 10). In 
 - Classic draws what it drew. Where a page's own primitive differed from the kit's (a 26px chip beside the kit's 20px,
   a 9.5px uppercase tag), the page takes the kit's and the pull request shows each difference, before and after
   (decision 11).
+- a house component with behaviour of its own (a sheet, a menu, a picker, a tooltip, a toast, a switch, tabs) is
+  swapped for the kit's Base UI one. The swap is a listed difference, not a byte-equal move: Base UI writes its own
+  attributes and focus handling, so the pull request lists what the markup and the keyboard do differently, and it
+  deletes the surface's hand-written behaviour in the same change. The first Base UI component a surface draws raises
+  the workspace route's JS budget in that change, with the reason (decision 15).
 
-_Proof:_ style equality, with the harmonies listed. _Done when:_ page stylesheets hold layout only, and the two style
+_Proof:_ style equality, with the harmonies and the Base UI swaps listed. _Done when:_ page stylesheets hold layout only, and the two style
 measures are empty outside the kit, or each entry left is argued in the register.
 
 ### Phase 5 · The look (what a member sees: the buttons)
@@ -645,11 +681,17 @@ _Done when:_ every pixel comes from the tokens and the kit, in the look members 
 ### Phase 6 · Everyone builds with the kit (the last task)
 
 The holds of step 1.1 have refused new one-offs since the first week. This phase writes the rule down for people and
-agents, once the kit is whole, and makes it absolute.
+agents, and makes each hold absolute once its count reaches zero. 6.2 to 6.5 came first, on 29 September after Phase 2
+(#1331), and write the rules as the build then held them; 6.1 follows each measure's last entry, in Phase 4.
 
 **6.1 The measures that reached zero become rules.** Each moves from a baseline to a plain test in `tests/styles/`
 that refuses any entry, with no raise, as `layout-measure.test.mjs` refuses a literal width; its register row
-retires.
+retires. None had reached zero on 29 September, when 6.2 to 6.5 were written after Phase 2 (#1331), ahead of Phases
+3 and 4: the register counted 1,093 literal style values in 22 stylesheets, 2,155 selectors naming 864 primitive
+classes outside the kit (a class once per stylesheet), and 286 style props in 49 files (`docs/debt.md`, "The
+numbers"). So this step added nothing then. 6.2 to 6.5 write the rules as the build held them that day, as measures
+that may only fall and the lint on raw elements of step 1.7, and each measure becomes its rule in the change that
+banks its last entry.
 
 **6.2 `CLAUDE.md`.**
 
@@ -700,6 +742,7 @@ alternatives.
 | 2.2  | The missing primitives (four)         | no               | gallery, style equality         | 2.3                                 |
 | 2.3  | The gallery, before 2.2               | no               | e2e spec                        | 1.7                                 |
 | 2.4  | React components, new primitives      | no               | tests                           | 2.2                                 |
+| 2.5  | Interactive components, on Base UI    | no               | tests, gallery, keyboard        | 2.4; decision 15                    |
 | 3.x  | 0015's thirteen steps                 | no               | equal by value                  | 0015's own holds                    |
 | 4.x  | Each surface on the kit (twelve)      | harmonies only   | style equality, listed diffs    | that surface's move                 |
 | 5.1  | Glass tokens                          | no (not offered) | gallery shots                   | 2.3                                 |
@@ -709,14 +752,15 @@ alternatives.
 | 5.5  | Offered in the account menu           | yes, by choice   | a walk on production            | 5.3, 5.4                            |
 | 5.6  | Glass by default                      | yes              | a walk on production            | 5.5 and Ruben's yes                 |
 | 5.7  | Classic retired                       | no               | style equality in Glass         | a release cycle after 5.6           |
-| 6.1  | Measures at zero become rules         | no               | the rule tests                  | Phase 4                             |
-| 6.2  | `CLAUDE.md`                           | no               | `docs-paths.test.mjs`           | 6.1                                 |
+| 6.1  | Measures at zero become rules, last   | no               | the rule tests                  | each measure's last entry (Phase 4) |
+| 6.2  | `CLAUDE.md`                           | no               | `docs-paths.test.mjs`           | Phase 2 (#1331)                     |
 | 6.3  | The shell's `CLAUDE.md`               | no               | none                            | 6.2                                 |
 | 6.4  | Architecture, glossary, runbook       | no               | `docs-paths.test.mjs`           | 6.2                                 |
 | 6.5  | The agents' skill                     | no               | a fresh session asked to add a button | 6.2                           |
 
-About 42 pull requests besides 0015's own: 7 in Phase 1, 1 in Phase 2 (its steps together, on Ruben's instruction of
-28 September, where they were planned as 7 with 2.2 as four), 12 in Phase 4, about 17 in Phase 5, 5 in Phase 6.
+About 43 pull requests were planned besides 0015's own: 7 in Phase 1, 8 in Phase 2 (2.2 as four), 12 in Phase 4,
+about 17 in Phase 5, 5 in Phase 6. Since Ruben's instruction of 28 September they ship in big batches, one push each:
+2.1 to 2.4 as one (#1331), Phase 6 with steps 5.1 to 5.3 as one, and 2.5 as one.
 Phases 1 and 2 do not wait on any surface. The Glass tokens, the kit in Glass and the frame can come before the
 surfaces are done, since they are not offered to members until step 5.5.
 
@@ -732,10 +776,13 @@ surfaces are done, since they are not offered to members until step 5.5.
 - **The look's boot:** `theme-boot.test.mjs` extended; the chrome pins updated in the same change; the e2e sidebar spec.
 - **Moves:** 0015's equal-by-value proof, unchanged.
 - **The bundle budget:** the kit's first steps may raise the CSS by a little, as a Rises row; each Phase 4 step
-  deletes page CSS, so the budget falls from there.
+  deletes page CSS, so the budget falls from there. The JS rises with Base UI alone: the change in which a surface
+  first draws one of its components raises the JS budget, with the reason, component by component (decision 15).
 - **Accessibility:** the one-badge spec's contrast rules (tone words in the `-ink` tokens, 4.5:1) checked on glass
   fills in the gallery; #1230's lint.
-- **The phone:** the blur's cost measured on the phone app on a mid-range phone before step 5.5.
+- **The phone:** the blur's cost measured on the phone app on a mid-range phone before step 5.5, the drawer's blur
+  among it: on the review's software renderers (29 September) the drawer's blur stopped about 60px short of its edge,
+  and Windows' WebKit drew none. The same check sees what an iPhone with Reduce Transparency draws (§3.1).
 - **The full check line** on every step: build, typecheck, lint, tests, formatting, no dist drift.
 
 ---
@@ -746,12 +793,17 @@ surfaces are done, since they are not offered to members until step 5.5.
   uses it (`git diff 81c5a7a42..origin/main` over the files it touches), and a finding already fixed is said to be.
 - **Pages are held by other programs.** Reach out, Ask Rewired and the file splitter hold files this program would
   touch. 0015's rule applies: a surface waits until no open pull request holds it.
-- **Glass costs frames on a phone.** Backdrop blur on many layers is expensive. Blur only the control layer and the
-  panes, never rows or cards inside a pane (the canvases' "never glass on glass"); measure on the phone app; fall back
-  to opaque fills where blur is missing or transparency is reduced.
+- **Glass costs frames on a phone.** Backdrop blur on many layers is expensive. Blur only the control layer, and only
+  where the page moves behind it: on a phone the tab bar, Ask's circle and the drawer; on a desk the top bar's capsules
+  and the strip of views besides. Never rows or cards inside a pane (the canvases' "never glass on glass"), not the
+  panes, and not a sheet's foot, which stands on the sheet's opaque ground: over the page's still light a pane's blur
+  changed what was drawn by under one level in 255. Settings on a phone drew eleven blurred layers, six of them on
+  screen at rest, and draws two, the tab bar and Ask's circle (the review of steps 5.1 to 5.3, 29 September). Measure
+  on the phone app; fall back to opaque fills where blur is missing or transparency is reduced.
 - **Two looks double the visual review** until Classic retires (decision 6). The gallery keeps that review to one page.
-- **The build's CSS quirks.** `backdrop-filter: none` beside its prefixed twin vanishes in the build (#929): the kit
-  writes `blur(0)`. Relative colours already work (`oklch(from …)`).
+- **The build's CSS quirks.** `backdrop-filter: none` beside its prefixed twin vanishes in the build (#929), and
+  `blur(0)` is not `none` (§3.1): a blur role's Classic value is `none`, read through `var()`. Relative colours already
+  work (`oklch(from …)`).
 - **Contrast on translucent surfaces.** A pane's fill depends on what is behind it; small text on glass is checked in
   both modes, and the `-ink` tokens stay the rule for tone words.
 - **The mascot and the map read the theme and the tokens.** Both are checked against Glass in step 5.3.
@@ -784,6 +836,13 @@ the road not taken beside it.
 14. **The quiet link button:** a primitive of the kit, `.link-btn` and its danger form, the kit's name for the house's
     quiet link button (People's `.cl-bucket-link`), taken on 28 September with the panel (step 2.2). Not
     `.btn-link`, which would read as a modifier of the button, whose height, padding, border and ground it has none of.
+15. **The kit's behaviour:** Base UI (`@base-ui/react`) for every component with behaviour of its own (step 2.5),
+    taken by Ruben on 29 September with four conditions. Each hand-written behaviour is deleted as its Base UI version
+    lands, never kept beside it on a page. One exact version is pinned, and each component imports its own part. The
+    workspace route's JS budget is raised in the same change as each component that reaches it, with the reason.
+    Phase 4's swaps of them are listed differences, not byte-equal moves. The CSS plan does not change, since Base UI
+    draws nothing, and a component reaches a surface only after 0015 moves it, so Phase 3 does not change either. Not
+    the house's own focus, escape and keyboard code, kept and extended (§2.3's first answer).
 
 ---
 
@@ -892,6 +951,35 @@ button is a capsule filled with the accent, its words at weight 600, with a soft
 specular top edge. The rules the canvases hold: glass is the control layer; panes are clear; never glass on glass
 (inside a pane everything is an inset); coral only for the primary act, the live call, the Now line and the selected
 tab; amber for the one warning; counts are neutral text; green for what is open, checked or won.
+
+**Changed from the canvases for contrast** (the review of steps 5.1 to 5.3, 29 September). The canvases drew their
+inks on their own boards; on the app's pages, and over the look's strongest light, the blue pool, some read under the
+house's rule: 4.5:1 for words, 3:1 for large ones. Each value keeps its hue, and `tokens.css` says why beside it. The
+ratios are the worst met, before and after: every word of nine pages, at a desk and on a phone, read on the pixels
+drawn under it, and every word of the gallery (its check 7), each entry shot at the top of the window. The faint ink,
+and a tone a page still writes as words, are held to Classic's own ratio on Classic's ground rather than to 4.5:1.
+
+| Role | Canvas (or Classic) | Glass | Before → after, on the worst ground met |
+| --- | --- | --- | --- |
+| Ink 3, `--ink-dim`, light | `rgba(50,52,64,0.64)` | `oklch(0.328 0.021 278 / 0.78)` | 3.44 → 4.80, an empty state over the pool; the pages' 3.63 → 5.16 |
+| Ink 3, `--ink-dim`, dark | `rgba(236,236,245,0.52)` | `oklch(0.946 0.012 286 / 0.66)` | 3.97 → 5.29, the sidebar's words |
+| Ink 4, `--ink-faint`, light | `rgba(50,52,64,0.22)` | `oklch(0.328 0.021 278 / 0.45)` | 1.48 → 2.35; no word under its Classic twin (the Calendar's hours 2.38, Classic 2.37) |
+| Ink 4, `--ink-faint`, dark | `rgba(236,236,245,0.22)` | `oklch(0.946 0.012 286 / 0.38)` | 1.82 → 2.77; no word under its Classic twin (the sidebar's hint 2.77, Classic 2.70) |
+| Ink 3 and 4 on the picked lozenge, dark (new: `--selected-ink-dim`, `--selected-ink-faint`) | the page's | `oklch(0.946 0.012 286 / 0.8)`, `/ 0.5` | a count on it 3.06 → 4.86; the hint of the place you are on 1.65 → 2.86 (Classic 2.43) |
+| Accent, light | `#E4523C` | `oklch(0.6 0.185 31)`, `#D84733` | white on it 3.77 → 4.31 (Classic 3.88); a page's coral words 2.92 → 3.31 (Classic 3.27) |
+| Primary (the button), light | `#E0503A` | `oklch(0.58 0.184 31)`, `#D1412D` | white on it 3.90 → 4.66 |
+| Accent's words, light | `#B93A26` | `oklch(0.45 0.15 32)`, `#972815` | 3.24 → 4.71, over the pool |
+| Accent's words, dark | `#FF8A7C` | `oklch(0.82 0.11 28)`, `#FFA89C` | 3.81 → 4.70, the tab bar's picked label |
+| Amber, light | `#E09A24` | `oklch(0.72 0.147 74)`, `#DA9419` | a page's amber words 1.92 → 2.04 (Classic 2.03) |
+| Amber's words, light | `#8A5A0C` | `oklch(0.45 0.09 72)`, `#744C0E` | 3.73 → 4.71, a pill over the pool |
+| Red's words, light (Classic's) | `#B7191C` | `oklch(0.45 0.17 27)`, `#9E1618` | 2.99 → 4.85, over the pool |
+| Red's words, dark (Classic's) | `#E6443D` | `oklch(0.74 0.15 27)`, `#FB8276` | 2.72 → 4.85, a quiet destructive act on the glass; Today's failed line 4.16 → 6.77 |
+| Blue's words, light (Classic's) | `#006394` | `oklch(0.43 0.1 235)`, `#00577E` | 3.88 → 4.83 |
+
+Words the house's rules still write in a raw tone (a quiet destructive act, a menu's destructive item, what went wrong,
+a toast's link and its act) read the tone's ink under Glass (`kit.css`), as the one-badge spec says every tone's words
+do: the red and blue rows' before is those words in the raw tone. The dark look sets blue's words again, at Classic's
+value, since the light look now sets its own. The pane's blur (14px and 1.25, above) is not drawn (§7).
 
 ---
 

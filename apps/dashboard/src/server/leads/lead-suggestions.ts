@@ -52,7 +52,7 @@ async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: st
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data ?? null) as unknown as SuggestionRow | null;
+  return data ?? null;
 }
 
 /** Each suggestion gains how reachable that kind of business is, from what past searches measured. */
@@ -107,7 +107,7 @@ export async function suggestionsFor(
         request: {
           max_tokens: 400,
           system: SUGGEST_SYSTEM,
-          schema: LEAD_SUGGEST_JSON_SCHEMA as unknown as Record<string, unknown>,
+          schema: LEAD_SUGGEST_JSON_SCHEMA,
           messages: [{ role: "user", content: `The business: ${line}` }],
         },
       },
@@ -115,7 +115,7 @@ export async function suggestionsFor(
       "suggestions",
     );
     const businessLine = byOwner && kept ? kept.business_line : answer.line;
-    await keep(tenantId, { business_line: businessLine, by_owner: byOwner, items: answer.items as unknown as Json });
+    await keep(tenantId, { business_line: businessLine, by_owner: byOwner, items: answer.items });
     return {
       business_line: businessLine,
       by_owner: byOwner,
@@ -144,7 +144,7 @@ export async function setBusinessLine(
   tenantId: string,
   line: string,
 ): Promise<{ business_line: string }> {
-  await keep(tenantId, { business_line: line, by_owner: true, items: [] as unknown as Json });
+  await keep(tenantId, { business_line: line, by_owner: true, items: [] });
   return { business_line: line };
 }
 

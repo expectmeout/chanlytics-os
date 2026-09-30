@@ -293,6 +293,8 @@ test("the parsers read accounts, locations with their place on Maps, and reviews
   assert.deepEqual([page.average_rating, page.total_count, page.next_page_token], [4.8, 213, "p2"]);
   assert.equal(starRatingNumber("FIVE"), 5);
   assert.equal(starRatingNumber("STAR_RATING_UNSPECIFIED"), null);
+  // A name every object inherits is not a rating: the table's own keys are, and nothing else.
+  assert.deepEqual([starRatingNumber("toString"), starRatingNumber("constructor")], [null, null]);
 });
 
 test("the review pages are followed up to the cap; a refusal is named; a reply's answer is read", async () => {

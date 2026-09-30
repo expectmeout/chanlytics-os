@@ -183,7 +183,7 @@ async function loadLeadSearch(ctx: Pick<RouteContext, "supabase">, id: string): 
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
-  return data as unknown as LeadSearchScopeRow;
+  return data;
 }
 
 export const leadSearchScope = row((ctx: RouteContext, params: Params) => loadLeadSearch(ctx, String(params.id ?? "")));

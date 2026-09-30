@@ -298,7 +298,7 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
  */
 export function voiceShellDrift(live: LiveVoiceLlm, fnUrl: string): { converged: boolean; drift: string[] } {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
-  const url = typeof booking?.url === "string" ? (booking.url as string) : fnUrl;
+  const url = typeof booking?.url === "string" ? booking.url : fnUrl;
   const headers = (booking?.headers as Record<string, string> | undefined) ?? null;
   const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers));
   const drift = [...plan.drift];

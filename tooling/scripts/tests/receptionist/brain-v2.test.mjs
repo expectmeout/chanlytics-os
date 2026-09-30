@@ -239,7 +239,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
   assert.ok(wa.includes("brainMeta = r.meta;"));
   assert.ok(
     readCode("apps/edge/lib/receptionist/draft-queue.ts").includes(
-      "meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) } as Json,",
+      "meta: { source: a.source, delay_ms: a.delayMs, ...(a.brainMeta ?? {}), ...(a.extra ?? {}) },",
     ),
     "the draft row remembers",
   );

@@ -14,10 +14,23 @@ name: Nightly e2e
 # holds for pull requests; whether this ONE scheduled job may hold them is
 # the owner's decision, made by adding the secrets in the repository
 # settings, and until then the job is honest about what it covered.
+#
+# A dispatch by hand may ask for the credential-free half alone, and point it
+# at another address (one that needs no bypass): no secret is read, nothing is written, and
+# no issue is filed or closed for a run that covered only part of the suite.
 on:
   schedule:
     - cron: "0 9 * * *"
   workflow_dispatch:
+    inputs:
+      credential_free_only:
+        description: "Only the specs that need no credentials: no secret read, nothing written, no issue filed"
+        type: boolean
+        default: false
+      base_url:
+        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. The signed-in specs always run against production."
+        type: string
+        default: ""
 
 # One run at a time. workspace-create.spec.ts really creates and deletes a
 # tenant, `retries: 2` means up to three of those per run, and create_workspace
@@ -46,9 +59,11 @@ jobs:
     env:
       E2E_USER_EMAIL: e2e-owner@example.com
       E2E_MEMBER_EMAIL: e2e-member@example.com
-    # issues: write is the whole point of the step at the end -- a red run at
-    # 09:00 that nobody is told about is the failure this suite exists to
-    # prevent, one level up.
+      # "true" for a dispatch that asked for the credential-free half alone; "false" on the schedule.
+      CREDENTIAL_FREE: ${{ inputs.credential_free_only && 'true' || 'false' }}
+    # issues: write is the whole point of the steps that say what happened -- a
+    # red run at 09:00 that nobody is told about is the failure this suite
+    # exists to prevent, one level up.
     permissions:
       contents: read
       issues: write
@@ -64,33 +79,54 @@ jobs:
       # plan, D4): a median cache hit under 50% or a median first text over 6 s
       # is a silent invalidator or a slow model, caught the day it lands. Read
       # only; the service key because a day's turns are every workspace's. Its
-      # verdict is the output's last line, and a crossed line is its own issue,
-      # never the suite's red.
+      # verdict is the output's last line. It exits 1 when Ask crossed a line and
+      # 2 when the day could not be read at all (a variable missing, a read
+      # refused): two different issues, never the suite's red (the scorecard's
+      # I2:2).
       - name: Ask's cache and first words hold their lines
         id: ask_day
-        if: ${{ !cancelled() }}
-        continue-on-error: true
+        if: ${{ !cancelled() && env.CREDENTIAL_FREE != 'true' }}
         shell: bash
-        run: node tooling/scripts/ops/ask-day.mjs --check | tee ask-day.txt
+        run: |
+          set +e
+          node tooling/scripts/ops/ask-day.mjs --check > ask-day.txt 2>&1
+          code=$?
+          cat ask-day.txt
+          tail -n 1 ask-day.txt > ask-day-verdict.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
-      - name: Say so when Ask crossed a line
-        if: ${{ steps.ask_day.outcome == 'failure' }}
+      - name: Say what Ask's day came to
+        if: ${{ steps.ask_day.outcome == 'success' }}
+        shell: bash
         run: |
-          gh issue create \
-            --title "Ask's cache or first words crossed a line $(date -u +%F)" \
-            --body "$(tail -n 1 ask-day.txt) Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --repo "$GITHUB_REPOSITORY"
+          crossed=(--title "Ask's day crossed a line" --match "Ask's day crossed a line" --match "Ask's cache or first words crossed a line")
+          unread=(--title "Ask's day could not be checked" --match "Ask's day could not be checked")
+          case "$CODE" in
+            0)
+              node tooling/scripts/ops/rolling-issue.mjs --state green "${crossed[@]}"
+              node tooling/scripts/ops/rolling-issue.mjs --state green "${unread[@]}"
+              ;;
+            1)
+              node tooling/scripts/ops/rolling-issue.mjs --state red "${crossed[@]}" --body-file ask-day-verdict.txt
+              node tooling/scripts/ops/rolling-issue.mjs --state green "${unread[@]}"
+              ;;
+            *)
+              node tooling/scripts/ops/rolling-issue.mjs --state red "${unread[@]}" --body-file ask-day-verdict.txt
+              ;;
+          esac
         env:
+          CODE: ${{ steps.ask_day.outputs.code }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm e2e:install
-      # The 62 integration suites talk to real Postgres. ci.yml holds no live
-      # secrets by policy, so until now they ran NOWHERE — 62 written tests
+      # The integration suites talk to real Postgres. ci.yml holds no live
+      # secrets by policy, so until now they ran NOWHERE — written tests
       # covering erasure, the message lifecycle, opt-out, the deadman and the
       # metrics, executed by nobody. SUPABASE_URL is what they read; passing
       # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
       - name: Integration suites against real Postgres
+        if: ${{ env.CREDENTIAL_FREE != 'true' }}
         run: pnpm test
         env:
           REQUIRE_SERVICE_CREDENTIALS: "1"
@@ -104,13 +140,14 @@ jobs:
       # nothing in it can reach a customer or a provider, and the one address
       # its alerts go to is Resend's test inbox, which delivers nowhere.
       - name: The run's own workspace, in its known state
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.CREDENTIAL_FREE != 'true' }}
         run: node tooling/scripts/ops/e2e-workspace.mjs --apply
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
-      - run: pnpm e2e
-        if: ${{ !cancelled() }}
+      - name: The signed-in specs and the credential-free ones
+        if: ${{ !cancelled() && env.CREDENTIAL_FREE != 'true' }}
+        run: pnpm e2e
         env:
           CI: "true"
           # Says this run is meant to be signed in, so skipping the signed-in
@@ -132,6 +169,15 @@ jobs:
           E2E_SIGNUP_EMAIL: ${{ secrets.E2E_SIGNUP_EMAIL }}
           # E2E_PAID_MODEL is not set: the five Ask tests that run a real model
           # turn skip and say so. Set it to "1" on a run that should spend.
+      # The credential-free half alone, by hand: no key of any kind in the
+      # environment, so every signed-in spec skips and says why, and nothing
+      # the run touches can write.
+      - name: The credential-free specs alone
+        if: ${{ !cancelled() && env.CREDENTIAL_FREE == 'true' }}
+        run: pnpm e2e
+        env:
+          CI: "true"
+          E2E_BASE_URL: ${{ inputs.base_url || 'https://app.chanlytics.com' }}
       # The report can hold a real workspace's data, so it is kept only when
       # something failed and only for a week.
       - uses: actions/upload-artifact@v7
@@ -141,14 +187,29 @@ jobs:
           path: playwright-report
           retention-days: 7
       # Somebody has to be told. The job runs at 09:00 with nobody watching,
-      # and its whole purpose is to notice things.
+      # and its whole purpose is to notice things. One issue, not one a night:
+      # a red run comments on it (the old per-night issues fold into it the
+      # first time), a green run closes it, and the second red run in a row
+      # pages the platform through the edge's pager door, once PAGER_URL and
+      # PAGER_KEY are set (docs/runbook.md, What CI proves). A run the cap
+      # cancelled is a run nobody heard from: it is red too.
       - name: Say so, where a person will see it
-        # A run the cap cancelled is a run nobody heard from: it is said the same way.
-        if: failure() || cancelled()
+        if: ${{ always() && env.CREDENTIAL_FREE != 'true' }}
+        shell: bash
         run: |
-          gh issue create \
-            --title "Nightly e2e ${{ job.status == 'cancelled' && 'hit its cap' || 'failed' }} $(date -u +%F)" \
-            --body "The nightly suite ${{ job.status == 'cancelled' && 'was cancelled (the job cap, or by hand) before it finished' || 'failed' }}. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --repo "$GITHUB_REPOSITORY"
+          nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
+          if [ "$STATUS" = "success" ]; then
+            node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
+          else
+            if [ "$STATUS" = "cancelled" ]; then
+              echo "The nightly suite was cancelled (the job cap, or by hand) before it finished." > nightly.md
+            else
+              echo "The nightly suite failed: the steps above in the run say which." > nightly.md
+            fi
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red
+          fi
         env:
+          STATUS: ${{ job.status }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGER_URL: ${{ secrets.PAGER_URL }}
+          PAGER_KEY: ${{ secrets.PAGER_KEY }}

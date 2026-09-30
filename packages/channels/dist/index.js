@@ -3398,10 +3398,11 @@ function parseTranscriptText(text) {
     if (!line) continue;
     const m = /^(Agent|User):\s*(.*)$/.exec(line);
     if (!m) {
-      if (turns.length) turns[turns.length - 1].content += ` ${line}`;
+      const last = turns.at(-1);
+      if (last) last.content += ` ${line}`;
       continue;
     }
-    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] });
+    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] ?? "" });
   }
   return turns.length ? turns : null;
 }
@@ -3631,7 +3632,7 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   if (!header || !apiKey) return false;
   const m = /v=(\d+),d=([0-9a-f]+)/i.exec(String(header));
   if (!m) return false;
-  const [, ts, digest] = m;
+  const [, ts = "", digest = ""] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1e3) return false;
   const expected = crypto2.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
   const a = Buffer.from(digest.toLowerCase());
@@ -3936,7 +3937,7 @@ function withKey(url, secret) {
   return `${url}?key=${encodeURIComponent(secret)}`;
 }
 function stripKey(url) {
-  return typeof url === "string" ? url.split("?")[0] : null;
+  return typeof url === "string" ? url.split("?")[0] ?? url : null;
 }
 function voiceLlmCreateBody(s, fnUrl) {
   return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
@@ -4965,9 +4966,9 @@ function addressOf(header) {
   const s = oneLine(header ?? "");
   if (!s) return null;
   const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
-  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  const address = (angle ? angle[2] ?? "" : s).trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  const name = angle ? (angle[1] ?? "").trim().replace(/^"(.*)"$/, "$1").trim() : "";
   return { address, name: name || null };
 }
 var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
@@ -5000,7 +5001,7 @@ function referencesFor(parent) {
   const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);
   const unique = [...new Set(ids)];
   const MAX = 20;
-  return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
+  return unique.length <= MAX ? unique : [...unique.slice(0, 1), ...unique.slice(unique.length - (MAX - 1))];
 }
 var UNSUBSCRIBE_URL = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+;=%]+$/;
 var BARE_ADDRESS = /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
@@ -5097,7 +5098,7 @@ function ownDomainIdentity(domain, mailbox, replyDomain) {
   };
 }
 function requestLeavesAs(request, as) {
-  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && request.reply_to.every((to) => as.replyRoutes.includes(to.trim().toLowerCase()));
 }
 
 // src/email/webhook-signature.ts
@@ -5148,13 +5149,13 @@ function platformRecipient(address, domain, coldReplyDomains = null) {
   if (at < 1) return null;
   const host = a.slice(at + 1);
   const local = a.slice(0, at);
-  const reply = /^r\+([a-z2-7]{24})$/.exec(local);
+  const token = /^r\+([a-z2-7]{24})$/.exec(local)?.[1];
   const cold = (typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? []).map(
     (d) => d.toLowerCase()
   );
-  if (host !== domain.toLowerCase() && cold.includes(host)) return reply ? { kind: "reply", token: reply[1] } : null;
+  if (host !== domain.toLowerCase() && cold.includes(host)) return token ? { kind: "reply", token } : null;
   if (host !== domain.toLowerCase()) return null;
-  if (reply) return { kind: "reply", token: reply[1] };
+  if (token) return { kind: "reply", token };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
 }
 function emailReceivedEventFrom(payload) {
@@ -6526,9 +6527,9 @@ function unb64url(s) {
 }
 function idTokenClaims(idToken) {
   try {
-    const parts = (idToken ?? "").split(".");
-    if (parts.length < 2) return { email: null, sub: null };
-    const c = JSON.parse(dec.decode(unb64url(parts[1])));
+    const payload = (idToken ?? "").split(".")[1];
+    if (payload === void 0) return { email: null, sub: null };
+    const c = JSON.parse(dec.decode(unb64url(payload)));
     return { email: typeof c.email === "string" ? c.email : null, sub: typeof c.sub === "string" ? c.sub : null };
   } catch {
     return { email: null, sub: null };
@@ -6652,7 +6653,7 @@ function parseLocations(json) {
 }
 var STARS = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 function starRatingNumber(v) {
-  return typeof v === "string" && v in STARS ? STARS[v] : null;
+  return typeof v === "string" && Object.hasOwn(STARS, v) ? STARS[v] ?? null : null;
 }
 function parseReviewsPage(json) {
   const o = recordOrNull(json);

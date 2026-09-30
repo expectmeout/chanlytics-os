@@ -286,7 +286,7 @@ export type {
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
-export { watchedTables, subscribeMessagesInserts } from "./realtime";
+export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
 export type { Page } from "./paged";

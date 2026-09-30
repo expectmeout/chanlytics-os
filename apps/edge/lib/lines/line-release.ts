@@ -32,7 +32,7 @@ import { emitEvent } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -248,7 +248,7 @@ export async function sweepEndedLines(
               ended_at: new Date(step.endedAt).toISOString(),
               on: new Date(on).toISOString(),
             },
-          } as Json,
+          },
         })
         .eq("id", row.id);
       if (up.error) throw new Error(`keeping the warning: ${up.error.message}`);

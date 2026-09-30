@@ -9,7 +9,6 @@ import {
   type LeadStageInput,
   stageArgs,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
 import { answerOf, type DoorAnswer, refusalOf } from "./lead-answers";
 import type { DoorArgs } from "./lead-helpers";
 import type { LeadRow } from "./lead-searches";
@@ -97,7 +96,7 @@ export async function bulkStage(
     p_action: input.action,
     ...(input.by === "ids"
       ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) }
-      : { p_ids: null, p_view: input.view as unknown as Json }),
+      : { p_ids: null, p_view: input.view }),
   } as DoorArgs<"lead_bulk">);
   if (error) throw new Error(`lead_bulk: ${error.message}`);
   const a = answerOf(data);
@@ -146,7 +145,7 @@ export async function checkAgain(
   const { data, error } = await ctx.supabase.rpc("lead_check_again", {
     p_tenant_id: tenantId,
     p_lead_ids: input.ids,
-  } as DoorArgs<"lead_check_again">);
+  });
   if (error) throw new Error(`lead_check_again: ${error.message}`);
   const a = answerOf(data);
   const refused = refusalOf(a);

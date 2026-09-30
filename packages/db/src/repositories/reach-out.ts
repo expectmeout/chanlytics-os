@@ -30,7 +30,7 @@ export async function domainCapacityOf(db: Db, domainId: string, at: Date): Prom
   const { data, error } = await db.rpc("sending_domain_capacity", {
     p_domain_id: domainId,
     p_at: at.toISOString(),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the domain's capacity: ${error.message}`);
   const c = (data ?? {}) as Partial<DomainCapacity>;
   if (typeof c.used !== "number" || typeof c.sent_days !== "number")
@@ -67,9 +67,9 @@ export async function reachOutAudience(
     p_search_id: p.searchId,
     p_limit: p.limit,
     p_include_unconfirmed: p.includeUnconfirmed,
-  } as never);
+  });
   if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
-  return (data ?? []) as AudienceLead[];
+  return data ?? [];
 }
 
 export type PersonForSend =
@@ -78,7 +78,7 @@ export type PersonForSend =
 
 /** The person a first send needs, made once (00184 reach_out_person): never a lead converted by it. */
 export async function reachOutPerson(db: Db, tenantId: string, leadId: string): Promise<PersonForSend> {
-  const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId } as never);
+  const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
   const r = (data ?? {}) as { refused?: string; contact_id?: string; conversation_id?: string; made?: boolean };
   if (
@@ -106,9 +106,9 @@ export async function claimSends(
     p_cap: p.cap,
     p_at: p.at.toISOString(),
     p_limit: p.limit,
-  } as never);
+  });
   if (error) throw new Error(`cannot claim the domain's due sends: ${error.message}`);
-  return (data ?? []) as ReachOutSendRow[];
+  return data ?? [];
 }
 
 /** One send's move, only from the state it was read in: a stale writer changes nothing and is told so. */
@@ -118,7 +118,7 @@ export async function moveSend(
 ): Promise<boolean> {
   const { data, error } = await db
     .from("reach_out_sends")
-    .update(p.patch as never)
+    .update(p.patch)
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
     .eq("state", p.from)
@@ -154,7 +154,7 @@ export async function reachOutFollowers(
     p_parent_id: p.parentId,
     p_after_days: p.afterDays,
     p_limit: p.limit,
-  } as never);
+  });
   if (error) throw new Error(`cannot read who a step may write to: ${error.message}`);
   const rows = (data ?? []) as FollowerLead[];
   // The door's facts without the one it added last read as a failed read, as outreachFactsOf does (00181).
@@ -182,7 +182,7 @@ export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): 
   const { data, error } = await db.rpc("reach_out_queued_outcomes", {
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
   return (data ?? []) as QueuedOutcome[];
 }
@@ -205,9 +205,9 @@ export async function staleSends(db: Db, before: Date, limit: number, tenantId?:
     p_before: before.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
-  return (data ?? []) as ReachOutSendRow[];
+  return data ?? [];
 }
 
 /** The open sends of canceled or failed runs, with their email's state (00186 reach_out_closed_sends). */
@@ -221,7 +221,7 @@ export async function closedRunSends(
     p_stuck_before: stuckBefore.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
   return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
 }
@@ -231,7 +231,7 @@ export async function finishableRuns(db: Db, limit: number, tenantId?: string): 
   const { data, error } = await db.rpc("reach_out_finishable", {
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
   return ((data ?? []) as unknown[]).map((r) =>
     typeof r === "string" ? r : String((r as Record<string, unknown>).reach_out_finishable ?? ""),
@@ -292,9 +292,9 @@ export async function dueDomains(
     ...(opts.tenantId ? { p_tenant_id: opts.tenantId } : {}),
     p_skip_tenants: [...(opts.skipTenants ?? [])],
     p_skip_domains: [...(opts.skipDomains ?? [])],
-  } as never);
+  });
   if (error) throw new Error(`cannot read the domains with sends due: ${error.message}`);
-  return (data ?? []) as DueDomain[];
+  return data ?? [];
 }
 
 /** The cold emails a workspace wrote this calendar month, in its zone, that left or may still leave (00187). */
@@ -302,7 +302,7 @@ export async function monthSent(db: Db, tenantId: string, at: Date): Promise<num
   const { data, error } = await db.rpc("reach_out_month_sent", {
     p_tenant_id: tenantId,
     p_at: at.toISOString(),
-  } as never);
+  });
   if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
   if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
   return data;
@@ -668,7 +668,7 @@ export async function uncheckedSends(
     p_per_workspace: p.perWorkspace,
     p_ahead_minutes: p.aheadMinutes,
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
     const send = r.send as ReachOutSendRow;
@@ -704,7 +704,7 @@ export async function reachOutRecord(
     p_tenant_id: p.tenantId,
     p_search_id: p.searchId,
     p_lead_id: p.leadId,
-  } as never);
+  });
   if (error) throw new Error(`cannot read the business's record: ${error.message}`);
   const row = ((data ?? []) as Array<Record<string, unknown>>)[0];
   return row ? recordOf(row) : null;
@@ -720,7 +720,7 @@ export async function recordCheck(
 ): Promise<boolean> {
   const { data, error } = await db
     .from("reach_out_sends")
-    .update({ ...p.patch, check_started_at: null } as never)
+    .update({ ...p.patch, check_started_at: null })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
     .eq("state", "planned")
@@ -737,9 +737,9 @@ export async function heldStale(db: Db, before: Date, limit: number, tenantId?: 
     p_before: before.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot read the held sends: ${error.message}`);
-  return (data ?? []) as ReachOutSendRow[];
+  return data ?? [];
 }
 
 /**
@@ -751,7 +751,7 @@ export async function releaseUnavailableHolds(db: Db, p: { before: Date; tenantI
   const { data, error } = await db.rpc("reach_out_release_unavailable", {
     p_before: p.before.toISOString(),
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
@@ -765,7 +765,7 @@ export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: numbe
     p_tenant_id: p.tenantId,
     p_cap: p.cap,
     p_at: p.at.toISOString(),
-  } as never);
+  });
   if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
   return data === true;
 }

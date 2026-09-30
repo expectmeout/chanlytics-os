@@ -1,8 +1,9 @@
 /**
  * The paths the maps name open something.
  *
- * Four passages are where a reader, a person or an agent, goes to find a thing: CLAUDE.md's canonical examples and
- * "Where new code goes", docs/architecture.md's "Where to look", and docs/takeover.md's takeover test, answered.
+ * Six passages are where a reader, a person or an agent, goes to find a thing: CLAUDE.md's canonical examples and
+ * "Where new code goes", docs/architecture.md's "Where to look", docs/takeover.md's takeover test, answered, and the
+ * interface kit's skill's two tables, "Where things are" and "The holds" (.claude/skills/chanlytics-interface).
  * Nothing checked the paths they name, so a file that moved left its map pointing at a hole, and a bare name sent a
  * reader to whichever of its files they found first.
  *
@@ -39,6 +40,8 @@ const MAPS = [
     heading: "The takeover test, answered",
     under: { prefix: "apps/dashboard/", starts: ["src/", "app/"] },
   },
+  { page: ".claude/skills/chanlytics-interface/SKILL.md", heading: "Where things are" },
+  { page: ".claude/skills/chanlytics-interface/SKILL.md", heading: "The holds" },
 ];
 
 const EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|json|sql|md|css|html|ya?ml|example|sh)$/;

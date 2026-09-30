@@ -164,7 +164,7 @@ export async function lastInboundEmail(
     .maybeSingle();
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
-  const e = ((data.meta as { email?: Record<string, unknown> } | null)?.email ?? {}) as Record<string, unknown>;
+  const e = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
   return {
     messageId: data.id,
@@ -302,7 +302,7 @@ export async function stampEmailComplaint(
     p_tenant_id: p.tenantId,
     p_message_id: p.messageId,
     p_at: p.at,
-  } as never);
+  });
   if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
   return data === true;
 }
@@ -337,7 +337,7 @@ export async function recordEmailNo(
     p_source: p.source,
     p_message_id: p.messageId,
     p_evidence: { channel: "email", via: p.source },
-  } as never);
+  });
   if (r.error) throw new Error(`email receipt: cannot record the ${p.source} as a no: ${r.error.message}`);
   return { contactId, from };
 }

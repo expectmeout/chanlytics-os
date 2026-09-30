@@ -87,7 +87,7 @@ type StepRow = ReachOutStepRow;
 function chainOf(root: StepRow, all: StepRow[]): StepRow[] {
   const out = [root];
   for (let i = 0; i < 10; i += 1) {
-    const next = all.find((s) => s.after_playbook_id === out[out.length - 1]!.id);
+    const next = all.find((s) => s.after_playbook_id === out[out.length - 1].id);
     if (!next) break;
     out.push(next);
   }
@@ -216,7 +216,7 @@ export async function saveChain(
   const issues = validateReachOutChain(input, { bookingLink: !!(await bookingLinkOf(ctx, member.tenantId)) });
   if (issues.length > 0) {
     const said = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
-    throw new AppError("validation", said[0]!.words, 422, { issues: said });
+    throw new AppError("validation", said[0].words, 422, { issues: said });
   }
   // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
   const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));
@@ -345,7 +345,7 @@ export async function reachOutRunOf(
   // A run whose step was dropped from the chain since (R17) has no place in it: said so, never as another step.
   const at = steps.findIndex((s) => s.id === run.playbook_id);
   const stepN = at < 0 ? null : at;
-  const step = stepN === null ? null : steps[stepN]!;
+  const step = stepN === null ? null : steps[stepN];
   const c = runCountsOf(rows, facts.timezone);
   const [first, domains] = await Promise.all([
     firstEmailOf(ctx, tenantId, { lead: c.checked[0], step, first: stepN === 0, signedBy: root.signed_by }),

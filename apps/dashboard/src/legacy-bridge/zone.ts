@@ -61,7 +61,7 @@ function remembered(win: Window, slug: string): string | null {
   let zone: string | null;
   try {
     const all = JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}") as Record<string, unknown>;
-    zone = typeof all[slug] === "string" && all[slug] ? (all[slug] as string) : null;
+    zone = typeof all[slug] === "string" && all[slug] ? all[slug] : null;
   } catch {
     zone = null;
   }
