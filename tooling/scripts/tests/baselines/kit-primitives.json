@@ -223,7 +223,7 @@
   "apps/dashboard/src/legacy/styles/clients.css::rec-fold-inner": 1,
   "apps/dashboard/src/legacy/styles/clients.css::rec-row": 1,
   "apps/dashboard/src/legacy/styles/clients.css::sb-sheet": 1,
-  "apps/dashboard/src/legacy/styles/clients.css::stabs-people": 2,
+  "apps/dashboard/src/legacy/styles/clients.css::stabs-people": 4,
   "apps/dashboard/src/legacy/styles/components.css::agent-avatar": 2,
   "apps/dashboard/src/legacy/styles/components.css::ask-modal": 2,
   "apps/dashboard/src/legacy/styles/components.css::avatar": 3,

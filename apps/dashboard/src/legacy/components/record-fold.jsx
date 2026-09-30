@@ -508,13 +508,13 @@ const RecordSays = ({ id = null, testid = null, text = null, label = null, gone 
   );
 };
 
-// The foot: Save and Cancel, and beside them a line of the page's (`footNote`) or the keys that do the same (`keys`,
-// which record.css hides on a touch screen, where there are none). Save is busy, not disabled, while it saves: a disabled
+// The foot: Save and Cancel, and beside them a line of the page's (`footNote`). The keys that do the same (recKeys)
+// are not named here: the ? sheet is the one place a key is drawn. Save is busy, not disabled, while it saves: a disabled
 // button lets go of focus, to the page, and a save that failed left it there. It stays a button focus can rest on, and
 // a press while it saves does nothing; so does a press on Cancel, for the reason recKeys gives.
 const RecordFoot = ({
   saveTestid, cancelTestid, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…",
-  cancelLabel = "Cancel", gate = null, footNote = null, keys = null,
+  cancelLabel = "Cancel", gate = null, footNote = null,
 }) => (
   <div className="rec-foot">
     <button
@@ -538,7 +538,6 @@ const RecordFoot = ({
       {cancelLabel}
     </button>
     {footNote ? <span className="rec-foot-note">{footNote}</span> : null}
-    {keys ? <span className="rec-foot-keys">{keys}</span> : null}
   </div>
 );
 
@@ -792,7 +791,7 @@ const RecordFold = ({
 // The kit's third gesture (spec §5, canvas Edit-Inline), for one value. The row becomes its field, and keeps the row's
 // line: its label stays in the label column (`label`, drawn as rec-inline-<id>-key, which names the whole editor and
 // which the page's field names its box by), the page's field takes the value's place, and where the row's act was sit
-// two small presses, ✓ Save and ✕ Cancel, named by their words for a screen reader and by their keys on hover. A
+// two small presses, ✓ Save and ✕ Cancel, named by their words for a screen reader and on hover. A
 // one-line row keeps its height as it becomes its editor (record.css measures both at 44px), so nothing under it moves.
 // Under the field, only when there is something to draw: a disagreement on the row (`disputed`, RecordRow's shape),
 // which stays on screen while it is edited, to read (its press is the row's, at rest); what saving writes (RecordSays,
@@ -809,8 +808,8 @@ const RecordFold = ({
 //
 // Its keys: Escape cancels and Ctrl or Cmd with Enter saves, as a fold's do (recKeys); and Enter alone, pressed in an
 // <input>, saves too, since one value in one box is what Enter has always sent. A textarea keeps Enter for its
-// newline, and a box that took the key first (a combobox picking from its list) keeps it. `keys` names the two on the
-// presses' hover, for a page whose words differ.
+// newline, and a box that took the key first (a combobox picking from its list) keeps it. The presses name no key:
+// the ? sheet is the one place a key is drawn (Ruben, 23 Sep 2026).
 //
 // Like a fold it is drawn on every render and flips `open`: closed, it is `hidden`, whole. It holds nothing of its
 // own: whether it is open comes from the registry (useRecordFold), and the draft, the check and the save are the
@@ -820,7 +819,7 @@ const RecordFold = ({
 const RecordInline = ({
   id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
   confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
-  keys = { save: "Enter", cancel: "Esc" }, gate = null, changed = null, goneChanged = null, children = null,
+  gate = null, changed = null, goneChanged = null, children = null,
 }) => {
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
@@ -866,7 +865,7 @@ const RecordInline = ({
           data-act="save"
           onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onSave) onSave(e); }}
           aria-label={saving ? savingLabel : saveLabel}
-          title={`${saveLabel} (${keys.save})`}
+          title={saveLabel}
           aria-disabled={saving || undefined}
           aria-busy={saving || undefined}
           data-testid={`rec-inline-save-${id}`}
@@ -880,7 +879,7 @@ const RecordInline = ({
           data-act="cancel"
           onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onCancel) onCancel(e); }}
           aria-label={cancelLabel}
-          title={`${cancelLabel} (${keys.cancel})`}
+          title={cancelLabel}
           aria-disabled={saving || undefined}
           data-testid={`rec-inline-cancel-${id}`}
         >

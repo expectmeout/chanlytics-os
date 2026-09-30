@@ -1,122 +1,502 @@
 {
-  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": 1,
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": 2,
-  "apps/dashboard/app/api/v1/contacts/consent/route.ts": 1,
-  "apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts": 1,
-  "apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts": 1,
-  "apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts": 1,
-  "apps/dashboard/app/api/v1/lead-searches/route.ts": 1,
-  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": 1,
-  "apps/dashboard/app/api/v1/playbooks/route.ts": 1,
-  "apps/dashboard/app/api/v1/segments/[id]/route.ts": 1,
-  "apps/dashboard/app/api/v1/segments/route.ts": 1,
-  "apps/dashboard/app/api/v1/team/[id]/route.ts": 1,
-  "apps/dashboard/app/api/v1/workspaces/route.ts": 1,
-  "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": 8,
-  "apps/dashboard/src/legacy-bridge/api.ts": 1,
-  "apps/dashboard/src/legacy-bridge/app-bridge.ts": 1,
-  "apps/dashboard/src/legacy-bridge/arrival.ts": 2,
-  "apps/dashboard/src/legacy-bridge/ask.ts": 2,
-  "apps/dashboard/src/legacy-bridge/ask/commit.ts": 1,
-  "apps/dashboard/src/legacy-bridge/ask/context.ts": 1,
-  "apps/dashboard/src/legacy-bridge/ask/palette.ts": 3,
-  "apps/dashboard/src/legacy-bridge/ask/speech.ts": 1,
-  "apps/dashboard/src/legacy-bridge/business-tab.ts": 1,
-  "apps/dashboard/src/legacy-bridge/calendar.ts": 3,
-  "apps/dashboard/src/legacy-bridge/identity.ts": 3,
-  "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": 3,
-  "apps/dashboard/src/legacy-bridge/leads.ts": 3,
-  "apps/dashboard/src/legacy-bridge/mascot/driver.ts": 3,
-  "apps/dashboard/src/legacy-bridge/mascot/liquid.ts": 1,
-  "apps/dashboard/src/legacy-bridge/notifications.ts": 5,
-  "apps/dashboard/src/legacy-bridge/partner.ts": 3,
-  "apps/dashboard/src/legacy-bridge/people-detail.ts": 1,
-  "apps/dashboard/src/legacy-bridge/people-lists.ts": 5,
-  "apps/dashboard/src/legacy-bridge/policy-store.ts": 2,
-  "apps/dashboard/src/legacy-bridge/refresh-map.ts": 1,
-  "apps/dashboard/src/legacy-bridge/setup.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surface-cache.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surface-data.ts": 3,
-  "apps/dashboard/src/legacy-bridge/surface-registry.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surface-runner.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surfaces/conversations.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/inbox.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surfaces/live.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/notifications.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/people.ts": 5,
-  "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/reports.ts": 2,
-  "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": 1,
-  "apps/dashboard/src/legacy-bridge/surfaces/today.ts": 1,
-  "apps/dashboard/src/legacy-bridge/tab-memory.ts": 1,
-  "apps/dashboard/src/legacy-bridge/templates.ts": 2,
-  "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": 2,
-  "apps/dashboard/src/legacy-bridge/zone.ts": 1,
-  "apps/dashboard/src/server/ask/loop.ts": 1,
-  "apps/dashboard/src/server/ask/store.ts": 1,
-  "apps/dashboard/src/server/campaigns/broadcasts.ts": 4,
-  "apps/dashboard/src/server/campaigns/playbooks.ts": 5,
-  "apps/dashboard/src/server/connections/email.ts": 1,
-  "apps/dashboard/src/server/leads/lead-draft.ts": 1,
-  "apps/dashboard/src/server/leads/lead-page.ts": 1,
-  "apps/dashboard/src/server/leads/lead-searches.ts": 4,
-  "apps/dashboard/src/server/leads/lead-suggestions.ts": 4,
-  "apps/dashboard/src/server/leads/lead-work.ts": 1,
-  "apps/dashboard/src/server/metrics/metrics.ts": 2,
-  "apps/dashboard/src/server/people/deals.ts": 1,
-  "apps/dashboard/src/server/people/lists.ts": 1,
-  "apps/dashboard/src/server/people/people-many.ts": 1,
-  "apps/dashboard/src/server/ports/campaign-ports.ts": 2,
-  "apps/dashboard/src/server/ports/core-ports.ts": 3,
-  "apps/dashboard/src/server/readers/campaign-report.ts": 1,
-  "apps/dashboard/src/server/readers/report.ts": 1,
-  "apps/dashboard/src/server/route.ts": 1,
-  "apps/edge/api/admin/voice-converge.ts": 2,
-  "apps/edge/api/admin/voice-provision.ts": 1,
-  "apps/edge/api/admin/whatsapp/connect.ts": 2,
-  "apps/edge/api/admin/whatsapp/templates-create.ts": 2,
-  "apps/edge/api/admin/whatsapp/templates-sync.ts": 4,
-  "apps/edge/api/cron/deadman.ts": 1,
-  "apps/edge/api/cron/health.ts": 1,
-  "apps/edge/api/cron/leads.ts": 1,
-  "apps/edge/api/cron/partners.ts": 1,
-  "apps/edge/api/cron/playbooks.ts": 2,
-  "apps/edge/api/diag.ts": 2,
-  "apps/edge/api/health.ts": 1,
-  "apps/edge/api/retell-webhook.ts": 2,
-  "apps/edge/api/whatsapp.ts": 2,
-  "apps/edge/lib/email/sending-domains.ts": 4,
-  "apps/edge/lib/google/profile-credentials.ts": 1,
-  "apps/edge/lib/leads/lead-db.ts": 7,
-  "apps/edge/lib/leads/lead-wires.ts": 1,
-  "apps/edge/lib/lines/line-release.ts": 2,
-  "apps/edge/lib/lines/lines.ts": 1,
-  "apps/edge/lib/model.ts": 1,
-  "apps/edge/lib/ops/apns.ts": 1,
-  "apps/edge/lib/playbooks.ts": 5,
-  "apps/edge/lib/reach-out/run-context.ts": 2,
-  "apps/edge/lib/reach-out/sender.ts": 1,
-  "apps/edge/lib/receptionist/brain.ts": 1,
-  "apps/edge/lib/receptionist/unfinished.ts": 3,
-  "apps/edge/lib/sms/sms.ts": 1,
-  "apps/edge/lib/voice/forwarding.ts": 1,
-  "apps/edge/lib/whatsapp/persist.ts": 1,
-  "apps/edge/lib/whatsapp/waba-events.ts": 1,
-  "packages/channels/src/voice/voice-shell.ts": 1,
-  "packages/contracts/src/config/business-tab/abilities.ts": 1,
-  "packages/contracts/src/config/business-tab/booking-rules-words.ts": 1,
-  "packages/contracts/src/config/business-tab/fold-limits.ts": 1,
-  "packages/contracts/src/templates/template-languages.ts": 1,
-  "packages/core/src/deliver.ts": 1,
-  "packages/core/src/inbound/dispatch.ts": 1,
-  "packages/db/src/repositories/calls.ts": 1,
-  "packages/db/src/repositories/control.ts": 1,
-  "packages/db/src/repositories/ingest.ts": 1,
-  "packages/db/src/repositories/lists.ts": 3,
-  "packages/db/src/repositories/partner.ts": 4,
-  "packages/db/src/repositories/people.ts": 1,
-  "packages/db/src/repositories/reach-out.ts": 1
+  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/lead-searches/[id]/answer/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/lead-searches/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
+  "apps/dashboard/app/api/v1/playbooks/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/app/api/v1/segments/[id]/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/segments/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/team/[id]/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/app/api/v1/workspaces/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/proxy.ts": {
+    "nonNull": 2
+  },
+  "apps/dashboard/src/auth/GoogleSignIn.tsx": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/csp.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": {
+    "unknownAs": 8
+  },
+  "apps/dashboard/src/legacy-bridge/api.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/arrival.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/ask.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/ask/commit.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/ask/context.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/ask/palette.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/ask/speech.ts": {
+    "unknownAs": 1,
+    "nonNull": 3
+  },
+  "apps/dashboard/src/legacy-bridge/business-tab.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/calendar.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/identity.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/leads.ts": {
+    "unknownAs": 3,
+    "never": 1
+  },
+  "apps/dashboard/src/legacy-bridge/mascot/driver.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/mascot/liquid.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/notifications.ts": {
+    "unknownAs": 4,
+    "nonNull": 2
+  },
+  "apps/dashboard/src/legacy-bridge/partner.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/people-detail.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/people-lists.ts": {
+    "unknownAs": 5,
+    "nonNull": 1
+  },
+  "apps/dashboard/src/legacy-bridge/platform.ts": {
+    "nonNull": 2
+  },
+  "apps/dashboard/src/legacy-bridge/read-cache.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/legacy-bridge/refresh-map.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/setup.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surface-cache.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surface-data.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/legacy-bridge/surface-registry.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surface-runner.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/conversations.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/inbox.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/live.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/notifications.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/people.ts": {
+    "unknownAs": 5
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/reports.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/surfaces/today.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/legacy-bridge/templates.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
+    "unknownAs": 2,
+    "nonNull": 2
+  },
+  "apps/dashboard/src/legacy-bridge/zone.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/lib/supabase/client.ts": {
+    "nonNull": 2
+  },
+  "apps/dashboard/src/lib/supabase/server.ts": {
+    "nonNull": 4
+  },
+  "apps/dashboard/src/server/ask/loop.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/ask/store.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/ask/tools/act/broadcast.ts": {
+    "nonNull": 2
+  },
+  "apps/dashboard/src/server/ask/tools/read/people.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/server/auth-cookies.ts": {
+    "never": 1
+  },
+  "apps/dashboard/src/server/campaigns/broadcasts.ts": {
+    "unknownAs": 4,
+    "nonNull": 4
+  },
+  "apps/dashboard/src/server/campaigns/playbooks.ts": {
+    "unknownAs": 5
+  },
+  "apps/dashboard/src/server/connections/email.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/leads/lead-page.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/leads/lead-searches.ts": {
+    "unknownAs": 3
+  },
+  "apps/dashboard/src/server/metrics/activity.ts": {
+    "nonNull": 4
+  },
+  "apps/dashboard/src/server/metrics/metrics.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/server/people/deals.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/people/lists.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/server/people/people-many.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/platform/signup.ts": {
+    "nonNull": 2
+  },
+  "apps/dashboard/src/server/ports/campaign-ports.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/ports/core-ports.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/server/readers/campaign-report.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/readers/report.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/route.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/service-db.ts": {
+    "nonNull": 2
+  },
+  "apps/edge/api/admin/voice-converge.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/api/admin/voice-provision.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/api/admin/whatsapp/connect.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/api/admin/whatsapp/templates-create.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/api/admin/whatsapp/templates-sync.ts": {
+    "unknownAs": 4
+  },
+  "apps/edge/api/cron/deadman.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
+  "apps/edge/api/cron/health.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/api/cron/leads.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/api/cron/partners.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/api/cron/playbooks.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/api/diag.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/api/retell-fn.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/api/retell-webhook.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
+  },
+  "apps/edge/api/whatsapp.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
+  },
+  "apps/edge/lib/email/dmarc.ts": {
+    "nonNull": 2
+  },
+  "apps/edge/lib/email/sending-domains.ts": {
+    "unknownAs": 4,
+    "nonNull": 2
+  },
+  "apps/edge/lib/google/profile-connection.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/lib/google/profile-credentials.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/leads/lead-db.ts": {
+    "unknownAs": 3
+  },
+  "apps/edge/lib/leads/lead-wires.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/lines/line-release.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/lib/lines/lines.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/pg.ts": {
+    "nonNull": 2
+  },
+  "apps/edge/lib/playbooks.ts": {
+    "unknownAs": 3
+  },
+  "apps/edge/lib/reach-out/clock.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/lib/reach-out/replan.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/lib/reach-out/run-context.ts": {
+    "unknownAs": 2
+  },
+  "apps/edge/lib/reach-out/sender.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/receptionist/brain.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/receptionist/unfinished.ts": {
+    "unknownAs": 3,
+    "nonNull": 1
+  },
+  "apps/edge/lib/sms/sms.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/whatsapp/persist.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
+  "apps/edge/lib/whatsapp/waba-events.ts": {
+    "unknownAs": 1
+  },
+  "apps/mobile/src/shell/Surface.tsx": {
+    "nonNull": 1
+  },
+  "packages/channels/src/email/request.ts": {
+    "nonNull": 1
+  },
+  "packages/channels/src/google/google-places.ts": {
+    "nonNull": 2
+  },
+  "packages/channels/src/lines/a2p-saga.ts": {
+    "nonNull": 14
+  },
+  "packages/channels/src/lines/lines-saga.ts": {
+    "nonNull": 20
+  },
+  "packages/channels/src/voice/voice-shell.ts": {
+    "unknownAs": 1
+  },
+  "packages/channels/src/whatsapp.ts": {
+    "nonNull": 2
+  },
+  "packages/contracts/src/broadcasts/run-report.ts": {
+    "nonNull": 2
+  },
+  "packages/contracts/src/config/business-tab/abilities.ts": {
+    "unknownAs": 1
+  },
+  "packages/contracts/src/config/business-tab/booking-rules-words.ts": {
+    "unknownAs": 1
+  },
+  "packages/contracts/src/config/business-tab/fold-limits.ts": {
+    "unknownAs": 1
+  },
+  "packages/contracts/src/conversations/inbox-thread.ts": {
+    "nonNull": 4
+  },
+  "packages/contracts/src/deals/pipeline/pipeline-board.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/email/sending-domains.ts": {
+    "nonNull": 2
+  },
+  "packages/contracts/src/google/review-reply.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/leads/lead-first-day.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/people/list-rules.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/people/lists.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/people/person-cards.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/people/person-timeline.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/playbooks/playbook-approval.ts": {
+    "nonNull": 2
+  },
+  "packages/contracts/src/reach-out/reach-out-draft.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/reach-out/reach-out-opening.ts": {
+    "nonNull": 1
+  },
+  "packages/contracts/src/setup/first-run-try.ts": {
+    "nonNull": 2
+  },
+  "packages/contracts/src/templates/template-languages.ts": {
+    "unknownAs": 1
+  },
+  "packages/contracts/src/today/today-away.ts": {
+    "nonNull": 1
+  },
+  "packages/core/src/campaigns/check-playbook.ts": {
+    "nonNull": 1
+  },
+  "packages/core/src/campaigns/create-broadcast.ts": {
+    "nonNull": 3
+  },
+  "packages/core/src/campaigns/run-reach-out.ts": {
+    "nonNull": 2
+  },
+  "packages/core/src/deliver.ts": {
+    "unknownAs": 1,
+    "nonNull": 3
+  },
+  "packages/core/src/inbound/dispatch.ts": {
+    "unknownAs": 1
+  },
+  "packages/core/src/inbound/model-turn.ts": {
+    "nonNull": 3
+  },
+  "packages/core/src/inbound/unreadable.ts": {
+    "nonNull": 1
+  },
+  "packages/core/src/wire-senders.ts": {
+    "nonNull": 1
+  },
+  "packages/db/src/repositories/calls.ts": {
+    "unknownAs": 1,
+    "never": 1
+  },
+  "packages/db/src/repositories/control-plane.ts": {
+    "never": 1
+  },
+  "packages/db/src/repositories/control.ts": {
+    "unknownAs": 1,
+    "never": 2
+  },
+  "packages/db/src/repositories/email.ts": {
+    "never": 2
+  },
+  "packages/db/src/repositories/ingest.ts": {
+    "unknownAs": 1,
+    "never": 3
+  },
+  "packages/db/src/repositories/lists.ts": {
+    "unknownAs": 3
+  },
+  "packages/db/src/repositories/outreach.ts": {
+    "never": 1
+  },
+  "packages/db/src/repositories/partner.ts": {
+    "unknownAs": 4
+  },
+  "packages/db/src/repositories/reach-out-sheet.ts": {
+    "nonNull": 1
+  },
+  "packages/db/src/repositories/reach-out.ts": {
+    "unknownAs": 1
+  },
+  "packages/db/src/repositories/sending-domains.ts": {
+    "never": 1
+  }
 }

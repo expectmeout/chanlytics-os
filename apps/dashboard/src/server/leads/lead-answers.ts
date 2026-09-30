@@ -52,7 +52,7 @@ export interface DoorAnswer {
 
 /** The jsonb a door answers, as an object; anything else is an empty answer. */
 export function answerOf(data: unknown): DoorAnswer {
-  return data && typeof data === "object" && !Array.isArray(data) ? (data as DoorAnswer) : {};
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
 }
 
 /** What a member's class is called on the screen, for the sentence a member door's `state` refusal says. */

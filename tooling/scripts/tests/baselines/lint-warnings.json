@@ -1,6 +1,142 @@
 {
+  "apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/app/api/v1/calendar/filler.ics/route.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/app/api/v1/calendar/preview/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/api/v1/capabilities/[kind]/route.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/consent/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts": {
+    "@typescript-eslint/no-deprecated": 2
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/notes/done/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts": {
+    "@typescript-eslint/no-deprecated": 3
+  },
+  "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/import/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/notes/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/contacts/receptionist/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/leads/[id]/exclude/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/leads/[id]/keep/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/leads/[id]/put-back/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 3
+  },
+  "apps/dashboard/app/api/v1/playbooks/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
+    "@typescript-eslint/no-deprecated": 2
+  },
+  "apps/dashboard/app/api/v1/reach-outs/reach/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/segments/[id]/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/api/v1/segments/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/api/v1/signup/route.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/app/api/v1/templates/draft/route.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/api/v1/templates/route.ts": {
+    "@typescript-eslint/no-base-to-string": 3,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/api/v1/templates/starter/route.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/app/login/page.tsx": {
+    "@typescript-eslint/no-deprecated": 4
+  },
+  "apps/dashboard/app/reset-password/page.tsx": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/app/signup/page.tsx": {
+    "@typescript-eslint/no-deprecated": 3
+  },
+  "apps/dashboard/app/verify/page.tsx": {
+    "@typescript-eslint/no-deprecated": 2
+  },
+  "apps/dashboard/next.config.ts": {
+    "@typescript-eslint/require-await": 3
+  },
+  "apps/dashboard/src/auth/CodeStep.tsx": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/src/client/api.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
   "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx": {
+    "@typescript-eslint/no-deprecated": 4,
     "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/legacy-bridge/ask/commit.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/src/legacy-bridge/ask/context.ts": {
+    "@typescript-eslint/no-unsafe-argument": 1,
+    "@typescript-eslint/no-unsafe-assignment": 2,
+    "@typescript-eslint/no-unsafe-member-access": 1
+  },
+  "apps/dashboard/src/legacy-bridge/mascot/colour.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 4
+  },
+  "apps/dashboard/src/legacy-bridge/people-lists.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": 1,
+    "@typescript-eslint/no-unsafe-member-access": 1,
+    "@typescript-eslint/no-unsafe-return": 2
+  },
+  "apps/dashboard/src/legacy-bridge/tab-memory.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/src/legacy-bridge/today-sample.ts": {
+    "@typescript-eslint/require-await": 3
+  },
+  "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
+    "@typescript-eslint/prefer-promise-reject-errors": 1
   },
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
     "react-hooks/exhaustive-deps": 2
@@ -254,5 +390,302 @@
   "apps/dashboard/src/legacy/pages/settings.jsx": {
     "jsx-a11y-x/no-autofocus": 1,
     "react-hooks/exhaustive-deps": 4
+  },
+  "apps/dashboard/src/server/ask/context/pages.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/src/server/ask/memory.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/src/server/ask/sse.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/src/server/ask/tools/act/broadcast.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/src/server/ask/tools/act/invite.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/src/server/ask/tools/act/settings.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1,
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/src/server/ask/tools/read/threads.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/src/server/ask/tools/registry.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 2
+  },
+  "apps/dashboard/src/server/campaigns/reach-outs.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-redundant-type-constituents": 4
+  },
+  "apps/dashboard/src/server/campaigns/templates.ts": {
+    "@typescript-eslint/no-base-to-string": 2
+  },
+  "apps/dashboard/src/server/export/export-bundle.ts": {
+    "@typescript-eslint/unbound-method": 4
+  },
+  "apps/dashboard/src/server/export/export.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/src/server/metrics/activity.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/src/server/ports/core-ports.ts": {
+    "@typescript-eslint/unbound-method": 6
+  },
+  "apps/dashboard/src/server/public/app-links.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": 1
+  },
+  "apps/dashboard/src/server/rate-limit.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/dashboard/src/server/readers/index.ts": {
+    "@typescript-eslint/no-unsafe-return": 1
+  },
+  "apps/dashboard/src/server/readers/person.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/dashboard/src/server/request-guards.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/dashboard/src/server/with-route.ts": {
+    "@typescript-eslint/no-misused-promises": 1
+  },
+  "apps/edge/api/admin/eval.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/hand-over.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/handover-invite.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/llm.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/playbooks-run.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/edge/api/admin/setup-request.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/signup-notify.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/steer.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/stop-call.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/voice-converge.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 3,
+    "@typescript-eslint/no-unsafe-assignment": 1,
+    "@typescript-eslint/restrict-template-expressions": 1
+  },
+  "apps/edge/api/admin/voice-provision.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1,
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/whatsapp/connect.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/whatsapp/signup-config.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/edge/api/admin/whatsapp/templates-create.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/edge/api/admin/whisper.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/admin/you-are-live.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/cron/leads.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/unbound-method": 1
+  },
+  "apps/edge/api/retell-availability.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/retell-fn.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/retell-inbound.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/retell-webhook.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/api/whatsapp.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/edge/lib/admin-door.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1,
+    "@typescript-eslint/no-unsafe-return": 1
+  },
+  "apps/edge/lib/ask-gateway.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 2,
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/lib/leads/lead-pipeline.ts": {
+    "@typescript-eslint/unbound-method": 3
+  },
+  "apps/edge/lib/leads/lead-wires.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "apps/edge/lib/reach-out/check.ts": {
+    "@typescript-eslint/no-base-to-string": 2
+  },
+  "apps/edge/lib/reach-out/clock.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/edge/lib/receptionist/unfinished.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/edge/lib/whatsapp/waba-events.ts": {
+    "@typescript-eslint/no-base-to-string": 5
+  },
+  "packages/channels/src/lines/lines-dry.ts": {
+    "@typescript-eslint/require-await": 21
+  },
+  "packages/channels/src/lines/lines-saga.ts": {
+    "@typescript-eslint/only-throw-error": 1
+  },
+  "packages/contracts/src/ask-proposals/campaigns.ts": {
+    "@typescript-eslint/no-base-to-string": 2,
+    "@typescript-eslint/restrict-template-expressions": 2
+  },
+  "packages/contracts/src/ask-proposals/leads.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/ask-proposals/spec.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/ask/ask-answer.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/ask/ask-settings-change.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/config/business-tab/how-it-answers.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1,
+    "@typescript-eslint/no-unsafe-call": 1,
+    "@typescript-eslint/no-unsafe-member-access": 2,
+    "@typescript-eslint/no-unsafe-return": 1
+  },
+  "packages/contracts/src/config/business-tab/services-words.ts": {
+    "@typescript-eslint/no-unsafe-call": 1,
+    "@typescript-eslint/no-unsafe-member-access": 2
+  },
+  "packages/contracts/src/config/workspace-config/brain-config.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/config/workspace-config/business-profile.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/config/workspace-config/config-schema.ts": {
+    "@typescript-eslint/no-deprecated": 7
+  },
+  "packages/contracts/src/conversations/call-vm.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "packages/contracts/src/conversations/message-author.ts": {
+    "@typescript-eslint/no-base-to-string": 2
+  },
+  "packages/contracts/src/leads/lead-import.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/leads/lead-plan.ts": {
+    "@typescript-eslint/no-deprecated": 6
+  },
+  "packages/contracts/src/leads/search/cards.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "packages/contracts/src/people/list-rules.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/reach-out/lead-hours.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/contracts/src/reach-out/reach-out-dtos.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/reach-out/reach-out-reply-words.ts": {
+    "@typescript-eslint/no-deprecated": 2
+  },
+  "packages/contracts/src/reach-out/reach-out-words.ts": {
+    "@typescript-eslint/no-deprecated": 3
+  },
+  "packages/contracts/src/setup/check-chips.ts": {
+    "@typescript-eslint/no-unsafe-call": 1,
+    "@typescript-eslint/no-unsafe-member-access": 2,
+    "@typescript-eslint/no-unsafe-return": 1
+  },
+  "packages/contracts/src/shared/identity.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/contracts/src/shell/tone.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/contracts/src/templates/template-parts.ts": {
+    "@typescript-eslint/no-base-to-string": 9
+  },
+  "packages/contracts/src/workspace/second-factor.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/workspace/signup.ts": {
+    "@typescript-eslint/no-deprecated": 1
+  },
+  "packages/contracts/src/workspace/workspace.ts": {
+    "@typescript-eslint/restrict-template-expressions": 1
+  },
+  "packages/core/src/campaigns/run-playbook.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "packages/core/src/html.ts": {
+    "@typescript-eslint/no-unsafe-argument": 1
+  },
+  "packages/core/src/inbound/model-turn.ts": {
+    "@typescript-eslint/unbound-method": 1
+  },
+  "packages/core/src/leads/runner/mark-places.ts": {
+    "@typescript-eslint/unbound-method": 3
+  },
+  "packages/core/src/messages/broadcast.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/only-throw-error": 1
+  },
+  "packages/db/src/repositories/email.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": 2
+  },
+  "packages/db/src/repositories/partner.ts": {
+    "@typescript-eslint/no-base-to-string": 13
+  },
+  "packages/db/src/repositories/reach-out-sheet.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/db/src/repositories/reach-out.ts": {
+    "@typescript-eslint/no-base-to-string": 2
+  },
+  "packages/db/src/repositories/sending-domains.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "packages/db/src/repositories/thread.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1,
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "packages/jobs/src/broadcast-send.ts": {
+    "@typescript-eslint/require-await": 1
+  },
+  "packages/jobs/src/handlers.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   }
 }

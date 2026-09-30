@@ -376,7 +376,7 @@ function standingWords(t: ReachOutLeadTimelineDto, tz: string, nowMs: number): s
   if (t.closed_reason === "said_no") return "said no";
   if (t.stopped_at) return `stopped ${near(t.stopped_at, tz, nowMs)}`;
   const sent = t.sends.filter((s) => s.state === "sent");
-  const last = sent.length ? sent[sent.length - 1]! : null;
+  const last = sent.length ? sent[sent.length - 1] : null;
   if (last) return `written ${near(last.sent_at, tz, nowMs)}`;
   return "not written yet";
 }

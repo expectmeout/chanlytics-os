@@ -68,7 +68,9 @@ const PipelineNewBody = ({ rows, q, add, onQ, onPick, onAddOpen, onAddDraft, onA
   );
 };
 
-const PipelineNew = ({ phone = false, onClose, focusOn = null, ...body }) => {
+const PipelineNew = (props) => {
+  const { phone = false, onClose, focusOn = null } = props;
+  const body = window.propsWithout(props, ["phone", "onClose", "focusOn"]);
   const W = window.__pipeline.words.newProposal;
   if (phone && window.PhoneSheet) {
     return <window.PhoneSheet title={W.title} onClose={onClose} testid="pipeline-new-sheet"><PipelineNewBody {...body} autoFocus /></window.PhoneSheet>;

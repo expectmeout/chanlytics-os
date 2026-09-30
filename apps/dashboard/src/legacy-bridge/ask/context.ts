@@ -170,7 +170,7 @@ const campaigns: Provider = (w, route) => {
 /** Settings' view is its pane (admin/<pane>, the workspace by default). */
 const settings: Provider = (_w, route) => ({ view: route.param?.split("/")[0] || "workspace", rows: [] });
 
-/** Start's view is its step (start/<step>); the palette opens there in Phase 7. */
+/** Start's view is its step (start/<step>), where ⌘K opens the palette over the first run (Phase 7). */
 const start: Provider = (_w, route) => ({ view: route.param?.split("/")[0] || null, rows: [] });
 
 const PROVIDERS: Partial<Record<AskSurface, Provider>> = {

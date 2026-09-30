@@ -187,7 +187,7 @@ export async function reachOutRunContext(
       const { data, error } = await db.rpc("reach_out_plan_run", {
         p_run: run as unknown as Json,
         p_sends: sends as unknown as Json,
-      } as never);
+      });
       if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
       const r = (data ?? {}) as { id?: string; exists?: boolean };
       if (r.exists) return "exists";

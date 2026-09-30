@@ -82,7 +82,7 @@ export function workspaceLinkOf(path: string): WorkspaceLink | null {
   if (!m) return null;
   let slug: string;
   try {
-    slug = decodeURIComponent(m[1]);
+    slug = decodeURIComponent(m[1] ?? "");
   } catch {
     return null;
   }

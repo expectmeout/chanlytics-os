@@ -293,7 +293,7 @@ export function dealSheetFor(
           }
         : null,
     validUntil: open && shapes ? { ...W.validUntil } : null,
-    when: open && dated ? { label: W.when[mode as "won" | "lost" | "ended"], max: today } : null,
+    when: open && dated ? { label: W.when[mode], max: today } : null,
     reason:
       open && mode === "lost"
         ? {

@@ -1,7 +1,9 @@
 import {
+  POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
   POLICY_MODE_WORDS,
   policyClassOffered,
+  policyModeOffered,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
@@ -27,11 +29,13 @@ import {
  * (a row only where deals are on, 0006), the review sweep for reviews, and
  * a database trigger for money, which is locked. A class
  * without one is not offered as a switch, and each offers only the modes
- * its enforcer honours (`modes`).
+ * its enforcer honours (`modes`: contracts POLICY_CLASS_MODES, the rule the
+ * policies route refuses by).
  */
 
 export type UiMode = "Auto" | "Veto" | "Ask" | "Never";
 export const UI_MODES: readonly UiMode[] = ["Auto", "Veto", "Ask", "Never"];
+const LABELS: Record<PolicyMode, UiMode> = { auto: "Auto", veto: "Veto", ask: "Ask", never: "Never" };
 
 /**
  * A UiMode is a FILING word, not a word anyone reads. What the pane and the
@@ -54,17 +58,19 @@ export interface UiRowMeta {
   note: string;
   chip: string;
   locked?: boolean;
-  /** The modes the runtime honours for this class; absent means all four. */
-  modes?: readonly UiMode[];
+  /** The modes the runtime honours for this class (contracts POLICY_CLASS_MODES), as the pane spells them. */
+  modes: readonly UiMode[];
   /** What each mode means for THIS class, when the general hint would mislead. */
   hints?: Partial<Record<UiMode, string>>;
 }
 
-// label, note and chip are the one set of words (contracts POLICY_CLASS_WORDS); the rest is this pane's.
+// label, note and chip are the one set of words (contracts POLICY_CLASS_WORDS), and the modes the one rule
+// (POLICY_CLASS_MODES); the rest is this pane's.
 const W = (cls: PolicyClass) => ({
   label: POLICY_CLASS_WORDS[cls].name,
   note: POLICY_CLASS_WORDS[cls].note,
   chip: POLICY_CLASS_WORDS[cls].short,
+  modes: POLICY_CLASS_MODES[cls].map((m) => LABELS[m]),
 });
 
 export const UI_ROWS: readonly UiRowMeta[] = [
@@ -73,7 +79,6 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     id: "faq",
     cls: "faq",
     ...W("faq"),
-    modes: ["Auto", "Ask"],
     hints: {
       Auto: "answers from your business profile — never a price",
       Ask: "tells them a person will get back with the details, and lands the thread in Needs you",
@@ -83,7 +88,6 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     id: "book",
     cls: "booking",
     ...W("booking"),
-    modes: ["Auto", "Ask"],
     hints: {
       Auto: "sends your booking link when they want to book, move or cancel",
       Ask: "tells them a person will confirm, never sends the link, and lands the thread in Needs you",
@@ -91,15 +95,14 @@ export const UI_ROWS: readonly UiRowMeta[] = [
   },
   { id: "reengage", cls: "reengage", ...W("reengage") },
   // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, where deals are on.
-  { id: "follow_up", cls: "follow_up", ...W("follow_up"), modes: ["Auto", "Ask", "Never"] },
+  { id: "follow_up", cls: "follow_up", ...W("follow_up") },
   { id: "campaign", cls: "campaign", ...W("campaign") },
   // Beside the campaigns (Reach out, Part 4 PR 6): what a reach-out's runs do. Never auto: a chain's first run waits.
-  { id: "outreach", cls: "outreach", ...W("outreach"), modes: ["Veto", "Ask", "Never"] },
+  { id: "outreach", cls: "outreach", ...W("outreach") },
   {
     id: "reviews",
     cls: "reviews",
     ...W("reviews"),
-    modes: ["Auto", "Ask", "Never"],
     hints: {
       Auto: "answers each new review on Google within the hour, in the business's name — never about money",
       Ask: "writes a draft when you open a reply on Reports; you send it",
@@ -130,11 +133,10 @@ export interface UiRow extends UiRowMeta {
   limits: Record<string, unknown>;
 }
 
-const LABELS: Record<string, UiMode> = { auto: "Auto", veto: "Veto", ask: "Ask", never: "Never" };
 const EMPTY: PoliciesSurface = { rows: [], role: null, dealsOn: false };
 
 export function modeLabel(dbMode: string | null | undefined): UiMode | null {
-  return dbMode ? (LABELS[dbMode] ?? null) : null;
+  return dbMode ? ((LABELS as Record<string, UiMode>)[dbMode] ?? null) : null;
 }
 
 export function dbMode(label: string | null | undefined): string | null {
@@ -149,7 +151,7 @@ export function uiRows(p: PoliciesSurface): UiRow[] {
     return {
       ...r,
       mode: r.locked ? "Never" : modeLabel(rec?.mode),
-      limits: (rec?.limits as Record<string, unknown> | null | undefined) ?? {},
+      limits: rec?.limits ?? {},
     };
   });
 }
@@ -175,7 +177,7 @@ interface PolicyWindow {
  * at bridge boot, after the manifest has installed the seeds and before React
  * renders.
  */
-export function installPolicyStore(win: PolicyWindow = window as unknown as PolicyWindow): void {
+export function installPolicyStore(win: PolicyWindow = window): void {
   const seed = win.POLICY;
   const surface = (): PoliciesSurface | null | undefined => win.__POLICIES;
   const store = {
@@ -214,7 +216,7 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       const mode = dbMode(m);
       if (!r || r.locked || !mode || !win.__setPolicy) return;
       // A mode the class cannot honour is not written: the pane shows a dash there.
-      if (r.modes && !r.modes.includes(LABELS[mode])) return;
+      if (!policyModeOffered(r.cls, mode)) return;
       void win.__setPolicy(r.cls, mode);
     },
     /** True when the store answers from the workspace's real rows. */
@@ -222,5 +224,5 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       return !!surface();
     },
   };
-  win.POLICY = store as unknown as SeedStore;
+  win.POLICY = store;
 }

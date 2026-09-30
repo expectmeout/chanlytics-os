@@ -82,7 +82,7 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
           ? "Receptionist replied"
           : "We sent";
   return {
-    ts: m as number,
+    ts: m,
     at: r.last_message_at,
     kind: "message",
     who,

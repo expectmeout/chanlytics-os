@@ -300,14 +300,17 @@ test("the policy a route declares is the policy it carries", () => {
   assert.equal(typeof POST, "function", "and it is still the handler Next calls");
 });
 
-test("the export carries what the route takes and answers, as a type the client can read, and nothing at runtime", () => {
-  // Types are erased, so the executed half is that nothing is added at runtime;
-  // the typed half is the generated registry compiling against every export.
-  const GET = read({
-    scope: workspace,
-    query: z.object({ days: z.string().optional() }),
-    handle: async () => ({ n: 1 }),
-  });
-  assert.deepEqual(Object.keys(GET).sort(), ["policy", "run"], "a phantom type adds nothing at runtime");
+test("the export carries what the route takes and answers, as a type the client can read, and at runtime only the schema it parses with", () => {
+  // Types are erased, so the executed half is that nothing but the route's own schema is added at runtime (the
+  // /api/v1 reference is written from it: gen/api-reference.mjs); the typed half is the generated registry
+  // compiling against every export.
+  const query = z.object({ days: z.string().optional() });
+  const GET = read({ scope: workspace, query, handle: async () => ({ n: 1 }) });
+  assert.deepEqual(Object.keys(GET).sort(), ["input", "policy", "run"], "a phantom type adds nothing at runtime");
   assert.deepEqual(Object.getOwnPropertySymbols(GET), [], "and no symbol either");
+  assert.equal(GET.input, query, "a read's input is its query schema, the one it parses with");
+  const body = z.object({ text: z.string() });
+  const POST = write({ scope: workspace, role: "operator", rate: "reply", input: body, handle: echo });
+  assert.equal(POST.input, body, "a write's input is its body schema");
+  assert.equal(read({ scope: account, handle: echo }).input, undefined, "a route that declares none carries none");
 });

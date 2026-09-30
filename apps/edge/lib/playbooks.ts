@@ -146,7 +146,7 @@ export async function loadTenantRunContext(
     string,
     unknown
   >;
-  const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
+  const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
   // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
   // follow-up's once per proposal (touchIndex, 0006).
@@ -155,7 +155,7 @@ export async function loadTenantRunContext(
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.
   const tz = tenant?.timezone || "America/New_York";
-  const rows = (people ?? []) as unknown as PersonRowDto[];
+  const rows = people ?? [];
   const cfgParsed = parseTenantConfig(cfgRow?.config ?? null);
   const url = cfgParsed?.calendar?.ical_url ?? null;
   // The workspace's own horizon, the way the People sweep asks for it
@@ -289,7 +289,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
             broadcast_id: id,
             contact_id: r.contact_id,
             tenant_id: tenantId,
-            ...(r.facts ? { facts: r.facts as unknown as Json } : {}),
+            ...(r.facts ? { facts: r.facts } : {}),
           })),
         );
         if (error) throw new Error(error.message);

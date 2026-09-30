@@ -23,7 +23,7 @@ import {
   type Tone,
 } from "./colour";
 import { drawCharacter } from "./draw";
-import { liquid as liquidDrawing, type GlCanvas, type Liquid } from "./liquid";
+import { liquid as liquidDrawing, type Liquid } from "./liquid";
 import { smooth } from "./math";
 
 export interface DriverEnv {
@@ -146,7 +146,7 @@ function browserEnv(): DriverEnv {
       mo.observe(d.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       return () => mo.disconnect();
     },
-    liquid: () => liquidDrawing(() => (d ? (d.createElement("canvas") as unknown as GlCanvas) : null)),
+    liquid: () => liquidDrawing(() => (d ? d.createElement("canvas") : null)),
   };
 }
 

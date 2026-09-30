@@ -134,12 +134,11 @@
   --duration-slow: 360ms;
 
   /* ---------- Blur and saturation (a look's material) ----------
-     How far a glass surface softens what is behind it and how much it warms its colour: a clear pane's (sm) and the
-     control layer's (lg), the canvases' own (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, Appendix B).
-     A look's roles read them, never a rule: Classic blurs nothing. */
-  --blur-sm: 14px;
+     How far a glass surface softens what is behind it and how much it warms its colour: the control layer's, the
+     canvases' own (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, Appendix B). A look's roles read them,
+     never a rule: Classic blurs nothing. The canvases' clear pane blurred at 14px and 1.25; the look draws its panes
+     clear without a blur (kit.css, the panes), so that step waits for a pane that needs one. */
   --blur-lg: 28px;
-  --saturate-sm: 1.25;
   --saturate-lg: 1.5;
 
   /* ---------- Signature Accent ---------- */
@@ -343,23 +342,33 @@
   --bubble-us-bg: oklch(0.304 0.046 275 / 0.09);
   --bubble-us-line: transparent;
 
-  /* Ink, 1 to 4. */
+  /* Ink, 1 to 4: the canvases' four, the third and the fourth stronger than they drew them. Every word the dim ink says
+     reads 4.5:1 or more on the ground, the light and the glass it stands on (0.64 read 3.4 to 4.1 there); the faint
+     ink, a placeholder's and a hint's, reads no fainter than Classic's on Classic's ground (0.22 read 1.5, Classic
+     2.4). The plan's Appendix B keeps the canvases' value beside each. */
   --ink: oklch(0.227 0.008 275);
   --ink-muted: oklch(0.328 0.021 278 / 0.86);
-  --ink-dim: oklch(0.328 0.021 278 / 0.64);
-  --ink-faint: oklch(0.328 0.021 278 / 0.22);
+  --ink-dim: oklch(0.328 0.021 278 / 0.78);
+  --ink-faint: oklch(0.328 0.021 278 / 0.45);
 
-  /* Coral, amber and green, each with its soft ground and, where the canvases give one, its words. Green's words stay
-     Classic's --ok-ink, which reads 4.8:1 on this ground. */
-  --accent: oklch(0.633 0.185 31);
-  --accent-soft: oklch(0.633 0.185 31 / 0.12);
+  /* Coral, amber and green, each with its soft ground and, where the canvases give one, its words; and the words of red
+     and blue, which the canvases do not draw. Green's words stay Classic's --ok-ink, which reads 4.8:1 on this ground.
+     Coral is a step deeper than the canvases' (0.633), so that white words on it and the coral words a page writes read
+     no worse than Classic's (white on it 4.3:1, Classic 3.9); amber a hair deeper (0.737) for the same reason, where a
+     page still writes it as words. Each tone's words are deeper than the canvases' (coral's 0.532, amber's 0.508) and
+     Classic's (red's 0.5, blue's 0.47), so that a pill's words read 4.5:1 on their soft ground over the look's strongest
+     light, the blue pool, where they read 3.4 to 4.0. */
+  --accent: oklch(0.6 0.185 31);
+  --accent-soft: oklch(0.6 0.185 31 / 0.12);
   --accent-fg: oklch(1 0 0);
-  --accent-ink: oklch(0.532 0.167 32);
-  --warn: oklch(0.737 0.147 74);
-  --warn-soft: oklch(0.737 0.147 74 / 0.14);
-  --warn-ink: oklch(0.508 0.105 72);
+  --accent-ink: oklch(0.45 0.15 32);
+  --warn: oklch(0.72 0.147 74);
+  --warn-soft: oklch(0.72 0.147 74 / 0.14);
+  --warn-ink: oklch(0.45 0.09 72);
   --ok: oklch(0.571 0.12 155);
   --ok-soft: oklch(0.571 0.12 155 / 0.12);
+  --danger-ink: oklch(0.45 0.17 27);
+  --info-ink: oklch(0.43 0.1 235);
 
   /* The page: its ground, and the light, three soft pools where the canvases put them. */
   --surface-page-light:
@@ -384,10 +393,9 @@
     0 22px 44px -26px oklch(0.274 0.063 274 / 0.36), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
   --surface-control-radius: 30px;
 
-  /* A pane: clear, a lighter blur, a thinner rim, a shallow shadow, and no hairline: its rim is its edge. */
+  /* A pane: clear, a thinner rim, a shallow shadow, and no hairline: its rim is its edge. */
   --surface-pane-fill: oklch(1 0 0 / 0.26);
   --surface-pane-edge: transparent;
-  --surface-pane-blur: blur(var(--blur-sm)) saturate(var(--saturate-sm));
   --surface-pane-rim: linear-gradient(
     135deg,
     oklch(1 0 0 / 0.98) 0%,
@@ -430,13 +438,18 @@
   --control-radius-sm: var(--radius-full);
   --selected-fill: oklch(1 0 0 / 0.82);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  /* The dim and faint inks on the picked segment, which is lighter than the ground it stands on: the page's own on the
+     light side, where the lozenge only lifts them. */
+  --selected-ink-dim: var(--ink-dim);
+  --selected-ink-faint: var(--ink-faint);
 
   /* Actions: the primary is the accent, coral, with a glow of the accent under it and the specular edge (decision 5);
-     the secondary sits on a pane as an inset does. */
-  --primary-fill: oklch(0.624 0.184 31);
+     the secondary sits on a pane as an inset does. The fill is deeper than the canvases' button (0.624), so its white
+     words read 4.5:1 (they read 3.9). */
+  --primary-fill: oklch(0.58 0.184 31);
   --primary-ink: oklch(1 0 0);
   --primary-hover: oklch(from var(--primary-fill) calc(l - 0.04) c h);
-  --primary-depth: 0 8px 18px -10px oklch(0.633 0.185 31), inset 0 1px 0 oklch(1 0 0 / 0.35);
+  --primary-depth: 0 8px 18px -10px oklch(0.6 0.185 31), inset 0 1px 0 oklch(1 0 0 / 0.35);
   --secondary-fill: oklch(1 0 0 / 0.62);
 
   /* A count beside what it counts, on a nav row or an icon: neutral, never a warning's colour. */
@@ -468,18 +481,22 @@
 
   --ink: oklch(0.968 0.003 286);
   --ink-muted: oklch(0.946 0.012 286 / 0.72);
-  --ink-dim: oklch(0.946 0.012 286 / 0.52);
-  --ink-faint: oklch(0.946 0.012 286 / 0.22);
+  --ink-dim: oklch(0.946 0.012 286 / 0.66);
+  --ink-faint: oklch(0.946 0.012 286 / 0.38);
 
   --accent: oklch(0.719 0.175 29);
   --accent-soft: oklch(0.719 0.175 29 / 0.15);
   --accent-fg: oklch(0.171 0.027 33);
-  --accent-ink: oklch(0.759 0.144 28);
+  --accent-ink: oklch(0.82 0.11 28);
   --warn: oklch(0.801 0.138 77);
   --warn-soft: oklch(0.801 0.138 77 / 0.15);
   --warn-ink: oklch(0.842 0.12 81);
   --ok: oklch(0.783 0.162 155);
   --ok-soft: oklch(0.783 0.162 155 / 0.13);
+  /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read
+     4.8 there. Blue's are Classic's, set again over the light side's. */
+  --danger-ink: oklch(0.74 0.15 27);
+  --info-ink: oklch(0.72 0.12 235);
 
   --surface-page-light:
     radial-gradient(39% 40% at 23% 6%, oklch(0.737 0.103 267 / 0.17), transparent),
@@ -525,6 +542,8 @@
 
   --selected-fill: oklch(1 0 0 / 0.13);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  --selected-ink-dim: oklch(0.946 0.012 286 / 0.8);
+  --selected-ink-faint: oklch(0.946 0.012 286 / 0.5);
 
   --primary-fill: oklch(0.719 0.175 29);
   --primary-ink: oklch(0.171 0.027 33);
@@ -556,7 +575,6 @@
     --surface-pop-fill: var(--surface-pop-solid);
     --surface-island-fill: var(--surface-island-solid);
     --surface-control-blur: none;
-    --surface-pane-blur: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -569,7 +587,6 @@
     --surface-pop-fill: var(--surface-pop-solid);
     --surface-island-fill: var(--surface-island-solid);
     --surface-control-blur: none;
-    --surface-pane-blur: none;
   }
 }
 

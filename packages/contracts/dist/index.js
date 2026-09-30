@@ -2746,14 +2746,40 @@ var ASK_PAGES = [
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // What the receptionist knows lives in Business details; the Memory pane says so and points here.
+  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
+  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
+  // its name lands here too, never on that pane (#417).
   {
     label: "Receptionist memory",
     to: "admin/workspace",
     kind: "page",
-    sub: "hours, services and notes, in Business details"
+    sub: "hours, services and notes, in Business details",
+    also: ["ai memory"]
   }
 ];
+var PIPELINE = {
+  label: "Pipeline",
+  to: "clients/pipeline",
+  kind: "page",
+  sub: "your deals, by stage",
+  also: ["deals"]
+};
+var BACK_OFFICE = {
+  label: "Back office",
+  to: "admin/platform",
+  kind: "page",
+  sub: "every workspace, for Chanlytics staff"
+};
+function askPages(has3) {
+  const out = [];
+  for (const p of ASK_PAGES) {
+    out.push(p);
+    if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
+  }
+  if (has3.platformAdmin) out.push(BACK_OFFICE);
+  return out;
+}
 function askJump(query, index, limit = 6) {
   const s = query.trim().toLowerCase();
   if (s.length < 2 || s.split(/\s+/).length > 3 || /[?¿]$/.test(s)) return [];
@@ -2775,8 +2801,7 @@ function askJump(query, index, limit = 6) {
 var CHIPS_OF = {
   pipeline: "people",
   calendar: "other",
-  campaigns: "other",
-  start: "other"
+  campaigns: "other"
 };
 var T = {
   en: {
@@ -2794,6 +2819,7 @@ var T = {
     hours: "What are our hours this week?",
     brief: "Brief me on today",
     proposals: "Who has a proposal out?",
+    setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
@@ -2829,6 +2855,7 @@ var T = {
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
     proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
+    setupLeft: "\xBFQu\xE9 falta por configurar?",
     moreLike: "Encuentra m\xE1s como: {asked}",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
@@ -2849,6 +2876,26 @@ var T = {
     actHold: "Retener cada respuesta para revisarla",
     actHoldQ: "Ret\xE9n cada respuesta para mi revisi\xF3n antes de enviarla"
   }
+};
+var PAGE_QUESTIONS = {
+  today: [
+    ["brief", "sparkle"],
+    ["who", "users"]
+  ],
+  inbox: [
+    ["who", "users"],
+    ["rules", "shield"]
+  ],
+  people: [["who", "users"]],
+  reports: [["week", "trending-up"]],
+  settings: [
+    ["rules", "shield"],
+    ["hours", "clock"]
+  ],
+  start: [
+    ["setupLeft", "check"],
+    ["hours", "clock"]
+  ]
 };
 function clipWords(s, cap2) {
   const w = s.replace(/\s+/g, " ").trim();
@@ -2879,34 +2926,8 @@ function buildAskSuggestions(input) {
   if (input.liveNow > 0) add(t.live, "ask", "phone");
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  switch (at3) {
-    case "today":
-      add(t.brief, "ask", "sparkle");
-      add(t.who, "ask", "users");
-      break;
-    case "inbox":
-      add(t.who, "ask", "users");
-      add(t.rules, "ask", "shield");
-      break;
-    case "people":
-      add(t.who, "ask", "users");
-      break;
-    case "leads":
-      break;
-    case "reports":
-      add(t.week, "ask", "trending-up");
-      break;
-    case "settings":
-      add(t.rules, "ask", "shield");
-      add(t.hours, "ask", "clock");
-      break;
-    case "live":
-    case "conversations":
-      add(t.calls, "ask", "phone", input.missedToday > 0);
-      break;
-    default:
-      break;
-  }
+  for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
+  if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
   if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
@@ -3085,6 +3106,7 @@ var ASK_PAGE_ROUTES = [
   "inbox",
   "clients",
   "clients/leads",
+  "clients/pipeline",
   "segments",
   "conversations",
   "live",
@@ -3101,7 +3123,9 @@ var ASK_PAGE_ROUTES = [
   "admin/integrations",
   "admin/billing",
   "admin/activity",
-  "admin/profile"
+  "admin/profile",
+  "admin/partner",
+  "admin/platform"
 ];
 var PAGE_PREFIX = /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
@@ -8990,13 +9014,15 @@ function describeOpenings(openings, tz, opts) {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
   const hasLink = opts.hasBookingLink;
+  const held = hasLink && opts.bookingHeld === true;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
-` + (hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 
 // src/calendar/service-offer.ts
@@ -10483,6 +10509,16 @@ var POLICY_CLASS_MODES = {
   // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
   outreach: ["veto", "ask", "never"]
 };
+function policyModeOffered(cls, mode) {
+  return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
+}
+function policyModeRefusal(cls, mode) {
+  if (policyModeOffered(cls, mode)) return null;
+  if (mode === "veto") return `The ${POLICY_CLASS_WORDS[cls].short} row has nothing to hold for review.`;
+  if (mode === "never" && (cls === "booking" || cls === "faq"))
+    return 'Bookings and service questions are answered by the receptionist or by you \u2014 there is no "never".';
+  return `The ${cls} row cannot be set to ${mode}.`;
+}
 function policyClassOfIntent(intent) {
   if (intent === "booking") return "booking";
   if (intent === "pricing" || intent === "services") return "faq";
@@ -11478,9 +11514,9 @@ function abilityRows(i) {
       id: "open_times",
       title: "Say which times are open",
       // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
-      // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
+      // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
+      // says what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
@@ -12932,7 +12968,7 @@ var INVOICE_STATUS_WORDS = {
 };
 function invoiceStatusWords(status) {
   if (!status) return "\u2014";
-  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] : status;
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] ?? status : status;
 }
 var CHECKOUT_RETURNS = ["billing", "start"];
 var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
@@ -12987,7 +13023,7 @@ var THEME_OPTIONS = [
 var isThemePref = (v) => v === "light" || v === "dark" || v === "system";
 function nextThemePref(pref) {
   const at3 = THEME_OPTIONS.findIndex((o) => o.id === pref);
-  return THEME_OPTIONS[(at3 + 1) % THEME_OPTIONS.length].id;
+  return (THEME_OPTIONS[(at3 + 1) % THEME_OPTIONS.length] ?? THEME_OPTIONS[0]).id;
 }
 function themeButtonWords(pref) {
   const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
@@ -13039,7 +13075,7 @@ function inAppFrom(userAgent) {
   const m = IN_APP_UA_RE.exec(userAgent ?? "");
   if (!m) return null;
   const platform = (m[2] ?? "").toLowerCase();
-  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+  return { version: m[1] ?? "", platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
 var IN_APP_CLASS = "in-app";
 var APP_KEYS_RESIZE_CLASS = "app-keys-resize";
@@ -13075,9 +13111,6 @@ function routePrefetchScript() {
   ].join("");
 }
 var isSidebarPref = (v) => v === "open" || v === "rail";
-function workspaceHotkey(index) {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
-}
 function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
@@ -13154,6 +13187,8 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // The record kit's fold, sheet and inline editor (record-fold.jsx recKeys): Business, a person, a deal, a step.
+  { group: "Everywhere", keys: ["\u2318\u21B5"], does: "Save the change you are making" },
   // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
   { group: "Ask", keys: ["\u2191", "\u2193"], does: "Walk what is under the line" },
   { group: "Ask", keys: ["\u21B5"], does: "Ask, or open the row" },
@@ -13171,7 +13206,9 @@ var SHORTCUTS = [
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
-  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" }
+  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" },
+  { group: "Calendar", keys: ["\u2190", "\u2192"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" }
 ];
 function shortcutGroups(list2 = SHORTCUTS) {
   const out = [];
@@ -29744,6 +29781,7 @@ export {
   askIntent,
   askJump,
   askModelProfile,
+  askPages,
   askUndoOpen,
   attentionOf,
   attentionRow,
@@ -30420,6 +30458,8 @@ export {
   policyClassOfIntent,
   policyClassOffered,
   policyLinks,
+  policyModeOffered,
+  policyModeRefusal,
   policyRules,
   poolListContext,
   poolRowOf,
@@ -30795,7 +30835,6 @@ export {
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,
-  workspaceHotkey,
   workspacePartnerVM,
   writtenChannelOf,
   writtenOutDetail,

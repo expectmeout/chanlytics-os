@@ -126,8 +126,7 @@ function cachedPrice(): BillingPriceDto | null | undefined {
 async function readPrice(s: Stripe, id: string): Promise<BillingPriceDto | null> {
   try {
     const p = await s.prices.retrieve(id, { expand: ["product"] });
-    const product =
-      p.product && typeof p.product === "object" && "name" in p.product ? (p.product as Stripe.Product).name : null;
+    const product = p.product && typeof p.product === "object" && "name" in p.product ? p.product.name : null;
     const iv = String(p.recurring?.interval ?? "");
     const interval =
       iv === "day" || iv === "week" || iv === "month" || iv === "year" ? (iv as BillingPriceDto["interval"]) : null;

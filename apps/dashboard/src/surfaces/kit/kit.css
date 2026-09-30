@@ -2623,13 +2623,27 @@ a.list-row {
 :where([data-look="glass"]) .rec-seg[data-hints="true"] .rec-seg-btn {
   border-radius: var(--radius-lg);
 }
+/* A key's focus draws the house's ring over a picked segment's own depth: the lozenge's shadow outranks the ring's
+   rule (components.css, NUANCE PASS), and the picked segment is where a radio group and a tab list put focus. The dim
+   words on it (a tab's count, a choice's sentence) take the dim ink the lozenge needs, which is lighter than the page
+   under a dark look (tokens.css, --selected-ink-dim). */
+:where([data-look="glass"]) :is(.stabs-tab.active, .rec-seg-btn[aria-checked="true"]):focus-visible {
+  box-shadow: var(--focus-ring), var(--selected-depth);
+}
+:where([data-look="glass"]) :is(.stabs-tab.active, .rec-seg-btn[aria-checked="true"]) :is(.tally, .rec-seg-hint) {
+  color: var(--selected-ink-dim);
+}
 
 /* A surface's views are the segmented capsule of the canvases' title blocks (inbox3.py surface_tabs): glass on the
    page, as wide as its tabs, the picked tab the lozenge in ink. One weight whichever is picked, as in Classic (a
    bolder word is a wider one, and the tabs beside it moved on every switch), where the canvases set it at 600. A
    thumb carrying the page carries the lozenge, drawn under the words. Its padding is the capsule's own, so it names
    the look outright, over the strip's sides that the phone and Campaigns set (components.css), which become where the
-   frame and the page place the capsule. */
+   frame and the page place the capsule.
+   It blurs what is behind it and wears the rim on a desk only. Under 900px the strip scrolls across (above), and a
+   scroller's ::before scrolls with its tabs, so the rim's rounded end was drawn in the middle of the strip; and a
+   phone spends a blur only where the page moves behind the glass (the tab bar, Ask's circle, the drawer). Its depth
+   keeps the specular edge and the contour at every width. */
 [data-look="glass"] .stabs,
 [data-look="glass"] .stabs.stabs-campaigns {
   padding: 4px;
@@ -2641,20 +2655,24 @@ a.list-row {
   border-radius: var(--radius-full);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
-  backdrop-filter: var(--surface-control-blur);
   isolation: isolate;
 }
-:where([data-look="glass"]) .stabs::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: var(--surface-control-rim);
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-  pointer-events: none;
+@media (width > 900px) {
+  :where([data-look="glass"]) .stabs {
+    backdrop-filter: var(--surface-control-blur);
+  }
+  :where([data-look="glass"]) .stabs::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-control-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
 }
 :where([data-look="glass"]) .stabs-tab {
   height: var(--control-h-sm);
@@ -2684,35 +2702,24 @@ a.list-row {
   background: transparent;
   box-shadow: none;
 }
+:where([data-look="glass"]) .stabs[data-glide] .stabs-tab.active:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 
 /* ---- Clear panes and inset rows (E3's clear tiles; inbox3.py and people3.py panes) ----
    A pane is clear glass: its fill, its rim over its edge, and the specular edge, contour and shadow its depth, with no
    hairline (its rim is its edge). The panel's inset and pop are no pane; the record card is one. Inside a pane, an
    inset takes its specular edge, a row's wash an inset's corner, and a face is the canvases' avatar: the inset's fill
    and hairline, the initials in ink.
-   The pane's blur: the record card isolates in both looks (its rows' washes sit under their words in it), so its fill
-   and blur take a layer of its own under its words, and the card stays no containing block for a menu that escapes
-   it. A panel does not isolate, and does not take one: a layer of its own would draw a menu escaping it under the pane
-   after it (measured on the gallery, 29 Sep: under it in Glass where Classic drew it over), and over the page's light
-   a pane's blur moves what is drawn by less than one level in 255 on average (measured there too). */
+   A pane takes no blur of its own: over the page's still light a pane's blur changed what was drawn by less than one
+   level in 255 on average (measured on the gallery and on Settings, 29 Sep), and on a phone Settings drew a blurred
+   layer under every card for nothing a person could see. Its fill is the role's (the card's and the panel's own rules
+   read it); a layer of the panel's own would also draw a menu escaping it under the pane after it. */
 :where([data-look="glass"]) .panel:not(.panel-inset, .panel-pop),
 :where([data-look="glass"]) .rec-card {
   position: relative;
   border-width: 0;
   box-shadow: var(--surface-pane-depth);
-}
-:where([data-look="glass"]) .rec-card {
-  background: transparent;
-}
-:where([data-look="glass"]) .rec-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--surface-pane-fill);
-  backdrop-filter: var(--surface-pane-blur);
-  pointer-events: none;
 }
 :where([data-look="glass"]) .panel:not(.panel-inset, .panel-pop)::after,
 :where([data-look="glass"]) .rec-card::after {
@@ -2752,7 +2759,8 @@ a.list-row {
    On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque as what pops over the page is,
    over the page's wash; on a phone it rises from the bottom edge at the same corner. Its foot is a capsule of the
    control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
-   rows scroll above it, never under it. It names the look outright, over the record kit's phone foot (record.css). */
+   rows scroll above it, never under it, and it stands on the sheet's opaque ground, so it has nothing to blur. It
+   names the look outright, over the record kit's phone foot (record.css). */
 @media (width > 900px) {
   :where([data-look="glass"]) .sheet,
   :where([data-look="glass"]) .rec-sheet {
@@ -2777,7 +2785,6 @@ a.list-row {
   border-radius: var(--surface-control-radius);
   background: var(--surface-control-fill);
   box-shadow: var(--surface-control-depth);
-  backdrop-filter: var(--surface-control-blur);
 }
 [data-look="glass"] .rec-sheet-foot::before {
   content: "";
@@ -2828,6 +2835,12 @@ a.list-row {
   border-radius: var(--radius-full);
   background: var(--surface-inset-fill);
 }
+/* A key in the search capsule draws the house's ring round the capsule: the field inside it draws none of its own
+   (.input input, above), and the capsule's hairline turning a step darker was all that said where the key stood. */
+:where([data-look="glass"]) .input:focus-within {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+}
 
 /* ---- Counts as text (liquid_lite.py count_text; liquid.py count) ----
    A count beside what it counts (a tab, a title, a filter) is text: the third ink, the words' own size, no ground,
@@ -2857,4 +2870,24 @@ a.list-row {
   font-weight: var(--weight-semibold);
   line-height: 1;
   color: var(--count-ink);
+}
+
+/* ---- A tone's words read the tone's ink (the one-badge spec's rule) ----
+   Where the house's rules still write a raw tone as words: a quiet destructive act, a menu's destructive item, what went
+   wrong, a toast's link and its act. On the look's glass and over its light a raw tone read 2.7 to 4.3:1 (the gallery's
+   check 7); the ink reads 4.5 or more. The hover a quiet link and a toast's link keep, the ink, still outranks these. */
+:where([data-look="glass"]) .btn.danger,
+:where([data-look="glass"]) .more-item.danger,
+:where([data-look="glass"]) .btn.danger:hover,
+:where([data-look="glass"]) .more-item.danger .icon,
+:where([data-look="glass"]) .link-btn-danger,
+:where([data-look="glass"]) .confirm-error,
+:where([data-look="glass"]) .field-error {
+  color: var(--danger-ink);
+}
+:where([data-look="glass"]) .pp-toast-link {
+  color: var(--info-ink);
+}
+:where([data-look="glass"]) .pp-toast-cta {
+  color: var(--accent-ink);
 }
