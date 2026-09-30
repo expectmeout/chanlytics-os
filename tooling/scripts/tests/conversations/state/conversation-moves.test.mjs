@@ -23,9 +23,6 @@ const AT = "2026-09-29T12:00:00.000Z";
 const INPUT = { until: UNTIL, user: "u1", now: AT };
 const MOVES = Object.keys(CONVERSATION_MOVES);
 
-/** The columns the session role may update on a thread (00037's grant, which hygiene.test.mjs reads). */
-const GRANTED = ["state", "paused_until", "snooze_until", "assignee_user_id", "last_message_at"];
-
 /** The inputs a move names, each given. */
 const inputOf = (move) =>
   Object.fromEntries(
@@ -72,7 +69,34 @@ test("the table: every state is reachable, every move starts from states and end
   }
 });
 
-test("a move's patch is its state and exactly the columns it sets, each from its input; a missing input is refused; the columns are the session role's grant", () => {
+// Written out, not derived from the table: the old writers spelt these columns inline, and a change to a move is a
+// change to what a thread does, so it must show in this list.
+const GOLDEN = {
+  take_over: { state: "needs_human", paused_until: UNTIL, snooze_until: null, assignee_user_id: "u1" },
+  reply_claim: {
+    state: "needs_human",
+    paused_until: UNTIL,
+    snooze_until: null,
+    assignee_user_id: "u1",
+    last_message_at: AT,
+  },
+  hand_back: { state: "open", paused_until: null, snooze_until: null, assignee_user_id: null },
+  snooze: { state: "snoozed", snooze_until: UNTIL, paused_until: null, assignee_user_id: null },
+  wake: { state: "open", snooze_until: null },
+  archive: { state: "archived", paused_until: null, assignee_user_id: null },
+  hand_off: { state: "needs_human", paused_until: UNTIL },
+  owner_echo: { state: "needs_human", paused_until: UNTIL, last_message_at: AT },
+  reopen: { state: "open", snooze_until: null },
+  pause_expired: { state: "open", paused_until: null, assignee_user_id: null },
+  snooze_expired: { state: "open", snooze_until: null },
+};
+
+test("each move's patch is what the writers spelt inline before the table, written out; and the table has no other move", () => {
+  assert.deepEqual(Object.keys(GOLDEN).sort(), MOVES.slice().sort());
+  for (const move of MOVES) assert.deepEqual(conversationPatch(move, inputOf(move)), GOLDEN[move], move);
+});
+
+test("a move's patch is its state and exactly the columns it sets, each from its input; a missing input is refused", () => {
   for (const move of MOVES) {
     const m = CONVERSATION_MOVES[move];
     const patch = conversationPatch(move, inputOf(move));
@@ -84,7 +108,6 @@ test("a move's patch is its state and exactly the columns it sets, each from its
       },
       move,
     );
-    for (const col of Object.keys(patch)) assert.ok(GRANTED.includes(col), `${move} writes ${col}, a granted column`);
     if (Object.keys(inputOf(move)).length) assert.throws(() => conversationPatch(move, {}), /needs/, move);
   }
   assert.deepEqual(conversationPatch("take_over", { until: UNTIL, user: "u1" }), {

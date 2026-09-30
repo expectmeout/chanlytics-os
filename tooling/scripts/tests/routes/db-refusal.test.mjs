@@ -11,12 +11,12 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "../../_fake-db.mjs";
+import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setBearerVerifier } = await import(at("apps/dashboard/src/server/bearer.ts"));
 const { withRoute, dbRefusal } = await import(at("apps/dashboard/src/server/with-route.ts"));

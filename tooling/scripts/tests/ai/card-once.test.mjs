@@ -8,8 +8,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { fakeDb } from "../../_fake-db.mjs";
-import { at } from "../../_cron-doors-world.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { at } from "../_cron-doors-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

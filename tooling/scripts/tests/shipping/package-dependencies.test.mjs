@@ -1,7 +1,7 @@
 /**
  * Each project says what it needs, and a package ships no one else's code.
  *
- * The hoisted linker (`.npmrc`) puts every third-party module at the root, so an import a project never declared
+ * The hoisted linker (`nodeLinker` in pnpm-workspace.yaml) puts every third-party module at the root, so an import a project never declared
  * resolves anyway and nothing fails until the layout changes: core and jobs imported `@supabase/supabase-js`, and
  * their builds carried `html-to-text` inline, for weeks without declaring either (the scorecard's I1:3). A package's
  * built dist is what the edge executes (docs/decisions/0024-how-the-packages-ship.md): the workspace's own packages
@@ -71,6 +71,18 @@ test("each package's built dist imports only what its package.json declares", ()
   );
 });
 
+test("no package's built JavaScript imports a workspace package: the inlining is what keeps a dist self-contained", () => {
+  // Until decision 0024's step 2 gives the siblings a relative path of their own. A dist that imported `@chanlytics/db`
+  // would pass the declaration test above (core declares it) and resolve under pnpm's links here, then fail on the
+  // edge, where Vercel's bundler follows no link.
+  const imported = PACKAGES.flatMap((p) =>
+    importsOf(parse(`packages/${p}/dist/index.js`))
+      .filter((i) => i.specifier.startsWith("@chanlytics/"))
+      .map((i) => `${p}: ${i.specifier}`),
+  );
+  assert.deepEqual(imported, [], "the package's tsup.config.ts inlines @chanlytics/* (noExternal)");
+});
+
 /** The modules esbuild inlined into a bundle: it opens each one with a comment naming its path. */
 function inlinedModules(file) {
   const sf = parse(file);
@@ -98,6 +110,8 @@ test("each package's build inlines only the workspace's own packages", async () 
   for (const p of PACKAGES) {
     const { default: config } = await import(pathToFileURL(path.join(ROOT, `packages/${p}/tsup.config.ts`)).href);
     assert.equal(config.skipNodeModulesBundle, true, `${p}: every bare import but @chanlytics/* stays external`);
+    // Every package but contracts imports a sibling, and its dist carries it: noExternal is what says so.
+    if (p !== "contracts") assert.ok((config.noExternal ?? []).length > 0, `${p}: inlines the workspace's packages`);
     for (const re of config.noExternal ?? []) {
       assert.ok(
         re instanceof RegExp && re.test("@chanlytics/contracts"),

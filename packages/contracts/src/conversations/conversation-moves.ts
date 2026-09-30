@@ -1,11 +1,12 @@
 /**
  * How a thread's state moves — declared once.
  *
- * `conversations.state` is written by the dashboard's thread ports, db's inbound pauses and SQL's sweeps, and each
- * writer used to spell its own columns. This table is every move by name: the states it may start from, the state
- * it ends in, and what else it writes. A TypeScript writer builds its update with `conversationPatch`; the last three
- * are SQL's own (the function each names), written by hand to agree with this until a guard on the table holds them
- * to it, as 00106 does for broadcasts and escalations.
+ * `conversations.state` is written by the dashboard's thread ports, db's inbound pauses and SQL's sweeps. This table is
+ * every move of the thread by name: the states it may start from, the state it ends in, and what else it writes. A
+ * TypeScript writer builds its update with `conversationPatch`; the last three are SQL's own (the function each
+ * names), written by hand to agree with this and run against it on a real database
+ * (tests/conversations/state/conversation-moves.db.test.mjs). A few SQL doors of another subject clear a thread's
+ * assignee as a side effect (a partner's pause, a member's departure); they are not moves of the thread.
  *
  * A column's value is cleared (`null`) or comes from the move's input: `until` (the pause or the snooze's end),
  * `user` (who claims it) or `now` (the thread touched). Only these four columns ever move with the state: they are

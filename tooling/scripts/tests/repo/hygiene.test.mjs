@@ -203,19 +203,30 @@ test("every bridge request goes through the typed client", () => {
 });
 
 /**
- * The files of packages/core that are adapters by design, each with the reason and what ends it. Every other module
- * of core is a verb or a rule: it takes the world through its ports.
+ * The files of packages/core that are adapters by design, each with the reason and the only modules it may import
+ * beyond what a verb may (a file on this list is not free to import anything else). Every other module of core is a
+ * verb or a rule: it takes the world through its ports.
  */
 const CORE_WALL_EXCEPTIONS = {
   // The one send door (CLAUDE.md): it writes the outbound ledger and puts a message on the wire, so it holds db's
   // writers and channels' senders. Ends when the send door takes a ledger port and a wire port.
-  "deliver.ts": "the one send door, over db's writers and channels' senders",
-  // deliver's wire half, split out of deliver.ts for its length (#1327): channels' senders, called only by deliver.
-  "wire-senders.ts": "deliver's wire half",
+  "deliver.ts": {
+    reason: "the one send door, over db's writers and channels' senders",
+    may: ["@chanlytics/db", "@chanlytics/channels", "@supabase/supabase-js"],
+  },
+  // deliver's wire half, split out of deliver.ts for its length (#1327): channels' senders. The edge and the jobs
+  // call them too, for a wire that is not a customer's message.
+  "wire-senders.ts": { reason: "deliver's wire half, over channels' senders", may: ["@chanlytics/channels"] },
   // The lead runner starts Apify's runs through a port typed as Apify's own client, and asks it for the run-end
   // webhook Apify's names. Ends when Apify's actors move behind the lead port (the scorecard's domain step).
-  "leads/runner/check.ts": "Apify's run-end webhook names, until Apify moves behind the lead port",
-  "leads/runner/start.ts": "Apify's run-end webhook names, until Apify moves behind the lead port",
+  "leads/runner/check.ts": {
+    reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
+    may: ["@chanlytics/channels"],
+  },
+  "leads/runner/start.ts": {
+    reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
+    may: ["@chanlytics/channels"],
+  },
 };
 
 /** Whether core may import this: its own modules, contracts, and the types (never a value) of db and channels. */
@@ -231,16 +242,24 @@ test("a core verb knows no database, framework, provider or environment", () => 
   // the tables are. The wall is all of packages/core/src, but the files named above.
   const offenders = [];
   const walled = [];
+  const excepted = [];
   for (const file of repoFiles(["packages/core/src"])) {
     const rel = file.slice("packages/core/src/".length);
     const bad = importsOf(parse(file)).filter((i) => !coreMayImport(i));
-    if (rel in CORE_WALL_EXCEPTIONS) {
+    const exception = CORE_WALL_EXCEPTIONS[rel];
+    if (exception) {
+      excepted.push(rel);
       if (bad.length === 0) offenders.push(`${rel}: keeps the wall now; take it off CORE_WALL_EXCEPTIONS`);
+      for (const i of bad.filter((b) => !exception.may.includes(b.specifier)))
+        offenders.push(
+          `${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}, which its exception (${exception.reason}) does not cover`,
+        );
       continue;
     }
     walled.push(rel);
     for (const i of bad) offenders.push(`${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}`);
   }
+  assert.deepEqual(excepted.sort(), Object.keys(CORE_WALL_EXCEPTIONS).sort(), "every exception is a file that exists");
   assert.ok(walled.length > 60, "the wall walks every module of core, not a few folders");
   assert.deepEqual(offenders, [], "a verb takes the world through its ports; core-ports.ts is where the tables are");
 });

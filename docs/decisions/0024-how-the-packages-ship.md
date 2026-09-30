@@ -1,7 +1,8 @@
 # 0024 · How the packages ship
 
-**Status:** decided on 29 September 2026 with the road-to-10 health lane, and built in part: step 1, third-party code
-stays an import, is built with this note; steps 2 to 4 are to come. Written against `1388f2cc6` (main, 29 September
+**Status:** Proposed on 29 September 2026 by the road-to-10 health lane; Ruben's confirmation owed. Step 1, third-party
+code stays an import, is built with this note (it moves no shape the wire or the two apps share); steps 2 to 4 wait for
+it. Written against `1388f2cc6` (main, 29 September
 2026, after #1332) and verified against the code at it; where this note and the code disagree, the code wins. The
 scorecard's move 5 ("Decide how packages ship") and `docs/debt.md`'s two packaging rows asked for it.
 
@@ -19,7 +20,7 @@ scorecard's move 5 ("Decide how packages ship") and `docs/debt.md`'s two packagi
     core's own source; contracts' 1,256,196 of it is contracts. Of the 84 commits since `0c8225d58` (28 September),
     40 rewrote a dist, and of the 34 that changed contracts' source, 13 rewrote all five bundles.
   - Two copies of each class and each piece of module state in one process. `AppError` lost its identity across
-    bundles until #1175 gave it a brand every copy recognises (`routes/wrapper/core-refusal-through-the-wrapper.test.mjs`).
+    bundles until #1175 gave it a brand every copy recognises (`routes/core-refusal-through-the-wrapper.test.mjs`).
     The provider breaker (`packages/channels/src/provider-fetch.ts`, a module-level map) exists once in channels'
     bundle and again in core's, so a send through core's `deliver` counts toward a breaker the edge's direct calls
     through channels never consult. A logger's request context in a package would split the same way.
@@ -50,7 +51,7 @@ logger's context) needs its own global registry, found only after two copies dis
 
 ## Consequences
 
-- A package's `package.json` is the truth about what its dist needs; `packages/package-dependencies.test.mjs` fails an
+- A package's `package.json` is the truth about what its dist needs; `shipping/package-dependencies.test.mjs` fails an
   undeclared import in any project's source or any package's dist, a third-party module inlined into a dist, a build
   that inlines anything but `@chanlytics/*`, and two ranges of one module across the packages and the server apps.
 - The dists hold only their own code and their siblings' paths once step 2 lands; until it does, core and jobs still
@@ -73,7 +74,7 @@ Each ships alone, in either deploy order: the two apps bundle the packages at th
 wire changes.
 
 1. **Built with this note.** `skipNodeModulesBundle` in the five builds; core and jobs declare what they import;
-   `packages/package-dependencies.test.mjs` (its four dist and build tests fail on `1388f2cc6`). Core's dist 1,824,997 →
+   `shipping/package-dependencies.test.mjs` (its four dist and build tests fail on `1388f2cc6`). Core's dist 1,824,997 →
    1,717,169 bytes, jobs' 1,209,906 → 861,352. Proved locally: the suite; `node -e "import('./packages/core/dist/index.js')"`
    and jobs' the same, resolving `html-to-text` and supabase-js from the root; and a trace of all 51 edge doors with
    Vercel's own `@vercel/nft` (1.5.0, TypeScript transpiled on read as `@vercel/node` does) that carries the same
@@ -89,9 +90,9 @@ wire changes.
 
 ## Tests
 
-- `tooling/scripts/tests/packages/package-dependencies.test.mjs`: declarations against sources and dists, no inlined
+- `tooling/scripts/tests/shipping/package-dependencies.test.mjs`: declarations against sources and dists, no inlined
   third-party module, builds that inline only `@chanlytics/*`, one range per module.
-- `tooling/scripts/tests/routes/wrapper/core-refusal-through-the-wrapper.test.mjs` and `tooling/scripts/tests/ops/provider-fetch.test.mjs`
+- `tooling/scripts/tests/routes/core-refusal-through-the-wrapper.test.mjs` and `tooling/scripts/tests/ops/provider-fetch.test.mjs`
   run unchanged on the rebuilt dists.
 - Step 2's breaker test is written with step 2.
 

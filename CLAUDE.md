@@ -125,7 +125,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
   or the client; the edge never imports the dashboard, `next` or `react`; a core verb takes the world through its ports, so
   nothing of `packages/core` imports a database or a provider value (the named adapters aside, `repo/hygiene.test.mjs`);
-  each package imports only what its `package.json` declares (`packages/package-dependencies.test.mjs`). Types cross
+  each package imports only what its `package.json` declares (`shipping/package-dependencies.test.mjs`). Types cross
   freely. `eslint.config.mjs` and those tests enforce it.
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
