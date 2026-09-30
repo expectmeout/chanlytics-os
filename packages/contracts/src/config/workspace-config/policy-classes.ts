@@ -209,7 +209,7 @@ export const POLICY_COVERS = {
 } as const;
 
 /** The label for a message that falls under none of the classes above. */
-export const POLICY_CLASS_NONE = "none";
+const POLICY_CLASS_NONE = "none";
 
 /** The class label a receptionist's intent gives, as the shadow's question names classes: the class, or none. */
 export function policyClassLabel(intent: string | null | undefined): string {

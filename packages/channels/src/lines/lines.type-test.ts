@@ -1,11 +1,11 @@
 /**
- * This package's own copies of database sets, held to the database the same way
- * packages/contracts/src/shared/schema-sets.ts holds the rest. No runtime: if this file
- * stops compiling, a list here and its column disagree.
+ * The line sets this package keeps by hand, held to their columns' CHECKs the way
+ * packages/contracts/src/shared/schema-sets.type-test.ts holds contracts'. No runtime: if this file stops compiling
+ * (this package's `tsc --noEmit`), a list here and its column disagree.
  */
 import type { Exactly, Holds, SchemaSet, Within } from "@chanlytics/contracts";
-import type { A2P_STEPS } from "./lines/a2p/steps";
-import type { LineProviderName } from "./lines/lines";
+import type { A2P_STEPS } from "./a2p/steps";
+import type { LineProviderName } from "./lines";
 
 export type ChannelsSchemaAgreement = [
   // The registration saga walks exactly the steps a line may record, in its own order.

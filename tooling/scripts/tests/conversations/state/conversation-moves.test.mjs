@@ -12,10 +12,10 @@ import {
   conversationPatch,
 } from "@chanlytics/contracts";
 import { pauseConversation, recordEchoAndPause } from "@chanlytics/db";
-import { importSrc } from "../_source.mjs";
-import { fakeDb } from "../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
-const { threadPorts, replyPorts } = await import("../../../../apps/dashboard/src/server/ports/core-ports.ts");
+const { threadPorts, replyPorts } = await import("../../../../../apps/dashboard/src/server/ports/core-ports.ts");
 const core = await importSrc("packages/core/src/conversations/index.ts");
 
 const UNTIL = "2026-09-29T15:00:00.000Z";

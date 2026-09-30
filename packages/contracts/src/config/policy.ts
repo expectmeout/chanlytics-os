@@ -97,8 +97,7 @@ export function namesMoney(text: string): boolean {
 }
 
 /** Why layer two replaced a reply: a price, money, a booking or a service question under "ask". */
-export const HELD_LINE_KINDS = ["price", "money", "booking", "faq"] as const;
-export type HeldLineKind = (typeof HELD_LINE_KINDS)[number];
+export type HeldLineKind = "price" | "money" | "booking" | "faq";
 
 /**
  * The words a customer gets instead of a held reply, in the language the

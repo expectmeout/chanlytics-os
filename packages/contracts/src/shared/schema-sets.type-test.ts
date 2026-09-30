@@ -1,6 +1,6 @@
 /**
  * The helpers every closed-set check is written with (schema-sets.ts), proved to fail. schema-sets.ts and channels'
- * schema-agreement.ts hold each hand-kept list to its column's CHECK with `Holds<Exactly<…>>` (`Within` where a list
+ * lines/lines.type-test.ts hold each hand-kept list to its column's CHECK with `Holds<Exactly<…>>` (`Within` where a list
  * is narrower on purpose), and every one of those lines is a positive: this is the proof that a stale list would not
  * have compiled. A list one value short of its column, one with a value the CHECK refuses, a misspelt one, an empty
  * one and `any` on either side (which would read as every set) each fail `Exactly`; a wider list fails `Within`,

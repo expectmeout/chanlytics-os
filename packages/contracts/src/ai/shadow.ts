@@ -147,7 +147,7 @@ export interface ShadowCallSpec {
 }
 
 /** The names a question goes by in the ledger (ai_usage.question). Each purpose's are here; the judge's are its rubric's keys. */
-export const SHADOW_QUESTIONS = {
+const SHADOW_QUESTIONS = {
   receptionist: { moneyClass: "money_class", injection: "injection", stop: "stop_request" },
   reply_read: { intent: "reply_intent" },
 } as const;

@@ -8,13 +8,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 import { HOUR_MS, PAUSE_HOURS_DEFAULT, hardLimitsWords, pauseHoursOf, pauseMsOf } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { pauseMsFor } = await import(at("apps/dashboard/src/server/verbs.ts"));
 
