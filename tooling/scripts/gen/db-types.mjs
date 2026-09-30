@@ -187,7 +187,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!check) {
     fs.writeFileSync(out, generated);
     console.log(`wrote ${OUT} (${lines} lines)`);
-    fs.writeFileSync(path.join(ROOT, KEYS_OUT), renderKeys(readIndexes(ROOT)));
+    const read = readIndexes(ROOT);
+    fs.writeFileSync(path.join(ROOT, KEYS_OUT), renderKeys(read.rows, read.defaults));
     console.log(`wrote ${KEYS_OUT}`);
     process.exit(0);
   }

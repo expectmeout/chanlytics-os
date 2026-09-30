@@ -27,11 +27,11 @@
  * no `.select()` answers no rows. Rows a fixture seeds are taken as they are:
  * only what the code under test sends is judged. What it still does not know:
  * triggers, which the `*.db.test.mjs` suites meet on the replayed stack, other
- * CHECKs, defaults beyond `id` and `created_at`, and foreign keys.
+ * CHECKs, defaults beyond `id`, `created_at` and the ones a unique key's
+ * predicate reads (jobs.state is 'scheduled'), and foreign keys.
  */
 
 import crypto from "node:crypto";
-import fs from "node:fs";
 import { localHour, runDueNow } from "@chanlytics/contracts";
 import {
   schemaOf,
@@ -41,6 +41,7 @@ import {
   asSent,
   onTheWire,
   refusedRow,
+  unknownWrittenColumn,
   uniqueKeysOf,
   conflictUnmatched,
   unknownFunction,
@@ -123,8 +124,9 @@ function matches(row, filters) {
               ? cell(row, col) != null && cell(row, col) >= val
               : op === "lte"
                 ? cell(row, col) != null && cell(row, col) <= val
-                : op === "neq"
-                  ? cell(row, col) !== val
+                : // SQL's <>: a NULL is not unequal to anything, so a row whose cell is NULL is not selected.
+                  op === "neq"
+                  ? cell(row, col) != null && cell(row, col) !== val
                   : op === "in"
                     ? val.includes(cell(row, col))
                     : // PostgREST's `.contains(col, value)`, jsonb's @> for a flat object: every
@@ -166,15 +168,18 @@ function matches(row, filters) {
                         ? (() => {
                             const [o, v] = val;
                             if (o === "is") return v === null ? cell(row, col) != null : cell(row, col) !== v;
-                            if (o === "eq") return cell(row, col) !== v;
+                            if (o === "eq") return cell(row, col) != null && cell(row, col) !== v;
                             // PostgREST's `.not(col, "like", "usage.%")`: modelled for the activity
                             // log, which leaves the evidence families out unless asked by name.
                             if (o === "like")
-                              return !new RegExp(
-                                `^${String(v)
-                                  .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-                                  .replace(/%/g, ".*")}$`,
-                              ).test(String(cell(row, col) ?? ""));
+                              return (
+                                cell(row, col) != null &&
+                                !new RegExp(
+                                  `^${String(v)
+                                    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                                    .replace(/%/g, ".*")}$`,
+                                ).test(String(cell(row, col)))
+                              );
                             throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
                           })()
                         : // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
@@ -619,7 +624,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           if (bad) return bad;
         }
       }
-      if (q.op === "update") return refusedRow(SCHEMA, table, onTheWire(q.values), { insert: false });
+      // An update's values are judged against the rows it matches (below): one that matches none writes none.
+      if (q.op === "update") return unknownWrittenColumn(SCHEMA, table, onTheWire(q.values));
       return null;
     };
 
@@ -627,40 +633,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     const drawn = () => selectOf(SCHEMA, table, q.columns).draw;
 
     const run = () => {
-      let r;
-      try {
-        r = run0();
-      } catch (e) {
-        if (process.env.FAKE_DB_TRACE)
-          process.stderr.write(`TRACE THROW ${table}.${q.op} cols=${q.columns}: ${e.message}\n`);
-        throw e;
-      }
-      if (process.env.FAKE_DB_TRACE)
-        process.stderr.write(
-          `TRACE ${table}.${q.op} sel=${q.selected} cols=${q.columns} -> ${r.error ? "ERR " + r.error.code + " " + r.error.message : Array.isArray(r.data) ? r.data.length + " rows " + JSON.stringify(r.data[0] ?? null).slice(0, 150) : String(r.data)}\n`,
-        );
-      return r;
-    };
-    const run0 = () => {
       seen.push({ ...q, filters: [...q.filters] });
       const fault = faults[`${table}.${q.op}`];
       if (fault) return { data: null, error: fault };
       const refusal = refused();
-      if (refusal) {
-        if (process.env.FAKE_DB_REFUSALS)
-          fs.appendFileSync(
-            process.env.FAKE_DB_REFUSALS,
-            JSON.stringify({
-              file: process.argv[1],
-              table,
-              op: q.op,
-              columns: q.columns,
-              code: refusal.code,
-              message: String(refusal.message).slice(0, 200),
-            }) + "\n",
-          );
-        return { data: null, error: refusal, count: null };
-      }
+      if (refusal) return { data: null, error: refusal, count: null };
 
       // An insert appends copies with an id and a stamp when the caller gave
       // none, and answers with them when it asks -- `.select()` after an insert
@@ -769,6 +746,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // already replaced matches nothing and comes back empty.
       const values = onTheWire(q.values);
       const hit = rows().filter((r) => matches(r, q.filters));
+      const refusedValue = hit.length ? refusedRow(SCHEMA, table, values, { insert: false }) : null;
+      if (refusedValue) return { data: null, error: refusedValue, count: null };
       // Judged before anything is written: Postgres refuses the whole statement.
       const clash = uniqueViolation(
         keysOf(table),
@@ -965,15 +944,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // `code` the test put on the error, since a route maps the function's own
       // codes (22023, 54000) to the wire.
       const run = () => {
-        if (missing) {
-          if (process.env.FAKE_DB_REFUSALS)
-            fs.appendFileSync(
-              process.env.FAKE_DB_REFUSALS,
-              JSON.stringify({ file: process.argv[1], rpc: name, args: Object.keys(args ?? {}), code: missing.code }) +
-                "\n",
-            );
-          return { data: null, error: missing };
-        }
+        if (missing) return { data: null, error: missing };
         try {
           return { data: fn(args, derived[name]), error: null };
         } catch (e) {

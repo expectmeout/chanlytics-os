@@ -43,6 +43,19 @@ select c.relname::text as tbl,
    and not c.relispartition
  order by 1, 2`;
 
+/** Each column's default, as the database prints it: a key's predicate reads a column a row may leave to its default. */
+const DEFAULTS_SQL = `
+select c.relname::text as tbl, a.attname::text as col, pg_get_expr(d.adbin, d.adrelid) as def
+  from pg_attrdef d
+  join pg_class c on c.oid = d.adrelid
+  join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+ where c.relnamespace = 'public'::regnamespace
+   and c.relkind in ('r', 'p')
+   and not c.relispartition
+   and not a.attisdropped
+   and a.attgenerated = ''
+ order by 1, 2`;
+
 /* ---- A small reader for what pg_get_expr and pg_get_indexdef print ---- */
 
 function tokens(text) {
@@ -251,12 +264,13 @@ export function keyOf(row) {
   }
 }
 
-export function readIndexes(root) {
+/** One query of the local stack, its rows. */
+function ask(root, sql) {
   const CLI = process.env.SUPABASE_CLI || "supabase";
   const [cmd, pre] = CLI.endsWith(".js") ? [process.execPath, [CLI]] : [CLI, []];
   let out;
   try {
-    out = execFileSync(cmd, [...pre, "db", "query", SQL, "-o", "json"], {
+    out = execFileSync(cmd, [...pre, "db", "query", sql, "-o", "json"], {
       cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -271,7 +285,12 @@ export function readIndexes(root) {
   }
   const at = [out.indexOf("{"), out.indexOf("[")].filter((i) => i >= 0).sort((x, y) => x - y)[0];
   const parsed = JSON.parse(out.slice(at));
-  const rows = Array.isArray(parsed) ? parsed : parsed.rows;
+  return Array.isArray(parsed) ? parsed : parsed.rows;
+}
+
+/** Every unique key and every column default of the local stack: what render() writes. */
+export function readIndexes(root) {
+  const rows = ask(root, SQL);
   // A database this small is not the one the migrations build: refuse rather than write a file that holds nothing.
   if (rows.length < 50) {
     console.error(
@@ -279,16 +298,51 @@ export function readIndexes(root) {
     );
     process.exit(2);
   }
-  return rows;
+  return { rows, defaults: ask(root, DEFAULTS_SQL) };
+}
+
+/** Every column a key's parts and predicate read, of a key as keyOf writes it. */
+function columnsRead(node, out = new Set()) {
+  if (Array.isArray(node)) for (const n of node) columnsRead(n, out);
+  else if (node && typeof node === "object")
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "column") out.add(v);
+      else if (k === "path") out.add(v[0]);
+      else columnsRead(v, out);
+    }
+  return out;
+}
+
+/**
+ * The defaults that are plain values, for the columns a key reads: a row that leaves one out has the default in the
+ * database, and a partial key's predicate (jobs.state is 'scheduled' unless said) must see it there. now(), a sequence
+ * and a jsonb are the database's to fill and are left out.
+ */
+export function defaultsOf(defaultRows, keys) {
+  const read = {};
+  for (const k of keys) for (const c of columnsRead([k.keys, k.where])) (read[k.table] ??= new Set()).add(c);
+  const out = {};
+  for (const r of defaultRows) {
+    if (!read[r.tbl]?.has(r.col) || r.def.includes("::json")) continue;
+    try {
+      const node = parser(r.def).operand();
+      if (node && node.value !== undefined && node.value !== null) (out[r.tbl] ??= {})[r.col] = node.value;
+    } catch {
+      // a function, or a form this reader does not know: the database fills it
+    }
+  }
+  return out;
 }
 
 /** The file's text for these rows: keys the double models, and the ones it cannot, each by table and name. */
-export function render(rows) {
+export function render(rows, defaultRows = []) {
   const all = rows.map(keyOf);
+  const keys = all.filter((k) => !k.unmodelled);
   const file = {
     generated:
       "by tooling/scripts/gen/unique-keys.mjs from the replayed migrations; do not edit (supabase start, then corepack pnpm gen:db-types)",
-    keys: all.filter((k) => !k.unmodelled),
+    keys,
+    defaults: defaultsOf(defaultRows, keys),
     unmodelled: all.filter((k) => k.unmodelled).map((k) => ({ table: k.table, name: k.name, why: k.unmodelled })),
   };
   return JSON.stringify(file, null, 2) + "\n";
@@ -299,7 +353,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // --file <path> reads or writes another file than the committed one: how the suite proves a stale one is caught.
   const named = process.argv.indexOf("--file");
   const out = named > 0 ? path.resolve(process.argv[named + 1]) : path.join(ROOT, OUT);
-  const text = render(readIndexes(ROOT));
+  const read = readIndexes(ROOT);
+  const text = render(read.rows, read.defaults);
   if (process.argv.includes("--check")) {
     const committed = fs.existsSync(out) ? fs.readFileSync(out, "utf8").replace(/\r\n/g, "\n") : "";
     if (committed === text) {

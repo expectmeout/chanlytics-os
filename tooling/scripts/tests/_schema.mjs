@@ -23,9 +23,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../../..");
-export const TYPES = "packages/db/src/database.types.ts";
-export const SETS = "packages/contracts/src/schema-sets.generated.ts";
-export const UNIQUE_KEYS = "tooling/scripts/tests/_unique-keys.generated.json";
+const TYPES = "packages/db/src/database.types.ts";
+const SETS = "packages/contracts/src/schema-sets.generated.ts";
+const UNIQUE_KEYS = "tooling/scripts/tests/_unique-keys.generated.json";
 const SELF = fileURLToPath(import.meta.url);
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -141,8 +141,9 @@ export async function schemaOf() {
   const [types, sets, keys] = inputs;
   const { relations, functions } = await parseTypes(types);
   const uniques = {};
-  for (const k of keys ? JSON.parse(keys).keys : []) (uniques[k.table] ??= []).push(k);
-  cached = { relations, functions, sets: parseSets(sets), uniques };
+  const keyed = keys ? JSON.parse(keys) : { keys: [], defaults: {} };
+  for (const k of keyed.keys) (uniques[k.table] ??= []).push(k);
+  cached = { relations, functions, sets: parseSets(sets), uniques, defaults: keyed.defaults ?? {} };
   const tmp = `${file}.${process.pid}`;
   try {
     fs.writeFileSync(tmp, JSON.stringify(cached));
@@ -156,7 +157,7 @@ export async function schemaOf() {
 /* ---- What PostgREST and Postgres refuse, as supabase-js hands the refusal back ---- */
 
 /** An error envelope's `error`, the shape postgrest-js returns for a refused request. */
-export const refusal = (code, message, details = null, hint = null) => ({ code, message, details, hint });
+const refusal = (code, message, details = null, hint = null) => ({ code, message, details, hint });
 
 /** A relation PostgREST does not know: 404, PGRST205. */
 export function unknownRelation(schema, table) {
@@ -306,13 +307,24 @@ export function asSent(rows) {
   return wire.map((r) => Object.fromEntries(keys.map((k) => [k, k in r ? r[k] : null])));
 }
 
-/** A row written against the relation's columns, NOT NULLs and closed sets: `null`, or the refusal. */
-export function refusedRow(schema, table, row, { insert }) {
+/** A column a write names that the table lacks, which PostgREST refuses before the statement runs: `null`, or the refusal. */
+export function unknownWrittenColumn(schema, table, row) {
   const rel = schema.relations[table];
   for (const col of Object.keys(row)) {
     if (!rel.columns[col])
       return refusal("PGRST204", `Could not find the '${col}' column of '${table}' in the schema cache`);
   }
+  return null;
+}
+
+/**
+ * A row written against the relation's columns, NOT NULLs and closed sets: `null`, or the refusal. These are refused
+ * for a row the statement writes, so an update that matches no row is refused none of them.
+ */
+export function refusedRow(schema, table, row, { insert }) {
+  const rel = schema.relations[table];
+  const unknown = unknownWrittenColumn(schema, table, row);
+  if (unknown) return unknown;
   for (const [col, c] of Object.entries(rel.columns)) {
     const missing = !(col in row);
     if ((row[col] === null && !c.nullable) || (insert && missing && c.required))
@@ -411,6 +423,13 @@ function columnsRead(node, out = new Set()) {
  * `reads` every column the key or its predicate reads.
  */
 export function uniqueKeysOf(schema, table) {
+  // A column a row leaves out has its default in the database, and a partial key's predicate may read it.
+  const defaults = schema.defaults?.[table] ?? {};
+  const held = (row) => {
+    let out = row;
+    for (const [col, v] of Object.entries(defaults)) if (row[col] === undefined) out = { ...out, [col]: v };
+    return out;
+  };
   return (schema.uniques[table] ?? []).map((k) => ({
     table,
     name: k.name,
@@ -418,9 +437,10 @@ export function uniqueKeysOf(schema, table) {
     partial: k.where != null,
     reads: [...columnsRead([k.keys, k.where])],
     columns: k.keys.every((p) => p.column !== undefined) ? k.keys.map((p) => p.column) : null,
-    where: k.where ? (row) => truth(k.where, row) === true : () => true,
+    where: k.where ? (row) => truth(k.where, held(row)) === true : () => true,
     key: (row) => {
-      const parts = k.keys.map((p) => valueOf(p, row));
+      const seen = held(row);
+      const parts = k.keys.map((p) => valueOf(p, seen));
       if (!k.nullsNotDistinct && parts.some((v) => v === null)) return null;
       return JSON.stringify(parts);
     },

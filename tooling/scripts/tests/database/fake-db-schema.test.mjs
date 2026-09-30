@@ -104,6 +104,41 @@ test("a write is judged only against the keys it reaches: a column no key reads 
   assert.equal(seeded[0].voice_state, "answering", "nothing was written");
 });
 
+test("a partial key's predicate sees the default of a column a row leaves out: two email_ingest jobs with no state are one", async () => {
+  const job = {
+    tenant_id: T,
+    kind: "email_ingest",
+    due_at: "2026-09-29T12:00:00Z",
+    payload: { mailbox_id: "m", received_id: "r" },
+  };
+  const db = fakeDb({});
+  assert.equal((await db.from("jobs").insert(job)).error, null);
+  const again = await db.from("jobs").insert(job);
+  assert.equal(code(again), "23505");
+  assert.match(again.error.message, /jobs_email_ingest_uq/);
+  // a job that failed is outside the key's predicate, whether its state is sent or is the default
+  assert.equal((await db.from("jobs").insert({ ...job, state: "failed" })).error, null);
+});
+
+test("<> and NOT leave out a row whose cell is NULL, as SQL does; an update that matches nothing is refused no value", async () => {
+  const db = fakeDb({
+    contacts: [
+      rows.contact({ id: uuid(1), tenant_id: T, email: null }),
+      rows.contact({ id: uuid(2), tenant_id: T, email: "b@example.com" }),
+    ],
+  });
+  const ids = async (q) => (await q).data.map((r) => r.id);
+  const all = () => db.from("contacts").select("id");
+  assert.deepEqual(await ids(all().neq("email", "no@example.com")), [uuid(2)]);
+  assert.deepEqual(await ids(all().not("email", "eq", "no@example.com")), [uuid(2)]);
+  assert.deepEqual(await ids(all().not("email", "like", "no%")), [uuid(2)]);
+  assert.deepEqual(await ids(all().not("email", "is", null)), [uuid(2)]);
+  // Postgres checks a value against the rows it writes: none written, none refused (a column that is not there still is)
+  assert.equal((await db.from("contacts").update({ tenant_id: null }).eq("id", uuid(99))).error, null);
+  assert.equal(code(await db.from("contacts").update({ tenant_id: null }).eq("id", uuid(1))), "23502");
+  assert.equal(code(await db.from("contacts").update({ nope: 1 }).eq("id", uuid(99))), "PGRST204");
+});
+
 test("an upsert's conflict target must be a whole unique key (42P10), and a NULL in it conflicts with nothing", async () => {
   const tables = { memberships: [{ id: uuid(9), tenant_id: T, user_id: U, role: "operator", views: {} }] };
   const db = fakeDb(tables);

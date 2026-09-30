@@ -1882,5 +1882,25 @@
       "where": null
     }
   ],
+  "defaults": {
+    "erasure_keying": {
+      "id": true
+    },
+    "escalations": {
+      "state": "open"
+    },
+    "jobs": {
+      "state": "scheduled"
+    },
+    "lead_platform": {
+      "id": true
+    },
+    "lines": {
+      "voice_state": "none"
+    },
+    "person_notes": {
+      "source": "page"
+    }
+  },
   "unmodelled": []
 }

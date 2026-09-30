@@ -8,6 +8,7 @@
  * Every write is kept in the workspace this file makes and deletes. The double gets the same rows the workspace holds.
  */
 import { test, before, after } from "node:test";
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { fakeDb } from "../_fake-db.mjs";
@@ -25,6 +26,8 @@ const skip =
 let db;
 let T;
 const stamp = Date.now().toString(36);
+/** A made-up number in the 555-01xx range, one per case and step, so no two cases of a run share one (the tenant is new). */
+const phone = (i, k = 0) => `+1305555${String(100 + i * 3 + k).padStart(4, "0")}`;
 
 before(async () => {
   if (skip) return;
@@ -40,7 +43,8 @@ before(async () => {
 
 after(async () => {
   if (skip || !T) return;
-  await db.from("tenants").delete().eq("id", T);
+  const gone = await db.from("tenants").delete().eq("id", T);
+  assert.equal(gone.error, null, gone.error?.message);
 });
 
 /** What a response says, in the words a test would assert: refused with what, or answered with how many rows. */
@@ -49,7 +53,7 @@ const said = (r) =>
     ? { code: r.error.code, message: r.error.message }
     : { rows: Array.isArray(r.data) ? r.data.length : r.data == null ? null : 1, count: r.count ?? null };
 
-/** Each case: a request as a function of a client, the tenant and a suffix that keeps two runs' values apart. */
+/** Each case: a request as a function of a client, the tenant, a suffix that keeps two runs' values apart, and its index. */
 const CASES = [
   ["a table the database does not have", (c) => c.from("no_such_table").select("*")],
   ["a column a select names that the table lacks", (c) => c.from("contacts").select("id, name")],
@@ -58,7 +62,7 @@ const CASES = [
   ["an embed with no key between the two", (c) => c.from("contacts").select("id, calls_log(id)")],
   ["an insert naming a column the table lacks", (c, t) => c.from("contacts").insert({ tenant_id: t, phone: "1" })],
   ["an update naming a column the table lacks", (c, t) => c.from("contacts").update({ phone: "1" }).eq("tenant_id", t)],
-  ["a NOT NULL column left out of an insert", (c, t, s) => c.from("contacts").insert({ phone_e164: `+1305${s}` })],
+  ["a NOT NULL column left out of an insert", (c, t, s, i) => c.from("contacts").insert({ phone_e164: phone(i) })],
   [
     "a NOT NULL column with a default sent as null",
     (c, t) => c.from("contacts").insert({ tenant_id: t, consent: null }),
@@ -95,13 +99,13 @@ const CASES = [
   ],
   [
     "a second live line on a partial unique index",
-    async (c, t, s) => {
-      const line = (state, e164) => rows.line({ tenant_id: t, voice_state: state, e164: `+1305${s}${e164}` });
-      const first = await c.from("lines").insert(line("answering", "1"));
+    async (c, t, s, i) => {
+      const line = (state, k) => rows.line({ id: randomUUID(), tenant_id: t, voice_state: state, e164: phone(i, k) });
+      const first = await c.from("lines").insert(line("answering", 0));
       assert.equal(first.error, null, first.error?.message);
-      const out = await c.from("lines").insert(line("failed", "2"));
+      const out = await c.from("lines").insert(line("failed", 1));
       assert.equal(out.error, null, "a line outside the index's predicate is taken");
-      return c.from("lines").insert(line("provisioning", "3"));
+      return c.from("lines").insert(line("provisioning", 2));
     },
   ],
   [
@@ -111,6 +115,52 @@ const CASES = [
   ],
   ["a function the database does not have", (c) => c.rpc("no_such_function", {})],
   ["a function called by names it does not take", (c) => c.rpc("claim_due_jobs", { p_limit: 5 })],
+  [
+    "a second job on a partial key whose predicate reads a column left to its default",
+    async (c, t, s) => {
+      const job = {
+        tenant_id: t,
+        kind: "email_ingest",
+        due_at: "2026-09-29T12:00:00Z",
+        payload: { mailbox_id: `m-${s}`, received_id: `r-${s}` },
+      };
+      const first = await c.from("jobs").insert(job);
+      assert.equal(first.error, null, first.error?.message);
+      return c.from("jobs").insert(job);
+    },
+  ],
+  [
+    "an update that matches no row is refused no value",
+    (c) => c.from("contacts").update({ tenant_id: null }).eq("id", "00000000-0000-4000-8000-0000000000ff"),
+  ],
+  [
+    "an update that matches a row is refused a NULL in a NOT NULL",
+    async (c, t, s, i) => {
+      const made = await c
+        .from("contacts")
+        .insert({ tenant_id: t, phone_e164: phone(i) })
+        .select("id")
+        .single();
+      assert.equal(made.error, null, made.error?.message);
+      return c.from("contacts").update({ tenant_id: null }).eq("id", made.data.id);
+    },
+  ],
+  ...[
+    ["<> leaves out a row whose cell is NULL", (q) => q.neq("email", "no@example.com")],
+    ["not.eq leaves out a row whose cell is NULL", (q) => q.not("email", "eq", "no@example.com")],
+    ["not.like leaves out a row whose cell is NULL", (q) => q.not("email", "like", "no%")],
+  ].map(([name, filter], n) => [
+    name,
+    async (c, t, s, i) => {
+      const phones = [phone(i, 0), phone(i, 1)];
+      const made = await c.from("contacts").insert([
+        { tenant_id: t, phone_e164: phones[0], email: null },
+        { tenant_id: t, phone_e164: phones[1], email: `b-${s}-${n}@example.com` },
+      ]);
+      assert.equal(made.error, null, made.error?.message);
+      return filter(c.from("contacts").select("id").in("phone_e164", phones));
+    },
+  ]),
 ];
 
 /** The rows the two databases both start a case with: none, but a case that needs some makes them itself. */
@@ -119,8 +169,8 @@ test("each refusal the double makes is the database's: the same code, and the sa
   for (const [name, request] of CASES) {
     // a fresh double each, so one case's rows are never another's; the real database keeps its own, apart by suffix
     const suffix = `${stamp}${answers.length}`.replace(/\D/g, "").slice(-7).padStart(7, "0");
-    const real = said(await request(db, T, suffix));
-    const fake = said(await request(fakeDb({}, {}, { claim_due_jobs: () => [] }), T, suffix));
+    const real = said(await request(db, T, suffix, answers.length));
+    const fake = said(await request(fakeDb({}, {}, { claim_due_jobs: () => [] }), T, suffix, answers.length));
     answers.push({ name, real, fake });
   }
   const differ = answers.filter((a) => JSON.stringify(a.real) !== JSON.stringify(a.fake));
@@ -139,7 +189,7 @@ test(
     const before_ = await db.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", T);
     assert.equal(before_.error, null, before_.error?.message);
     const many = Array.from({ length: 1050 }, (_, i) =>
-      rows.contact({ tenant_id: T, phone_e164: `+1305${5550000 + i}` }),
+      rows.contact({ id: randomUUID(), tenant_id: T, email: `bulk-${i}@example.com` }),
     );
     for (let i = 0; i < many.length; i += 500) {
       const ok = await db.from("contacts").insert(many.slice(i, i + 500));
