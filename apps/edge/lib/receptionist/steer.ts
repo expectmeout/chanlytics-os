@@ -42,6 +42,10 @@ import { queueDraft } from "./draft-queue.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
 
+const MAX_CHARS = 500;
+
+const steerLog = logger();
+
 /**
  * The model as a port. Production passes nothing and gets the real brain; a
  * test hands in an answer, because lib/brain.ts speaks to the Anthropic SDK
@@ -61,13 +65,12 @@ export interface BrainPort {
  * line says which, and never the words.
  */
 function rewriteBlocked(text: string, messageId: string): boolean {
-  const L = logger();
   if (violatesNoPrices(text)) {
-    L.warn("steer_policy_block_price", { message_id: messageId });
+    steerLog.warn("steer_policy_block_price", { message_id: messageId });
     return true;
   }
   if (!namesMoney(text)) return false;
-  L.warn("steer_policy_block_money", { message_id: messageId });
+  steerLog.warn("steer_policy_block_money", { message_id: messageId });
   return true;
 }
 
@@ -89,8 +92,6 @@ export async function steerHeldDraft(
   body: Partial<{ message_id?: string; text?: string }>,
   brain?: BrainPort | null,
 ): Promise<Response> {
-  const MAX_CHARS = 500;
-  const L = logger();
   const ask = brain?.generateReply ?? generateReply;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth, "/api/admin/steer");
@@ -153,7 +154,7 @@ export async function steerHeldDraft(
   try {
     leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), new Date(), rt.timezone ?? "UTC");
   } catch (e) {
-    L.warn("steer_lead_context_unavailable", { error: errField(e) });
+    steerLog.warn("steer_lead_context_unavailable", { error: errField(e) });
   }
 
   const t0 = Date.now();
@@ -171,7 +172,7 @@ export async function steerHeldDraft(
       brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
     );
   } catch (e) {
-    L.error("steer_brain_failed", { error: errField(e) });
+    steerLog.error("steer_brain_failed", { error: errField(e) });
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
@@ -201,7 +202,7 @@ export async function steerHeldDraft(
       channel,
       extra: { steer: text, steered_from: m.id, escalate: r.escalate },
     },
-    L,
+    steerLog,
   );
   if (!newId) return refuse(502, "could_not_queue");
 
@@ -220,7 +221,7 @@ export async function steerHeldDraft(
     .select("id");
   if (cancelErr || !retired?.length) {
     const lost = !cancelErr;
-    L.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
+    steerLog.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
     await db
       .from("messages")
       .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
@@ -233,7 +234,7 @@ export async function steerHeldDraft(
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
-  L.info("admin_steer", {
+  steerLog.info("admin_steer", {
     message_id: m.id,
     new_message_id: newId,
     chars: text.length,
