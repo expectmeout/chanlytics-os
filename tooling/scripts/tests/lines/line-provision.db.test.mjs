@@ -52,8 +52,8 @@ test("a line_provision job is accepted, due now, and claimed like any other", { 
     assert.equal(ins.error, null, ins.error?.message);
     return ins.data.id;
   };
-  // The ledger is ONE queue and claim_due_jobs takes from all of it, by due
-  // date and nothing else. Two things follow, and other database suites run
+  // The ledger is ONE queue and claim_due_jobs takes from all of it, a reply
+  // first and bulk last (0018). Two things follow, and other database suites run
   // beside this one: a limit small enough to be filled by somebody else's
   // older work would not reach this row (so the limit is generous), and
   // another suite's claim can carry this row off between the insert and the

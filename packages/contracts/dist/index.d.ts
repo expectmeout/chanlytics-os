@@ -847,8 +847,8 @@ type ConsentState = (typeof CONSENT_STATES)[number];
  * `blob_thread_erase` is gone too (00151): it erased the Vercel Blob copy of
  * a conversation, and there is no such copy — Postgres is the receptionist's
  * only memory, and an erasure deletes rows.
- * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
- * together.
+ * A new kind arrives with its handler, its caller, the jobs.kind CHECK and
+ * its lane (jobs.lane, 00267: which work a claim takes first), together.
  */
 declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read"];
 type JobKind = (typeof JOB_KINDS)[number];

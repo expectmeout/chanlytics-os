@@ -2106,6 +2106,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
@@ -2120,6 +2121,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -2134,6 +2136,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind?: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -5206,6 +5209,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
