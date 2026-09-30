@@ -13,6 +13,7 @@
 import { createHmac } from "node:crypto";
 import {
   apifyClient,
+  publicFetcher,
   leadJudge,
   LEAD_JUDGE_DEFAULT_MODEL,
   type ApifyClient,
@@ -110,15 +111,20 @@ function shadowed(inner: LeadJudge): LeadJudge {
   };
 }
 
-export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
+/**
+ * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called with the
+ * platform's fetch, and a lead's own pages and pictures are read through the guarded one (channels publicFetcher): a
+ * lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one.
+ */
+export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
-    apify: apifyClient(fetchImpl, token),
+    apify: apifyClient(fetchImpl ?? fetch, token),
     judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
-    fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),
-    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl, url, timeoutMs, maxBytes),
+    fetchText: (url, timeoutMs) => pageText(fetchImpl ?? publicFetcher(), url, timeoutMs),
+    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl ?? publicFetcher(), url, timeoutMs, maxBytes),
   };
 }

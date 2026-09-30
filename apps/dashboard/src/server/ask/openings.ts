@@ -15,6 +15,7 @@ import {
   type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
+import { publicFetcher } from "@chanlytics/channels";
 import { fillerFeedFor } from "../calendar/filler-calendar";
 
 /**
@@ -131,7 +132,7 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
     let res: Response;
     try {
       // Every hop judged by the address rule (fetchPublic), not only the first.
-      const got = await fetchPublic(fetch, safe, {
+      const got = await fetchPublic(publicFetcher(), safe, {
         signal: AbortSignal.timeout(8_000),
         headers: { accept: "text/calendar, */*" },
       });

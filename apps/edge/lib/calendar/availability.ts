@@ -30,6 +30,7 @@ import {
   type ParsedFeed,
   MIN_MS,
 } from "../packages/contracts.js";
+import { publicFetcher } from "../packages/channels.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";
 
@@ -84,7 +85,7 @@ async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: n
     const safe = feedUrlOk(url);
     if (!safe) throw new Error("address refused: not a public https/webcal address");
     // Every hop judged by the address rule (fetchPublic), not only the first.
-    const r = await fetchPublic(fetch, httpsUrl(safe), {
+    const r = await fetchPublic(publicFetcher(), httpsUrl(safe), {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { accept: "text/calendar, text/plain;q=0.5, */*;q=0.1" },
     });

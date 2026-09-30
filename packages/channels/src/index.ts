@@ -2,6 +2,15 @@
 export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
 export {
+  publicFetch,
+  publicFetcher,
+  setPublicFetch,
+  isPublicAddress,
+  publicLookup,
+  NotPublicError,
+} from "./public-fetch";
+export type { Resolve, Resolved, PublicFetchDeps } from "./public-fetch";
+export {
   askModel,
   streamModel,
   formatRejected,

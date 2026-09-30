@@ -12,6 +12,7 @@ import {
   parseIcs,
   previewHorizon,
 } from "@chanlytics/contracts";
+import { publicFetcher } from "@chanlytics/channels";
 
 /** The address rule is contracts' (feed-url.ts); re-exported so the settings routes' test reaches it at the door that uses it. */
 export { feedUrlOk };
@@ -37,7 +38,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
   let text: string;
   try {
     // Every hop judged by the address rule (fetchPublic), not only the first.
-    const res = await fetchPublic(fetch, safe, {
+    const res = await fetchPublic(publicFetcher(), safe, {
       signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       headers: { accept: "text/calendar, */*" },
     });
