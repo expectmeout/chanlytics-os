@@ -37,6 +37,7 @@ function _segmentedTakes(
       { value: "once", label: "Once", hint: "On the day it is set for." },
       { value: "week", label: "Every week" },
     ],
+    name: "often",
     readOnly: now.saving,
     ref: group,
     className: "pb-often",

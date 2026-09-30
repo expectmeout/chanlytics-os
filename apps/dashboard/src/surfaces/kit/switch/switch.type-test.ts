@@ -24,6 +24,7 @@ function _switchTakes(button: RefObject<HTMLButtonElement | null>, now: { on: bo
   Switch({
     labelledBy: "set-remind-label",
     describedBy: "set-remind-hint",
+    name: "remind",
     checked: now.on,
     onCheckedChange: flip,
     readOnly: now.saving,

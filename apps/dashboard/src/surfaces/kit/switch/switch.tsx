@@ -25,6 +25,8 @@ export type SwitchProps = SwitchName & {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   describedBy?: string;
+  /** Its name in a form, which the hidden checkbox beside it carries. */
+  name?: string;
   readOnly?: boolean;
   className?: string;
   ref?: Ref<HTMLButtonElement>;
@@ -37,6 +39,7 @@ export function Switch({
   label,
   labelledBy,
   describedBy,
+  name,
   readOnly,
   className,
   ref,
@@ -46,6 +49,7 @@ export function Switch({
       ref={ref}
       checked={checked}
       onCheckedChange={(next: boolean) => onCheckedChange(next)}
+      name={name}
       readOnly={readOnly}
       aria-label={label}
       aria-labelledby={labelledBy}

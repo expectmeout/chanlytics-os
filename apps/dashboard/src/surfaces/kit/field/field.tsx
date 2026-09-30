@@ -24,23 +24,28 @@ type FieldProblem = { problem: string; problemGlyph: ReactElement } | { problem?
 /** The kinds of box a field draws: a line of words, or the browser's own for a date, a time, a number. */
 type FieldType = "text" | "email" | "tel" | "url" | "search" | "number" | "date" | "time";
 
-/** The field's own box: its words, what it says as they change, and how it takes them. */
-type FieldBox = {
+/** What both of the field's own boxes take: its words, what it says as they change, and how it takes them. */
+type FieldWords = {
   value: string;
   onValueChange: (value: string) => void;
   /** Its unit, beside the box: "hours", "min". */
   unit?: ReactNode;
-  /** A box of sentences, this many lines tall: a textarea. */
-  rows?: number;
-  type?: FieldType;
   placeholder?: string;
   inputMode?: "text" | "email" | "tel" | "url" | "numeric" | "decimal" | "search";
   maxLength?: number;
   /** While a save is out: it keeps its words and its focus, and takes no typing (never `disabled`). */
   readOnly?: boolean;
-  ref?: Ref<HTMLInputElement>;
   control?: undefined;
 };
+
+/** A line of words: an input, whose ref is an input's. */
+type FieldLine = FieldWords & { rows?: undefined; type?: FieldType; ref?: Ref<HTMLInputElement> };
+
+/** A box of sentences, this many lines tall: a textarea, whose ref is a textarea's. */
+type FieldText = FieldWords & { rows: number; type?: undefined; ref?: Ref<HTMLTextAreaElement> };
+
+/** The field's own box. */
+type FieldBox = FieldLine | FieldText;
 
 /** Another of the kit's controls in the field's place: its Select, Combobox or Switch. */
 type FieldControl = {
@@ -58,21 +63,22 @@ export type FieldProps = { label: ReactNode; hint?: ReactNode; className?: strin
 
 /** The field's own box, with its unit, or the box of sentences. */
 function Box({ box, invalid }: { box: FieldBox; invalid: boolean }) {
-  const { value, onValueChange, unit, rows, type = "text", placeholder, inputMode, maxLength, readOnly, ref } = box;
-  const control = (
-    <BaseField.Control
-      ref={ref}
-      className="rec-input"
-      value={value}
-      onValueChange={(next: string) => onValueChange(next)}
-      type={rows === undefined ? type : undefined}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      maxLength={maxLength}
-      readOnly={readOnly}
-      render={rows === undefined ? undefined : <textarea rows={rows} />}
-    />
-  );
+  const { value, onValueChange, unit, placeholder, inputMode, maxLength, readOnly } = box;
+  const words = {
+    className: "rec-input",
+    value,
+    onValueChange: (next: string) => onValueChange(next),
+    placeholder,
+    inputMode,
+    maxLength,
+    readOnly,
+  };
+  const control =
+    box.rows === undefined ? (
+      <BaseField.Control ref={box.ref} type={box.type ?? "text"} {...words} />
+    ) : (
+      <BaseField.Control render={<textarea ref={box.ref} rows={box.rows} />} {...words} />
+    );
   if (unit === undefined) return control;
   return (
     <span className="rec-input-group" data-invalid={invalid ? "true" : undefined}>

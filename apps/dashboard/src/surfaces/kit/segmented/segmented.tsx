@@ -34,6 +34,8 @@ export type SegmentedProps<V extends string> = SegmentedName & {
   value: V;
   onValueChange: (value: V) => void;
   options: readonly SegmentedOption<V>[];
+  /** Its name in a form, which the hidden radio beside each option carries. */
+  name?: string;
   readOnly?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
@@ -44,7 +46,7 @@ const optionIds = (id: string, at: number) => ({ label: `${id}-${at}-label`, hin
 
 /** One of a few, chosen on a track. */
 export function Segmented<V extends string>(props: SegmentedProps<V>) {
-  const { value, onValueChange, options, label, labelledBy, readOnly, className, ref } = props;
+  const { value, onValueChange, options, name, label, labelledBy, readOnly, className, ref } = props;
   const id = useId();
   const hints = options.some((option) => option.hint !== undefined);
   return (
@@ -52,6 +54,7 @@ export function Segmented<V extends string>(props: SegmentedProps<V>) {
       ref={ref}
       value={value}
       onValueChange={(next: V) => onValueChange(next)}
+      name={name}
       readOnly={readOnly}
       aria-label={label}
       aria-labelledby={labelledBy}
