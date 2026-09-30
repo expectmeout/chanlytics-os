@@ -89,4 +89,33 @@ test.describe("The Inbox and Conversations on their paths", () => {
     await expect.poll(() => routeOf(page.url())).toMatch(/^conversations/);
     await expect(page.locator(".conversations")).toBeVisible();
   });
+
+  test("in Glass the Inbox opens under its own head, and in Classic it has none", async ({ page }) => {
+    const slug = await slugOfHome(page);
+    // The look this device chose (device-prefs.ts): Glass is drawn and not offered, so a spec asks for it as a device would.
+    const chooseLook = (look: string) =>
+      page.evaluate((chosen) => {
+        const key = "chanlytics-os-prefs";
+        const kept = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, unknown>;
+        localStorage.setItem(key, JSON.stringify({ ...kept, look: chosen }));
+      }, look);
+    await page.goto("/api/version");
+    await chooseLook("glass");
+    await page.goto(`/w/${slug}/inbox`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    const head = page.locator(".pg-head");
+    await expect(head.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expect(head.locator(".pg-dateline")).toBeVisible();
+    await expect(head.locator(".pg-sentence")).toContainText(/need you|Nothing needs you/);
+    // The page still stands under it, and the top bar leaves the name to the head.
+    await expect(page.locator(".inbox")).toBeVisible();
+    await expect(page.locator(".topbar .crumbs")).toBeHidden();
+
+    await page.goto("/api/version");
+    await chooseLook("classic");
+    await page.goto(`/w/${slug}/inbox`);
+    await expect(page.locator(".inbox")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".pg-head")).toHaveCount(0);
+    await expect(page.locator(".topbar .crumbs")).toBeVisible();
+  });
 });

@@ -2165,3 +2165,169 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     gap: var(--row-gap);
   }
 }
+
+/* ====================================================================
+   Glass: the Inbox (the plan's step 5.4, canvases I1 and I2)
+   Two clear panes on the page's light, the list and the thread, under the page head Glass adds (kit/head); every row and
+   field inside a pane is an inset and never glass on glass, and coral is the one act. Each rule names the look inside
+   :where(), so it weighs what the rule it restyles weighs and comes after it (components.css); none matches in Classic.
+   ==================================================================== */
+
+/* Under the page's head the Inbox takes the row that is left, whatever its height was. */
+:where([data-look="glass"]) .main-scroll.pane > .inbox {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* A phone's thread is the whole screen, headed by its own person: the page's head (the one header a page holds) stands over the list alone. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .main-scroll:has(> .inbox.phone-thread) > header {
+    display: none;
+  }
+}
+
+@media (width > 900px) {
+  :where([data-look="glass"]) .inbox {
+    gap: 14px;
+    padding: 0 16px 16px;
+    background: transparent;
+  }
+  :where([data-look="glass"]) :is(.ix-list, .ix-thread-pane) {
+    position: relative;
+    border: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+    overflow: hidden;
+  }
+  :where([data-look="glass"]) :is(.ix-list, .ix-thread-pane)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-pane-rim);
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+
+/* The list: the search first, then the buckets as text tabs on a hairline, the picked one underlined in ink. */
+:where([data-look="glass"]) .ix-search-row {
+  border-bottom: 0;
+  padding: 14px 14px 6px;
+}
+:where([data-look="glass"]) .ix-buckets {
+  order: 2;
+  gap: 0;
+  padding: 6px 14px 0;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+}
+:where([data-look="glass"]) .ix-list-head {
+  order: 3;
+  border-bottom-color: transparent;
+}
+:where([data-look="glass"]) .ix-threads {
+  order: 4;
+}
+:where([data-look="glass"]) .ix-bucket {
+  border-radius: 0;
+  padding: 8px 10px 9px;
+  color: var(--ink-dim);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+:where([data-look="glass"]) .ix-bucket:hover {
+  background: transparent;
+  color: var(--ink);
+}
+:where([data-look="glass"]) .ix-bucket.active {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+/* The search is a capsule on an inset's fill. */
+:where([data-look="glass"]) .ix-search-wrap {
+  border-radius: var(--radius-full);
+  border-color: var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  padding: 7px 14px;
+}
+:where([data-look="glass"]) .ix-search-wrap:focus-within {
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--focus-ring),
+    var(--surface-inset-depth);
+}
+
+/* A row is one person on the pane itself; the open one is an inset. */
+:where([data-look="glass"]) .ix-thread {
+  border-bottom: 0;
+  border-radius: var(--surface-inset-radius);
+  margin: 2px 10px;
+}
+:where([data-look="glass"]) .ix-thread:hover {
+  background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+}
+:where([data-look="glass"]) .ix-thread.active {
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .ix-thread.active:focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    var(--surface-inset-depth);
+}
+/* The thread: its head, standing band and the state under the messages sit on the pane, hairlines between. */
+:where([data-look="glass"]) .ix-thread-pane :is(.ix-th-head, .ix-th-bar, .ix-th-status) {
+  background: transparent;
+}
+:where([data-look="glass"]) .ix-th-head {
+  border-bottom-color: var(--line);
+}
+:where([data-look="glass"]) .ix-th-bar {
+  border-bottom-color: var(--line);
+}
+
+/* The reply box floats at the pane's foot: its field a capsule-cornered inset, its send the primary act. */
+:where([data-look="glass"]) .ix-composer {
+  background: transparent;
+  border-top-color: transparent;
+  padding: 0 16px 16px;
+}
+:where([data-look="glass"]) .ix-composer-text {
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+
+/* The badges of a row and of a draft, as the one-badge rules say (Appendix A, item 8): words at the small step and in
+   sentence case, a row's tag a name with a hairline and no fill, "next" and the confidence a word and no more. Classic's
+   rules stay as they are, so each is written once more here. */
+:where([data-look="glass"]) :is(.ix-tag, .ix-next-tag, .conf-word) {
+  padding: 0;
+  font-size: var(--text-xs);
+  letter-spacing: normal;
+  text-transform: none;
+  background: none;
+}
+:where([data-look="glass"]) .ix-tag {
+  padding: 0 8px;
+  border-radius: var(--chip-radius);
+}
+:where([data-look="glass"]) .conf-word {
+  border: 0;
+}
+:where([data-look="glass"]) .ix-next-tag {
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .ix-next-tag.auto {
+  color: var(--ok-ink);
+}

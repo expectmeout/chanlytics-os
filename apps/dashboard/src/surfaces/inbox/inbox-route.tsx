@@ -8,6 +8,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
 import { loadPrefs } from "@/legacy-bridge/device-prefs";
+import { Glass } from "../kit/look/look";
+import { InboxHead } from "./pages/inbox-head";
 import { Inbox } from "./pages/inbox-page";
 import { ixRouteThread } from "./rules";
 import { navigate } from "./shell";
@@ -23,11 +25,16 @@ export function InboxRoute() {
   // first thread in its place.
   const threadParam = ixRouteThread(param, inboxData().THREADS).id;
   return (
-    <Inbox
-      density={prefs.inboxDensity}
-      showAgentRail={prefs.showInboxAgentRail}
-      initialThreadId={threadParam}
-      onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
-    />
+    <>
+      <Glass>
+        <InboxHead />
+      </Glass>
+      <Inbox
+        density={prefs.inboxDensity}
+        showAgentRail={prefs.showInboxAgentRail}
+        initialThreadId={threadParam}
+        onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
+      />
+    </>
   );
 }

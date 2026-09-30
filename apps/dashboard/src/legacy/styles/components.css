@@ -3341,3 +3341,13 @@ html.legacy-on .msg-use-link { position: relative; }
     top: 118px;
   }
 }
+
+/* A page that opens with a head (the kit's PageHead, a <header> drawn in Glass alone) stands its panes under it, and the
+   top bar's crumbs give way to it: the head is the page's name. Named as the one header a page region opens with, since
+   the head is the kit's to name and not the frame's. */
+:where([data-look="glass"]) .main-scroll.pane:has(> header:first-child) {
+  flex-direction: column;
+}
+:where([data-look="glass"]) .main:has(> .main-scroll > header:first-child) .topbar .crumbs {
+  visibility: hidden;
+}

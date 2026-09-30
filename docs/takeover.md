@@ -50,7 +50,7 @@ edge statements naming no workspace   28   in 16 files
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
 literal style values               1093   in 22 stylesheets
-primitives outside the kit         2169   selectors naming 864 classes
+primitives outside the kit         2177   selectors naming 864 classes
 inline style props                  274   in 52 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     300
