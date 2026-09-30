@@ -285,9 +285,9 @@
     "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
     "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
-    "00280_a_broadcast_is_assembled_whole.sql": "b9cf59266e71453f15b91aec504ba4e38a5a6670909a7936c9017ed8b77c569c",
-    "00281_the_service_role_s_statements_have_a_bound.sql": "3d4d919d7386705ec04e2ae0a402feb76db97bcc66fcc5e92c872f0114bcbc37",
-    "00282_a_thread_is_answered_one_turn_at_a_time.sql": "fd32c0e894c57c0239e21302d8d777c22e71ba2d6e4127b67bb6d2e5b06fcda4",
+    "00280_a_broadcast_is_assembled_whole.sql": "aa84f58b2821a01f0d16f6027044e0dc4c5af4d623d9121f7df927dff3710810",
+    "00281_the_service_role_s_statements_have_a_bound.sql": "0c77fa6bdead9d0b329188e800a75e0495ccce52930bf583fd35162c8282a2af",
+    "00282_a_thread_is_answered_one_turn_at_a_time.sql": "a396b756daa423c89fe140f353daf2b5ed20838fdc231c03c0d931d8275dec5d",
     "00286_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "8476b3f8ace0abfa9aa1ac48aeaad2152010d6199bd0bcd29389e15056816fd2"
   }
 }

@@ -976,4 +976,7 @@ of the message id on every line.
 Every writing script in `tooling/scripts/ops` is a dry run by default, writes a
 JSONL backup first, is idempotent, and takes `--apply` to mean it. Read the
 header of the script before running it; each says what it needs and what it
-refuses.
+refuses. Their statements go through PostgREST as the service role, which ends
+a statement at 30 seconds (00281): a script that must run one longer, a
+workspace's whole history deleted at once, says so in its header and is run from
+psql after `set statement_timeout = 0`.

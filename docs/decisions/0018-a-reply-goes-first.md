@@ -223,7 +223,7 @@ Ruben left the note's open questions to be settled by analysis. They are:
 ## Built (29 September 2026): steps 2 and 3
 
 Built in one pull request against `9025895a`, as one migration,
-`supabase/migrations/00267_a_reply_goes_first_and_each_workspace_takes_its_turn.sql`: both steps are SQL alone, correct
+`supabase/migrations/00286_a_reply_goes_first_and_each_workspace_takes_its_turn.sql`: both steps are SQL alone, correct
 in either order, and one pull request is one run of the checks. Where it differs from Shape:
 
 - **`reply_read` is lane 1.** The kind came after this note (Reach out Part 5, 00222): a lead who wrote back to a
