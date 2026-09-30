@@ -46,22 +46,44 @@ export async function namesOfPeople(
 }
 
 /**
- * One page of people. The page arguments are named only when they leave their defaults, so a database that has not
- * been given 00112 answers the first page as it always has. A read that fails THROWS: a page the database could not
- * answer is never an empty workspace.
+ * Where a page of People starts (0021, 00268): just past this place in the kept order, a row's `in_touch_at`,
+ * `added_at` and `id`. Someone who writes between two pages moves above it, so a pass that follows it reads nobody
+ * twice; they are read on the next pass.
+ */
+export interface PeopleCursor {
+  at: string;
+  added: string;
+  id: string;
+}
+
+/**
+ * The place just past a row, when its database says it (00268). Null for a row without it: a database before 00268,
+ * whose next page is read by offset, and which is never named a cursor it cannot take.
+ */
+export function peopleCursorOf(row: PersonRowDto | undefined): PeopleCursor | null {
+  return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
+}
+
+/**
+ * One page of people: after a cursor, or an offset. The page arguments are named only when they leave their defaults,
+ * so a database that has not been given 00112 answers the first page as it always has, and one before 00268 is never
+ * named a cursor (a cursor comes only from a row that carries its place). A read that fails THROWS: a page the
+ * database could not answer is never an empty workspace.
  */
 export async function peoplePage(
   db: Db,
   tenantId: string,
-  page: { q?: string | null; offset?: number; limit?: number } = {},
+  page: { q?: string | null; offset?: number; limit?: number; after?: PeopleCursor | null } = {},
 ): Promise<PersonRowDto[]> {
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
+  const after = page.after ?? null;
   const { data, error } = await db.rpc("people_list", {
     p_tenant_id: tenantId,
     ...(page.q ? { p_query: page.q } : {}),
     ...(offset > 0 ? { p_offset: offset } : {}),
     ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
+    ...(after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}),
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data ?? [];
@@ -70,13 +92,16 @@ export async function peoplePage(
 /**
  * Everyone, every page of them: whatever counts people counts everyone. One call is at most a thousand rows, and a
  * caller that does not loop gets a thousand with no error, no flag and no way to tell them from "that is everyone".
+ * Each page after the first starts just past the last row's place (00268), so nobody is read twice when someone writes
+ * between two pages; from a database before 00268, by offset, as it always was.
  */
 export async function everyoneIn(db: Db, tenantId: string): Promise<PersonRowDto[]> {
   const all: PersonRowDto[] = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
+  for (let after: PeopleCursor | null = null; ;) {
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all.length });
     all.push(...page);
     if (page.length < PEOPLE_PAGE) return all;
+    after = peopleCursorOf(page[page.length - 1]);
   }
 }
 

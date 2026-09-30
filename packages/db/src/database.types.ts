@@ -6081,6 +6081,9 @@ export type Database = {
       }
       people_list: {
         Args: {
+          p_after_added?: string
+          p_after_at?: string
+          p_after_id?: string
           p_contact_id?: string
           p_limit?: number
           p_offset?: number
@@ -6088,6 +6091,7 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: {
+          added_at: string
           call_count: number
           call_seconds: number
           came_from: string
@@ -6116,6 +6120,7 @@ export type Database = {
           has_backfill: boolean
           has_chat: boolean
           id: string
+          in_touch_at: string
           last_call_at: string
           last_inbound_at: string
           last_inbound_call_at: string
@@ -6144,6 +6149,34 @@ export type Database = {
           step_due_on: string
           step_for_user_id: string
           step_id: string
+          wa_profile_name: string
+        }[]
+      }
+      people_page: {
+        Args: {
+          p_after_added: string
+          p_after_at: string
+          p_after_id: string
+          p_contact_id: string
+          p_limit: number
+          p_offset: number
+          p_query: string
+          p_tenant_id: string
+        }
+        Returns: {
+          added_at: string
+          consent: string
+          consent_source: string
+          consent_updated_at: string
+          display_name: string
+          dnc: boolean
+          email: string
+          id: string
+          in_touch_at: string
+          marketing_consent: string
+          marketing_consent_source: string
+          marketing_consent_updated_at: string
+          phone_e164: string
           wa_profile_name: string
         }[]
       }
