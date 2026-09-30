@@ -28,8 +28,15 @@
     "00249": "an erased person's digest is keyed landed as 00263 (#1330)",
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
-    "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00267": "#1340's reply lanes and fairness, numbered 00286 on the jobs lane's branch (renumbered because 00267 sits below the ledger's head); the wave-2 fold gives the final number",
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
+    "00276": "reserved for the AI lane on 29 Sep 2026; it landed as 00273 to 00275 in the wave-1 fold",
+    "00277": "reserved for the AI lane on 29 Sep 2026; it landed as 00273 to 00275 in the wave-1 fold",
+    "00278": "reserved for the AI lane on 29 Sep 2026; it landed as 00273 to 00275 in the wave-1 fold",
+    "00279": "reserved for the observe lane on 29 Sep 2026; recorded when it lands",
+    "00283": "not given a file on the jobs lane's branch (the numbers between its 00282 and #1340's 00286); the wave-2 fold gives the final numbers",
+    "00284": "not given a file on the jobs lane's branch (the numbers between its 00282 and #1340's 00286); the wave-2 fold gives the final numbers",
+    "00285": "not given a file on the jobs lane's branch (the numbers between its 00282 and #1340's 00286); the wave-2 fold gives the final numbers"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -277,6 +284,10 @@
     "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80",
     "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
-    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3"
+    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
+    "00280_a_broadcast_is_assembled_whole.sql": "b9cf59266e71453f15b91aec504ba4e38a5a6670909a7936c9017ed8b77c569c",
+    "00281_the_service_role_s_statements_have_a_bound.sql": "3d4d919d7386705ec04e2ae0a402feb76db97bcc66fcc5e92c872f0114bcbc37",
+    "00282_a_thread_is_answered_one_turn_at_a_time.sql": "fd32c0e894c57c0239e21302d8d777c22e71ba2d6e4127b67bb6d2e5b06fcda4",
+    "00286_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "8476b3f8ace0abfa9aa1ac48aeaad2152010d6199bd0bcd29389e15056816fd2"
   }
 }
