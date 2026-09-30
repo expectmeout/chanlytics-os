@@ -244,3 +244,25 @@ told), and the kit's classes draw its parts, since Base UI draws nothing.
   `/behaves`), which `e2e/kit/kit-behaves.spec.ts` drives with a keyboard and a pointer, at both widths, in both themes
   and looks, and holds, state by state, to its gallery family "on Base UI"; `kit-behaves.test.mjs` holds what a server
   can draw in `corepack pnpm test`. A new state or variant adds its entry on both pages, with the same id.
+
+### Add a component with behaviour of its own
+
+The canonical one to copy is `apps/dashboard/src/surfaces/kit/menu/menu.tsx` with its type test beside it.
+
+1. **The part.** Base UI's own (`import { Dialog } from "@base-ui/react/dialog"`), never the index, and no second
+   version: the exact one in `apps/dashboard/package.json` is the only one `kit-base-ui.test.mjs` accepts.
+2. **The folder.** `apps/dashboard/src/surfaces/kit/<family>/<family>.tsx` and `<family>.type-test.ts`, named in
+   `apps/dashboard/src/surfaces/kit/index.ts` (each export by name). Its props are typed, `className` is for layout and
+   comes last, the ref reaches the part's element, a glyph is a prop, and a door is a link.
+3. **The classes.** The kit's own, through `variants()`, on the part's `className` or `render`; a state Base UI marks is
+   drawn by the kit's own where it has one. A rule the part needs that kit.css lacks is a variant (Add a variant), read
+   from tokens, with its name in `classes.json`.
+4. **The two drawings.** The gallery's family "on Base UI" in `tooling/scripts/e2e-harness/kit-gallery.mjs`, every state
+   as markup, and the entry of the same id on the running page, `tooling/scripts/e2e-harness/kit-behaves-entries.tsx`,
+   drawn by the component itself.
+5. **The browser test.** In `e2e/kit/kit-behaves.spec.ts`: how a person brings each state to that entry, and what a
+   keyboard and a pointer do (Escape, Tab, the arrows, the typeahead), held against a fault planted in the page.
+6. **Run** the build, typecheck, lint and test, then both specs (`corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts
+   --scenario=kit`, and the same for `e2e/kit/kit.spec.ts`), and show them in the pull request. The route's JS budget does
+   not move until a page draws the component, and then it is raised in that change (`check:bundle -- --raise
+   js=<bytes>`).

@@ -637,7 +637,18 @@ under no blur, by its control. Each check fails on a fault planted in the page. 
 `tooling/scripts/tests/styles/kit-behaves.test.mjs` holds the running page's entries to the gallery's one for one, what
 a server draws of the switch, the segmented control and the field to their entries, and one React and one Base UI, at
 the pinned version, in the bundle; `kit-components.test.mjs` keeps holding 2.4's six. `kit.spec.ts` draws every rule
-kit.css took. {{MEASURES}}
+kit.css took. The day's counts, on the tree as the step left it (29 September, Base UI 1.8.0). The kit's measures did not move:
+kit.css read no literal and drew no class a page's stylesheet names, so the register counts what it did before, 1,093
+literal style values in 22 stylesheets, 2,169 selectors naming 864 primitive classes outside the kit and 274 style props
+in 47 files (`docs/debt.md`, "The numbers"), and the only line the step wrote in a baseline is the meter's own style
+prop, under its family's folder. The registry lists 182 classes (178 before: `pop-place`, `rec-combo-pop`,
+`rec-select` and `tip-place`) and 11 modifiers, kit.css 408 rules and 448 selectors, all drawn by the gallery, whose
+families went from 27 to 37. The kit's root holds 6 modules (18 before) and 16 folders of two, each a component and its
+type test. The workspace route's JS is 999,034 bytes gzipped on this tree and on its base, byte for byte, with no Base
+UI in what the build wrote; its CSS rose 112 bytes (133,798 to 133,910), which the budget is raised by, argued in
+`docs/debt.md` under "Rises". `corepack pnpm test` ran 7,458 tests, 6,865 passing and the rest the database's, skipped
+without credentials; the gallery spec ran 13 tests and the behaviour spec 6 (13 states held to their entries, and 12
+checks in each of 8 runs) on the harness's `kit` record.
 
 What each swap will do differently from the house's, for its Phase 4 step to list (decision 15, its fourth
 condition):
