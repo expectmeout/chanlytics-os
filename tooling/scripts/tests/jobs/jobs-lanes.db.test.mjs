@@ -1,5 +1,5 @@
 /**
- * A reply goes first, and each workspace takes its turn (decision 0018, steps 2 and 3, 00267), on a real database.
+ * A reply goes first, and each workspace takes its turn (decision 0018, steps 2 and 3, 00286), on a real database.
  *
  * Each job's lane is generated from its kind and payload: 0 a reply, 1 someone waiting who is not a customer, 2 bulk.
  * claim_due_jobs takes the lowest lane first; within bulk, a workspace with no bulk work running before one with some;

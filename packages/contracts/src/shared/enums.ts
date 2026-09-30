@@ -46,7 +46,7 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * a conversation, and there is no such copy — Postgres is the receptionist's
  * only memory, and an erasure deletes rows.
  * A new kind arrives with its handler, its caller, the jobs.kind CHECK and
- * its lane (jobs.lane, 00267: which work a claim takes first), together.
+ * its lane (jobs.lane, 00286: which work a claim takes first), together.
  */
 export const JOB_KINDS = [
   "outbound_send",

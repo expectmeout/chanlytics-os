@@ -1,4 +1,4 @@
--- 00267 · A reply goes first, and each workspace takes its turn.
+-- 00286 · A reply goes first, and each workspace takes its turn.
 --
 -- Decision 0018, steps 2 and 3 (docs/decisions/0018-a-reply-goes-first.md). claim_due_jobs (00098) took every job
 -- first due, first served, whatever it was and whoever it was for: a customer's reply waited behind every broadcast
