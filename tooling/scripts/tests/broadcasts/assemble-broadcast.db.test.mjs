@@ -237,7 +237,7 @@ test("a state the run may not have refuses the run whole as well", async (t) => 
   assert.deepEqual([held.rows, held.recips, held.jobs], [[], [], []]);
 });
 
-test("a session: an acting member's run is theirs whatever the payload says; a viewer, or a stranger, is refused", async (t) => {
+test("the door is the service role's alone: a member's session, an operator's included, cannot call it, since it puts the send job on the ledger", async (t) => {
   if (skip) return t.skip(skip);
   if (!ANON) return t.skip("no SUPABASE_ANON_KEY in env: the sessions this case signs in with need it");
   const signedIn = async (role) => {
@@ -246,38 +246,45 @@ test("a session: an acting member's run is theirs whatever the payload says; a v
     const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
     assert.equal(made.error, null, made.error?.message);
     users.push(made.data.user.id);
-    if (role) {
-      const m = await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role });
-      assert.equal(m.error, null, m.error?.message);
-    }
+    const m = await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role });
+    assert.equal(m.error, null, m.error?.message);
     const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
     const s = await client.auth.signInWithPassword({ email, password });
     assert.equal(s.error, null, s.error?.message);
-    return { client, id: made.data.user.id };
+    return client;
   };
-  const operator = await signedIn("operator");
-  const { data: id, error } = await assemble(
-    operator.client,
-    A,
-    run("Theirs", { created_by: "00000000-0000-4000-8000-000000000000" }),
-    [{ contact_id: people.a1, facts: null }],
-    far(),
-  );
-  assert.equal(error, null, error?.message);
-  const held = await heldFor("Theirs");
-  assert.equal(held.rows[0].id, id);
-  assert.equal(held.rows[0].created_by, operator.id, "the caller made it, not whoever the payload named");
-  assert.equal(held.jobs.length, 1, "and its job is on the ledger, though a session may not write the ledger itself");
-
-  for (const [who, role] of [
-    ["a viewer", "viewer"],
-    ["a stranger", null],
+  const anon = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  for (const [who, client] of [
+    ["an owner", await signedIn("owner")],
+    ["an operator", await signedIn("operator")],
+    ["a viewer", await signedIn("viewer")],
+    ["nobody signed in", anon],
   ]) {
-    const s = await signedIn(role);
-    const r = await assemble(s.client, A, run(`Refused ${who}`), [{ contact_id: people.a1, facts: null }], far());
-    assert.match(r.error?.message ?? "", /not an acting member/, who);
-    assert.deepEqual((await heldFor(`Refused ${who}`)).rows, [], `${who}: nothing written`);
+    const name = `Refused ${who}`;
+    const r = await assemble(client, A, run(name), [{ contact_id: people.a1, facts: null }], far());
+    assert.ok(r.error, `${who}: refused`);
+    assert.match(r.error.message, /permission denied|not found|could not find/i, who);
+    assert.deepEqual((await heldFor(name)).rows, [], `${who}: nothing written`);
   }
+});
+
+test("the run is the person's the door names, whoever that is, and is nobody's when it names none", async (t) => {
+  if (skip) return t.skip(skip);
+  const made = await db.auth.admin.createUser({
+    email: `assemble-by-${Date.now()}@example.com`,
+    password: `pw-${Math.random().toString(36).slice(2)}-Aa1!`,
+    email_confirm: true,
+  });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  const named = await assemble(db, A, run("Theirs", { created_by: made.data.user.id }), [
+    { contact_id: people.a1, facts: null },
+  ]);
+  assert.equal(named.error, null, named.error?.message);
+  assert.equal((await heldFor("Theirs")).rows[0].created_by, made.data.user.id);
+  const nobody = await assemble(db, A, run("Nobody's"), [{ contact_id: people.a1, facts: null }]);
+  assert.equal(nobody.error, null, nobody.error?.message);
+  assert.equal((await heldFor("Nobody's")).rows[0].created_by, null, "a sweep's run has no author");
 });
 
 test("a claim goes back to the queue as not_taken when WhatsApp was never reached, and only from a claim", async (t) => {

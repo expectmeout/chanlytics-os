@@ -2,9 +2,9 @@
  * The adapter between the campaign verbs and this runtime: the tables a
  * person's broadcast, an approval, a cancel and a playbook's check touch. A
  * verb never sees a client, a service module or an environment; it sees
- * these. The session role writes here: it assembles a broadcast, its people
- * and its job through one door (00280), and updates a broadcast's `state`
- * (00046) and `scheduled_for` (00119).
+ * these. The session role writes here: it updates a broadcast's `state`
+ * (00046) and `scheduled_for` (00119). A broadcast, its people and its job are
+ * assembled through one door (00280) that is the service role's alone.
  */
 import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
@@ -19,6 +19,7 @@ import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
+import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
@@ -46,13 +47,15 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
 }
 
 /**
- * The run, its people and its job, whole: the one SQL door (00280 assemble_broadcast), asked on the person's own
- * session, so the database asks what the insert policies ask (an acting member) and makes the run theirs.
+ * The run, its people and its job, whole: the one SQL door (00280 assemble_broadcast). It puts the send job on the
+ * ledger, which no session may, so it is the service role's, called here after the route's role check (the door) and
+ * naming the person who asked; the function itself asks that every person, the template and the playbook are the
+ * workspace's, as the insert policies asked of the session.
  */
 function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
   return {
     assemble: async (row, recipients, sendAt) => {
-      const { data, error } = await ctx.supabase.rpc("assemble_broadcast", {
+      const { data, error } = await serviceDb().rpc("assemble_broadcast", {
         p_tenant: tenantId,
         p_run: {
           name: row.name,
@@ -64,6 +67,7 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
           state: row.state,
           scheduled_for: row.scheduled_for,
           recipient_count: row.recipient_count,
+          created_by: ctx.userId,
         },
         p_recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
         ...(sendAt ? { p_send_at: sendAt.toISOString() } : {}),
