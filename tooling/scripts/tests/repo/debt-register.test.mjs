@@ -96,6 +96,11 @@ function blockFrom(by, scanCounts) {
     ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
     ["table names outside packages/db", total(tableCalls(by["tables.json"], false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by["tables.json"], true)), "called by .rpc"],
+    [
+      "doors importing db or channels",
+      total(by["route-doors.json"]),
+      `imports in ${keys(by["route-doors.json"])} files`,
+    ],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [

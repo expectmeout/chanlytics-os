@@ -14,8 +14,8 @@ import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
-import { functionsIn, windowUse, unknownCasts, castsIn, copiesAmong, repoFiles } from "../_ast.mjs";
-import { bankedSourceScan } from "../_measures.mjs";
+import { functionsIn, windowUse, unknownCasts, castsIn, copiesAmong, repoFiles, importsMatching } from "../_ast.mjs";
+import { bankedSourceScan, DOOR_FORBIDS } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
 
@@ -335,6 +335,33 @@ test("the casts are counted by family: as unknown as, as never and x!, a family 
     { unknownAs: 2, nonNull: 1 },
     "`as unknown as never` is laundering, counted once, and not a second time as never",
   );
+});
+
+/* ---- Doors hold no repository and no provider client ---- */
+
+// The wiring map found 31 of the edge's 51 routes and 16 of the dashboard's "fat": a door holding a rule or a table
+// query. Its proxy is what a door imports: a repository or a provider client is the layer behind the door.
+test("a door's repository and provider imports are counted, and a type, a lib call, a verb or a reader is not", () => {
+  const door = source(
+    [
+      'import { createServiceClient } from "@chanlytics/db";', // 1: a repository
+      'import { providerFetch } from "../lib/packages/channels.js";', // 2: a provider client, by the edge's facade
+      'import { listThing } from "../../lib/packages/db";', // 3: a repository, by the facade
+      'import { createClient } from "@supabase/supabase-js";', // 4: a repository's own client
+      'export { sendWire } from "@chanlytics/channels";', // 5: a re-export holds the module too
+      'const later = () => import("@chanlytics/db");', // 6: so does a dynamic import
+      'import type { Database } from "@chanlytics/db";',
+      'import { type Row, type Table } from "@chanlytics/db";',
+      'import { snooze } from "@chanlytics/core";',
+      'import { json } from "../lib/http.js";',
+      'import { pg } from "../lib/pg.js";',
+      'import { readPeople } from "@/server/readers/people";',
+      'import { z } from "zod";',
+    ].join("\n"),
+    "door.ts",
+  );
+  assert.equal(importsMatching(door, DOOR_FORBIDS), 6);
+  assert.equal(importsMatching(source('import { json } from "../lib/http.js";', "clean.ts"), DOOR_FORBIDS), 0);
 });
 
 /* ---- The file set ---- */

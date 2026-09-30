@@ -36,6 +36,7 @@ import {
   castsIn,
   tableNames,
   rpcNames,
+  importsMatching,
   durationsIn,
   inlineStyles,
   SOURCE,
@@ -59,6 +60,20 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "e2e"]);
 const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
+const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
+/**
+ * What a door does not import (specifiers as written, so the edge's relative facade of a package is a pattern of its
+ * own beside the package): a repository (`@chanlytics/db`, or supabase-js, which is one's client) and a provider client
+ * (`@chanlytics/channels`, whose `providerFetch` and wires are the providers' own). A door that holds one holds a rule
+ * or a table query the layer behind it should. The edge's `lib/pg` handle is not named: nearly every door takes it to
+ * pass on, and the tables ratchet already counts the ones that query it.
+ */
+export const DOOR_FORBIDS = [
+  /^@chanlytics\/(db|channels)$/,
+  /^@supabase\/supabase-js$/,
+  /(^|\/)lib\/packages\/(db|channels)(\.js)?$/,
+];
 /**
  * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
  * classic scripts (legacy/) and the static files the browser loads as they are (public/) — and less the home itself.
@@ -183,6 +198,13 @@ export const MEASURES = [
     },
     advice:
       "A table, and a SQL function, is named once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "route files that hold a repository or a provider client",
+    file: "route-doors.json",
+    measure: () => perFile(ROUTES, (sf) => importsMatching(sf, DOOR_FORBIDS)),
+    advice:
+      "A route file is a door: it verifies, parses its input and answers, and everything else is a call into lib/ (the edge), src/server (the dashboard) or a core verb. Read or write through a repository behind that call, and reach a provider through a wire in packages/channels behind it too.",
   },
   {
     name: "unnamed durations",

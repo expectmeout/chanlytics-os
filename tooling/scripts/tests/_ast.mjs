@@ -565,6 +565,15 @@ function statementIsTypeOnly(n) {
   return !!named && ts.isNamedImports(named) && named.elements.length > 0 && named.elements.every((e) => e.isTypeOnly);
 }
 
+/**
+ * How many of a file's imports name one of `forbidden` (module specifiers as patterns), types left out: an import that
+ * survives compilation is the one that holds the module's code in the file. A specifier is read as written, so a
+ * relative facade (`../lib/pg.js`) and its package (`@chanlytics/db`) are two patterns.
+ */
+export function importsMatching(sf, forbidden) {
+  return importsOf(sf).filter((i) => !i.typeOnly && forbidden.some((re) => re.test(i.specifier))).length;
+}
+
 /** The names a built bundle exports: its `export { a, b as c }` clauses of its own (esbuild writes one, at the end). */
 export function bundleExports(sf) {
   const out = new Set();
