@@ -40,7 +40,7 @@ directories over 20 modules           5
 window globals                      200   names
 window publishers                   443   sites in 164 files
 copies                               52   of 14 names
-as unknown as                       188
+as unknown as                       186
 as never                             13
 non-null assertions, x!             130
 index reads the compiler lets pass  450   in 113 files
@@ -50,8 +50,8 @@ literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes
 inline style props                  274   in 47 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     155
-source-text reads in tests          812
+dead exports, types and modules     154
+source-text reads in tests          816
 lint warnings                       492   in 176 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      973   the shell included
 workspace route CSS, KB gzipped     130
