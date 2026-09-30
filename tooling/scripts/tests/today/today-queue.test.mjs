@@ -429,7 +429,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
     assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"));
   assert.ok(
-    real.includes("Your queue") && !real.includes("Agent Command"),
+    real.includes("Need you") && !real.includes("Agent Command"),
     "the queue, not a command bar; the seed is gone",
   );
   assert.ok(!real.includes("tq-count"), "no count over rows that say it");

@@ -162,7 +162,7 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verbKind: Ver
 function queueHead(vm: TodayVM, runsCount: number, nav: Nav) {
   return (
     <div className="tq-head">
-      <span className="tq-title">Your queue</span>
+      <span className="tq-title">Need you</span>
       <span className="tq-sub">
         {[...vm.queue.parts, TODAY_HELPERS.runsSub(runsCount)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
       </span>

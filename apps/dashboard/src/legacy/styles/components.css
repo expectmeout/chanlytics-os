@@ -3344,10 +3344,18 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .topbar .crumbs {
   display: none;
 }
+/* The date and time's place: laid over the top bar's left, at the page's gutter, so the bar's own markup is as it was
+   (the bar's height is its Glass one, above); the live island and the capsules keep the bar's right. */
 :where([data-look="glass"]) .pg-dateline-slot {
+  position: absolute;
+  top: 0;
+  left: var(--gutter-page);
+  z-index: 1;
   display: flex;
   align-items: center;
+  height: 64px;
   min-width: 0;
+  pointer-events: none;
 }
 :where([data-look="glass"]) .pg-slot {
   display: grid;
@@ -3860,4 +3868,35 @@ html.legacy-on .msg-use-link { position: relative; }
   :where([data-look="glass"]) .app-root {
     animation: pg-drift 20s ease-in-out infinite alternate;
   }
+}
+
+/* The runs by state, as the Broadcasts head's line in Glass (the canvas C1's sentence: "1 waiting on you · 1 scheduled ·
+   1 sent"): words with a dot between them, the chosen one in the ink, the warning in amber; no chip. */
+:where([data-look="glass"]) .bc-band {
+  gap: 0;
+}
+:where([data-look="glass"]) .bc-band-part {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-md);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .bc-band-part + .bc-band-part::before {
+  content: " B7";
+  margin: 0 8px;
+  color: var(--ink-faint);
+}
+:where([data-look="glass"]) .bc-band-part:hover,
+:where([data-look="glass"]) .bc-band-part.on {
+  border-color: transparent;
+  background: none;
+  color: var(--ink);
+}
+:where([data-look="glass"]) .bc-band-part[data-tone="warn"],
+:where([data-look="glass"]) .bc-band-part[data-tone="warn"] .bc-band-n {
+  color: var(--warn-ink);
 }

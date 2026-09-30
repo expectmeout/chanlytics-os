@@ -330,6 +330,7 @@
    canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
    and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
    this look read them.
+   ============================================================ */
 /* Where the three pools of light stand (the canvases' glow): registered, so the app's root can move them (components.css,
    pg-drift); a browser without @property keeps them still. */
 @property --pool-a-x { syntax: "<percentage>"; inherits: true; initial-value: 23%; }
@@ -338,7 +339,6 @@
 @property --pool-b-y { syntax: "<percentage>"; inherits: true; initial-value: 40%; }
 @property --pool-c-x { syntax: "<percentage>"; inherits: true; initial-value: 39%; }
 @property --pool-c-y { syntax: "<percentage>"; inherits: true; initial-value: 91%; }
-   ============================================================ */
 [data-look="glass"] {
   --pool-a-x: 23%;
   --pool-a-y: 6%;

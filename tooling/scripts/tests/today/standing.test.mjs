@@ -144,7 +144,7 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   );
   const page = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
   assert.ok(
-    page.includes('<span className="tq-title">Your queue</span>') && page.includes("vm.queue.parts"),
+    page.includes('<span className="tq-title">Need you</span>') && page.includes("vm.queue.parts"),
     "the queue says what it holds",
   );
   const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");

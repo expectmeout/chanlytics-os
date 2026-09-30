@@ -577,12 +577,13 @@ const appChrome = (s) => {
         />
       </div>
       <div className="main">
-        {/* In Glass the top bar's row holds the date and time where the crumbs were, and the page's act moves down to
-            the row of views: the frame leaves the places (pg-dateline, pg-head, pg-act) and the kit's head draws into
-            them (surfaces/kit/head/frame-head.tsx, the interface kit's step 5.4). Classic's tree is as it was. */}
+        {/* In Glass the top bar's row holds the date and time where the crumbs were (a place laid over the bar's left,
+            so the bar itself is as it was), and the page's act moves down to the row of views: the frame leaves the
+            places (pg-dateline, pg-head, pg-act) and the kit's head draws into them (surfaces/kit/head/frame-head.tsx,
+            the interface kit's step 5.4). Classic's tree is as it was. */}
+        {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
         <Topbar
           crumbs={glass ? [] : crumbs}
-          left={glass ? <span className="pg-dateline-slot" id="pg-dateline" /> : null}
           theme={theme}
           themePref={themePref}
           onTheme={onTheme}

@@ -39,15 +39,15 @@ interface Said {
 
 let said: Said | null = null;
 let crumbs: readonly ShownCrumb[] = [];
-const listeners = new Set<() => void>();
+const standingWatchers = new Set<() => void>();
 
-const tell = (): void => {
-  for (const fn of listeners) fn();
+const tellStandingWatchers = (): void => {
+  for (const fn of standingWatchers) fn();
 };
 
 const subscribe = (fn: () => void): (() => void) => {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+  standingWatchers.add(fn);
+  return () => standingWatchers.delete(fn);
 };
 
 const standingNow = (): Standing | null => said?.standing ?? null;
@@ -67,11 +67,11 @@ export function useStanding(standing: Standing | null): void {
     const mine = token.current as symbol;
     if (!standing) return undefined;
     said = { token: mine, standing };
-    tell();
+    tellStandingWatchers();
     return () => {
       if (said?.token === mine) {
         said = null;
-        tell();
+        tellStandingWatchers();
       }
     };
   });
@@ -89,7 +89,7 @@ export const standingSaid = (): Standing | null => standingNow();
 export function crumbsShown(shown: readonly ShownCrumb[]): void {
   if (shown === crumbs) return;
   crumbs = shown;
-  tell();
+  tellStandingWatchers();
 }
 
 export function useCrumbsShown(): readonly ShownCrumb[] {
@@ -103,5 +103,5 @@ export const crumbLabel = (c: ShownCrumb): string => (typeof c === "string" ? c 
 export function forgetStanding(): void {
   said = null;
   crumbs = noCrumbs;
-  tell();
+  tellStandingWatchers();
 }

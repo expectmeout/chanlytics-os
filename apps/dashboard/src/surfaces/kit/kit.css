@@ -2937,3 +2937,47 @@ a.list-row {
   line-height: var(--leading-snug);
   color: var(--ink-muted);
 }
+
+/* ---------- The badge rules in Glass ----------
+   The canvases (the plan's Appendix B): counts are neutral text (the tally), amber is the one warning, coral the primary
+   act, the live call and the picked tab, green what is open, checked or won. A state is a dot and its words in the
+   tone's ink, never a pill: "● Running", "● Paused", "● Needs you", "● Since Sep 8". The live state keeps its own dot. */
+:where([data-look="glass"]) .pill {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .pill::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+  background: currentColor;
+}
+:where([data-look="glass"]) .pill-accent::before {
+  display: none;
+}
+:where([data-look="glass"]) .pill-warn {
+  color: var(--warn-ink);
+}
+:where([data-look="glass"]) .pill-ok {
+  color: var(--ok-ink);
+}
+:where([data-look="glass"]) .pill-danger {
+  color: var(--danger-ink);
+}
+:where([data-look="glass"]) .pill-info {
+  color: var(--info-ink);
+}
+:where([data-look="glass"]) .pill-accent {
+  color: var(--accent-ink);
+}

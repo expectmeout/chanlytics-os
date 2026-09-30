@@ -34,10 +34,26 @@ function placesNow(): Places {
 /** Whether the places found are still in the document: the shell drawn again from nothing leaves them behind. */
 const stillThere = (p: Places): boolean => !!p.head && document.contains(p.head);
 
-/** "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row. */
+/** How often the head asks for the business's zone while the workspace's read has not landed. */
+const ZONE_ASK_MS = 250;
+
+/**
+ * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row. The zone is the workspace's, known once
+ * its read lands (legacy-bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
+ * so a page that opens before the read never keeps the wrong hour.
+ */
 function PageDateline() {
   const now = useMinute();
-  return <p className="pg-dateline">{pageDateline(now, knownZone() ?? "UTC")}</p>;
+  const [zone, setZone] = useState<string | null>(() => knownZone());
+  useEffect(() => {
+    if (zone) return undefined;
+    const ask = setInterval(() => {
+      const known = knownZone();
+      if (known) setZone(known);
+    }, ZONE_ASK_MS);
+    return () => clearInterval(ask);
+  }, [zone]);
+  return <p className="pg-dateline">{pageDateline(now, zone ?? "UTC")}</p>;
 }
 
 /** The way back a crumb offers: the page's own move where it has one, else the route it names. */

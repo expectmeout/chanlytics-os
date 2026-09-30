@@ -2331,3 +2331,20 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 :where([data-look="glass"]) .ix-next-tag.auto {
   color: var(--ok-ink);
 }
+
+/* A row's wait is words (the canvases' rows: "waiting 1h 36m" in amber once it is long, "18m" in the dim ink, no
+   dot), and a reply counting down keeps its soft coral capsule, the one pill a row draws (I2). */
+:where([data-look="glass"]) .ix-wait {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .ix-wait::before {
+  display: none;
+}
+:where([data-look="glass"]) .ix-wait.ix-sending {
+  height: var(--chip-h);
+  padding: 0 8px;
+  border-radius: var(--chip-radius);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
