@@ -2900,7 +2900,7 @@ a.list-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 16px 12px;
+  padding: 10px var(--pg-gutter, 16px) 12px;
   min-width: 0;
 }
 .pg-dateline {
@@ -2917,6 +2917,11 @@ a.list-row {
   align-items: baseline;
   gap: 2px 14px;
   min-width: 0;
+}
+.pg-head-stacked .pg-line {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
 .pg-title {
   margin: 0;

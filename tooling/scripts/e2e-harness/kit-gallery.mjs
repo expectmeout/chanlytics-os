@@ -1531,6 +1531,13 @@ export const FAMILIES = [
           `<div class="pg-line"><h1 class="pg-title">Inbox</h1>` +
           `<p class="pg-sentence">4 need you · the oldest since 2:26 PM</p></div></header>`,
       },
+      {
+        id: "page-head-stacked",
+        html:
+          `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2 · 4:02 PM</p>` +
+          `<div class="pg-line"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
+          `<p class="pg-sentence">2 conversations need you. The oldest has been waiting since 2:26 PM.</p></div></header>`,
+      },
     ],
   },
 ];

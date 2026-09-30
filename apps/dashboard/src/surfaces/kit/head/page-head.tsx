@@ -17,12 +17,14 @@ interface PageHeadProps {
   title: ReactNode;
   /** Where the page stands, in one line beside the name. */
   sentence?: ReactNode;
+  /** The sentence under the name, where a name is long and a sentence is a whole one (Today's greeting). */
+  stacked?: boolean;
   className?: string;
 }
 
-export function PageHead({ dateline, title, sentence, className }: PageHeadProps) {
+export function PageHead({ dateline, title, sentence, stacked, className }: PageHeadProps) {
   return (
-    <header className={cx("pg-head", className)}>
+    <header className={cx("pg-head", stacked && "pg-head-stacked", className)}>
       {dateline ? <p className="pg-dateline">{dateline}</p> : null}
       <div className="pg-line">
         <h1 className="pg-title">{title}</h1>
