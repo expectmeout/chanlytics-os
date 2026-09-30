@@ -6,6 +6,7 @@
  * customer's: the twin it replaces was the mockup's own page, with its own invented campaigns.
  */
 import {
+  DAY_MS,
   REPLY_WINDOW_WORDS,
   PLAYBOOK_TRIGGERS,
   nextRunLabel,
@@ -17,11 +18,11 @@ import {
   triggerOffered,
   type PlaybookDto,
 } from "@chanlytics/contracts";
+import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
 import type { PlaybookCardVM, PlaybooksSurface, PlaybookTriggerOption } from "./surface";
 
-const ZONE = "America/New_York";
-const DAY = 86_400_000;
+const DAY = DAY_MS;
 
 /** A starter as WhatsApp holds it once approved: the library's words and slots. */
 function approved(key: string, syncedAt: string): TemplateDto {

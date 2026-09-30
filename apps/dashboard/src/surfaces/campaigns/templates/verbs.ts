@@ -93,8 +93,7 @@ export const templates = {
 export function titleOf(t: string | { name: string; title?: string | null } | null | undefined): string {
   if (!t) return "";
   if (typeof t === "string") {
-    const all = (window as unknown as { __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null })
-      .__TEMPLATES_ALL;
+    const all = window.__TEMPLATES_ALL;
     const row = Array.isArray(all) ? all.find((x) => x.name === t) : undefined;
     return templateTitle(t, row?.title ?? null);
   }
@@ -156,11 +155,17 @@ export interface StarterLibrary {
 
 /** How the workspace being viewed says its customers buy (0008), from the list the workspace surface publishes. */
 function viewedSellsBy(): string | null {
-  const w = window as unknown as {
+  return window.__WORKSPACES?.find((t) => t.id === window.__ACTIVE_WORKSPACE)?.sells_by ?? null;
+}
+
+declare global {
+  interface Window {
+    /** Settings' every template, which a template's title is looked up in by its name (settings.ts publishes it). */
+    __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null;
+    /** The workspaces, each with how its customers buy (identity.ts keeps it). */
     __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
     __ACTIVE_WORKSPACE?: string;
-  };
-  return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
+  }
 }
 
 /** The starter set as the pages read it, from contracts: the library, and the words and slots for any template. */

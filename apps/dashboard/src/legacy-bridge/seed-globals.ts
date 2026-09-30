@@ -165,11 +165,13 @@ if (typeof window !== "undefined") {
     CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
     CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
     threadVerbs,
+    // Campaigns' door to a reach-out, its sheet and its receipt's time, for Leads and Today until they move (campaigns/globals.ts).
+    bcWhenWords: CAMPAIGN_GLOBALS.bcWhenWords,
+    ReachOutDoor: CAMPAIGN_GLOBALS.ReachOutDoor,
+    ReachOutSheet: CAMPAIGN_GLOBALS.ReachOutSheet,
   });
   // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
   hearPresence();
-  // Campaigns' door to a reach-out, its sheet and its receipt's time, for Leads and Today until they move (campaigns/globals.ts).
-  Object.assign(window, CAMPAIGN_GLOBALS);
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;

@@ -5,10 +5,9 @@
  * same page. The twin it replaces was the mockup's console, with an invented caller and controls that answered a scripted
  * call; nothing here is a customer's.
  */
-import { toLiveVM, type CallDto, type ChannelDto } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, toLiveVM, type CallDto, type ChannelDto } from "@chanlytics/contracts";
+import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { LiveSurface } from "./surface";
-
-const ZONE = "America/New_York";
 
 /** The demo's Live as of `now`: what `useSurface("live")` answers for a workspace that has read its own. */
 export function liveSample(now = new Date()): LiveSurface {
@@ -53,7 +52,7 @@ export function liveSample(now = new Date()): LiveSurface {
       retell_call_id: "call_sample_done",
       status: "ended",
       from_e164: "+19175550106",
-      started_at: iso(3_600_000),
+      started_at: iso(HOUR_MS),
       ended_at: iso(3_410_000),
       updated_at: iso(3_400_000),
       duration_ms: 190_000,
@@ -74,7 +73,7 @@ export function liveSample(now = new Date()): LiveSurface {
       kind: "voice",
       number_e164: "+13055550100",
       status: "active",
-      created_at: iso(30 * 86_400_000),
+      created_at: iso(30 * DAY_MS),
       last_inbound_at: iso(90_000),
     },
   ];

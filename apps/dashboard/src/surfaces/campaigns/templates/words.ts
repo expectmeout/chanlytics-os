@@ -5,7 +5,7 @@
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
  * surface holds now, as the JSX read `window.__SETTINGS`).
  */
-import { stateOf } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, MIN_MS, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
@@ -13,10 +13,10 @@ import { starters } from "./verbs";
 export const tplAgo = (iso: string | null | undefined): string | null => {
   if (!iso) return null;
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
-  if (diff < 60000) return "just now";
-  if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
-  return `${Math.round(diff / 86400000)}d ago`;
+  if (diff < MIN_MS) return "just now";
+  if (diff < HOUR_MS) return `${Math.round(diff / MIN_MS)}m ago`;
+  if (diff < DAY_MS) return `${Math.round(diff / HOUR_MS)}h ago`;
+  return `${Math.round(diff / DAY_MS)}d ago`;
 };
 
 // "English", "English and Spanish", "English, Spanish and Portuguese" -- the

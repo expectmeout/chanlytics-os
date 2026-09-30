@@ -35,6 +35,20 @@ export function playbooksChrome({ param }: { param: string | null }): { crumbs: 
 }
 
 /**
+ * What the Broadcasts page is handed for a param (`broadcasts/<param>`): a run's id for `run:<id>`, the "Get their yes"
+ * section for `get-yes`, and any other word as the audience the composer opens on.
+ */
+export function broadcastsProps(param: string | null): {
+  initialSegment: string | null;
+  initialRun: string | null;
+  initialYes: boolean;
+} {
+  const run = param && param.startsWith("run:") ? param.slice(4) : null;
+  const yes = param === "get-yes";
+  return { initialSegment: run || yes ? null : param, initialRun: run, initialYes: yes };
+}
+
+/**
  * Broadcasts' crumbs: `broadcasts/run:<id>` opens one broadcast, named for it once the list holds it; `broadcasts/get-yes`
  * lands on the "Get their yes" section; any other param is the audience the composer opens on, named by the page's own
  * rule (a list or a kept list with this id) and its own label. Every address is one mount.

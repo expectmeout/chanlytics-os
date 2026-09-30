@@ -4,6 +4,7 @@
  * BroadcastsReal calls them in the order it always has.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HOUR_MS } from "@chanlytics/contracts";
 import { navigate } from "../../../legacy-verbs";
 import { tabDraft } from "../../../legacy-parts";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
@@ -105,6 +106,9 @@ export function useBcWords(kept: BcKept | null) {
   };
 }
 
+/** How often the minutes until a run goes are counted again, while one is under an hour away. */
+const NOW_TICK_MS = 1000;
+
 // Now, for the minutes until a run goes: ticking only while a run is under an hour away.
 export function useBcNow(data: BroadcastsSurface) {
   const [now, setNow] = useState(() => Date.now());
@@ -115,10 +119,10 @@ export function useBcNow(data: BroadcastsSurface) {
         r.state === "scheduled" &&
         r.scheduled_for &&
         Date.parse(r.scheduled_for) > at &&
-        Date.parse(r.scheduled_for) - at < 3_600_000,
+        Date.parse(r.scheduled_for) - at < HOUR_MS,
     );
     if (!soon) return undefined;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    const t = window.setInterval(() => setNow(Date.now()), NOW_TICK_MS);
     return () => window.clearInterval(t);
   }, [data.rows]);
   return now;

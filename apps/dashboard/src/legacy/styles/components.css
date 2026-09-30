@@ -3386,10 +3386,10 @@ html.legacy-on .msg-use-link { position: relative; }
   align-self: center;
   margin-left: auto;
 }
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right .btn {
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right > button {
   height: var(--control-h-lg);
 }
-:where([data-look="glass"]) .pb-tally-n {
+:where([data-look="glass"]) .pb-standing > * > :first-child {
   font-weight: var(--weight-regular);
 }
 
@@ -3529,21 +3529,20 @@ html.legacy-on .msg-use-link { position: relative; }
   height: var(--control-h-sm);
   padding: 0 var(--space-2) 0 var(--space-3);
   gap: var(--space-1);
-  border: 0;
+  border: 1px solid var(--surface-inset-edge);
   border-radius: var(--radius-full);
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
 }
 :where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick:hover:not(:disabled),
 :where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick.is-open {
-  border: 0;
+  border-color: var(--surface-inset-edge);
   background: var(--bg-hover);
 }
 :where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick .lp-caret {
   width: auto;
   margin-left: 0;
 }
-:where([data-look="glass"]) .pb-grow .pb-pick-mark,
+:where([data-look="glass"]) .pb-grow .lp-trigger.pb-pick > span[aria-hidden="true"]:first-child,
 :where([data-look="glass"]) .pb-grow .pb-pick-sub {
   display: none;
 }
@@ -3559,16 +3558,14 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 :where([data-look="glass"]) .pb-grow .pb-msg-head > .lp-trigger:not(.pb-pick) {
   height: var(--control-h-sm);
-  border: 0;
+  border: 1px solid var(--surface-inset-edge);
   border-radius: var(--radius-full);
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
 }
 :where([data-look="glass"]) .pb-tok > select {
-  border: 0;
+  border: 1px solid var(--surface-inset-edge);
   border-radius: var(--radius-full);
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
   font-weight: var(--weight-semibold);
 }
 :where([data-look="glass"]) .pb-tok > select:hover {
@@ -3584,16 +3581,15 @@ html.legacy-on .msg-use-link { position: relative; }
   border: 0;
   background: none;
 }
-:where([data-look="glass"]) .pb-fills,
-:where([data-look="glass"]) .pb-empty {
+:where([data-look="glass"]) .pb-fills {
   border: 0;
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
 :where([data-look="glass"]) .pb-guard {
+  border: 1px solid var(--surface-inset-edge);
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
 }
 
 /* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
@@ -3661,15 +3657,6 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .bc-glass .bc-cols {
   display: block;
 }
-:where([data-look="glass"]) .bc-glass .bc-chip {
-  border: 0;
-  background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
-}
-:where([data-look="glass"]) .bc-glass .bc-chip.active {
-  background: var(--selected-fill);
-  box-shadow: var(--selected-depth);
-}
 :where([data-look="glass"]) .bc-send.bc-glass .bc-foot {
   position: relative;
   margin: 0 var(--space-4) var(--space-4);
@@ -3691,7 +3678,7 @@ html.legacy-on .msg-use-link { position: relative; }
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .bc-send.bc-glass .bc-actions .btn {
+:where([data-look="glass"]) .bc-send.bc-glass .bc-actions button {
   height: var(--control-h-lg);
   border-radius: var(--control-radius);
 }
@@ -3748,18 +3735,8 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 :where([data-look="glass"]) .tpl-composer:not(.is-translate) .tpl-fields,
 :where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-preview-wrap,
-:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-excl-hint,
-:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .field-error {
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-excl-hint {
   margin: var(--space-3) calc(var(--space-4) + var(--space-2)) 0;
-}
-:where([data-look="glass"]) .tpl-composer:not(.is-translate) .bc-chip {
-  border: 0;
-  background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 1px var(--surface-inset-edge);
-}
-:where([data-look="glass"]) .tpl-composer:not(.is-translate) .bc-chip.active {
-  background: var(--selected-fill);
-  box-shadow: var(--selected-depth);
 }
 :where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions {
   position: relative;
@@ -3781,13 +3758,13 @@ html.legacy-on .msg-use-link { position: relative; }
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions .btn {
+:where([data-look="glass"]) .tpl-composer:not(.is-translate) > .bc-actions button {
   height: var(--control-h-lg);
   padding: 0 var(--space-4);
   border-radius: var(--control-radius);
 }
 /* The card the page sets the composer in is the composer's own pane in Glass: it draws nothing of its own. */
-:where([data-look="glass"]) .fl-card:has(> .tpl-composer:not(.is-translate)) {
+:where([data-look="glass"]) section:has(> .tpl-composer:not(.is-translate)) {
   padding: 0;
   border: 0;
   background: none;

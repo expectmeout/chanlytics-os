@@ -188,11 +188,15 @@ const shell = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
 const workspace = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const bridgeApi = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 const { ApiError } = await importSrc("apps/dashboard/src/client/api.ts");
-// The Inbox and Conversations are TSX surfaces (surfaces/inbox) on routes of their own: the frame wraps the page the layout
-// gives it as surfaces/routes.ts says, and reads what the two surfaces hold through the seam. Their overrides declare the
-// windows the shell's count still reads (INBOX_DATA, CONVERSATIONS_DATA), which the seam mirrors.
+// The Inbox and Conversations are TSX surfaces (surfaces/inbox), and Campaigns and Live (surfaces/campaigns, surfaces/live),
+// on routes of their own: the frame wraps the page the layout gives it as surfaces/routes.ts says, and reads what the
+// surfaces hold through the seam. Their overrides declare the windows the shell's count still reads (INBOX_DATA,
+// CONVERSATIONS_DATA, and the playbooks', broadcasts' and Live's), which the seam mirrors.
 await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts");
 await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts");
+await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
+await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+await importSrc("apps/dashboard/src/surfaces/live/surface.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { cvRoute } = await importSrc("apps/dashboard/src/surfaces/inbox/cv-rules.ts");
@@ -632,7 +636,10 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/calendar/a-1").title, "Calendar · Chanlytics", "a real calendar is not named from the seeds");
 
   win.CLIENT_SEGMENTS = [{ id: "lapsed-60", label: "Lapsed 60 days" }];
-  win.__BROADCASTS = { rows: [], audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }] };
+  setSurfaceValue("broadcasts", {
+    rows: [],
+    audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }],
+  });
   assert.equal(
     mount("#/broadcasts/lapsed").title,
     "Lapsed · Broadcasts · Campaigns · Chanlytics",
@@ -662,7 +669,8 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
     "and for the people it is for, the crumb names it",
   );
   delete win.__ME;
-  for (const k of ["CALENDAR_DATA", "__CALENDAR", "CLIENT_SEGMENTS", "__BROADCASTS", "__PEOPLE"]) delete win[k];
+  for (const k of ["CALENDAR_DATA", "__CALENDAR", "CLIENT_SEGMENTS", "__PEOPLE"]) delete win[k];
+  setSurfaceValue("broadcasts", undefined);
 });
 
 test("the tab counts a real thread only when it needs you: one a teammate is answering, or one you have, is not waiting on you", () => {
@@ -799,13 +807,17 @@ test("REGRESSION: a real workspace's WhatsApp and Email tabs filter the list -- 
   }
 });
 
-test("a link to a call opens that call on Live -- the route had no place for its id, so Today's door could only open the list", () => {
+test("a link to a call opens that call on Live, named in the crumbs -- the route had no place for its id, so Today's door could only open the list", () => {
   shell.installShell(win);
-  globalThis.LiveMonitorPage = "LiveMonitorPage";
+  setSurfaceValue("live", { now: [{ callId: "c-9", who: "Rosa Díaz" }], recent: [], fetchedAtMs: 1 });
   try {
-    const at = (hash) => find(mount(hash).tree, (n) => n.type === "LiveMonitorPage").props;
-    assert.equal(at("#/live/c-9").initialCallId, "c-9", "REGRESSION: the route dropped the call's id");
-    assert.equal(at("#/live").initialCallId, null);
+    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
+    assert.equal(
+      crumbs("#/live/c-9").at(-1),
+      "Rosa Díaz",
+      "REGRESSION: the route dropped the call's id, so nothing named the call",
+    );
+    assert.deepEqual(crumbs("#/live"), [{ label: "Inbox", to: "inbox" }, "Live"]);
     // Every call is the Live page already on screen: a row writes the address it opens (replaced), so each call
     // being its own mount would tear the page down on every click.
     const key = (hash) =>
@@ -813,7 +825,7 @@ test("a link to a call opens that call on Live -- the route had no place for its
     assert.equal(key("#/live/c-9"), key("#/live"), "one mount across its calls");
     assert.equal(key("#/live/c-1"), key("#/live/c-9"));
   } finally {
-    delete globalThis.LiveMonitorPage;
+    setSurfaceValue("live", undefined);
   }
 });
 
@@ -853,28 +865,23 @@ test("a link to a day opens that day on the Calendar -- the route read only a de
 
 test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs, on the page already open -- Broadcasts read every param as a list's id", () => {
   shell.installShell(win);
-  win.__BROADCASTS = {
+  setSurfaceValue("broadcasts", {
     audiences: [{ kind: "saved", id: "s1", label: "Regulars" }],
     rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }],
-  };
+  });
   try {
+    // What the page is handed for each address is the route's (campaigns-routes.test.mjs, broadcastsProps); the frame
+    // names the trail and keeps one mount for the page.
     const at = (hash) => {
       const { tree } = mount(hash);
       return {
-        props: find(tree, (n) => n.type === "BroadcastsPage").props,
         crumbs: find(tree, (n) => n.type === "Topbar").props.crumbs,
         key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key,
       };
     };
     const run = at("#/broadcasts/run:b-1");
-    assert.deepEqual(
-      [run.props.initialRun, run.props.initialSegment],
-      ["b-1", null],
-      "REGRESSION: a run's id was read as a list's",
-    );
     assert.equal(run.crumbs.at(-1), "Win-back · 2026-09-10");
     const list = at("#/broadcasts/s1");
-    assert.deepEqual([list.props.initialSegment, list.props.initialRun], ["s1", null]);
     assert.equal(list.crumbs.at(-1), "Regulars");
     assert.equal(
       at("#/broadcasts/run:b-older").crumbs.at(-1),
@@ -883,7 +890,7 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
     );
     assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
   } finally {
-    delete win.__BROADCASTS;
+    setSurfaceValue("broadcasts", undefined);
   }
 });
 
@@ -930,7 +937,7 @@ test("a page can say the same place more exactly: a replaced address makes no en
     page(tree).props.onNavigate(`clients/leads:p-${LEAD}`, { replace: true });
     assert.deepEqual(
       history.replaced.slice(before.replaced),
-      [`/w/acme/clients/leads:p-${LEAD}`],
+      [`/w/acme/people/leads:p-${LEAD}`],
       "replaced, not pushed: Back must not replay every lead the peek walked through",
     );
     assert.equal(history.pushed.length, before.pushed, "no entry");
@@ -951,8 +958,8 @@ test("a page can say the same place more exactly: a replaced address makes no en
       "the page is handed the address it asked for without waiting for an event that never comes",
     );
     page(again).props.onNavigate("clients/leads");
-    assert.equal(win.location.pathname, "/w/acme/clients/leads", "and a plain navigation is still pushed");
-    assert.equal(history.pushed.at(-1), "/w/acme/clients/leads");
+    assert.equal(win.location.pathname, "/w/acme/people/leads", "and a plain navigation is still pushed");
+    assert.equal(history.pushed.at(-1), "/w/acme/people/leads");
     assert.equal(history.replaced.length, before.replaced + 1);
   } finally {
     win.location.pathname = "/w/acme";
@@ -985,7 +992,7 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   const profileBack = (tree) => find(tree, (n) => n.type === "ClientProfile").props.onBack();
   try {
     find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
-    assert.equal(win.location.pathname, "/w/acme/clients/p-1", "the profile is a new entry");
+    assert.equal(win.location.pathname, "/w/acme/people/p-1", "the profile is a new entry");
     profileBack(arrive("#/clients/p-1"));
     assert.equal(h.backs, 1, "REGRESSION: Back pushed /clients, a second entry, and the list they came from was gone");
     assert.equal(win.location.pathname, "/w/acme/clients/p-1", "nothing pushed: the browser's Back is what returns");
@@ -993,12 +1000,12 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
     // Reached by a link or a reload: People itself, pushed.
     h.backs = 0;
     profileBack(mount("#/clients/p-1").tree);
-    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/clients"], "by a link: People");
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/people"], "by a link: People");
     // Opened from another page's door: People, never a Back out to the Inbox.
     mount("#/inbox/th-1");
     win.appNavigate("clients/p-1");
     profileBack(arrive("#/clients/p-1"));
-    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/clients"], "from the Inbox: People");
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/people"], "from the Inbox: People");
     // Back to the profile from somewhere else: the entry before it is not known to be the list, so People.
     find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
     arrive("#/clients/p-1");
@@ -1006,7 +1013,7 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
     profileBack(arrive("#/clients/p-1"));
     assert.deepEqual(
       [h.backs, win.location.pathname],
-      [0, "/w/acme/clients"],
+      [0, "/w/acme/people"],
       "Back from the Calendar, then Back to People: People",
     );
   } finally {
@@ -1019,28 +1026,18 @@ test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named 
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = win.gate || (() => ({}));
-  win.__PLAYBOOKS = { rows: [{ id: "pb-1", name: "Win-back" }] };
-  globalThis.OutboundPage = "OutboundPage";
+  setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
   try {
-    const at = (hash) => {
-      const { tree } = mount(hash);
-      return {
-        props: find(tree, (n) => n.type === "OutboundPage").props,
-        crumbs: find(tree, (n) => n.type === "Topbar").props.crumbs,
-      };
-    };
-    const one = at("#/outbound/pb-1");
-    assert.equal(one.props.initialPlaybook, "pb-1", "REGRESSION: the route dropped the playbook's id");
-    assert.equal(one.crumbs.at(-1), "Win-back");
-    assert.equal(at("#/outbound").props.initialPlaybook, null);
+    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
+    assert.equal(crumbs("#/outbound/pb-1").at(-1), "Win-back", "REGRESSION: the route dropped the playbook's id");
+    assert.deepEqual(crumbs("#/outbound"), ["Campaigns", "Playbooks"]);
     assert.equal(
-      at("#/outbound/pb-gone").crumbs.at(-1),
+      crumbs("#/outbound/pb-gone").at(-1),
       "Playbook",
       "a playbook since deleted is still named for what it was",
     );
   } finally {
-    delete win.__PLAYBOOKS;
-    delete globalThis.OutboundPage;
+    setSurfaceValue("playbooks", undefined);
     win.gate = keepGate;
   }
 });
@@ -1051,7 +1048,6 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = () => ({});
-  globalThis.OutboundPage = "OutboundPage";
   const right = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.right;
   try {
     assert.equal(
@@ -1076,11 +1072,11 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
     );
     // Ready, New playbook is the page's own, at the right of its one line beside Broadcasts' and Templates' acts
     // (outbound-real.jsx pb-new), and the top bar carries none: the page draws only once the playbooks are read.
-    win.__PLAYBOOKS = { rows: [] };
+    setSurfaceValue("playbooks", { rows: [] });
     assert.equal(right("#/outbound"), null, "ready Playbooks keep their act on the page, not in the top bar");
   } finally {
-    for (const k of ["__DEMO_MODE", "__CALENDAR", "__PLAYBOOKS"]) delete win[k];
-    delete globalThis.OutboundPage;
+    for (const k of ["__DEMO_MODE", "__CALENDAR"]) delete win[k];
+    setSurfaceValue("playbooks", undefined);
     win.gate = keepGate;
   }
 });
@@ -1481,7 +1477,6 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
 });
 
 test("Campaigns' third door is Templates, on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
-  globalThis.MessagesPage = "MessagesPage";
   const { tree, title } = mount("#/messages");
   assert.equal(
     title,
@@ -1491,10 +1486,9 @@ test("Campaigns' third door is Templates, on the route that is still `messages` 
   const strip = find(tree, (n) => n.type === "SurfaceTabs");
   assert.equal(strip.props.page, "messages", "the route is untouched: every deep link still works");
   assert.ok(
-    find(tree, (n) => n.type === "MessagesPage"),
-    "and the same page draws",
+    find(tree, (n) => n.type === "RoutePage"),
+    "and the same page draws (the layout's, in the frame)",
   );
-  delete globalThis.MessagesPage;
 });
 
 test("a list's own route lands on People with that list picked, and the address is replaced so Back leaves People -- the Lists page folded into People", () => {
@@ -1514,11 +1508,11 @@ test("a list's own route lands on People with that list picked, and the address 
     assert.ok(page, "People is what draws");
     assert.deepEqual([page.props.initialSaved, page.props.initialSegment], ["s1", null], "with the kept list picked");
     assert.equal(kept.title, "Regulars · People · Chanlytics", "named for the list, under People");
-    assert.deepEqual(replaced.slice(from), ["/w/acme/clients/list:s1"], "the address says where it landed");
+    assert.deepEqual(replaced.slice(from), ["/w/acme/people/list:s1"], "the address says where it landed");
     const smart = mount("#/segments/needs_you");
     assert.deepEqual(
       [find(smart.tree, (n) => n.type === "ClientsA").props.initialSegment, replaced.at(-1)],
-      ["needs_you", "/w/acme/clients/seg:needs_you"],
+      ["needs_you", "/w/acme/people/seg:needs_you"],
       "a smart list too",
     );
     const gone = mount("#/segments/nope");
@@ -1527,7 +1521,7 @@ test("a list's own route lands on People with that list picked, and the address 
       null,
       "a list that is not here is People itself",
     );
-    assert.equal(replaced.at(-1), "/w/acme/clients");
+    assert.equal(replaced.at(-1), "/w/acme/people");
     assert.ok(!find(gone.tree, (n) => n.type === "SegmentsPage"), "never the seeded Segments page on a real workspace");
   } finally {
     delete win.__PEOPLE;
@@ -1557,14 +1551,14 @@ test("the old route on a cold load: the People surface is still on its way, so t
     fire("surface:clients");
     assert.deepEqual(
       replaced(),
-      ["/w/acme/clients/list:s1"],
+      ["/w/acme/people/list:s1"],
       "the moment the surface lands, the address says where it landed",
     );
     fire("surface:clients");
     fire("surface:people");
     assert.deepEqual(
       replaced(),
-      ["/w/acme/clients/list:s1"],
+      ["/w/acme/people/list:s1"],
       "once: a later page of People, or its refresh, does not replace the address again",
     );
   } finally {
@@ -1800,7 +1794,7 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
     assert.deepEqual([page(tree).props.scope, page(tree).props.key], ["pipeline", "pipeline"]);
     assert.deepEqual(crumbs(tree), [{ label: "People", to: "clients" }, "Pipeline"]);
     page(tree).props.onOpenProfile("p-1");
-    assert.equal(win.location.pathname, "/w/acme/clients/p-1", "a row opens its person");
+    assert.equal(win.location.pathname, "/w/acme/people/p-1", "a row opens its person");
     const people = mount("#/clients");
     assert.notEqual(mountKey(tree), mountKey(people.tree), "the Pipeline and People are two mounts, as Leads is");
     // One page, three scopes: moving between them draws at once, as People and Leads do.

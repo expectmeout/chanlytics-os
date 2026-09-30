@@ -34,7 +34,7 @@ const nothing = (): null => null;
 function part<P>(
   name: "Confirm" | "StatePill" | "PolicyChip" | "FieldError" | "RecordSheet" | "UnsavedAsk",
 ): ComponentType<P> {
-  const found = (window as unknown as Record<string, unknown>)[name];
+  const found: unknown = Reflect.get(window, name);
   return (typeof found === "function" ? found : nothing) as ComponentType<P>;
 }
 

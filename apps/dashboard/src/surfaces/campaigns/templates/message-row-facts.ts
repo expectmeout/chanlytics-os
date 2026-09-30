@@ -78,7 +78,7 @@ export function languageFacts(p: LanguageInput) {
 type StarterText = ReturnType<StarterLibrary["text"]>;
 
 /** The words in view: the body with its slots still in it, what fills them, and the line under them. */
-export function wordsOf(p: {
+export function rowWords(p: {
   g: TemplateGroup;
   S: StarterLibrary;
   row: TemplateDto | null;

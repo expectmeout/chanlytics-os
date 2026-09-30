@@ -9,7 +9,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 const S = "../../../../apps/dashboard/src/surfaces";
-const { playbooksChrome, broadcastsChrome } = await import(`${S}/campaigns/routes.ts`);
+const { playbooksChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/routes.ts`);
 const { workspacePath, routeOfPath } = await import("@chanlytics/contracts");
@@ -85,6 +85,13 @@ test("Broadcasts: the crumbs name a run, the get-yes section, or an audience the
   );
   assert.deepEqual(b("nobody").crumbs, ["Campaigns", "Broadcasts"]);
   assert.equal(b("run:b-1").mount, "broadcasts");
+});
+
+test("Broadcasts is handed a run, the get-yes section, or the audience a word names -- a run's id was once read as a list's (C9)", () => {
+  assert.deepEqual(broadcastsProps("run:b-1"), { initialSegment: null, initialRun: "b-1", initialYes: false });
+  assert.deepEqual(broadcastsProps("get-yes"), { initialSegment: null, initialRun: null, initialYes: true });
+  assert.deepEqual(broadcastsProps("s1"), { initialSegment: "s1", initialRun: null, initialYes: false });
+  assert.deepEqual(broadcastsProps(null), { initialSegment: null, initialRun: null, initialYes: false });
 });
 
 test("the frame takes every address the rows took: a playbook, a run, an audience; Templates is its own route alone", () => {

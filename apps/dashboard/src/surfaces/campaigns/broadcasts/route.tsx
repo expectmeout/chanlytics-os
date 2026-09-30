@@ -6,13 +6,12 @@
  */
 import { usePathname } from "next/navigation";
 import { routeOfPath } from "@chanlytics/contracts";
+import { broadcastsProps } from "../routes";
 import { BroadcastsPage } from "./broadcasts-page";
 
 export function BroadcastsRoute() {
   const route = routeOfPath(usePathname()) ?? "broadcasts";
   // The route's second word, as the shell reads its param (`broadcasts/run:b-1/x` names run:b-1).
   const param = route.split("/")[1] || null;
-  const run = param && param.startsWith("run:") ? param.slice(4) : null;
-  const yes = param === "get-yes";
-  return <BroadcastsPage initialSegment={run || yes ? null : param} initialRun={run} initialYes={yes} />;
+  return <BroadcastsPage {...broadcastsProps(param)} />;
 }

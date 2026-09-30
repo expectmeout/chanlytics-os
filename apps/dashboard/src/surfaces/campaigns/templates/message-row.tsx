@@ -11,7 +11,7 @@ import { useState } from "react";
 import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
 import type { TemplateMade } from "./composer-acts";
 import type { PresentRow, StarterGroup, TemplateGroup, TplLang } from "./group";
-import { firstLang, languageFacts, lineWords, marksOf, usageOf, wordsOf } from "./message-row-facts";
+import { firstLang, languageFacts, lineWords, marksOf, rowWords, usageOf } from "./message-row-facts";
 import { closedLine, langBar, openRow } from "./message-row-parts";
 import type { RowCtx } from "./message-row-parts";
 import type { StarterLibrary } from "./verbs";
@@ -71,7 +71,7 @@ export function MessageRow({
   const [arm, setArm] = useState(false);
   const lang = languageFacts({ g, langs, S, canAdd, present, langId, back, adding, sentLang });
   const { view, row, written, starterText, fromRow, untranslatable } = lang;
-  const { body, values, footer } = wordsOf({ g, S, row, starterText, view });
+  const { body, values, footer } = rowWords({ g, S, row, starterText, view });
   const closeMenu = () => {
     setMenu(false);
     setRenaming(false);

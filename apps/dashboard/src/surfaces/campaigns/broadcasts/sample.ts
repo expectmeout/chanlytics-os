@@ -8,9 +8,11 @@
 import {
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
+  DAY_MS,
   EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
+  HOUR_MS,
   OFFERS_BY_WHATSAPP_NOTE,
   OFFERS_OPT_IN_PHRASES,
   REPLY_WINDOW_WORDS,
@@ -22,10 +24,10 @@ import {
   type AudiencePreview,
   type BroadcastDto,
 } from "@chanlytics/contracts";
+import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
 
-const ZONE = "America/New_York";
-const DAY = 86_400_000;
+const DAY = DAY_MS;
 
 /** A starter as WhatsApp holds it once approved, with the consent a send of it needs. */
 function approved(key: string, syncedAt: string): BroadcastTemplate {
@@ -116,7 +118,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
       template_name: "monthly_offer",
       audience: { kind: "playbook", id: "pb-sample-welcome", label: "Welcome" },
       state: "pending_approval",
-      scheduled_for: iso(2 * 3_600_000),
+      scheduled_for: iso(2 * HOUR_MS),
       started_at: null,
       finished_at: null,
       recipient_count: 4,

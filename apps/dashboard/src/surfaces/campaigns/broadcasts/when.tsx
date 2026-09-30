@@ -2,6 +2,7 @@
  * When a send goes, in the words every receipt and the schedule box share (moved from legacy/pages/broadcasts.jsx,
  * decision 0015): the sentence for a receipt, the box that picks the time, and what the picked time means.
  */
+import { DAY_MS, MIN_MS } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 
 /** What a receipt says of its time: the server's answer to a send or an approve. */
@@ -19,7 +20,7 @@ export function bcWhenWords(d: WhenReceipt | null | undefined): string {
   const at = d && d.scheduled_for ? Date.parse(d.scheduled_for) : NaN;
   const when = Number.isNaN(at) ? null : C.when(at);
   if (d && d.moved_from && when) return `scheduled for ${when} — messages go out ${C.hours.between} by your clock`;
-  if (when && at - Date.now() > 60_000) return `scheduled for ${when}`;
+  if (when && at - Date.now() > MIN_MS) return `scheduled for ${when}`;
   return "sending now";
 }
 
@@ -41,7 +42,7 @@ export function BcWhenBox({ at, maxDays, onChange }: BcWhenBoxProps) {
       type="datetime-local"
       value={at === null ? "" : C.inputValue(at)}
       min={C.inputValue(now)}
-      max={C.inputValue(now + maxDays * 86_400_000)}
+      max={C.inputValue(now + maxDays * DAY_MS)}
       onChange={(e) => onChange(C.fromInput(e.target.value))}
       aria-label={`When, by ${C.city()} time`}
       aria-describedby="bc-when-note"
@@ -67,8 +68,7 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
   if (at === null) return { ok: false, tone: "", words: `By ${city} time · within ${maxDays} days` };
   if (at <= now) return { ok: false, tone: "warn", words: "That time has passed — pick a later one, or Send now" };
   const open = C.nextOpen(at);
-  if (open.at > now + maxDays * 86_400_000)
-    return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
+  if (open.at > now + maxDays * DAY_MS) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
   return open.moved
     ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for ${C.hours.range}` }
     : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };

@@ -129,7 +129,7 @@ function momentOf({ data, f }: ModelIn) {
 type Moment = ReturnType<typeof momentOf>;
 
 /** The message: which of the offered ones it sends, the moment's own, and the languages it has. */
-function messageOf({ editing, offered, templatesAll, f }: ModelIn, { trig, link }: Moment) {
+function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig, link }: Moment) {
   // What each slot of a message may take on a moment -- a visit's time and service on a visit, a proposal's link on
   // the follow-up (0006) -- or null when one of them can take nothing there.
   const slotsOf = (t: TemplateDto, m: PlaybookTriggerOption | null = trig) =>
@@ -149,7 +149,7 @@ function messageOf({ editing, offered, templatesAll, f }: ModelIn, { trig, link 
   return { slotsOf, usable, groups, starter, starterGroup, starterAny, tpl, lost, group };
 }
 
-type Message = ReturnType<typeof messageOf>;
+type Message = ReturnType<typeof composerMessage>;
 
 /** What fills each slot of the message in view, and what a run would say to a person: checked as the route checks it. */
 function slotsModelOf({ data, f }: ModelIn, { tpl, slotsOf }: Message) {
@@ -285,7 +285,7 @@ function choicesOf({ data }: ModelIn, { triggers, link }: Moment, { groups, star
 }
 
 /** The words the sheet says of itself: the name the route would give, the foot's one sentence, and the clock's city. */
-function wordsOf({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }: Message, { missing, labels }: Slots) {
+function composerWords({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }: Message, { missing, labels }: Slots) {
   // The name the route gives it when it is given none, said before it is saved.
   const auto = trig && tpl ? playbookName(trig, tpl) : trig ? trig.label : "New playbook";
   const title = f.name === null ? auto : f.name;
@@ -307,11 +307,11 @@ function wordsOf({ editing, f, error }: ModelIn, { trig }: Moment, { tpl }: Mess
 /** Everything the composer's sections and verbs read, worked out from what the sheet holds. */
 export function composerModel(input: ModelIn) {
   const mo = momentOf(input);
-  const msg = messageOf(input, mo);
+  const msg = composerMessage(input, mo);
   const sl = slotsModelOf(input, msg);
   const reach = reachOf(input, mo);
   const ch = choicesOf(input, mo, msg);
-  const words = wordsOf(input, mo, msg, sl);
+  const words = composerWords(input, mo, msg, sl);
   const ready = !!mo.trig && !!msg.tpl && sl.missing < 0 && !input.busy && (!mo.onList || !!mo.list);
   return {
     ...mo,
