@@ -17,7 +17,9 @@ import { canDo, useLegacyToast } from "../legacy-verbs";
 import { BarChart } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
+import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
+import { LinkButton } from "../kit/link-button/link-button";
 import { useSurface } from "../use-surface";
 import { RpTile, RptSection } from "./blocks";
 import { RPT_GAINED } from "./series";
@@ -71,9 +73,9 @@ function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
         </p>
       )}
       {!open ? (
-        <button className="cl-bucket-link" onClick={openIt} data-testid="google-reply">
+        <LinkButton onClick={openIt} data-testid="google-reply">
           {r.replied ? "Change the reply" : "Reply"}
-        </button>
+        </LinkButton>
       ) : (
         <div className="rp2-review-composer" data-testid="google-reply-composer">
           <textarea
@@ -104,17 +106,18 @@ function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
             </span>
           )}
           <div className="bc-chips">
-            <button
-              className="btn btn-primary btn-sm"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={send}
               disabled={busy || drafting || !text.trim()}
               data-testid="google-reply-send"
             >
               {busy ? "Sending…" : "Send to Google"}
-            </button>
-            <button className="cl-bucket-link" onClick={() => setOpen(false)} disabled={busy}>
+            </Button>
+            <LinkButton onClick={() => setOpen(false)} disabled={busy}>
               Cancel
-            </button>
+            </LinkButton>
           </div>
         </div>
       )}
@@ -205,16 +208,10 @@ function latestCard(vm: GoogleVM, mapsUri: string | null, operator: boolean) {
           listing's own address is the one place that has all of them. Google's `maps_uri`, as Setup links it. */}
       {mapsUri && (
         <p className="rp2-reviews-more">
-          <a
-            className="cl-bucket-link"
-            href={mapsUri}
-            target="_blank"
-            rel="noreferrer"
-            data-testid="google-open-listing"
-          >
+          <LinkButton href={mapsUri} target="_blank" rel="noreferrer" data-testid="google-open-listing">
             Read every review on Google
             <Icon name="external" size={12} />
-          </a>
+          </LinkButton>
         </p>
       )}
     </ChartCard>

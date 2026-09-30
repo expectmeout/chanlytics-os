@@ -13,6 +13,7 @@ import { listRoute, navigate } from "../legacy-verbs";
 import { titleOf } from "@/legacy-bridge/templates";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
+import { LinkButton } from "../kit/link-button/link-button";
 import { RadialChart } from "../kit/charts/radial";
 import { rptPlural } from "./series";
 
@@ -213,15 +214,13 @@ function bookedRest(bk: BookingReportVM) {
             the list's name rather than "See them", because the list counts its own month and this card counts the
             period above: the same people, near enough to go and look, not the same set to the person. */}
         {bk.unbooked > 0 && (
-          <button
-            type="button"
-            className="cl-bucket-link"
+          <LinkButton
             title="People's own list of who wrote or called this month and has never been on the calendar"
             onClick={() => navigate(listRoute("asked_never_booked"))}
             data-testid="booked-rest-door"
           >
             Asked, never booked
-          </button>
+          </LinkButton>
         )}
       </span>
     </p>

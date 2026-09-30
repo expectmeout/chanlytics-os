@@ -321,6 +321,9 @@ Reports left the shell as step 3 of the steps above (step 2 of the order). What 
 - **Proof.** A throwaway recorder drew the JSX page and the TSX module over the page's own worlds (37), every handler
   with every event it takes and 15 scripted sequences, and the shared components over 738 property sets: 11,918 steps,
   no difference, and 18 planted faults, every one caught (`docs/plans/` holds nothing of it: it is never committed).
+- **Its kit step took what a stub can draw**: the reply's Send is the kit's `Button`, and the quiet words that act (Reply,
+  Cancel, Asked, never booked, Read every review on Google) are its `LinkButton`. The one canvas of the six that could
+  have covered Reports does not exist: Today, Inbox, People, Leads, Campaigns and the Pipeline are the six.
 - **Two things the pilot could not do.** Base UI's parts (the kit's Field, Segmented, toast) cannot be imported on the
   stub React the page tests use, so Reports' period tabs, its reply box and its toast stay as the JSX drew them until the
   page tests can draw a Base UI part (the next step of the plan's Phase 4); Reports is listed in `KIT_PENDING` for that.
