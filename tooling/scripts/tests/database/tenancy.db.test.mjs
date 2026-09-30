@@ -139,7 +139,7 @@ before(async () => {
     verb: "archive",
   });
   await seed("events", { tenant_id: A, kind: "message.received" });
-  // One model call kept in dollars (00276): the service role's model port writes it, a member of the workspace reads it.
+  // One model call kept in dollars (00273): the service role's model port writes it, a member of the workspace reads it.
   await seed(
     "ai_usage",
     {
@@ -461,7 +461,7 @@ const TENANT_TABLES = {
     }),
   ],
   events: ["member", () => ({ tenant_id: A, kind: "message.received" })],
-  // The model ledger (00276) and the metering view over it (security invoker): members read their workspace's calls, and
+  // The model ledger (00273) and the metering view over it (security invoker): members read their workspace's calls, and
   // nobody signed in writes one.
   ai_usage: [
     "member",

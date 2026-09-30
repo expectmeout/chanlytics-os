@@ -5,7 +5,7 @@
  * A purpose whose answer is a closed set may name a shadow port in the registry (models.ts `shadow`): while the switch
  * is on, the same question is put to the second model beside the primary, its answer is compared with the primary's and
  * written, and nothing else happens: the answer is never used, and a shadow that fails is logged and costs nobody
- * anything. The rows are how Ruben reads a week of agreement per purpose (00278 ai_shadow_agreement) before any switch.
+ * anything. The rows are how Ruben reads a week of agreement per purpose (00275 ai_shadow_agreement) before any switch.
  *
  * A question's answer is read as a label the primary also gives: a choice is its option, a noul is "true" or "false"
  * (a probability of yes at or over a half). Its confidence is the choice's own, or how far the noul is from a coin.

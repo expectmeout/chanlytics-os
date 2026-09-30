@@ -29,13 +29,7 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
-    "00270": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
-    "00271": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
-    "00272": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
-    "00273": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
-    "00274": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
-    "00275": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)"
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -280,6 +274,9 @@
     "00269_the_database_says_which_migration_it_has.sql": "49797d30694d89d41fae649d9dded79691ad258b8006ebceb3ed1f65641c1197",
     "00270_a_member_s_row_names_only_its_own_workspace_s_rows.sql": "eff96da8726b61b4dd923664671da6cb22e2b9d176045173a7815a07777f4256",
     "00271_a_workspace_keeps_an_owner_while_anyone_is_in_it.sql": "62ab638cf0c88cd812007dde282e65aacee5a295447598c25c512844bb2a7f79",
-    "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80"
+    "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80",
+    "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
+    "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
+    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3"
   }
 }

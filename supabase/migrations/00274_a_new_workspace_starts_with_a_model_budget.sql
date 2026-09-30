@@ -1,4 +1,4 @@
--- 00277 · A new workspace starts with a day's model budget.
+-- 00274 · A new workspace starts with a day's model budget.
 --
 -- Category 39 (29 September 2026): the receptionist had no default day cap, so a new workspace could spend the
 -- platform's model key without a bound until its owner set one (00183 seeded the reply row with the reply cap and the

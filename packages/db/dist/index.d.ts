@@ -7978,7 +7978,7 @@ declare function subjectsWith(db: Db$l, tenantId: string, kind: EmittedKind, sub
 declare function recordActivation(db: Db$l, tenantId: string, milestone: ActivationMilestone, via: string): Promise<boolean>;
 
 /**
- * The usage ledger (00276 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
+ * The usage ledger (00273 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
  * and the one that keeps it. A table is typed here and nowhere else.
  *
  *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it, or the rows of one shadow call

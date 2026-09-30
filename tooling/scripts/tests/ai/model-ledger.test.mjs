@@ -1,6 +1,6 @@
 /**
  * The edge's model port (apps/edge/lib/model.ts) and the paths that ask through it, over a database in memory and a
- * scripted API: every call writes one row of the usage ledger (ai_usage, 00276) with the model asked, the model that
+ * scripted API: every call writes one row of the usage ledger (ai_usage, 00273) with the model asked, the model that
  * answered, its four kinds of tokens and its list-price dollars; a purpose a person asks for spends nothing for a
  * workspace paused, ended or unbilled; the receptionist's record is stamped with its prompt's hash, the settings'
  * version and the model that answered; and the reply reader, the notes sweep, the reach-out check and the review reply,

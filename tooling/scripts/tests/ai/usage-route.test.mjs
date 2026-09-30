@@ -1,7 +1,7 @@
 /**
  * GET usage (change 11): an owner reads their workspace's month of metered use from the kept ledger: every model call
  * with its tokens and list-price dollars, each call's seconds, each WhatsApp conversation, and the totals. Run over a
- * database in memory that answers the rollup (ai_usage_month, 00276) as Postgres does; the SQL is proved on a real
+ * database in memory that answers the rollup (ai_usage_month, 00273) as Postgres does; the SQL is proved on a real
  * Postgres in ai-usage.db.test.mjs.
  */
 import { test } from "node:test";

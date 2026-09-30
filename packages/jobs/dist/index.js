@@ -2666,7 +2666,7 @@ var RETENTION_DAYS = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
@@ -10652,7 +10652,7 @@ var RETENTION_DAYS2 = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
@@ -14742,7 +14742,7 @@ var RETENTION_DAYS3 = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
@@ -18425,7 +18425,7 @@ var RETENTION_DAYS22 = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
@@ -21515,7 +21515,7 @@ var RETENTION_DAYS32 = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
@@ -25602,7 +25602,7 @@ var RETENTION_DAYS4 = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400
 };
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;

@@ -1,4 +1,4 @@
--- 00276 · Every model call is kept, in dollars.
+-- 00273 · Every model call is kept, in dollars.
 --
 -- Scorecard move 10 and category 39 (29 September 2026). A model call's tokens were an event purged at thirty days
 -- (usage.llm_tokens, usage.ask_tokens), never priced, and four paths wrote none at all (the reply reader, the reach-out

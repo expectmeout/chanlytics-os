@@ -245,7 +245,7 @@ declare function systemOneState(text: string): string;
 /**
  * What a model call cost: its tokens by kind, and their price at the models' list prices (scorecard move 10; category
  * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai-usage.ts
- * recordModelUsage), as one row of the kept ledger (00276 ai_usage); this module is the row's shape and its dollars.
+ * recordModelUsage), as one row of the kept ledger (00273 ai_usage); this module is the row's shape and its dollars.
  *
  * Tokens come in four kinds and each has its own price: uncached input, output, a five-minute cache write and a cache
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
@@ -288,7 +288,7 @@ declare function usageOf(raw: unknown): ModelUsage;
 /**
  * What became of a call: answered; answered by the fallback; the model declined (its own refusal); the API refused
  * the request; no answer came; or an answer came that could not be read (cut at its cap, out of its shape). The last
- * four are what the health sweep counts per workspace (00276 ai_failures_hour).
+ * four are what the health sweep counts per workspace (00273 ai_failures_hour).
  */
 declare const MODEL_CALL_OUTCOMES: readonly ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"];
 type ModelCallOutcome = (typeof MODEL_CALL_OUTCOMES)[number];
@@ -314,7 +314,7 @@ interface AiUsageBody {
     /** What the call was about: a conversation, a call, a send, a review. */
     subject_id: string | null;
     /**
-     * A shadow call's own columns (00278; shadow.ts): the port it left by, and, for a question it answered, the label the
+     * A shadow call's own columns (00275; shadow.ts): the port it left by, and, for a question it answered, the label the
      * primary gave, the label the shadow gave, how sure it was, whether that cleared the line, and whether they agree.
      * A row the model port writes for the primary carries none of them.
      */
@@ -343,7 +343,7 @@ declare function aiUsageBodyOf(call: {
 interface UsageMonthDto {
     /** YYYY-MM. */
     month: string;
-    /** One line per meter, purpose and model (ai_usage_month, 00276). */
+    /** One line per meter, purpose and model (ai_usage_month, 00273). */
     lines: Array<{
         meter: "model" | "voice_seconds" | "wa_conversation";
         purpose: string | null;
@@ -529,7 +529,7 @@ declare function judgeOpId(runId: string, fromOffset: number, batch: number): st
  * A purpose whose answer is a closed set may name a shadow port in the registry (models.ts `shadow`): while the switch
  * is on, the same question is put to the second model beside the primary, its answer is compared with the primary's and
  * written, and nothing else happens: the answer is never used, and a shadow that fails is logged and costs nobody
- * anything. The rows are how Ruben reads a week of agreement per purpose (00278 ai_shadow_agreement) before any switch.
+ * anything. The rows are how Ruben reads a week of agreement per purpose (00275 ai_shadow_agreement) before any switch.
  *
  * A question's answer is read as a label the primary also gives: a choice is its option, a noul is "true" or "false"
  * (a probability of yes at or over a half). Its confidence is the choice's own, or how far the noul is from a coin.
@@ -12593,7 +12593,7 @@ declare const ROLE_PERMS: Record<Role, {
  */
 
 /**
- * The day's model budget a new workspace starts with (provision_tenant, 00277): the Autonomy pane's "1M" step. The
+ * The day's model budget a new workspace starts with (provision_tenant, 00274): the Autonomy pane's "1M" step. The
  * owner moves it, or turns it off (0); a workspace made before it keeps what it had.
  */
 declare const TOKENS_DAY_DEFAULT = 1000000;
@@ -24445,7 +24445,7 @@ declare const RETENTION_DAYS: {
     readonly jobs_failed: 90;
     /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
     readonly page_vitals: 30;
-    /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+    /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
     readonly ai_usage: 400;
 };
 /** Rate-limit counters (00059): two hours, in hours. */

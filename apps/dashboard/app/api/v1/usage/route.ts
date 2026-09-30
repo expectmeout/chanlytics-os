@@ -14,7 +14,7 @@ const Query = z.object({
 /**
  * GET /api/v1/usage?month=2026-09 — the workspace's metered use for a month, for its owner: every model call the
  * platform made for it (Ask, the drafts, the receptionist's answers, the reads) with its tokens and list-price dollars,
- * each phone call's seconds and each WhatsApp conversation opened (the usage ledger, 00276). Owners only: it is what
+ * each phone call's seconds and each WhatsApp conversation opened (the usage ledger, 00273). Owners only: it is what
  * the workspace costs.
  */
 export const GET = read({

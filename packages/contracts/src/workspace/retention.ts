@@ -29,7 +29,7 @@ export const RETENTION_DAYS = {
   jobs_failed: 90,
   /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00255). */
   page_vitals: 30,
-  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00276, run by the health sweep). */
+  /** The ledger of model calls: each call's tokens, model and dollars (ai_usage_purge, 00273, run by the health sweep). */
   ai_usage: 400,
 } as const;
 

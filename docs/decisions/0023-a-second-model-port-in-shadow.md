@@ -2,7 +2,7 @@
 
 **Status:** proposed on 29 September 2026 (Ruben: build it, off by default; the switch is his, after a week of
 agreement data and after the data-processing question below is answered). Built in shadow with this note
-(the road-to-ten AI lane, step 12, migration `00278`): it is off unless `TYPESAFE_SHADOW` (`1` for every workspace, or a
+(the road-to-ten AI lane, step 12, migration `00275`): it is off unless `TYPESAFE_SHADOW` (`1` for every workspace, or a
 comma-separated list of workspace ids for a pilot on those alone) and `TYPESAFE_API_KEY` are set on the edge, and it
 changes nothing a customer receives whether or not it is on. Written against `df7849323`
 (main, 29 September 2026); where this note and the code disagree, the code wins. Numbered 0023 as the next free number
@@ -31,7 +31,7 @@ at that commit; the controller renumbers at landing if another note took it.
   the week of shadow data is compared with.
 - **What the codebase already had.** One model port for Claude (`packages/channels/src/models/anthropic.ts` over
   `providerFetch`), a registry by purpose (`packages/contracts/src/ai/models.ts`) and a ledger in dollars (`ai_usage`,
-  `00276`); so a second port is a second adapter, a column on the ledger and a comparison, not a second way to ask.
+  `00273`); so a second port is a second adapter, a column on the ledger and a comparison, not a second way to ask.
 
 ## Decision
 
@@ -64,7 +64,7 @@ at that commit; the controller renumbers at landing if another note took it.
    second time, and the primary's prompts are byte for byte what they were.
 5. **The person-or-automatic read is not shadowed.** The intake's claim from the mail's header stays authoritative; the
    pilot's 17 of 19 there, with misses on terse opt-outs, is why a second reader is not put beside it.
-6. **Each question answered is one row of the usage ledger** (`ai_usage`, `00278`): the primary's purpose, the port
+6. **Each question answered is one row of the usage ledger** (`ai_usage`, `00275`): the primary's purpose, the port
    (`typesafe`), that it was a shadow, the question, the primary's label, the shadow's label, its confidence, whether that
    cleared 0.8 (`confident`), whether the two agree (`agrees`, null when either gave none), and, on the first row of a
    call, its input tokens and dollars (so the rows sum to what was spent). A call that got no answer is one row that says
@@ -88,7 +88,7 @@ at that commit; the controller renumbers at landing if another note took it.
 - Edge: `lib/shadow.ts` (the run and its settling), the receptionist's `generateReply`, the reply reader's `ask` and the
   lead judge's wires each start one beside the primary and settle it after; `TYPESAFE_API_KEY` and `TYPESAFE_SHADOW` in
   `lib/env.ts` and `.env.example`, the second listed in `contracts/ai/flags.ts` with a sunset.
-- Database: `00278`.
+- Database: `00275`.
 
 ## Steps
 

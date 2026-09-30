@@ -1,7 +1,7 @@
 /**
  * What a model call cost: its tokens by kind, and their price at the models' list prices (scorecard move 10; category
  * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai-usage.ts
- * recordModelUsage), as one row of the kept ledger (00276 ai_usage); this module is the row's shape and its dollars.
+ * recordModelUsage), as one row of the kept ledger (00273 ai_usage); this module is the row's shape and its dollars.
  *
  * Tokens come in four kinds and each has its own price: uncached input, output, a five-minute cache write and a cache
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
@@ -85,7 +85,7 @@ export function usageOf(raw: unknown): ModelUsage {
 /**
  * What became of a call: answered; answered by the fallback; the model declined (its own refusal); the API refused
  * the request; no answer came; or an answer came that could not be read (cut at its cap, out of its shape). The last
- * four are what the health sweep counts per workspace (00276 ai_failures_hour).
+ * four are what the health sweep counts per workspace (00273 ai_failures_hour).
  */
 export const MODEL_CALL_OUTCOMES = [
   "answered",
@@ -119,7 +119,7 @@ export interface AiUsageBody {
   /** What the call was about: a conversation, a call, a send, a review. */
   subject_id: string | null;
   /**
-   * A shadow call's own columns (00278; shadow.ts): the port it left by, and, for a question it answered, the label the
+   * A shadow call's own columns (00275; shadow.ts): the port it left by, and, for a question it answered, the label the
    * primary gave, the label the shadow gave, how sure it was, whether that cleared the line, and whether they agree.
    * A row the model port writes for the primary carries none of them.
    */
@@ -166,7 +166,7 @@ export function aiUsageBodyOf(call: {
 export interface UsageMonthDto {
   /** YYYY-MM. */
   month: string;
-  /** One line per meter, purpose and model (ai_usage_month, 00276). */
+  /** One line per meter, purpose and model (ai_usage_month, 00273). */
   lines: Array<{
     meter: "model" | "voice_seconds" | "wa_conversation";
     purpose: string | null;

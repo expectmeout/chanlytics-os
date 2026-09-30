@@ -5,7 +5,7 @@
 import type { PolicyLimits } from "./workspace-config/policy-classes";
 
 /**
- * The day's model budget a new workspace starts with (provision_tenant, 00277): the Autonomy pane's "1M" step. The
+ * The day's model budget a new workspace starts with (provision_tenant, 00274): the Autonomy pane's "1M" step. The
  * owner moves it, or turns it off (0); a workspace made before it keeps what it had.
  */
 export const TOKENS_DAY_DEFAULT = 1_000_000;

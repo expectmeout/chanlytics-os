@@ -24,7 +24,7 @@ export const metrics: Reader<{ days: number }, { metrics: MetricsSummaryDto; wor
 
 /**
  * GET usage, as the route answers it: a workspace's month of metered use from the kept ledger (ai_usage_month over
- * usage_ledger, 00276), each model call with its list-price dollars, each call's seconds, each WhatsApp conversation.
+ * usage_ledger, 00273), each model call with its list-price dollars, each call's seconds, each WhatsApp conversation.
  * Security invoker: RLS decides whose rows it sums, and the workspace scope decides which workspace is asked.
  */
 export const usage: Reader<{ month: string }, UsageMonthDto> = {

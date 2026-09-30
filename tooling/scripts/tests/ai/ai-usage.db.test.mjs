@@ -1,5 +1,5 @@
 /**
- * The model ledger on the database (00276, 00277, 00278), with real sessions: every model call kept in dollars, who
+ * The model ledger on the database (00273, 00274, 00275), with real sessions: every model call kept in dollars, who
  * reads it, what it rolls up to, the alarm that reads it and the keep; a new workspace's day of model budget; and the
  * second model's shadow rows (step 12, decision 0023): their shape, who does not read them, what they leave out of a
  * workspace's meter and alarm, and the week of agreement one function answers.
@@ -135,7 +135,7 @@ const count = async (client, table, tenant, extra = (q) => q) => {
 };
 
 test(
-  "00277: a workspace made now starts with a day of model budget on its reply row, and the money row locked to never",
+  "00274: a workspace made now starts with a day of model budget on its reply row, and the money row locked to never",
   { skip },
   async () => {
     const reply = await db.from("policies").select("limits").eq("tenant_id", A).eq("class", "reply").single();
@@ -151,7 +151,7 @@ test(
 );
 
 test(
-  "00276: a call is kept with its four kinds of tokens and its dollars; the columns' sets are the contracts'",
+  "00273: a call is kept with its four kinds of tokens and its dollars; the columns' sets are the contracts'",
   { skip },
   async () => {
     await put([
@@ -176,7 +176,7 @@ test(
 );
 
 test(
-  "00276: a member reads their workspace's calls and no other's; nobody signed in writes one, and anon reads none",
+  "00273: a member reads their workspace's calls and no other's; nobody signed in writes one, and anon reads none",
   { skip },
   async () => {
     assert.equal(await count(member, "ai_usage", A), 3);
@@ -196,7 +196,7 @@ test(
 );
 
 test(
-  "00276: the month rolls up by meter, purpose and model as the member's own rows; the phone and WhatsApp meters ride beside",
+  "00273: the month rolls up by meter, purpose and model as the member's own rows; the phone and WhatsApp meters ride beside",
   { skip },
   async () => {
     await db.from("events").insert([
@@ -230,7 +230,7 @@ test(
 );
 
 test(
-  "00276: the alarm names the workspaces whose calls or turns failed this hour, for the service role alone; the purge keeps 400 days",
+  "00273: the alarm names the workspaces whose calls or turns failed this hour, for the service role alone; the purge keeps 400 days",
   { skip },
   async () => {
     await put([
@@ -304,7 +304,7 @@ test(
 );
 
 test(
-  "00278: a shadow row names its port and carries its comparison; the columns that compare belong to a shadow alone",
+  "00275: a shadow row names its port and carries its comparison; the columns that compare belong to a shadow alone",
   { skip },
   async () => {
     assert.equal((await db.from("ai_usage").insert(shadow(A))).error, null);
@@ -340,7 +340,7 @@ test(
 );
 
 test(
-  "00278: a workspace's meter, its alarm and its own read leave the platform's shadow rows out",
+  "00275: a workspace's meter, its alarm and its own read leave the platform's shadow rows out",
   { skip },
   async () => {
     const before = await db
@@ -387,7 +387,7 @@ test(
 );
 
 test(
-  "00278: a week of agreement per purpose and question, plain and among the answers that cleared the line; for the service role alone",
+  "00275: a week of agreement per purpose and question, plain and among the answers that cleared the line; for the service role alone",
   { skip },
   async () => {
     const sure = (over) => shadow(A, over);

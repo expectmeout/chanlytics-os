@@ -116,7 +116,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
   Holds<Exactly<Of<typeof PARTNER_REVERSAL_KINDS>, SchemaSet<"partner_reversals_waiting.kind">>>,
 
-  // The model ledger (00276, 00278): why the key was spent, what came of the call, and the port it left by.
+  // The model ledger (00273, 00275): why the key was spent, what came of the call, and the port it left by.
   Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
   Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
   Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,

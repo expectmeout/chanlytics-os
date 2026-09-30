@@ -245,16 +245,16 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   (a 529, a 5xx, a timeout) asked once of the purpose's fallback. The edge binds it to the key in `apps/edge/lib/model.ts`,
   which first asks whether the workspace may use the model for what a person asks for (`mayUseModels`: not paused, not
   ended, not unbilled) and writes every call to the ledger.
-- **The ledger in dollars** (`ai_usage`, 00276; `packages/db/src/ai-usage.ts`): one row a call with the model asked, the
+- **The ledger in dollars** (`ai_usage`, 00273; `packages/db/src/ai-usage.ts`): one row a call with the model asked, the
   model that answered, four kinds of tokens and the price at list (`contracts/ai/usage.ts`), kept 400 days. A member
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
-  (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00277).
+  (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
 - **One injection policy** (`contracts/ai/fence.ts`): someone else's words reach a model only inside a fence they cannot
   close, and every system prompt shown such words carries one rule line.
 - **A second port, in shadow** (`packages/channels/src/models/typesafe.ts`; decision 0023): TypeSafe's Jev is asked the
   receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary while
   `TYPESAFE_SHADOW=1` and its key are set. Its answers are compared with the primary's and kept in the same ledger
-  (`shadow` rows, 00278), read a week at a time by `ai_shadow_agreement`, and never used; a failure of it is logged and
+  (`shadow` rows, 00275), read a week at a time by `ai_shadow_agreement`, and never used; a failure of it is logged and
   never reaches a customer. `apps/edge/lib/shadow.ts` runs it.
 - **The switches** are listed once, with an owner and a day (`contracts/ai/flags.ts`), and the receptionist's regression
   cases run nightly against a sandbox key when the repository holds one (`.github/workflows/nightly-evals.yml`).

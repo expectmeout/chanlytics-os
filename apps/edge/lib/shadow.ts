@@ -10,7 +10,7 @@
  *     SHADOW_GRACE_MS, so a slow or dead second model costs the primary's caller a second and a half at most, and
  *     usually nothing;
  *   - its answer is never used: settle compares it with the label the primary gave and writes one row per question to
- *     the usage ledger (contracts shadowBodies; 00278), and returns nothing;
+ *     the usage ledger (contracts shadowBodies; 00275), and returns nothing;
  *   - a failure of any part of it (the building of a call, the call, the read, the write) is logged and ends there:
  *     nothing in this module throws to its caller, the write waits no longer than SHADOW_WRITE_MS, and a call that
  *     never answered (it failed, or was left behind at the grace) is a ledger row that says so, while the calls that
