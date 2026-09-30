@@ -76,6 +76,11 @@ export function workspaceClock(): PageClock | undefined {
   return object<PageClock>("__clock");
 }
 
+/** The signed-in member (`window.__ME`): their name, for the greeting Glass draws over Today. */
+export function member(): { display_name?: string | null } | undefined {
+  return object<{ display_name?: string | null }>("__ME");
+}
+
 /** The bell as the top bar holds it (`window.__notifs`): its feed, and the verbs on a row. */
 export function bell(): BellApi | undefined {
   return object<BellApi>("__notifs");

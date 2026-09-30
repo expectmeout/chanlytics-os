@@ -1330,3 +1330,85 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
    button AttnRow marks attention-cta; the second word follows it. */
 :where(.dash-a-v2) .tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
+
+/* ====================================================================
+   Glass: Today (the plan's step 5.4, canvas E3, "Clear")
+   Every card is a clear pane on the page's light under the page's head (kit/head, drawn by the route in Glass alone); its
+   rows sit on the pane, its verbs are the glass layer's capsules, and coral is the one act. Each rule names the look inside
+   :where() so it weighs what it restyles; none matches in Classic.
+   ==================================================================== */
+
+/* The page's gutter is the head's, and the page starts under it. */
+:where([data-look="glass"]) .main-scroll:has(> header:first-child + .dash-a-v2) {
+  --pg-gutter: var(--gutter-page);
+}
+:where([data-look="glass"]) .main-scroll > header:first-child + .dash-a-v2 {
+  padding-top: 0;
+  gap: 14px;
+}
+
+/* The cards: the setup card and the queue, the day, the day's card, Worth a look and While you were away are clear panes
+   with the look's rim and depth, and the head and foot bars lose their sunken fills. */
+:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec),
+:where([data-look="glass"]) .dash-a-v2 > section {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq, .td-day, .tsec)::after,
+:where([data-look="glass"]) .dash-a-v2 > section::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+:where([data-look="glass"]) .dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
+  background: transparent;
+  border-top-color: var(--line);
+}
+
+/* A row you point at is lit. */
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:hover,
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-row:focus-visible {
+  background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+}
+
+/* The verbs: a row's one act is the primary role's coral capsule, its other the control layer's inset capsule. The setup
+   card's acts are the same two. */
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not([class*="skip"]) {
+  border-radius: var(--radius-full);
+  padding-left: 16px;
+  padding-right: 16px;
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary {
+  background: var(--primary-fill);
+  border-color: transparent;
+  color: var(--primary-ink);
+  box-shadow: var(--primary-depth);
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button.primary:hover {
+  background: var(--primary-hover);
+  filter: none;
+}
+:where([data-look="glass"]) .dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
+:where([data-look="glass"]) .dash-a-v2 .today-setup .tq-list button:not(.primary, [class*="skip"]) {
+  background: var(--surface-inset-fill);
+  border-color: var(--surface-inset-edge);
+  color: var(--ink);
+  box-shadow: var(--surface-inset-depth);
+}
