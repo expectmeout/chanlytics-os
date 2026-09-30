@@ -188,7 +188,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
   `packages/contracts/src/mobile/app-bridge.ts`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper several domains share stays at
   the root as `tooling/scripts/tests/_<name>.mjs` (the root is a directory too, at its 20 modules), and one a single
-  domain uses lives in that domain's folder (`tooling/scripts/tests/leads/_mark-images.mjs`). A row a fixture seeds is
+  domain uses lives in that domain's folder (`tooling/scripts/tests/leads/_mark-images.mjs`). A row a fixture seeds can be
   made by `tooling/scripts/tests/_rows.mjs`, which fills every column the table has and refuses one it does not, and a
   database in memory refuses what the real one refuses (`docs/runbook.md`, "Test it").
 - A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it

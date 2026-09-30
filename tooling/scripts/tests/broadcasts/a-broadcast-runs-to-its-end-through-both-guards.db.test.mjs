@@ -36,7 +36,10 @@ const skip =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stamp = Date.now().toString(36);
-const DUE = "1990-01-01T00:00:00.000Z";
+// A day newer than the job walk's stamp (jobs/a-job-is-claimed-run-and-settled): claim_due_jobs takes the oldest due row
+// of the whole ledger, so when both walks tick at once the newer waits for the older's rows to go (turn() below), and
+// neither carries the other's row off on its own lease.
+const DUE = "1990-01-02T00:00:00.000Z";
 const WA = { phoneId: "100000000000003", accessToken: "graph-token-for-this-suite" };
 
 let db;
@@ -127,6 +130,25 @@ async function oursWaiting() {
   ]);
   return ok(due).length + ok(lapsed).length > 0;
 }
+/** Wait while another suite's row is due at or before this walk's stamp: the ledger would claim it first. */
+async function turn() {
+  for (let i = 0; i < 300; i += 1) {
+    const now = new Date().toISOString();
+    const [due, lapsed] = await Promise.all([
+      db.from("jobs").select("id").neq("tenant_id", T).eq("state", "scheduled").lte("due_at", DUE).limit(1),
+      db
+        .from("jobs")
+        .select("id")
+        .neq("tenant_id", T)
+        .eq("state", "fired")
+        .lte("due_at", DUE)
+        .lt("lease_until", now)
+        .limit(1),
+    ]);
+    if (ok(due).length + ok(lapsed).length === 0) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
 function ctxFor(job, deadline) {
   return {
     db,
@@ -147,6 +169,7 @@ function tick(log = tickLog()) {
     {
       claim: async (lease) => {
         if (!(await oursWaiting())) return null;
+        await turn();
         const row = await jobs.claimNext(db, lease);
         if (row && row.tenant_id !== T) {
           strays.push(row);

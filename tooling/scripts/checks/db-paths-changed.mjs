@@ -13,8 +13,8 @@
  * after it on the answer. It names every module a stack suite loads, followed
  * through its imports: database/db-paths-changed.test.mjs walks each suite and
  * fails one that loads a module outside it, so the list cannot fall behind the
- * suites again (on 29 Sep 2026, 41 of 101 suites loaded past it, and 11 main
- * commits that changed what they load skipped the replay).
+ * suites again (on 29 Sep 2026, 41 of 101 suites loaded past it, and 9 of main's 84 commits since the 28th
+ * that changed what they load skipped the replay).
  *
  * Patterns read the way GitHub reads `paths` filters: `**` crosses directories,
  * `*` does not, and a pattern with no directory matches at the root only.
@@ -44,8 +44,8 @@ export const DB_PATHS = [
   "apps/dashboard/src/server/**",
   "apps/dashboard/src/lib/**",
   "apps/dashboard/app/api/**",
-  // what the two --check steps compare with the database: the closed sets, the types, and the unique keys the tests'
-  // in-memory database refuses a duplicate on (db-types.mjs writes and checks both of the last two)
+  // what the --check steps compare with the database: the closed sets and the types, and the unique keys the tests'
+  // in-memory database refuses a duplicate on (db-types.mjs writes the last two; unique-keys.db.test.mjs checks the keys)
   "tooling/scripts/gen/schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",
   "tooling/scripts/gen/db-types.mjs",
@@ -53,6 +53,9 @@ export const DB_PATHS = [
   "tooling/scripts/tests/_unique-keys.generated.json",
   // the ledger the migrations are held to, which a stack suite (migration-head) loads
   "tooling/scripts/checks/migration-ledger.mjs",
+  // the launcher `pnpm test:db` runs through, and the module it loads
+  "tooling/scripts/checks/test.mjs",
+  "tooling/scripts/checks/coverage.mjs",
   // the workflow, this decision, and what the workflow installs
   ".github/workflows/database.yml",
   "tooling/scripts/checks/db-paths-changed.mjs",

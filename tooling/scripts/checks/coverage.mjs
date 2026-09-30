@@ -38,7 +38,8 @@ export const FLOORS = "tooling/scripts/tests/baselines/coverage.json";
 /** How far under the last measure a floor sits, in points: V8 on another platform or version counts a line differently. */
 export const SLACK = 1;
 
-const slash = (p) => p.split(path.sep).join("/");
+/** A path with forward slashes: an lcov written on Windows names a file with backslashes, whatever machine reads it. */
+const slash = (p) => p.replaceAll("\\", "/");
 
 /** An lcov report, read: each file (repo-relative) with its lines and how often each ran. */
 export function parseLcov(text, root) {
@@ -166,26 +167,53 @@ export function tableOf(summary, floors) {
 }
 
 /**
- * What a measured run ends with: the exit status, the lines to print on stderr, and the floors a bank would write. A
- * run that failed keeps its own status (the table still prints, for whoever is reading why); a run that passed fails on
- * a floor it is under, or on a report that never came. `bank` is null for a plain run, "1" for `UPDATE_BASELINES=1`
- * (raises a floor the suite has cleared with room to spare) and "raise" (may lower one, and so does not judge them).
+ * What a measured run ends with: the exit status, the lines to print on stderr, and the floors a bank would write.
+ *
+ * A run that failed keeps its own status (the table still prints, for whoever is reading why) and banks nothing: the
+ * numbers of a run that did not finish are not a measure. A run that passed fails on a floor it is under, or on a
+ * report that never came. `held` is false for a run of some files, which is not the suite and is judged by no floor.
+ * `bank` is null for a plain run and "1" or "raise" for `UPDATE_BASELINES`: a floor the suite has cleared with room to
+ * spare is raised, and a floor it is under is still a red run. `lower` (COVERAGE_FLOORS=lower) is the one way a floor
+ * falls: every held floor is set to the measure less the slack, and none is judged.
  */
-export function judge({ lcov, root, floors, status, bank = null }) {
+export function judge({ lcov, root, floors, status, bank = null, lower = false, held = true }) {
   if (lcov === null)
     return { status: status || 1, lines: ["coverage: the run wrote no report (Node's lcov reporter)"], banked: null };
   const summary = summarize(lcov, root);
-  const under = bank === "raise" ? [] : underFloors(summary, floors);
-  const lines = ["# what the suite ran of the code (line coverage)", ...tableOf(summary, floors).split("\n")];
+  const shown = held ? floors : {};
+  const under = held && !lower ? underFloors(summary, floors) : [];
+  const lines = ["# what the suite ran of the code (line coverage)", ...tableOf(summary, shown).split("\n")];
   for (const u of under)
     lines.push(
       `coverage: ${u.label} is at ${u.pct.toFixed(1)}%, under its floor of ${u.floor.toFixed(1)}%: a test that ran it ` +
-        `was removed, or code came with none. Test it; a floor lowered on purpose is UPDATE_BASELINES=raise pnpm test, ` +
+        `was removed, or code came with none. Test it; a floor lowered on purpose is COVERAGE_FLOORS=lower pnpm test, ` +
         `argued under "Rises" in docs/debt.md`,
     );
+  const bankable = held && !status && (bank || lower);
   return {
     status: status || (under.length ? 1 : 0),
     lines,
-    banked: bank ? bankedFloors(summary, floors, { lower: bank === "raise" }) : null,
+    banked: bankable ? bankedFloors(summary, floors, { lower }) : null,
   };
+}
+
+/**
+ * The end of a measured run, from its lcov file: read the report and the floors, print the table and any floor missed
+ * on stderr, write the floors a bank asked for, and return the status the launcher exits with. The report is removed.
+ */
+export function finish({ coverage, status, env, held, root }) {
+  const read = (file) => (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null);
+  const floorsFile = path.join(root, FLOORS);
+  const floors = JSON.parse(read(floorsFile) ?? "{}");
+  const lcov = read(coverage);
+  fs.rmSync(coverage, { force: true });
+  const bank = env.UPDATE_BASELINES === "raise" ? "raise" : env.UPDATE_BASELINES === "1" ? "1" : null;
+  const judged = judge({ lcov, root, floors, status, bank, lower: env.COVERAGE_FLOORS === "lower", held });
+  for (const line of judged.lines) console.error(line);
+  if (judged.banked && JSON.stringify(judged.banked) !== JSON.stringify(floors)) {
+    fs.mkdirSync(path.dirname(floorsFile), { recursive: true });
+    fs.writeFileSync(floorsFile, JSON.stringify(judged.banked, null, 2) + "\n");
+    console.error(`coverage: floors written to ${FLOORS}: ${JSON.stringify(judged.banked)}`);
+  }
+  return judged.status;
 }

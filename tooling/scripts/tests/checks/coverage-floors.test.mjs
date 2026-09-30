@@ -5,7 +5,7 @@
  * as Node writes it, a bundle read back to its modules, an area's percent, a floor's verdict and what a bank writes;
  * and the reporter and the lcov are run once for real, through Node's own runner.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -16,6 +16,7 @@ import {
   FLOORS,
   SLACK,
   bankedFloors,
+  finish,
   judge,
   modulesOfBundle,
   parseLcov,
@@ -26,9 +27,15 @@ import {
 import { withoutCoverage } from "../../checks/tap-reporter.mjs";
 import { ROOT } from "../_source.mjs";
 
+const made = [];
+after(() => {
+  for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+});
+
 /** A repository in a temp directory: a core bundle, a doors tree of two files (one no test loaded), one route. */
 function world() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-world-"));
+  made.push(root);
   const put = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
     fs.writeFileSync(path.join(root, rel), text);
@@ -155,7 +162,7 @@ test("the table names every area with its measure, and a held one's floor", () =
   assert.match(table[1], /^jobs\s+5\.0%$/);
 });
 
-test("a run ends red under a floor, keeps its own failure, fails without a report, and banks only when asked", () => {
+test("a run ends red under a floor, keeps its own failure, fails without a report, and banks only a run that passed", () => {
   const root = world();
   const at = { lcov: lcov(root), root };
   const held = { core: 66, doors: 66, routes: 0 };
@@ -165,21 +172,104 @@ test("a run ends red under a floor, keeps its own failure, fails without a repor
   assert.match(green.lines[0], /^# what the suite ran of the code/);
   const red = judge({ ...at, floors: { ...held, core: 80 }, status: 0 });
   assert.equal(red.status, 1);
-  assert.match(red.lines.at(-1), /^coverage: core is at 66\.7%, under its floor of 80\.0%.*UPDATE_BASELINES=raise/);
+  assert.match(red.lines.at(-1), /^coverage: core is at 66\.7%, under its floor of 80\.0%.*COVERAGE_FLOORS=lower/);
   // a test that failed keeps its status, and the floor is still said
   assert.equal(judge({ ...at, floors: { ...held, core: 80 }, status: 1 }).status, 1);
   assert.equal(judge({ ...at, floors: held, status: 3 }).status, 3);
   // a report that never came is a failure, not a pass
   assert.equal(judge({ lcov: null, root, floors: held, status: 0 }).status, 1);
-  // the bank: `1` raises, `raise` lowers and so judges nothing
-  assert.deepEqual(judge({ ...at, floors: { ...held, core: 50 }, status: 0, bank: "1" }).banked, {
-    core: 65.7,
-    doors: 66,
-    routes: 0,
-  });
-  const lowered = judge({ ...at, floors: { ...held, core: 80 }, status: 0, bank: "raise" });
-  assert.equal(lowered.status, 0);
-  assert.equal(lowered.banked.core, 65.7);
+  // the bank raises a floor the suite cleared, for `1` and for `raise`, and never lowers one: a floor it is under is red
+  for (const bank of ["1", "raise"]) {
+    assert.deepEqual(judge({ ...at, floors: { ...held, core: 50 }, status: 0, bank }).banked, {
+      core: 65.7,
+      doors: 66,
+      routes: 0,
+    });
+    const still = judge({ ...at, floors: { ...held, core: 80 }, status: 0, bank });
+    assert.deepEqual([still.status, still.banked.core], [1, 80], `${bank}: a bank does not lower, and does not hide`);
+  }
+  // and banks nothing from a run that did not pass
+  assert.equal(judge({ ...at, floors: { ...held, core: 50 }, status: 1, bank: "1" }).banked, null);
+  // lowering is its own switch: every held floor to the measure less the slack, none judged
+  const lowered = judge({ ...at, floors: { ...held, core: 80 }, status: 0, lower: true });
+  assert.deepEqual([lowered.status, lowered.banked.core], [0, 65.7]);
+  assert.equal(judge({ ...at, floors: { ...held, core: 80 }, status: 1, lower: true }).banked, null);
+  // a run of some files is not the suite: the table, and no floor
+  const some = judge({ ...at, floors: { ...held, core: 80 }, status: 0, held: false, bank: "1" });
+  assert.deepEqual([some.status, some.banked], [0, null]);
+  assert.ok(!some.lines.join("\n").includes("floor"));
+});
+
+/** The end of a measured run in a temp repository: what it prints, what it returns, and what it writes. */
+function ended(t, { floors, status = 0, env = {}, held = true, report = true }) {
+  const root = world();
+  const floorsFile = path.join(root, FLOORS);
+  if (floors) {
+    fs.mkdirSync(path.dirname(floorsFile), { recursive: true });
+    fs.writeFileSync(floorsFile, JSON.stringify(floors));
+  }
+  const coverage = path.join(root, "run.lcov");
+  if (report) fs.writeFileSync(coverage, lcov(root));
+  const said = [];
+  t.mock.method(console, "error", (line) => said.push(String(line)));
+  const code = finish({ coverage, status, env, held, root });
+  return {
+    code,
+    said: said.join("\n"),
+    kept: fs.existsSync(coverage),
+    floors: fs.existsSync(floorsFile) ? JSON.parse(fs.readFileSync(floorsFile, "utf8")) : null,
+  };
+}
+
+test("the end of a measured run, from its report: the table, the floor missed, the report removed, and a bank written only when asked", (t) => {
+  const held = { core: 66, doors: 66, routes: 0 };
+  const green = ended(t, { floors: held });
+  assert.deepEqual([green.code, green.kept, green.floors], [0, false, held], "the report goes, the floors stay");
+  assert.match(green.said, /core\s+66\.7%\s+floor 66\.0%/);
+
+  const red = ended(t, { floors: { ...held, core: 80 } });
+  assert.equal(red.code, 1);
+  assert.match(red.said, /core is at 66\.7%, under its floor of 80\.0%/);
+
+  const raised = ended(t, { floors: { ...held, core: 50 }, env: { UPDATE_BASELINES: "1" } });
+  assert.deepEqual([raised.code, raised.floors], [0, { core: 65.7, doors: 66, routes: 0 }]);
+  assert.match(raised.said, /floors written to tooling\/scripts\/tests\/baselines\/coverage\.json/);
+
+  // `raise` is for the other ratchets: it neither lowers a coverage floor nor hides one missed
+  const raise = ended(t, { floors: { ...held, core: 80 }, env: { UPDATE_BASELINES: "raise" } });
+  assert.deepEqual([raise.code, raise.floors.core], [1, 80]);
+
+  const lowered = ended(t, { floors: { ...held, core: 80 }, env: { COVERAGE_FLOORS: "lower" } });
+  assert.deepEqual([lowered.code, lowered.floors.core], [0, 65.7]);
+
+  const failed = ended(t, { floors: { ...held, core: 50 }, status: 1, env: { UPDATE_BASELINES: "1" } });
+  assert.deepEqual([failed.code, failed.floors.core], [1, 50], "a run that failed banks nothing");
+
+  const some = ended(t, { floors: { ...held, core: 80 }, held: false });
+  assert.deepEqual([some.code, some.floors.core], [0, 80], "a run of some files is judged by no floor");
+
+  const none = ended(t, { floors: held, report: false });
+  assert.equal(none.code, 1, "no report is a red run");
+  assert.match(none.said, /wrote no report/);
+});
+
+test("through the launcher, a measured run prints the table and ends with the runner's own status", () => {
+  const env = { ...process.env, TEST_COVERAGE: "1" };
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(
+    process.execPath,
+    ["tooling/scripts/checks/test.mjs", "tooling/scripts/tests/fixtures/coverage-probe.mjs"],
+    {
+      cwd: ROOT,
+      env,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /^ok 1 - the probe runs the code it names/m);
+  assert.match(run.stderr, /# what the suite ran of the code/);
+  assert.match(run.stderr, /the edge's doors \(apps\/edge\/api\)\s+\d+\.\d%\n/, "a run of one file holds no floor");
+  assert.ok(!run.stderr.includes("under its floor"));
 });
 
 test("the floors the repository holds are numbers for the three areas, each under what the area could be", () => {
@@ -200,8 +290,9 @@ test("the reporter drops the runner's coverage table and keeps everything else",
 
 test("through Node's own runner, the reporter prints TAP with no coverage table and the lcov file names the code it ran", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-run-"));
+  made.push(dir);
   const report = path.join(dir, "run.lcov");
-  const env = { ...process.env, EXPECT_ZONE: "UTC", EXPECT_DAY: "21", TZ: "UTC" };
+  const env = { ...process.env, TZ: "UTC" };
   // a child of the suite's own runner is told so; a runner started inside it must not be
   delete env.NODE_TEST_CONTEXT;
   const run = spawnSync(
@@ -225,5 +316,4 @@ test("through Node's own runner, the reporter prints TAP with no coverage table 
   const files = parseLcov(fs.readFileSync(report, "utf8"), ROOT);
   const ran = files.get("tooling/scripts/checks/coverage.mjs");
   assert.ok(ran && [...ran.values()].some((n) => n > 0), [...files.keys()].join(", "));
-  fs.rmSync(dir, { recursive: true, force: true });
 });

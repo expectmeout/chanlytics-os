@@ -43,6 +43,12 @@ test("a full run in UTC is measured, and nothing else is: files, a flag, the db 
   assert.match(full.coverage, /chanlytics-\d+\.lcov$/);
   assert.ok(full.args.includes("--test-reporter=./tooling/scripts/checks/tap-reporter.mjs"));
   assert.ok(full.args.includes(`--test-reporter-destination=${full.coverage}`), "lcov goes to the file the plan names");
+  assert.equal(full.held, true, "and the suite's floors judge it");
+  // some files are measured only when asked to be, and no floor judges them; the database suites never
+  const some = planOf([PROBE], { TEST_COVERAGE: "1" });
+  assert.deepEqual([some.coverage !== null, some.held], [true, false]);
+  assert.equal(planOf(["--db"], { TEST_COVERAGE: "1" }).coverage, null);
+  assert.deepEqual([planOf([], { TEST_TZ: "Pacific/Auckland", TEST_COVERAGE: "1" }).held], [false]);
   for (const [argv, env] of [
     [[PROBE], {}],
     [["--test-name-pattern=zone"], {}],
@@ -66,8 +72,12 @@ test("a run's children see the zone: UTC by default, and TEST_TZ's when it is se
     const env = { ...process.env, EXPECT_ZONE: zone, EXPECT_DAY: String(day), TZ: "America/New_York" };
     if (zone === "UTC") delete env.TEST_TZ;
     else env.TEST_TZ = zone;
+    // A child of the suite's own runner is told so, and a runner started inside it then skips its files ("run() is
+    // being called recursively"): without this the probe would never run, and the launcher's env could be anything.
+    delete env.NODE_TEST_CONTEXT;
     const run = spawnSync(process.execPath, [LAUNCHER, PROBE], { env, encoding: "utf8" });
     assert.equal(run.status, 0, `${zone}: ${run.stdout}\n${run.stderr}`);
+    assert.match(run.stdout, /^ok 1 - the zone the launcher set/m, "the probe ran, and passed");
     assert.ok(run.stderr.includes(`the suite runs in ${zone}`), run.stderr);
   }
 });

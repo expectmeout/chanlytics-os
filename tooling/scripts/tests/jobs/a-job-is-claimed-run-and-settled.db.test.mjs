@@ -43,7 +43,11 @@ process.env.RESEND_API_KEY = "resend-key-for-this-suite";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stamp = Date.now().toString(36);
-/** Older than anything another suite leaves due: the claim that follows takes this suite's row and no other. */
+/**
+ * Older than anything another suite leaves due: the claim that follows takes this suite's row and no other. The
+ * broadcast walk (broadcasts/a-broadcast-runs-to-its-end-through-both-guards) stamps a day later and waits for this
+ * walk's rows to go, so the two never carry each other's row off.
+ */
 const DUE = "1990-01-01T00:00:00.000Z";
 const WA = { phoneId: "100000000000001", accessToken: "graph-token-for-this-suite" };
 

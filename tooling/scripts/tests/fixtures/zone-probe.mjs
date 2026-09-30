@@ -1,4 +1,4 @@
-// Run by repo/test-launcher.test.mjs through the launcher: the zone the suite's children see. Not a *.test.mjs, so the
+// Run by shared/the-suite-runs-in-one-zone.test.mjs through the launcher: the zone the suite's children see. Not a *.test.mjs, so the
 // suite itself never globs it.
 import { test } from "node:test";
 import assert from "node:assert/strict";

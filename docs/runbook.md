@@ -204,8 +204,8 @@ date with no zone, gives the wrong day. A test that reads the wall clock pins it
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
 dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselines/coverage.json`. Under a floor is a
 red run; a floor is raised by `UPDATE_BASELINES=1 corepack pnpm test` (a point under the measure, so another platform's
-V8 does not fail it) and lowered only by `UPDATE_BASELINES=raise`, argued under "Rises" in `docs/debt.md`. A run of
-some files, a flag, the database suites and the Auckland leg are not measured; `TEST_COVERAGE=0` skips the measure
+V8 does not fail it) and lowered only by `COVERAGE_FLOORS=lower corepack pnpm test`, argued under "Rises" in `docs/debt.md` (`UPDATE_BASELINES=raise` is for the other ratchets, and neither lowers nor hides a floor). A run of
+some files, a flag, the database suites and the Auckland leg are not held to the floors (`TEST_COVERAGE=1` prints the table for some files); `TEST_COVERAGE=0` skips the measure
 for a full run that wants the speed. A package's code runs from its committed `dist`, so its lines are read back to the
 module that wrote them (`tooling/scripts/checks/coverage.mjs`).
 
