@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { logger, noteTenant, requestId, withRequestId } from "@chanlytics/channels";
-import { logLineOf } from "../_log-lines.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 /** Every line `fn` writes, as the raw text a log drain would receive and as parsed. */
 async function written(fn) {
@@ -263,4 +263,45 @@ test("a line the logger cannot write is still a line: the name, the request and 
     request_id: "iad1::req-0123456789",
     unwritable: true,
   });
+});
+
+test("an error's stack is its frames and nothing of its message: a message that runs over several lines is written once, redacted, under the error's own key", async () => {
+  const NL = String.fromCharCode(10);
+  const quoted = `provider said:${NL}{"to":"${PHONE}","body":"${WORDS}","email":"${EMAIL}"}${NL}Bearer ${BEARER.slice(7)}`;
+  const { raw, lines } = await written(async () => L.error("wa_send_failed", { error: new Error(quoted) }));
+  const out = raw.join(NL);
+  for (const planted of [PHONE.slice(2), "Ana.Perez", BEARER.slice(7)])
+    assert.ok(!out.includes(planted), `${planted} came out in the log line`);
+  assert.match(lines[0].error, /^Error: provider said:/);
+  assert.ok(lines[0].error_stack.startsWith("at "), "the stack starts at its first frame, not at the message");
+  assert.ok(!lines[0].error_stack.includes("provider said"), "and holds none of the message");
+});
+
+test("an id or a moment under a contact key is not a number: a workspace in `from` and `to`, a day, a time", async () => {
+  const from = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+  const to = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
+  const { lines } = await written(async () =>
+    L.warn("sending_domain_taken_over", { from, to, at: "2026-09-29T16:20:00.000Z", day: "2026-09-29" }),
+  );
+  assert.deepEqual(fieldsOf(lines[0]), { from, to, at: "2026-09-29T16:20:00.000Z", day: "2026-09-29" });
+  const { lines: moments } = await written(async () =>
+    L.warn("sending_domain_taken_over", { from: "2026-09-29", to: "2026-09-29T16:20:00Z" }),
+  );
+  assert.deepEqual(fieldsOf(moments[0]), { from: "2026-09-29", to: "2026-09-29T16:20:00Z" });
+});
+
+test("a long string costs a line time in proportion to its length and no more: a run of address characters with no @ is cut and scanned in linear time", async () => {
+  const run = "a".repeat(200_000);
+  const start = Date.now();
+  const { lines } = await written(async () =>
+    L.error("wa_send_failed", { error: new Error(`invalid input syntax "${run}"`) }),
+  );
+  assert.ok(Date.now() - start < 1_000, `200,000 characters took ${Date.now() - start} ms`);
+  assert.match(
+    lines[0].error,
+    /…\[190\d{3} more chars\]$/,
+    "cut where a line stops being a line, and says by how much",
+  );
+  const { lines: short } = await written(async () => L.info("wa_inbound", { detail: "b".repeat(9_000) }));
+  assert.equal(short[0].detail.length, 9_000, "a string under the cut is written whole");
 });

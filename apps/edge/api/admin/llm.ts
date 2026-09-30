@@ -114,7 +114,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
       L.error("ask_gateway_unreachable", { status: up.status, error: up.error.slice(0, 200), fell_back: up.fellBack });
       return refuse(503, "model_unreachable", `model ${up.status || "timeout"}`);
     }
-    L.error("ask_gateway_refused", { status: up.status, body: up.detail });
+    L.error("ask_gateway_refused", { status: up.status, detail: up.detail });
     // The API's refusal of the request, in its own shape: the dashboard reads its message.
     return new Response(
       JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: up.error } }),

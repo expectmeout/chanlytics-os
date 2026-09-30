@@ -879,7 +879,8 @@ Other lines to know:
 
 - `client_error`: a page broke in someone's browser (`POST /api/v1/client-errors`, once per error per page load, twenty
   an hour per person): which boundary caught it, the page, the error and its first frames, the workspace when they
-  hold one. Search it by `page`.
+  hold one. Search it by `page`. It is a warning, not an error: a customer's browser is not the platform's failure,
+  and a drain's alert on `level = error` stays about the platform.
 - `breaker_open` and `breaker_closed`: a provider's breaker held its calls after five faults in a row, and let them
   through again; `GET /api/diag` (`breakers`) says each provider's state in the instance that answered, with how many
   times it has opened.

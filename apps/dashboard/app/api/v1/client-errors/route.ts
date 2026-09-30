@@ -23,7 +23,7 @@ export const POST = write({
   handle: async ({ ctx, input }) => {
     // The workspace's own resolver, which says it for the lines after it; a name that is not theirs is no name.
     if (input.workspace) await memberContext(ctx, input.workspace).catch(() => null);
-    log.error("client_error", {
+    log.warn("client_error", {
       user: ctx.userId,
       boundary: input.boundary,
       page: input.page,

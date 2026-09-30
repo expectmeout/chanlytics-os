@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import type { Database } from "@chanlytics/db";
+import { namedFetch, type Database } from "@chanlytics/db";
 
 /**
  * Session-scoped server client — the ONLY client /api/v1 handlers and server
  * components use, so RLS is the enforcement (Blueprint P6/§8). The service-role
- * client is never imported from app-plane code.
+ * client is never imported from app-plane code. Every call it makes names the request it is made for
+ * (packages/db observe.ts), so a row a SQL function writes to the ledger for a member's click says which click.
  */
 export async function createClient() {
   const cookieStore = await cookies();
@@ -28,6 +29,7 @@ export async function createClient() {
           }
         },
       },
+      global: { fetch: namedFetch() },
     },
   );
 }
@@ -50,7 +52,7 @@ export function createBearerClient(token: string) {
           /* a bearer request has no cookie to refresh */
         },
       },
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${token}` }, fetch: namedFetch() },
     },
   );
 }

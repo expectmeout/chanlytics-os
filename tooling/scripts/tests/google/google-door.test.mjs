@@ -972,7 +972,20 @@ test("connect: the code from Google becomes the connection -- the token traded w
   ]);
   assert.equal(net.calls.length, 0);
 
-  const [status, body] = await answer(await knock({ op: "connect", code: "4/the-code", user_id: U }));
+  const stdout = [];
+  const realConsole = { log: console.log, warn: console.warn, error: console.error };
+  for (const level of ["log", "warn", "error"]) console[level] = (...args) => stdout.push(String(args[0]));
+  let status;
+  let body;
+  try {
+    [status, body] = await answer(await knock({ op: "connect", code: "4/the-code", user_id: U }));
+  } finally {
+    Object.assign(console, realConsole);
+  }
+  // The line says what happened, not who it happened to: the account's domain, never the owner's address.
+  const connected = stdout.map((l) => JSON.parse(l)).find((l) => l.event === "google_connected");
+  assert.equal(connected?.email_domain, "example.com");
+  assert.ok(!stdout.join(" ").includes("owner@example.com"), "the owner's address is in no line the connect wrote");
   assert.equal(status, 200, JSON.stringify(body));
   assert.equal(body.pending, false, "one location on Maps: bound at once, nobody asked to choose");
   assert.deepEqual(

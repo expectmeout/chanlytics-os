@@ -85,6 +85,8 @@ const CONSEQUENCE: Record<string, string> = {
   purge_jobs:
     "finished jobs, each holding the number and words it sent, stay in the ledger past the week the privacy page states, and an erasure reads more of them",
   purge_page_vitals: "page timings are kept past the thirty days the privacy page states",
+  platform_metrics_roll:
+    "each workspace's day stops being counted, so the back office's card goes stale and the alarm for a workspace nobody answered all day has nothing to read",
 };
 
 /**

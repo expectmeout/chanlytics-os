@@ -3324,7 +3324,12 @@ function rowOf(tenantId, kind, subjectType, subjectId, data) {
   };
 }
 async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {

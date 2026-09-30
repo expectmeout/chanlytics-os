@@ -8,7 +8,8 @@
  *   by key, a person's contact   phone, to, from, email, e164, and keys ending _phone, _email, _e164: an address keeps
  *                                its domain (…@example.com), a number its last four digits (…0142), the way `*_tail`
  *                                fields already read; a short word under one of them (`from: "sms"`) names a channel,
- *                                not a person, and stays
+ *                                not a person, and stays, as does an id or a moment (a UUID, a date: `from` and `to`
+ *                                also name workspaces and days)
  *   by key, a person's words     body, text, and keys ending _body, _text: their length only
  *   by key, a credential         token, secret, password, authorization, api_key, cookie, signature, private_key and
  *                                keys ending in one of them: the value is gone. A model's key (ANTHROPIC_API_KEY, the
@@ -60,7 +61,12 @@ const SECRET_SHAPES: readonly RegExp[] = [
 const NAMED_SECRET =
   /(?<![\w-])((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|signature|key)=)[^&\s"';,]+/gi;
 /** An address anywhere in a string. */
-const EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+const EMAIL_IN_TEXT = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+/** A string longer than this is cut before it is scrubbed: a log line is not a dump, and the scan is linear in it. */
+const MAX_STRING = 10_000;
+/** What an id or a moment looks like: left alone under a contact key (`from: holder.tenant_id`), whatever digits it holds. */
+const ID_OR_MOMENT =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)$/i;
 /** An international number written with its plus (and however its digits are spaced), or the US grouping. */
 const PLUS_NUMBER = /\+\d[\d ().-]{6,}\d/g;
 const US_NUMBER = /(?<![\w-])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w-])/g;
@@ -76,6 +82,7 @@ function contact(v: unknown): unknown {
   if (typeof v === "string") {
     const at = EMAIL.exec(v.trim());
     if (at) return `…@${at[1]}`;
+    if (ID_OR_MOMENT.test(v.trim())) return v;
     if (MANY_DIGITS.test(v)) return tailOf(v);
     return v;
   }
@@ -100,7 +107,7 @@ function credential(v: unknown): unknown {
 
 /** A string with what a person's contact or a credential looks like taken out of it. */
 function scrubText(s: string): string {
-  let out = s;
+  let out = s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}…[${s.length - MAX_STRING} more chars]` : s;
   for (const shape of SECRET_SHAPES)
     out = out.replace(shape, (m) => (m.startsWith("Bearer") ? "Bearer [redacted]" : "[redacted]"));
   out = out.replace(NAMED_SECRET, "$1[redacted]");

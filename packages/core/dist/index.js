@@ -1008,7 +1008,9 @@ var SECRET_SHAPES = [
   // Supabase
 ];
 var NAMED_SECRET = /(?<![\w-])((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|signature|key)=)[^&\s"';,]+/gi;
-var EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var EMAIL_IN_TEXT = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var MAX_STRING = 1e4;
+var ID_OR_MOMENT = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)$/i;
 var PLUS_NUMBER = /\+\d[\d ().-]{6,}\d/g;
 var US_NUMBER = /(?<![\w-])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w-])/g;
 var isContactKey = (k) => CONTACT.has(k) || CONTACT_SUFFIX.test(k);
@@ -1019,6 +1021,7 @@ function contact(v) {
   if (typeof v === "string") {
     const at = EMAIL.exec(v.trim());
     if (at) return `\u2026@${at[1]}`;
+    if (ID_OR_MOMENT.test(v.trim())) return v;
     if (MANY_DIGITS.test(v)) return tailOf(v);
     return v;
   }
@@ -1037,7 +1040,7 @@ function credential(v) {
   return v === null || typeof v === "boolean" ? v : "[redacted]";
 }
 function scrubText(s) {
-  let out = s;
+  let out = s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}\u2026[${s.length - MAX_STRING} more chars]` : s;
   for (const shape of SECRET_SHAPES)
     out = out.replace(shape, (m) => m.startsWith("Bearer") ? "Bearer [redacted]" : "[redacted]");
   out = out.replace(NAMED_SECRET, "$1[redacted]");
@@ -1082,7 +1085,8 @@ var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
 var STACK_FRAMES = 8;
 function stackOf(e) {
   if (!e.stack) return void 0;
-  return e.stack.split("\n").slice(1, STACK_FRAMES + 1).map((l) => l.trim()).join(" | ");
+  const frames = e.stack.split("\n").map((l) => l.trim()).filter((l) => l.startsWith("at ")).slice(0, STACK_FRAMES);
+  return frames.length ? String(redact("", frames.join(" | "))) : void 0;
 }
 function lineOf(level, event2, fields) {
   const line = { level, event: event2 };
@@ -13443,7 +13447,12 @@ function rowOf(tenantId, kind, subjectType, subjectId, data) {
   };
 }
 async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {

@@ -434,11 +434,8 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: EDGE_MAY_NOT_IMPORT }],
     },
   },
-  // The two modules that are allowed to do what the block above forbids.
-  {
-    files: ["apps/edge/lib/log.ts"],
-    rules: { "no-console": "off" },
-  },
+  // The one module that is allowed to do what the block above forbids: the edge reads its environment here. Logging is
+  // not its own: the logger is packages/channels/src/log/logger.ts, the one place a line reaches stdout.
   {
     files: ["apps/edge/lib/env.ts"],
     rules: { "no-restricted-syntax": "off" },

@@ -204,7 +204,14 @@ export async function recordEvent<K extends EmittedKind>(
   subjectId: string | null,
   data: EventData[K],
 ): Promise<{ error: string | null }> {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  // A database 00279 has not reached has no request_id column (PostgREST: PGRST204): the row is written without the
+  // name rather than lost, so the apps and the migration may land in either order.
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 

@@ -164,7 +164,11 @@ test("through the real route wrapper: the report is a client_error line under th
   assert.equal(result.headers.get("x-request-id"), PLATFORM_ID, "the answer carries the request's name");
   const line = lines.find((l) => l.event === "client_error");
   assert.ok(line, `a client_error line was written: ${lines.map((l) => l.event).join(", ")}`);
-  assert.equal(line.level, "error");
+  assert.equal(
+    line.level,
+    "warn",
+    "a customer's browser is not the platform's error: a drain's alert on level error stays about the platform",
+  );
   assert.equal(line.request_id, PLATFORM_ID, "the same name the answer carries: one search");
   assert.equal(line.tenant_id, A, "the workspace the member belongs to, said by the wrapper's own resolver");
   assert.deepEqual(fieldsOf(line), {

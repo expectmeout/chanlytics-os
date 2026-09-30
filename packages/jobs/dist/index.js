@@ -5133,7 +5133,9 @@ var SECRET_SHAPES = [
   // Supabase
 ];
 var NAMED_SECRET = /(?<![\w-])((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|signature|key)=)[^&\s"';,]+/gi;
-var EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var EMAIL_IN_TEXT = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var MAX_STRING = 1e4;
+var ID_OR_MOMENT = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)$/i;
 var PLUS_NUMBER = /\+\d[\d ().-]{6,}\d/g;
 var US_NUMBER = /(?<![\w-])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w-])/g;
 var isContactKey = (k) => CONTACT.has(k) || CONTACT_SUFFIX.test(k);
@@ -5144,6 +5146,7 @@ function contact(v) {
   if (typeof v === "string") {
     const at = EMAIL.exec(v.trim());
     if (at) return `\u2026@${at[1]}`;
+    if (ID_OR_MOMENT.test(v.trim())) return v;
     if (MANY_DIGITS.test(v)) return tailOf(v);
     return v;
   }
@@ -5162,7 +5165,7 @@ function credential(v) {
   return v === null || typeof v === "boolean" ? v : "[redacted]";
 }
 function scrubText(s2) {
-  let out = s2;
+  let out = s2.length > MAX_STRING ? `${s2.slice(0, MAX_STRING)}\u2026[${s2.length - MAX_STRING} more chars]` : s2;
   for (const shape of SECRET_SHAPES)
     out = out.replace(shape, (m) => m.startsWith("Bearer") ? "Bearer [redacted]" : "[redacted]");
   out = out.replace(NAMED_SECRET, "$1[redacted]");
@@ -5210,7 +5213,8 @@ var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
 var STACK_FRAMES = 8;
 function stackOf(e2) {
   if (!e2.stack) return void 0;
-  return e2.stack.split("\n").slice(1, STACK_FRAMES + 1).map((l2) => l2.trim()).join(" | ");
+  const frames = e2.stack.split("\n").map((l2) => l2.trim()).filter((l2) => l2.startsWith("at ")).slice(0, STACK_FRAMES);
+  return frames.length ? String(redact("", frames.join(" | "))) : void 0;
 }
 function lineOf(level, event2, fields) {
   const line = { level, event: event2 };
@@ -12586,7 +12590,9 @@ var SECRET_SHAPES2 = [
   // Supabase
 ];
 var NAMED_SECRET2 = /(?<![\w-])((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|signature|key)=)[^&\s"';,]+/gi;
-var EMAIL_IN_TEXT2 = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var EMAIL_IN_TEXT2 = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var MAX_STRING2 = 1e4;
+var ID_OR_MOMENT2 = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)$/i;
 var PLUS_NUMBER2 = /\+\d[\d ().-]{6,}\d/g;
 var US_NUMBER2 = /(?<![\w-])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w-])/g;
 var isContactKey2 = (k) => CONTACT2.has(k) || CONTACT_SUFFIX2.test(k);
@@ -12597,6 +12603,7 @@ function contact2(v) {
   if (typeof v === "string") {
     const at = EMAIL2.exec(v.trim());
     if (at) return `\u2026@${at[1]}`;
+    if (ID_OR_MOMENT2.test(v.trim())) return v;
     if (MANY_DIGITS2.test(v)) return tailOf2(v);
     return v;
   }
@@ -12615,7 +12622,7 @@ function credential2(v) {
   return v === null || typeof v === "boolean" ? v : "[redacted]";
 }
 function scrubText2(s2) {
-  let out = s2;
+  let out = s2.length > MAX_STRING2 ? `${s2.slice(0, MAX_STRING2)}\u2026[${s2.length - MAX_STRING2} more chars]` : s2;
   for (const shape of SECRET_SHAPES2)
     out = out.replace(shape, (m) => m.startsWith("Bearer") ? "Bearer [redacted]" : "[redacted]");
   out = out.replace(NAMED_SECRET2, "$1[redacted]");
@@ -12660,7 +12667,8 @@ var ENVELOPE2 = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
 var STACK_FRAMES2 = 8;
 function stackOf2(e2) {
   if (!e2.stack) return void 0;
-  return e2.stack.split("\n").slice(1, STACK_FRAMES2 + 1).map((l2) => l2.trim()).join(" | ");
+  const frames = e2.stack.split("\n").map((l2) => l2.trim()).filter((l2) => l2.startsWith("at ")).slice(0, STACK_FRAMES2);
+  return frames.length ? String(redact2("", frames.join(" | "))) : void 0;
 }
 function lineOf2(level, event2, fields) {
   const line = { level, event: event2 };
@@ -22646,7 +22654,12 @@ function rowOf(tenantId, kind, subjectType, subjectId, data) {
   };
 }
 async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
@@ -26827,7 +26840,12 @@ function rowOf2(tenantId, kind, subjectType, subjectId, data) {
   };
 }
 async function recordEvent2(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf2(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf2(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 async function ingestInbound(db, p) {

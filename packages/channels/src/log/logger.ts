@@ -25,14 +25,19 @@ const ENVELOPE = new Set(["level", "event", "request_id"]);
 /** How many frames of a stack an error line keeps: where it was thrown, not the framework under it. */
 const STACK_FRAMES = 8;
 
-/** An error's stack, trimmed: its first frames, one string. */
+/**
+ * An error's stack, trimmed: its first frames, one string, scrubbed like any text. Only the frames (`at …`): the lines
+ * above them are the message, which can run over several lines (a provider's pretty-printed answer) and is written,
+ * redacted, under the error's own key.
+ */
 function stackOf(e: Error): string | undefined {
   if (!e.stack) return undefined;
-  return e.stack
+  const frames = e.stack
     .split("\n")
-    .slice(1, STACK_FRAMES + 1)
     .map((l) => l.trim())
-    .join(" | ");
+    .filter((l) => l.startsWith("at "))
+    .slice(0, STACK_FRAMES);
+  return frames.length ? String(redact("", frames.join(" | "))) : undefined;
 }
 
 /** One line, as it is written. */

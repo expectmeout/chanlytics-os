@@ -10,6 +10,7 @@ import { DB_REQUEST_HEADER, emitEvent, namedFetch, observeDb, recordEvent } from
 import { logger, requestId, withRequestId } from "@chanlytics/channels";
 import { SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { createBearerClient } from "../../../../apps/dashboard/src/lib/supabase/server.ts";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -119,4 +120,64 @@ test("a row says the request it was written in: the writer stamps it, and every 
     fetch("https://db.example.com/rest/v1/events", { headers: { apikey: "k" } }),
   );
   assert.deepEqual(sent, [null, "iad1::req-0123456789"]);
+});
+
+test("the member's own client names the request too: a SQL function a click calls writes the ledger's row under the click's name", async () => {
+  const env = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY };
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-for-this-case";
+  const realFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (_url, init) => {
+    sent.push(new Headers(init?.headers).get(DB_REQUEST_HEADER));
+    return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const member = createBearerClient("a.token.value");
+    await withRequestId("iad1::req-0123456789", async () => await member.rpc("set_contact_consent", {}));
+    await member.rpc("set_contact_consent", {});
+  } finally {
+    globalThis.fetch = realFetch;
+    if (env.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = env.url;
+    if (env.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = env.key;
+  }
+  assert.deepEqual(sent, ["iad1::req-0123456789", null], "named inside a request, as it came outside one");
+});
+
+test("a database the migration has not reached still takes the row: without the request's name, once, and only for that refusal", async () => {
+  observeDb({ log: logger(), requestId });
+  const stubbed = (...answers) => {
+    const inserted = [];
+    const db = {
+      from: () => ({
+        insert: async (row) => {
+          inserted.push(row);
+          return { error: answers.shift() ?? null };
+        },
+      }),
+    };
+    return { db, inserted };
+  };
+  const noColumn = {
+    code: "PGRST204",
+    message: "Could not find the 'request_id' column of 'events' in the schema cache",
+  };
+  const before = stubbed(noColumn);
+  const written = await withRequestId("iad1::req-0123456789", () =>
+    recordEvent(before.db, T, "message.sent", "message", "m1", { sender: "human" }),
+  );
+  assert.deepEqual(written, { error: null });
+  assert.deepEqual(
+    before.inserted.map((row) => "request_id" in row),
+    [true, false],
+    "tried with the name, then without it",
+  );
+  // Any other refusal is the row's own: not asked twice.
+  const refused = stubbed({ code: "42501", message: "permission denied for table events" });
+  const out = await withRequestId("iad1::req-0123456789", () =>
+    recordEvent(refused.db, T, "message.sent", "message", "m2", { sender: "human" }),
+  );
+  assert.deepEqual([out, refused.inserted.length], [{ error: "permission denied for table events" }, 1]);
 });

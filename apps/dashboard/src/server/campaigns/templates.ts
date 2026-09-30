@@ -228,7 +228,7 @@ export async function draftTemplate(
       blocks: blockTypes,
       stop: stopReason,
       stream_error: streamError,
-      text: text.slice(0, 400),
+      output: text.slice(0, 400),
       issues: json ? d.error.issues.slice(0, 3) : "no json",
     });
     return {
@@ -560,7 +560,7 @@ export async function translateTemplate(
       blocks: turn.blockTypes,
       stop: turn.stopReason,
       stream_error: turn.streamError,
-      text: turn.text.slice(0, 400),
+      output: turn.text.slice(0, 400),
     });
   }
   return out;
