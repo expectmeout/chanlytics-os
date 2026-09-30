@@ -176,6 +176,8 @@ export const EVENT_KINDS = [
   "google.connected",
   "google.disconnected",
   "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
@@ -271,6 +273,8 @@ export const EVENT_KINDS = [
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
   "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

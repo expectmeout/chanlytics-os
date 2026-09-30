@@ -9,12 +9,18 @@
  *     policy lets it, the day's tokens (tokenBudgetSpent, the receptionist's own rule), the spend (workspaceMaySpend).
  *   - The brain is the receptionist's (generateReply) over the workspace's own prompt, the thread, and the lead note.
  *     Its holding words are never a draft: an answer that hands off, refuses or fails is not drafted.
+ *   - Layer two (core layerTwo, Blueprint section 6) reads the answer as it reads the receptionist's own: a price in it
+ *     is refused outright, so no draft a person may send as written names one, and neither does one that names money
+ *     (namesMoney: a refund, a discount, a deposit, a payment plan). Not drafted, never the holding words in its
+ *     place. Only those two rules apply here: the classes a workspace holds for a person (Autonomy's ask) are about
+ *     what the receptionist itself sends, and nothing here sends.
  *   - Its tokens are written through the one writer (recordTokens), so the day's budget counts them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   describeNow,
   draftRefusal,
+  namesMoney,
   resolveSystemPrompt,
   tokenBudgetSpent,
   tokenCapOf,
@@ -27,10 +33,11 @@ import {
   type Database,
   type RoutedChannel,
 } from "../packages/db.js";
+import { layerTwo } from "../packages/core.js";
 import type { JobContext } from "../packages/jobs.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
-import { generateReply } from "../receptionist/brain.js";
+import { brainCallOf, generateReply } from "../receptionist/brain.js";
 import { recordTokens, tokensLast24h } from "../receptionist/budget.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 
@@ -86,6 +93,10 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
         "",
         ask.note,
         describeNow(rt.timezone, at, rt.brain.profile?.closures),
+        undefined,
+        undefined,
+        // The usage ledger's row: a draft's spend told apart from the receptionist's answers.
+        brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
       ),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("reply_draft: the receptionist ran past the job's deadline")), ms);
@@ -99,6 +110,24 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       );
     }
     if (r.escalate || r.reason || !r.text.trim()) return said("not_drafted");
+    // No policy and no intent: the price rule alone (see the header). A price the model wrote is refused, not swapped
+    // for layer two's holding words, which are never a draft.
+    const two = layerTwo({
+      replyText: r.text,
+      escalate: false,
+      escalationReason: "",
+      brainCfg: rt.brain,
+      policy: null,
+      intent: null,
+      known: rt.known,
+    });
+    if (two.priceBlocked) {
+      L.warn("policy_block_price", { conversation: ask.conversationId });
+      return said("not_drafted");
+    }
+    // The money charter, as Ask's reply card keeps it: a refund, a discount, a deposit or a payment plan is the owner's
+    // to offer in their own words, so a draft that names one is not drafted either (said() writes the line).
+    if (namesMoney(r.text)) return said("not_drafted");
     L.info("reach_out_reply_draft", { conversation: ask.conversationId, drafted: true, chars: r.text.length });
     return { text: r.text };
   };

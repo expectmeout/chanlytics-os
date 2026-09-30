@@ -14,6 +14,7 @@
  * and what the body names.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -45,12 +46,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export async function POST(request: Request): Promise<Response> {
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text()) as Body;
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<Body>(request);
   // The platform lifts a second hold with its key and never with a token (D16, the runbook): that one op is the
   // key's on an edge that holds the secret too. Every other op is a dashboard's and carries a token; the key alone
   // is refused before a row is read.

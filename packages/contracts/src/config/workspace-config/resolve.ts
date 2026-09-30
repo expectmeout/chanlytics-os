@@ -7,8 +7,7 @@ import { resolveFacts, type KnownFacts } from "../facts";
 import { offersBookingLink } from "../no-booking-link";
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt, type BrainConfig } from "./brain-config";
 import type { BusinessProfile } from "./business-profile";
-import { composeSystemPrompt, noLinkBooking, PROMPT_OPENINGS } from "./compose";
-import { policyRules } from "./policy-classes";
+import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose";
 
 /**
  * What the Business form's instructions box opens with (S4).
@@ -97,12 +96,16 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
  *
  * ONE resolver, so no caller has to remember the precedence. A workspace that
  * has filled in its profile gets a prompt composed from those facts; one that
- * has not keeps the prompt it already had, byte for byte.
+ * has not keeps the prompt it already had, byte for byte, with the standing
+ * rules after it (compose.ts standingRules: the Autonomy rows in force, the
+ * money charter, the rule that a customer's words are data).
  *
  * That fallback is the whole reason this can ship: the pilot's hand-written
  * prompt is live and answering real customers, and a migration that changed
  * what its receptionist says the moment the code deployed would be a
- * behaviour change nobody asked for.
+ * behaviour change nobody asked for. The standing rules are the one change it
+ * takes: money and someone else's instructions are never the receptionist's,
+ * in any workspace's words (the scorecard, 29 September 2026).
  */
 export function resolveSystemPrompt(
   brain: BrainConfig,
@@ -129,10 +132,9 @@ export function resolveSystemPrompt(
   if (!hasProfile(brain.profile)) {
     // A stored prompt says nothing of a link it does not have: a receptionist with none is told what to do instead,
     // first among the rules that follow it.
-    const rules = [...(offersBookingLink(brain) ? [] : [noLinkBooking(channel)]), ...policyRules(policy, channel)];
-    return rules.length
-      ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`
-      : brain.system_prompt;
+    // The standing rules (the money row, the fence) are said to every prompt, so the rules always follow it.
+    const rules = [...(offersBookingLink(brain) ? [] : [noLinkBooking(channel)]), ...standingRules(policy, channel)];
+    return `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
   }
   const profile = brain.profile as BusinessProfile;
   const facts = resolveFacts(brain, known);

@@ -71,6 +71,45 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   assert.ok(y.includes("permissions:\n  contents: read"));
 });
 
+/** A workflow's lines without its comments. */
+const yamlCode = (file) =>
+  readRaw(file)
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+
+test("the nightly evals run on a clock and on demand, only with the eval key, and hold no other secret: never the production key", () => {
+  const y = yamlCode(".github/workflows/nightly-evals.yml");
+  assert.match(y, /cron: "0 10 \* \* \*"/);
+  assert.ok(y.includes("workflow_dispatch:"));
+  const given = y.split("ANTHROPIC_EVAL_KEY: $" + "{{ secrets.ANTHROPIC_EVAL_KEY }}").length - 1;
+  assert.equal(
+    given,
+    2,
+    "the key is given to the step that asks whether it is set and the one that asks the model, no other",
+  );
+  assert.ok(!/^ {4}env:/m.test(y), "and it is not in the job's environment, where the install's scripts would hold it");
+  const secrets = [...y.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
+  assert.deepEqual(
+    [...new Set(secrets)].sort(),
+    ["ANTHROPIC_EVAL_KEY", "GITHUB_TOKEN"],
+    "no other secret reaches the job",
+  );
+  assert.ok(!y.includes("ANTHROPIC_API_KEY"), "the production key is not named");
+  assert.ok(!y.includes("E2E_"), "nor is anything of the e2e suite's");
+  // Every step that does the work asks whether the key is set; the one that says so runs when it is not.
+  const steps = y.split(/\n {6}- /).slice(1);
+  const work = steps.filter((st) => !/^name: Say so when/.test(st));
+  assert.ok(work.length >= 5);
+  for (const st of work)
+    assert.ok(st.includes("steps.key.outputs.set == 'true'"), "a step that runs without the key: " + st.split("\n")[0]);
+  assert.ok(steps[0].includes("id: key") && steps[0].includes("SKIPPED"), "a skip says it is one");
+  assert.ok(y.includes("permissions:\n  contents: read"));
+  // The runner reads the eval key and never the production key (its behaviour is nightly-evals.test.mjs's).
+  const runner = readRaw("tooling/scripts/evals/nightly.mjs").replace(/^\s*(\*|\/\/|\/\*).*$/gm, "");
+  assert.ok(runner.includes("process.env.ANTHROPIC_EVAL_KEY") && !runner.includes("ANTHROPIC_API_KEY"));
+});
+
 test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 plan, D4), apart from the suite: its verdict is its own step and its own issue, titled by whether Ask crossed a line or the check could not run (I2:2), and never turns the suite red", () => {
   const y = readRaw(".github/workflows/nightly-e2e.yml");
   const step = y.slice(

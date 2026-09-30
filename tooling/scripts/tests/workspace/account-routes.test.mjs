@@ -113,16 +113,17 @@ test("your name: yours alone to set, judged by the contracts' rule before the da
     door.map((a) => a.p_display_name),
     ["Ada Lovelace", ""],
   );
+  // The door's own refusal carries its SQLSTATE (00068 raises 22023 for a name it will not take): its words stand.
   const refusedByDb = {
     profile_set: () => {
-      throw new Error("profile_set: too soon");
+      throw Object.assign(new Error("A name is at most 80 characters."), { code: "22023" });
     },
   };
   await refused(
     me.PUT.run(send("PUT", { display_name: "Ada" }), ctxFor(tables, {}, refusedByDb)),
     "validation",
     400,
-    "too soon",
+    "A name is at most 80 characters.",
   );
 });
 

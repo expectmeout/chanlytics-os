@@ -47,13 +47,17 @@ function tabOf(win: Window): ProposalTab {
 
 const isRefusal = (c: ProposalCall | ProposalRefusal): c is ProposalRefusal => "refused" in c;
 
-/** One of a spec's calls, through the typed client, marked as a card's. */
-function send(client: Api, c: ProposalCall, undoOf?: string) {
+/**
+ * One of a spec's calls, through the typed client, marked as a card's, under a key that is the card's own (its
+ * proposal id, and a suffix for its second call or its undo): a card approved in two tabs, or pressed twice, is one
+ * change, since the write routes keep a card's answer under its key (server/route.ts, onceForCard).
+ */
+function send(client: Api, c: ProposalCall, cardKey: string, undoOf?: string) {
   // Every key a spec may name is one the client knows: contracts' keys and the client's are one generated list
   // (route-types.test.mjs), and this assignment is the compiler's side of that. What each route takes is the
   // dashboard's (Input<K>), so the options are cast, as a key held in a variable must be.
   const key: RouteKey = c.route;
-  const opts = { params: c.params, body: c.body, idempotencyKey: c.idempotencyKey, refresh: c.refresh };
+  const opts = { params: c.params, body: c.body, idempotencyKey: c.idempotencyKey ?? cardKey, refresh: c.refresh };
   return viaAsk(client, key, opts as ApiOptions<typeof key>, undoOf);
 }
 
@@ -69,7 +73,7 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
   const tab = tabOf(win);
   const call = spec.commit(p, tab);
   if (isRefusal(call)) return { ok: false, message: call.refused };
-  const r = await send(client, call);
+  const r = await send(client, call, p.id);
   if (!r.ok) return r;
   tell(win, call);
   // The second call (a deal's next step), on the first one's answer. The first stands either way, and the receipt
@@ -78,7 +82,7 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
   let then: ProposalThen | undefined;
   if (next && isRefusal(next)) then = { ok: false, message: next.refused };
   else if (next) {
-    const n = await send(client, next);
+    const n = await send(client, next, `${p.id}:then`);
     if (n.ok) tell(win, next);
     then = n.ok ? { ok: true } : { ok: false, message: n.message };
   }
@@ -98,7 +102,7 @@ export async function undoProposal(
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : undefined;
   const call = undo.call(record, tabOf(win));
   if (isRefusal(call)) return { ok: false, message: call.refused };
-  const r = await send(client, call, undoOf);
+  const r = await send(client, call, `${p.id}:undo`, undoOf);
   if (!r.ok) return r;
   tell(win, call);
   return { ok: true, receipt: undo.receipt(r.data), undo: null };

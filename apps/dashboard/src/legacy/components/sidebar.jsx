@@ -199,7 +199,7 @@ const sbMenuStyle = (rect, { collapsed, side }) => {
 
 const SbMenu = ({ menu, side = "down", collapsed, label, testid, children }) => menu.open ? (
   <>
-    <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
+    <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); menu.close(); }} />
     <div className="more-menu sb-menu" role="menu" aria-label={label} style={sbMenuStyle(menu.rect, { collapsed, side })} onClick={(e) => e.stopPropagation()} data-testid={testid}>
       {children}
     </div>
@@ -449,12 +449,12 @@ const Sidebar = ({
       </SbMenu>
 
       {/* Scrollable nav region — grows/shrinks with the agents block. Ask has one door, the top bar's (the Line, D8). */}
-      <div className="sb-nav-scroll">
+      <nav className="sb-nav-scroll" aria-label="Pages">
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}
         {renderGroup(window.__DEMO_MODE ? NAV_INTEL : NAV_INTEL.filter((i) => !i.demoOnly), "Intelligence")}
         {renderGroup(NAV_FOOT)}
-      </div>
+      </nav>
 
       {/* Active Agents — demo only. The seeded roster claims eight agents doing
           live work; the real product runs two, and the Fleet surface that would

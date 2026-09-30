@@ -1,6 +1,9 @@
 /** The workspace's config and the receptionist it composes: the schemas, the policy, the structured answer, the Business tab. */
 export {
   violatesNoPrices,
+  namesMoney,
+  heldLine,
+  HELD_LINE_KINDS,
   spokenBreach,
   spokenBreachDetails,
   guardSpokenTurns,
@@ -19,11 +22,14 @@ export {
   REPLY_CAP_DEFAULT,
   PAUSE_HOURS_DEFAULT,
 } from "./policy";
-export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow } from "./policy";
+export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow, HeldLineKind } from "./policy";
 export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
 export type { Role } from "./workspace-config/role-perms";
 export {
   policyClassOfIntent,
+  policyClassLabel,
+  policyClassQuestion,
+  POLICY_CLASS_NONE,
   policyAskClass,
   bookingHeld,
   policyRules,
@@ -37,7 +43,7 @@ export {
   PolicyLimitsSchema,
 } from "./workspace-config/policy-classes";
 export type { PolicyClass, PolicyMode, PolicyLimits, PolicyRow } from "./workspace-config/policy-classes";
-export { tokenCapOf, tokenBudgetSpent } from "./limits";
+export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./limits";
 export {
   guardrailsInForce,
   IntervalSchema,
@@ -71,6 +77,7 @@ export {
   receptionistOf,
   parseTenantConfig,
   withFirstAlertAddress,
+  withStoredKeysKept,
   NotificationsConfigSchema,
   CalendarConfigSchema,
   FeaturesConfigSchema,
@@ -168,7 +175,7 @@ export {
   BrainOutputSchema,
   CONFIDENCE_STEPS,
 } from "./brain";
-export type { BrainIntent, BrainOutput, BrainMeta, ReplyWhyVM } from "./brain";
+export type { BrainIntent, BrainOutput, BrainMeta, BrainStamp, ReplyWhyVM } from "./brain";
 export {
   knownForwarding,
   sameAddress,

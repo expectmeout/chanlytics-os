@@ -71,6 +71,8 @@ export const calendarOverride: SurfaceOverride = {
   key: "calendar",
   globals: ["__CALENDAR"],
   events: ["surface:calendar"],
+  // A span's reads take their turn; a move to another span is read at once (activateOverride).
+  view: () => `${calendarFrom ?? "today"}|${calendarDays}`,
   apply: async () => {
     // A cold boot on a day the address names (calendar/<day>) reads the weeks around that day: the page's own read.
     // It read today's weeks first, and the page read the day's after them. Only the first read looks at the address.

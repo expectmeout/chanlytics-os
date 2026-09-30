@@ -13,6 +13,19 @@ import { log } from "@/server/log";
    every query to it by hand — the service role bypasses RLS, so the scoping
    discipline lives here instead. */
 
+/** The one sentence for a change that would leave the workspace with no owner, the door's count's and the database's. */
+const ONLY_OWNER = "This is the only owner. Promote someone else first.";
+
+/**
+ * A write the database refused because it left the workspace with members and no owner (00271's `last_owner`): the
+ * count before it is check-then-act, so two changes at once can each pass it, and the trigger at the end of the
+ * transaction is the one that holds. Anything else is not ours to word.
+ */
+function writeRefused(error: { code?: string; message: string }): Error {
+  if (error.code === "P0001" && error.message === "last_owner") return new AppError("conflict", ONLY_OWNER, 409);
+  return new Error(error.message);
+}
+
 interface TeamMember {
   membershipId: string;
   userId: string;
@@ -213,7 +226,7 @@ export async function setMemberRole(
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role", "owner");
-    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
+    if ((count ?? 0) <= 1) throw new AppError("conflict", ONLY_OWNER, 409);
   }
   const { data, error } = await db
     .from("memberships")
@@ -222,7 +235,7 @@ export async function setMemberRole(
     .eq("id", membershipId)
     .select("id, role")
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw writeRefused(error);
   if (!data) throw new AppError("not_found", "That person is not on this team.", 404);
   await noteTeamChange(ctx, tenantId, "membership", data.id, "change_role", {
     from: target.role,
@@ -268,10 +281,10 @@ export async function removeMember(
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role", "owner");
-    if ((count ?? 0) <= 1) throw new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
+    if ((count ?? 0) <= 1) throw new AppError("conflict", ONLY_OWNER, 409);
   }
   const { error } = await db.from("memberships").delete().eq("id", target.id);
-  if (error) throw new Error(error.message);
+  if (error) throw writeRefused(error);
   // Recorded AFTER the delete, and carrying the role they held — the
   // membership row is gone, so this is the only surviving record of it.
   await noteTeamChange(ctx, tenantId, "membership", target.id, "remove_member", {

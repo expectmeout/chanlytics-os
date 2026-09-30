@@ -13,9 +13,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { ESLint } from "eslint";
-import config, { withoutTypes } from "../../../../eslint.config.mjs";
-import { ROOT } from "../_source.mjs";
-import { repoFiles } from "../_ast.mjs";
+import config, { withoutTypes } from "../../../../../eslint.config.mjs";
+import { ROOT } from "../../_source.mjs";
+import { repoFiles } from "../../_ast.mjs";
 
 // The accessibility rules read the markup, not its types: the probes are linted without the typed rules' programs.
 const eslint = new ESLint({ cwd: ROOT, overrideConfigFile: true, overrideConfig: withoutTypes(config) });

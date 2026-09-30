@@ -414,3 +414,86 @@ test("the edge's port asks G14's gates from the workspace's own rows, and a hand
     assert.deepEqual(await w.draft(w.tenant, { ...ASK, deadline: Date.now() + 40_000 }), { why: "no_receptionist" });
   });
 });
+
+test("REGRESSION: a price in the model's answer is never a draft, and its tokens are still counted", async () => {
+  // Layer two (core layerTwo) reads a draft as it reads the receptionist's own reply, so no draft a person may send as
+  // written quotes a price (scorecard row 93). Refused as a hand-off is: not_drafted, and never layer two's holding
+  // words in its place.
+  await withEnv(KEY, async () => {
+    const ask = { ...ASK, deadline: Date.now() + 40_000 };
+    for (const text of [
+      "It is $450 for a two-bedroom move.\n\nSam",
+      "A crew is 45 dollars an hour.\n\nSam",
+      "Around 300 usd all in.\n\nSam",
+      "Son 90 pesos por hora.\n\nSam",
+    ]) {
+      edge.answer = { text, escalate: false, usage: { input_tokens: 90, output_tokens: 30 } };
+      const w = edge();
+      assert.deepEqual(await w.draft(w.tenant, ask), { why: "not_drafted" }, text);
+      assert.equal(w.tables.events.filter((e) => e.kind === "usage.llm_tokens").length, 1, "the tokens were spent");
+    }
+    // The words the brain writes about time, counts and dates carry no price.
+    edge.answer = {
+      text: "We can be there at 9 on Saturday, with a crew of 3 for 2 hours.\n\nSam",
+      escalate: false,
+      usage: { input_tokens: 90, output_tokens: 30 },
+    };
+    const fine = edge();
+    assert.deepEqual(await fine.draft(fine.tenant, ask), {
+      text: "We can be there at 9 on Saturday, with a crew of 3 for 2 hours.\n\nSam",
+    });
+    edge.answer = undefined;
+  });
+});
+
+test("REGRESSION: named money in the model's answer is never a draft, as a price is not, and its tokens are counted", async () => {
+  // The money charter (the AI lane's namesMoney, which its body left for this door to wire): a refund, a discount, a
+  // deposit or a payment plan is the owner's to offer in their own words, never a draft's, in English or Spanish.
+  await withEnv(KEY, async () => {
+    const ask = { ...ASK, deadline: Date.now() + 40_000 };
+    for (const text of [
+      "We can refund the deposit if you change your mind.\n\nSam",
+      "I can offer you a discount on the first move.\n\nSam",
+      "Podemos ofrecerle un reembolso completo.\n\nSam",
+    ]) {
+      edge.answer = { text, escalate: false, usage: { input_tokens: 90, output_tokens: 30 } };
+      const w = edge();
+      assert.deepEqual(await w.draft(w.tenant, ask), { why: "not_drafted" }, text);
+      assert.equal(w.tables.events.filter((e) => e.kind === "usage.llm_tokens").length, 1, "the tokens were spent");
+    }
+    // A draft that names no money is still a draft.
+    edge.answer = {
+      text: "We can be there at 9 on Saturday, with a free parking spot for the truck.\n\nSam",
+      escalate: false,
+      usage: { input_tokens: 90, output_tokens: 30 },
+    };
+    const fine = edge();
+    assert.deepEqual(await fine.draft(fine.tenant, ask), {
+      text: "We can be there at 9 on Saturday, with a free parking spot for the truck.\n\nSam",
+    });
+    edge.answer = undefined;
+  });
+});
+
+test("layer two's price rule alone reaches a draft: a class held for a person does not swap a draft's words", async () => {
+  // Autonomy's ask holds what the receptionist itself sends; a draft is sent by nobody but the owner, so a booking or
+  // service question is still drafted where those classes are on ask, and its words are the brain's own.
+  await withEnv(KEY, async () => {
+    edge.answer = {
+      text: "Book a time here: https://book.example/harbor\n\nSam",
+      escalate: false,
+      meta: { intent: "booking" },
+      usage: { input_tokens: 90, output_tokens: 30 },
+    };
+    const w = edge();
+    for (const row of w.tables.policies) row.mode = "ask";
+    w.tables.policies.push(
+      { tenant_id: w.tenant, class: "booking", mode: "ask", limits: {}, subject_type: null, subject_id: null },
+      { tenant_id: w.tenant, class: "faq", mode: "ask", limits: {}, subject_type: null, subject_id: null },
+    );
+    assert.deepEqual(await w.draft(w.tenant, { ...ASK, deadline: Date.now() + 40_000 }), {
+      text: "Book a time here: https://book.example/harbor\n\nSam",
+    });
+    edge.answer = undefined;
+  });
+});

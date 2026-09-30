@@ -17,6 +17,8 @@
  */
 import { csvCell } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { hearSurfaces, surfaceHook, surfaceMoved } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
+import { installRoles } from "../../../apps/dashboard/src/legacy-bridge/identity.ts";
 
 const listeners = {};
 const storage = () => {
@@ -30,6 +32,26 @@ const storage = () => {
 // `wanted` is whether a setter has changed a value since the last quiet(): what React would take as a reason to draw
 // again. A test that proves a page redraws on an event reads it, since this stub draws only when a test asks.
 // `list` is each hook's cell by the key its frame gives it (_hook-frames.mjs).
+// The surfaces the pages draw from, and the event each one's rows land on: LegacyApp counts these against each key
+// before React draws (hearSurfaces over the overrides' own `events`), so a page's `useSurface` moves on them here too.
+const SURFACE_EVENTS = [
+  ["today", "surface:today"],
+  ["live", "surface:live"],
+  ["broadcasts", "surface:broadcasts"],
+  ["setup", "surface:setup"],
+  ["google", "surface:google"],
+  ["reports", "surface:reports"],
+  ["people", "surface:clients"],
+  ["calendar", "surface:calendar"],
+  ["playbooks", "surface:playbooks"],
+  ["inbox", "surface:inbox"],
+  ["conversations", "surface:conversations"],
+].map(([key, event]) => ({ key, events: [event] }));
+let stopHearing = () => {};
+const hearTheSurfaces = () => {
+  stopHearing();
+  stopHearing = hearSurfaces(SURFACE_EVENTS, globalThis);
+};
 const frames = hookFrames();
 const cells = { list: {}, ids: 0, wanted: false };
 const moved = (was, now) => {
@@ -142,8 +164,27 @@ export function installLegacyReact(extra = {}) {
     },
     useEffect: effect,
     useLayoutEffect: effect,
+    // A store outside React: heard while the component is drawn (its subscription made again each draw, the old one
+    // let go, as React does when `subscribe` is a new function), and a notice is a reason to draw again.
+    useSyncExternalStore: (subscribe, snapshot) => {
+      const k = frames.key();
+      const prev = cells.list[k];
+      if (prev && typeof prev.cleanup === "function") prev.cleanup();
+      cells.list[k] = {
+        deps: null,
+        effect: true,
+        cleanup: subscribe(() => {
+          cells.wanted = true;
+        }),
+      };
+      return snapshot();
+    },
   };
   globalThis.ReactDOM = { createPortal: (node) => node };
+  // The bridge's one hook (legacy-bridge/surface-status.ts), made over this React as LegacyApp makes it over the
+  // app's: a page redraws when a surface it draws moves.
+  globalThis.useSurface = surfaceHook(globalThis.React);
+  hearTheSurfaces();
 }
 
 /** A new tree: every hook cell and every listener forgotten. */
@@ -152,6 +193,7 @@ export function fresh() {
   frames.reset();
   cells.wanted = false;
   for (const k of Object.keys(listeners)) delete listeners[k];
+  hearTheSurfaces();
 }
 
 /** Draw again over the same cells, as React would after a state change. */
@@ -177,6 +219,20 @@ export function unmount() {
  * does not merely read the new globals when the test draws it anyway) quiets it, sends the event, and asks this.
  */
 export const redrawWanted = () => cells.wanted;
+/**
+ * The role store as the app has it, for the page tests whose gates ask who is acting: settings.jsx makes the store and the
+ * bridge completes it (legacy-bridge/identity.ts installRoles), so `mayAtLeast`, `myRole` and View-as read the window's
+ * `__ME` and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes `window.__ME.role`
+ * between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
+ */
+export function installRoleStore(win = globalThis.window) {
+  const store = (win.ST_STORE ??= { viewAsRole: null, can: () => true });
+  store.viewAsRole ??= null;
+  installRoles(win);
+  return store;
+}
+/** A surface's rows landed, or its status moved: what LegacyApp's read and the seam's event count against its key. */
+export const surfaceLanded = (key) => surfaceMoved(key);
 export const quiet = () => {
   cells.wanted = false;
 };

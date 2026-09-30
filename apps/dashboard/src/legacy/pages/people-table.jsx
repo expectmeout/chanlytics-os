@@ -2,8 +2,9 @@
 // The table for any rows, and its Columns menu, for People and for Leads (a scope of People): the columns they are
 // given, what a cell needs (`ctx`), a selection, a keyboard cursor and a way to open a row. Lifted out of
 // clients-a.jsx (release B of the lead finder): four of these helpers closed over People's PL_COLUMNS, so Leads could
-// not draw the table with columns of its own. Every helper takes the column list. Hookless, as before: the sort, the
-// columns, the cursor and the selection are the page's (clients-a.jsx usePlControls and usePlPlace), where its one
+// not draw the table with columns of its own. Every helper takes the column list. The table is hookless: the sort, the
+// columns, the cursor and the selection are the page's (people.jsx usePlControls and usePlPlace), and so is how many rows
+// it draws (usePlRowWindow, below, which the page calls), where its one
 // keyboard listener can move them.
 
 // Person and the row's actions are not the member's to hide.
@@ -29,10 +30,15 @@ const PL_NO_SEL = new Set();
 // parameter list is a new function on every draw, and the memoised rows handed one (onToggle, onCursor) drew again on
 // every keystroke, J, fold and toast of a page that never selects -- the Pipeline's.
 const PL_NOOP = () => {};
-// The rows a fresh mount draws first; the page lifts the budget a frame later (clients-a.jsx rowBudget). The switch
+// The rows a fresh mount draws first; the page lifts the budget a frame later (people.jsx usePlPlace, usePlRowWindow). The switch
 // between People and Leads is a remount, and the Leads table's rows were most of what it waited on: measured on the
 // salon, a 250 ms draw of 96 leads, 125 ms with the first 24. Enough rows for a tall screen's first view.
 const PL_FIRST_ROWS = 24;
+// A long list draws a window of its rows, not all of them: this many once the first frame is out, and this many more
+// each time its foot comes near (usePlRowWindow). Measured on a salon's 500 people, a keystroke in the search
+// box redrew every row (85 ms), and the rows a person scrolls to are a few dozen of a list that can be thousands.
+const PL_WINDOW_ROWS = 300;
+const PL_WINDOW_STEP = 200;
 
 // One row. Drawn again only when something of its own changed: its view model, whether it is selected, the cursor,
 // the columns, the cell context. So a keystroke in the search box, a tick on another row, a J and an opened peek
@@ -118,7 +124,7 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
             {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}
-            {(budget < rows.length ? rows.slice(0, budget) : rows).map(row)}
+            {plWindowRows(rows, budget, row, span)}
             {rows.length === 0 && emptyRow()}
           </tbody>
           )}
@@ -129,6 +135,66 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
       </div>
     </div>
   );
+};
+
+// The rows drawn: all of them, or a window and, at its foot, a row with nothing in it that is watched so the window grows
+// before the foot is reached (usePlRowWindow).
+const plWindowRows = (rows, budget, row, span) => (budget < rows.length
+  ? [...rows.slice(0, budget).map(row), <tr key="pl-foot" id="pl-foot" className="pl-foot" aria-hidden="true"><td colSpan={span} /></tr>]
+  : rows.map(row));
+
+// The nearest ancestor that scrolls, which a watcher of an element in it takes for its root; null is the page's viewport.
+const plScrollParent = (el) => {
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const over = window.getComputedStyle(n).overflowY;
+    if (over === "auto" || over === "scroll") return n;
+  }
+  return null;
+};
+
+// The rows a fresh mount draws first: the first few; where a place is to be put back, enough to reach it -- a step past
+// the cursor's row, and a step past what the scroll's height holds at 40px a row, shorter than any row (a desk's are 45);
+// and every row of a table in sections.
+const plStartRows = (place, windowed, ids) => {
+  if (!place || !(place.top || place.cursor)) return PL_FIRST_ROWS;
+  if (!windowed) return Infinity;
+  return Math.max(PL_WINDOW_ROWS, ids.indexOf(place.cursor) + PL_WINDOW_STEP, Math.ceil((place.top || 0) / 40) + PL_WINDOW_STEP);
+};
+
+/**
+ * How many rows the table draws (`budget`, its prop) for a page's life: the first rows only (PL_FIRST_ROWS) and a window
+ * of them a frame later, grown by a step each time the window's foot (#pl-foot) comes within a screen's height of the
+ * screen, and to reach a row the cursor walks to (`reach(index)`). A table in sections draws every row (`windowed` false:
+ * the Pipeline's groups), and so does a browser that cannot watch a foot. The switch between People and Leads is a
+ * remount, and the rows were most of what it waited on (measured on the salon: a 250 ms draw of 96 leads, 125 ms with the
+ * first 24); a keystroke in the search box redrew all 500 of them (85 ms). The budget is the mount's: a view change
+ * inside the page never narrows it. `place`: what the tab kept of this view (a cursor, a scroll), to be put back.
+ */
+const usePlRowWindow = ({ place, windowed, ids, cursor }) => {
+  const count = ids.length;
+  const [budget, setBudget] = React.useState(() => plStartRows(place, windowed, ids));
+  React.useEffect(() => {
+    if (budget === Infinity) return undefined;
+    const lift = () => setBudget((b) => (windowed ? Math.max(b, PL_WINDOW_ROWS) : Infinity));
+    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
+    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
+    const frame = requestAnimationFrame(lift);
+    const beat = setTimeout(lift, 120);
+    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    if (budget >= count || !document.getElementById) return undefined;
+    const foot = document.getElementById("pl-foot");
+    if (!foot) return undefined;
+    if (typeof IntersectionObserver !== "function") { setBudget(Infinity); return undefined; }
+    // Watched from inside the box that scrolls it, whose clip a margin on the page's own viewport does not widen.
+    const watch = new IntersectionObserver((seen) => { if (seen.some((s) => s.isIntersecting)) setBudget((b) => b + PL_WINDOW_STEP); }, { root: plScrollParent(foot), rootMargin: "800px 0px" });
+    watch.observe(foot);
+    return () => watch.disconnect();
+  }, [budget, count]);
+  // The cursor's row is drawn wherever the cursor came from: a sort that moved it, a view's kept place, a deep link.
+  React.useEffect(() => { setBudget((b) => Math.max(b, ids.indexOf(cursor) + PL_WINDOW_STEP)); }, [cursor, ids]);
+  return { budget, reach: (index) => setBudget((b) => Math.max(b, index + PL_WINDOW_STEP)) };
 };
 
 // The table's sections, one <tbody> each: a header row (a <th scope="rowgroup"> across every column, with no id), then
@@ -191,7 +257,7 @@ const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = nu
     </button>
     {open && (
       <>
-        <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); onOpenChange(false); }} />
+        <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); onOpenChange(false); }} />
         <div className="more-menu align-right pl-cols-menu" role="menu" aria-label="Columns" data-testid="people-columns-menu" onClick={(e) => e.stopPropagation()}>
           <div className="more-header">Show on the table</div>
           {options.map((c) => (
@@ -207,4 +273,4 @@ const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = nu
   </div>
 );
 
-Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL, PL_FIRST_ROWS });
+Object.assign(window, { PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plShownColumns, plColumnChoices, plColumnOptions, PL_NO_SEL, PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP, usePlRowWindow });

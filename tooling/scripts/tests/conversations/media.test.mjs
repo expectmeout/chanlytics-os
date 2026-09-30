@@ -224,7 +224,7 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     "the record keeps the caption, not the instruction",
   );
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));
-  assert.ok(wa.includes("photo ?? undefined,\n      );"), "the image reaches the brain");
+  assert.ok(/photo \?\? undefined,\s*undefined,/.test(wa), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");
   const brain = readCode("apps/edge/lib/receptionist/brain.ts");
   assert.ok(

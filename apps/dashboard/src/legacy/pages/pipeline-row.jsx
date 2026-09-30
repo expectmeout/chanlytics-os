@@ -52,7 +52,7 @@ const pipeRowItems = (r, { canRecord, onPage, onThread }) => {
 const PipelineRowMenu = ({ r, canRecord = false, onPage, onThread }) => {
   const words = window.__pipeline.words;
   return (
-    <span className="cl-row-actions pipe-row-acts" onClick={(e) => e.stopPropagation()}>
+    <span className="cl-row-actions pipe-row-acts" role="presentation" onClick={(e) => e.stopPropagation()}>
       <window.MoreMenu items={pipeRowItems(r, { canRecord, onPage, onThread })} title={`${words.row.menu} ${r.name}`} size={13} btnClass="cl-row-act" escape testid="pipe-row-menu" />
     </span>
   );

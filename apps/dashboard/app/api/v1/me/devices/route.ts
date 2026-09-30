@@ -1,5 +1,6 @@
 import { write, account } from "@/server/route";
 import { AppError, parseDevice } from "@chanlytics/contracts";
+import { dbRefusal } from "@/server/with-route";
 
 /**
  * PUT /api/v1/me/devices — {token, platform, app_version?}: the phone the native app runs on, registered to be
@@ -21,7 +22,7 @@ export const PUT = write({
       ...(device.app_version ? { p_app_version: device.app_version } : {}),
       ...(device.activity_token ? { p_activity_token: device.activity_token } : {}),
     });
-    if (error) throw new AppError("validation", error.message, 400);
+    if (error) throw dbRefusal(error);
     return data as { id: string };
   },
 });
@@ -36,7 +37,7 @@ export const DELETE = write({
     const token = typeof body.token === "string" ? body.token.trim() : "";
     if (!token) throw new AppError("validation", "A device needs its push token.", 400);
     const { data, error } = await ctx.supabase.rpc("push_device_forget", { p_token: token });
-    if (error) throw new AppError("validation", error.message, 400);
+    if (error) throw dbRefusal(error);
     return data as { forgotten: number };
   },
 });

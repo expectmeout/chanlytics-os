@@ -62,6 +62,7 @@ import {
   reachOutTimelineOf,
   isLeadList,
   LEAD_IMPORT_WORDS,
+  LEAD_IMPORT_MAX_BYTES,
   LEAD_LIST_MAX,
   leadCheckAgainCents,
   leadChooseAnswerWords,
@@ -249,6 +250,8 @@ export const reachOuts = {
     cents: leadCheckAgainCents,
     words: LEAD_IMPORT_WORDS,
     max: LEAD_LIST_MAX,
+    /** The largest file the sheet reads; one past it is refused before it is read (G:1). */
+    maxBytes: LEAD_IMPORT_MAX_BYTES,
   },
   /** Every sentence a chain's row, an email row, the sheet and the Leads door say (contracts reach-out-*.ts). */
   words: {

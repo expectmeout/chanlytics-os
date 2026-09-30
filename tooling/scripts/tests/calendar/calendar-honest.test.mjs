@@ -197,6 +197,26 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// The bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces.
+globalThis.useSurface = () => 0;
+// A stub React attaches no ref, so the dialog's element does not exist here: the one focus helper (data-bits trapFocus,
+// proved on a document of its own in shell/focus-trap.test.mjs) is handed a stand-in for it, and every ask is kept.
+const trapped = [];
+const realTrapFocus = globalThis.window.trapFocus;
+const dialogBox = {
+  addEventListener() {},
+  removeEventListener() {},
+  contains: (n) => !!n,
+  getAttribute: () => "-1",
+  setAttribute() {},
+  focus() {
+    globalThis.document.activeElement = dialogBox;
+  },
+};
+globalThis.window.trapFocus = (box) => {
+  trapped.push(box);
+  return realTrapFocus(box ?? dialogBox);
+};
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
 // One appointment on a list, the row Today's day and the agenda both wear.
@@ -242,6 +262,7 @@ let reads = [];
 let homes = 0;
 /** A fresh page over `week`: each read the page asks for answers the next of `answers` (true once they run out). */
 const fresh = (week = dto(), answers = []) => {
+  trapped.length = 0;
   cells = [];
   cleanups = [];
   reads = [];
@@ -315,7 +336,7 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   assert.equal(panel.props.role, "dialog");
   assert.equal(panel.props["aria-modal"], "true");
   assert.equal(panel.props.tabIndex, -1, "focus can be put on the dialog itself as it opens");
-  assert.equal(typeof panel.props.onKeyDown, "function", "the dialog keeps Tab to itself");
+  assert.equal(trapped.length, 1, "the dialog holds focus with the one helper every modal takes");
   const title = find(tree, (n) => n !== panel && n.props?.id && n.props.id === panel.props["aria-labelledby"]);
   assert.ok(title, "the dialog is named by an element on it");
   assert.equal(textOf(title), "Ana Ruiz · Color");
@@ -341,53 +362,6 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
  * The order drawn is proved against this list below.
  */
 const PEEK_FOCUS_ORDER = ["Open in People", "Copy the booking link", "Start a proposal", "Close"];
-
-test("Tab and Shift+Tab walk the dialog's own controls and wrap, so focus never leaves an open appointment for the board behind it", () => {
-  const trap = globalThis.window.crTrapTab;
-  assert.equal(typeof trap, "function", "the trap is one rule that can be run");
-  const focused = [];
-  const el = (name) => ({
-    name,
-    focus() {
-      focused.push(name);
-    },
-  });
-  const els = PEEK_FOCUS_ORDER.map(el);
-  const [first, last] = [els[0], els[els.length - 1]];
-  const box = {
-    querySelectorAll: () => els,
-    focus() {
-      focused.push("dialog");
-    },
-  };
-  const tab = (at, shiftKey = false) => {
-    let prevented = false;
-    globalThis.document.activeElement = at;
-    trap(
-      {
-        key: "Tab",
-        shiftKey,
-        preventDefault() {
-          prevented = true;
-        },
-      },
-      box,
-    );
-    return prevented;
-  };
-  try {
-    assert.equal(tab(last), true);
-    assert.deepEqual(focused.splice(0), ["Open in People"], "past the last control, round to the first");
-    assert.equal(tab(first, true), true);
-    assert.deepEqual(focused.splice(0), ["Close"], "before the first, round to the last");
-    assert.equal(tab(box, true), true);
-    assert.deepEqual(focused.splice(0), ["Close"], "from the dialog itself, Shift+Tab takes the last control");
-    for (const middle of els.slice(1, -1)) assert.equal(tab(middle), false, middle.name);
-    assert.deepEqual(focused, [], "in between, the browser's own order");
-  } finally {
-    globalThis.document.activeElement = null;
-  }
-});
 
 /* ------------------------------ the peek knows the deal (0008) ------------------------------ */
 

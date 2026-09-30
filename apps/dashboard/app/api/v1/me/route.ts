@@ -2,6 +2,7 @@ import { write, account } from "@/server/route";
 import { AppError, cleanDisplayName } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 import { log } from "@/server/log";
+import { dbRefusal } from "@/server/with-route";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -18,7 +19,7 @@ export const PUT = write({
     const cleaned = cleanDisplayName(body.display_name ?? "");
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
     const { data, error } = await ctx.supabase.rpc("profile_set", { p_display_name: cleaned.name });
-    if (error) throw new AppError("validation", error.message, 400);
+    if (error) throw dbRefusal(error);
     const saved =
       data && typeof data === "object" && !Array.isArray(data)
         ? (data as { display_name?: string }).display_name

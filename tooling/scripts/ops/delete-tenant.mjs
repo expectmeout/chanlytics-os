@@ -68,6 +68,7 @@ if (!tenantId || !expectName) {
  * by backing that up. They are listed in the test's expected set all the same.
  */
 const TABLES = [
+  "ai_usage",
   "ask_messages",
   "ask_threads",
   "billing_accounts",

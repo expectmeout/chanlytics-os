@@ -566,7 +566,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // with none of the last one's filters.
   const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
     controls, page: "leads", view: viewRoute, ids: shownIds, noun: "lead", landed: viewLanded, selectionOf: `${viewRoute}|${chip}`,
-    extra: { map: mapOpen },
+    extra: { map: mapOpen }, windowed: true,
     onPlace: (p, again) => {
       setMapOpen(!!p.map);
       if (again) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
