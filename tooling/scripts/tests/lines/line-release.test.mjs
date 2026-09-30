@@ -4,6 +4,7 @@
  * released -- wait, warn once, a week, release -- including a grace set late and a workspace that resumed. The sweep
  * that acts on it runs in cron-doors-b.test.mjs.
  */
+import "../fixtures/pin-utc.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

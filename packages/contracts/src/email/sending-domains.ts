@@ -6,8 +6,8 @@
 import type { Tone } from "../shell/tone";
 import { FREE_MAIL_DOMAINS } from "./free-mail";
 
-/** "Sep 22": the day a hold began, as billing.ts says its dates: in UTC, the same day on the page as in Ask's answer. */
-const DAY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+/** "Sep 22": the day a hold began, as billing.ts says its dates. */
+const DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
 export const SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"] as const;
 export type SendingDomainState = (typeof SENDING_DOMAIN_STATES)[number];

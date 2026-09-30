@@ -2760,7 +2760,7 @@ function reviewSnippet(body, max = 90) {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
-var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -2865,7 +2865,7 @@ var PLAYBOOK_CLASS_LABEL = {
   follow_up: POLICY_CLASS_WORDS.follow_up.short,
   outreach: POLICY_CLASS_WORDS.outreach.short
 };
-var DAY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
 function greetingFor(name) {
   const who = name ? ` ${name}` : "";
@@ -3270,8 +3270,7 @@ var PARTNER_WORDS = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  // In UTC, as every day the partner's pages say (dayWords below): the browser's zone said a day later east of UTC+12.
-  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",

@@ -14798,7 +14798,7 @@ function planBilling(before, sub, nowMs) {
   }
   return { row: row2, tenantStatus, switched, bell };
 }
-var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 function dayWords(iso) {
   if (!iso) return "";
   const ms2 = Date.parse(iso);
@@ -18221,7 +18221,7 @@ var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: e
 var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
 
 // src/email/sending-domains.ts
-var DAY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SENDING_DOMAIN_STATES = ["records", "verifying", "verified", "held"];
 var DOMAIN_HOLDS = ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
 var REPUTATION_HOLDS = ["bounces", "complaint", "unsubscribes"];
@@ -29105,8 +29105,7 @@ var PARTNER_WORDS = {
   linkLabel: "Your link",
   copy: "Copy link",
   copied: "Copied",
-  // In UTC, as every day the partner's pages say (dayWords below): the browser's zone said a day later east of UTC+12.
-  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}.`,
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
   paused: "Your partner account is paused. Write to us to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account\u2026",
