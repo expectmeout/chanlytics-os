@@ -185,12 +185,12 @@ test("a token opens its door once and for its body only: the same request again 
   }
 });
 
-test("steer: another workspace's draft is refused by the token's workspace and left as it was", async () => {
+test("steer: another workspace's draft is a draft that is not there for the token's workspace, and is left as it was", async () => {
   setPg(world());
   const w = wire();
   try {
     const refused = await control.steerDraft(DRAFT_B, "Say five thirty instead", asker(A));
-    assert.deepEqual(refused, { ok: false, reason: "workspace_mismatch" });
+    assert.deepEqual(refused, { ok: false, reason: "not_found" }, "the answer a made-up id gets: no oracle for ids");
     assert.equal(w.provider.length, 0, "no model was asked about a draft that is not A's");
   } finally {
     w.restore();

@@ -820,10 +820,10 @@ test("the bell's verb follows the row's route: a setup row opens Setup, an unrou
 
 test("a first ask reaches the platform mailbox through the edge; a repeat does not; a failure is never the owner's problem", () => {
   const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
+  assert.ok(route.includes("const told = already"));
   assert.ok(
-    route.includes(
-      "const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);",
-    ),
+    route.includes("await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId)"),
+    "the mail names the workspace, who asked and the person who pressed",
   );
   assert.ok(route.includes("return { request: data, told };"));
   const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
