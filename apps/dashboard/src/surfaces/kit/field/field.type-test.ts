@@ -19,8 +19,7 @@ import { Field } from "../index";
 function _fieldTakes(
   glyph: ReactElement,
   select: ReactElement,
-  box: RefObject<HTMLInputElement | null>,
-  text: RefObject<HTMLTextAreaElement | null>,
+  refs: { box: RefObject<HTMLInputElement | null>; text: RefObject<HTMLTextAreaElement | null> },
   now: { words: string; problem: string | undefined; saving: boolean },
 ): void {
   const type = (_words: string) => undefined;
@@ -55,9 +54,9 @@ function _fieldTakes(
     onValueChange: type,
     rows: 3,
     readOnly: now.saving,
-    ref: text,
+    ref: refs.text,
   });
-  Field({ label: "Booking link", value: now.words, onValueChange: type, ref: box });
+  Field({ label: "Booking link", value: now.words, onValueChange: type, ref: refs.box });
   // Another of the kit's controls in the field's place, named, described and marked by it.
   Field({ label: "Service", hint: "What the proposal is for.", control: select, className: "ds-service" });
 
@@ -74,9 +73,9 @@ function _fieldTakes(
   // @ts-expect-error its boxes are the browser's own for words, a date, a time or a number: a checkbox is the kit's Switch
   Field({ label: "Take calls", value: now.words, onValueChange: type, type: "checkbox" });
   // @ts-expect-error a box of sentences is a textarea: its ref is a textarea's, not an input's
-  Field({ label: "What fits no field", value: now.words, onValueChange: type, rows: 3, ref: box });
+  Field({ label: "What fits no field", value: now.words, onValueChange: type, rows: 3, ref: refs.box });
   // @ts-expect-error a line of words is an input: its ref is an input's, not a textarea's
-  Field({ label: "Booking link", value: now.words, onValueChange: type, ref: text });
+  Field({ label: "Booking link", value: now.words, onValueChange: type, ref: refs.text });
   // @ts-expect-error a box of sentences has no kind of input: it is a textarea
   Field({ label: "What fits no field", value: now.words, onValueChange: type, rows: 3, type: "email" });
   // @ts-expect-error never disabled, which lets focus go to the page: it is read-only while a save is out
