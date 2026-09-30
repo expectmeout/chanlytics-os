@@ -1,11 +1,8 @@
-import { z } from "zod";
-import { isUuid, LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
-import { recordActivation, type Json } from "@chanlytics/db";
+import { SPEND_LEADS } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
-import { serviceDb } from "@/server/service-db";
-import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import { load, readerContext } from "@/server/readers";
 import { searches } from "@/server/readers/searches";
+import { createLeadSearch, CreateSchema } from "@/server/leads/lead-search-create";
 
 /**
  * GET /api/v1/lead-searches: every kept search of this workspace with its
@@ -34,8 +31,10 @@ export const GET = read({
  * it only when it is the caller's own thread in this workspace, and null
  * otherwise; the plan the door stores never carries it. A thread that is not
  * an id is dropped, never a refusal: the search is what was approved.
+ *
+ * The handle is createLeadSearch in src/server/leads/lead-search-create.ts: the route is its declaration (who may, how
+ * often), the verb is what it does.
  */
-const CreateSchema = z.intersection(LeadSearchPlanSchema, z.object({ thread_id: z.unknown().optional() }));
 
 export const POST = write({
   scope: workspace,
@@ -45,29 +44,5 @@ export const POST = write({
   // A refusal here is about finding leads, not about buying a number.
   spendWords: SPEND_LEADS,
   input: CreateSchema,
-  handle: async ({ ctx, member, input }) => {
-    const { thread_id: thread, ...rest } = input;
-    const plan = rest;
-    const threadId = isUuid(thread) ? String(thread) : null;
-    const { data, error } = await ctx.supabase.rpc("lead_search_create", {
-      p_tenant_id: member.tenantId,
-      p_plan: plan as unknown as Json,
-      p_via: ctx.via === "ask" ? "ask" : "people",
-      p_estimate_usd: estimateForRound(plan, "probe"),
-      // Named only when there is one, so a search from the page calls the door as it always has.
-      ...(threadId ? { p_thread_id: threadId } : {}),
-    });
-    if (error) throw new Error(`lead_search_create: ${error.message}`);
-    const a = answerOf(data);
-    const refused = refusalOf(a);
-    if (refused) throw refused;
-    // The workspace's first search: the funnel's third milestone, written as the service role (the ledger's writer). An
-    // analytics row never costs a search: nothing here may throw.
-    try {
-      await recordActivation(serviceDb(), member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
-    } catch {
-      /* the milestone is written by the next search */
-    }
-    return { search_id: a.search_id, round_id: a.round_id };
-  },
+  handle: ({ ctx, member, input }) => createLeadSearch(ctx, member, input),
 });

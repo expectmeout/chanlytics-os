@@ -1,19 +1,14 @@
 import { read, account } from "@/server/route";
-import type { PartnerInvitationDto } from "@chanlytics/contracts";
-import { getPartnerInvitations } from "@chanlytics/db";
+import { readPartnerInvitations } from "@/server/workspace/partner-account";
 
 /**
  * GET /api/v1/partner/invitations — the workspaces asking the caller, a partner, to join them (decision 0020, 00225
  * partner_invitations_mine). None for anyone who is not a partner.
+ *
+ * The handle is readPartnerInvitations in src/server/workspace/partner-account.ts: the route is its declaration (who
+ * may, how often), the verb is what it does.
  */
 export const GET = read({
   scope: account,
-  handle: async ({ ctx }): Promise<{ invitations: PartnerInvitationDto[] }> => ({
-    invitations: (await getPartnerInvitations(ctx.supabase)).map((i) => ({
-      workspaceId: i.tenantId,
-      workspace: i.workspace,
-      sentAt: i.sentAt,
-      expiresAt: i.expiresAt,
-    })),
-  }),
+  handle: ({ ctx }) => readPartnerInvitations(ctx),
 });

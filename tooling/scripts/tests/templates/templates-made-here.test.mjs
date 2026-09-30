@@ -174,14 +174,20 @@ test("the migration says where a template came from; the graph module lets Meta 
 });
 
 test("the routes: what Meta refuses is refused first; a duplicate name is a conflict; a template a broadcast still uses cannot go; the draft is a draft", () => {
-  const r = readCode("apps/dashboard/app/api/v1/templates/route.ts");
+  const r = readCode(
+    "apps/dashboard/app/api/v1/templates/route.ts",
+    "apps/dashboard/src/server/campaigns/template-submit.ts",
+  );
   assert.ok(
     r.includes("const check = validateTemplateDraft({") &&
       r.includes('if (!check.ok) throw new AppError("validation", check.error);'),
   );
   assert.ok(r.includes('"A template with that name and language already exists. Pick another name."'));
   assert.ok(r.includes("WhatsApp did not accept it: ${r.detail"), "Meta's words reach the person");
-  const del = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
+  const del = readCode(
+    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
+    "apps/dashboard/src/server/campaigns/template-row.ts",
+  );
   assert.ok(
     del.includes('.in("state", ["scheduled", "sending"]);') &&
       del.includes('"A broadcast is still using this template. Cancel it first."'),

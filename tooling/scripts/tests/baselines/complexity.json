@@ -14,21 +14,6 @@
     "branches": 31,
     "depth": 2
   },
-  "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
-    "lines": 90,
-    "branches": 40,
-    "depth": 2
-  },
-  "apps/dashboard/app/api/v1/segments/[id]/route.ts::handle#1": {
-    "lines": 99,
-    "branches": 50,
-    "depth": 3
-  },
-  "apps/dashboard/app/api/v1/templates/route.ts::handle#2": {
-    "lines": 82,
-    "branches": 32,
-    "depth": 2
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
@@ -293,6 +278,21 @@
     "lines": 27,
     "branches": 43,
     "depth": 0
+  },
+  "apps/dashboard/src/server/campaigns/policy-write.ts::changePolicy#1": {
+    "lines": 90,
+    "branches": 40,
+    "depth": 2
+  },
+  "apps/dashboard/src/server/campaigns/template-submit.ts::submitTemplate#1": {
+    "lines": 82,
+    "branches": 32,
+    "depth": 2
+  },
+  "apps/dashboard/src/server/people/list-write.ts::changeSavedList#1": {
+    "lines": 99,
+    "branches": 50,
+    "depth": 3
   },
   "apps/dashboard/src/server/people/lists.ts::cleanListRule#1": {
     "lines": 44,

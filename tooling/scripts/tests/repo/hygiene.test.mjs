@@ -90,7 +90,10 @@ test("F48: one person's profile reads one person's rows; the metrics CTEs are no
 });
 
 test("F51: a cross-site GET of the workspaces reads and writes nothing", () => {
-  const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const route = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(route.includes("isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0"));
   assert.ok(route.includes('from "@/server/request-guards"'));
 });

@@ -196,7 +196,10 @@ test("the wiring: two public paths, the guards on the route, a service role that
     create.includes('await notifyPlatformSignup(data.id, ctx.email ?? "", ctx.userId);'),
     "the mailbox hears about a workspace where workspaces are made",
   );
-  const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
+  const list = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/workspace-list.ts",
+  );
   assert.ok(list.includes("pending: pendingWorkspaceOf(ctx.metadata)"), "nowhere yet comes with what sign-up kept");
   const sql = readRaw("supabase/migrations/00072_signup.sql");
   assert.ok(

@@ -5,9 +5,6 @@
   "apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/app/api/v1/contacts/[id]/route.ts": {
-    "unknownAs": 2
-  },
   "apps/dashboard/app/api/v1/contacts/consent/route.ts": {
     "unknownAs": 1
   },
@@ -20,29 +17,13 @@
   "apps/dashboard/app/api/v1/lead-searches/[id]/more/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/app/api/v1/lead-searches/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": {
-    "unknownAs": 1,
-    "nonNull": 1
-  },
   "apps/dashboard/app/api/v1/playbooks/route.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/app/api/v1/reach-outs/leads/route.ts": {
     "nonNull": 1
   },
-  "apps/dashboard/app/api/v1/segments/[id]/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/segments/route.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/app/api/v1/team/[id]/route.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/app/api/v1/workspaces/route.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/proxy.ts": {
@@ -167,6 +148,10 @@
     "unknownAs": 4,
     "nonNull": 4
   },
+  "apps/dashboard/src/server/campaigns/playbook-row.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
+  },
   "apps/dashboard/src/server/campaigns/playbooks.ts": {
     "unknownAs": 5
   },
@@ -174,6 +159,9 @@
     "unknownAs": 1
   },
   "apps/dashboard/src/server/leads/lead-page.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/server/leads/lead-search-create.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/src/server/leads/lead-searches.ts": {
@@ -187,6 +175,12 @@
   },
   "apps/dashboard/src/server/people/deals.ts": {
     "unknownAs": 1
+  },
+  "apps/dashboard/src/server/people/erase-contact.ts": {
+    "unknownAs": 2
+  },
+  "apps/dashboard/src/server/people/list-write.ts": {
+    "unknownAs": 2
   },
   "apps/dashboard/src/server/people/lists.ts": {
     "nonNull": 1
