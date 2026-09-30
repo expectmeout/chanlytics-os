@@ -10,13 +10,23 @@
  * - "Sep 6 · 3:10" put a call's length where a time reads, and the door said "Open client" (L8).
  * - Rows took a click and nothing else (the Live half of A25); a link could not name a call; and a call
  *   gone quiet said nothing until the checking banner, minutes later.
- * Run against the contracts and the page on a stub React.
+ * Run against the contracts and the page (apps/dashboard/src/surfaces/live, TSX since decision 0015) on the legacy stub
+ * React, its view model handed over the seam and its verbs run for real over a fetch this test holds.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { toLiveVM, toLiveCallVM, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { toLiveVM, toLiveCallVM, liveStillUp, liveBar } from "@chanlytics/contracts";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  quiet,
+  redrawWanted,
+} from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -109,147 +119,71 @@ test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it
 
 /* ------------------------------ the page, drawn ------------------------------ */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
 const flashes = [];
 const went = [];
-globalThis.Icon = "Icon";
-globalThis.StatePill = "StatePill";
-globalThis.StatStrip = "StatStrip";
-globalThis.StatCell = "StatCell";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-};
-globalThis.window = {
-  __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
-  // The chrome bridge, as installShell publishes it: the heartbeat rule the page
-  // re-applies between refreshes is contracts', not a fourth copy of it.
-  __chrome: { liveStillUp, liveBar, fmtClock },
-  __FACTS: { facts: { handoff_number: { value: LINE } } },
-  // The client's answer: the route's body under data (client/api.ts), never flat.
-  __handOverCall: async () => ({ ok: true, data: { ok: true, decision_id: "d2", line: RANG } }),
-  __endCall: async () => ({ ok: true, data: { ok: true, decision_id: "d1" } }),
-  __whisperCall: async () => ({ ok: true, data: {} }),
-  __refreshLive: () => {},
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  gate: () => ({}),
-  CHANLY: { nav: (to) => went.push(to), R: { client: (id) => `clients/${id}` } },
+const sent = [];
+installLegacyReact({
+  __DEMO_MODE: false,
+  CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
-  clearInterval: () => {},
-  addEventListener() {},
-  removeEventListener() {},
-};
-globalThis.document ??= {
-  body: {},
-  addEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.ReactDOM ??= { createPortal: (node) => node };
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of ["Confirm", "EmptyState", "FailedRead"]) globalThis[k] = globalThis.window[k];
-globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
-await import("../../../../../apps/dashboard/src/legacy/pages/live-monitor.jsx");
-const Page = globalThis.window.LiveMonitorPage;
+  clearInterval() {},
+});
+const S = "../../../../../apps/dashboard/src";
+// What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (data-bits.jsx).
+await import(`${S}/legacy/components/data-bits.jsx`);
+// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
+const { StatePill, StatCell, StatStrip } = globalThis;
+const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
+const { hearSurfaces } = await import(`${S}/legacy-bridge/surface-status.ts`);
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
+// The hand-over is the bridge's verb (inbox-verbs.ts), imported by the page and run for real over the client: this is the
+// wire. The client's answer is the route's body under data (client/api.ts), never flat.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  const path = new URL(url, "https://app.chanlytics.com").pathname;
+  sent.push({ method: init.method, path });
+  const data = { ok: true, decision_id: "d2", line: RANG };
+  return new Response(JSON.stringify({ ok: true, data }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
   });
-  return hit;
 };
-const findAll = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
+after(() => {
+  globalThis.fetch = realFetch;
+});
+
+/** Settings' facts as the seam holds them: undefined before Settings has been read. */
+const withFacts = (facts) =>
+  setSurfaceValue("settings", facts === undefined ? undefined : { facts: { facts, conflicts: [] } });
+withFacts({ handoff_number: { value: LINE } });
+const live = (calls, ch = channels) => toLiveVM(calls, ch, ZONE, new Date(NOW));
 const withLive = (calls, ch = channels) => {
-  globalThis.window.__LIVE = toLiveVM(calls, ch, ZONE, new Date(NOW));
-  cells = [];
+  const vm = live(calls, ch);
+  setSurfaceValue("live", vm);
+  fresh();
+  return vm;
 };
-const mount = (props = {}) => {
-  frames.begin();
-  return Page(props);
-};
-const callRows = (tree) => findAll(tree, (n) => n.props?.["data-call-id"] && n.props?.["data-testid"] === "live-row");
+const mount = (props = {}) => again(() => LivePage(props));
+const callRows = (tree) => all(tree, (n) => n.props?.["data-call-id"] && n.props?.["data-testid"] === "live-row");
+const headName = (tree) => find(tree, (n) => n.props?.className === "lm-head-name");
+const headMeta = (tree) => find(tree, (n) => n.props?.className === "lm-head-meta");
+const pressIn = (node) => node.props.onClick();
 
 test("REGRESSION (A20, L8): an ended call's card leads with what the caller wanted, says what to do next, and gives its length in words beside the time", () => {
-  withLive([ended()]);
+  const vm = withLive([ended()]);
   const tree = mount();
-  const vm = globalThis.window.__LIVE.recent[0];
   const card = byTestId(tree, "live-summary");
   assert.match(
     textOf(card),
     /Wants to book a bridal trial on October 3/,
     "REGRESSION: the card led with the provider's summary",
   );
-  assert.ok(textOf(card).includes(vm.outcomeWords), "how it ended");
+  assert.ok(textOf(card).includes(vm.recent[0].outcomeWords), "how it ended");
   assert.match(textOf(card), /To do: Call Emily back to confirm the bridal trial/);
-  const meta = textOf(find(tree, (n) => n.props?.className === "lm-head-meta"));
+  const meta = textOf(headMeta(tree));
   assert.match(meta, / · 3 min 10 sec/);
   assert.doesNotMatch(meta, /· 3:10/, "REGRESSION: 'Sep 6 · 3:10' put a length where a time reads");
   assert.ok(
@@ -257,6 +191,9 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
     "the door names what it opens",
   );
   assert.ok(!textOf(tree).includes("Open client"));
+  went.length = 0;
+  find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")).props.onClick();
+  assert.deepEqual(went, ["clients/c7"], "and it opens the person's page");
 });
 
 test("REGRESSION: who is calling opens their page, and their number rings them -- the name was words beside an Open profile button, and the number words to type again", () => {
@@ -333,36 +270,41 @@ test("REGRESSION (A16): when the line could not be read, the page says so -- not
 test("REGRESSION (A20): the hand-over's toast names the line the server rang, which the client nests under data", async () => {
   withLive([call()]);
   const before = flashes.length;
-  await byTestId(mount(), "live-hand-over").props.onClick();
+  await pressIn(byTestId(mount(), "live-hand-over"));
   const said = flashes
     .slice(before)
     .map((m) => textOf(m.msg))
     .join(" ");
   assert.ok(said.includes(RANG), `REGRESSION: the toast named the line from Settings, not the one rung: ${said}`);
+  assert.ok(!said.includes(LINE), "and not the line Settings holds");
+  assert.deepEqual(
+    sent.map((r) => [r.method, r.path]),
+    [["POST", "/api/v1/calls/c-live/hand-over"]],
+    "the verb asked the route for this call",
+  );
 });
 
 test("REGRESSION (A20): before Settings has been read, Pass the call to me stays pressable -- the server knows the line; only a line known to be missing disables it", () => {
   withLive([call()]);
-  const facts = globalThis.window.__FACTS;
   try {
-    globalThis.window.__FACTS = undefined;
+    withFacts(undefined);
     const unread = byTestId(mount(), "live-hand-over");
     assert.equal(unread.props.disabled, false, "REGRESSION: it said to add a line the workspace may well have");
     assert.ok(!String(unread.props.title).includes("Add the business's own line"));
-    globalThis.window.__FACTS = { facts: {} };
-    cells = [];
+    withFacts({});
+    fresh();
     const none = byTestId(mount(), "live-hand-over");
     assert.equal(none.props.disabled, true, "a line known to be missing still disables it");
     assert.ok(String(none.props.title).includes("Settings"));
   } finally {
-    globalThis.window.__FACTS = facts;
+    withFacts({ handoff_number: { value: LINE } });
   }
 });
 
 test("a link names the call it opens, and a call not among these says so, with a door to its transcript", () => {
   withLive([call(), ended()]);
   assert.match(
-    textOf(find(mount({ initialCallId: "c-done" }), (n) => n.props?.className === "lm-head-name")),
+    textOf(headName(mount({ initialCallId: "c-done" }))),
     /Emily Chen/,
     "the linked call opens, not the one on the line",
   );
@@ -386,13 +328,12 @@ test("REGRESSION: a call you opened that Live no longer holds says so -- the pan
   withLive([call(), ada]);
   const rows = callRows(mount());
   rows.find((r) => r.props["data-call-id"] === "c-live-2").props.onClick();
-  const head = (tree) => find(tree, (n) => n.props?.className === "lm-head-name");
-  assert.match(textOf(head(mount())), /Ada Byron/, "Ada's call is open");
+  assert.match(textOf(headName(mount())), /Ada Byron/, "Ada's call is open");
   // The next read no longer holds it: the page keeps what was chosen (the state is not reset, as a re-read's is not).
-  globalThis.window.__LIVE = toLiveVM([call()], channels, ZONE, new Date(NOW));
+  setSurfaceValue("live", live([call()]));
   const tree = mount();
-  assert.equal(head(tree), undefined, "REGRESSION: Rosa's call opened in Ada's place");
-  assert.equal(byTestId(tree, "live-hand-over"), undefined, "and no other call's controls stand under the notice");
+  assert.equal(headName(tree), null, "REGRESSION: Rosa's call opened in Ada's place");
+  assert.equal(byTestId(tree, "live-hand-over"), null, "and no other call's controls stand under the notice");
   assert.match(textOf(byTestId(tree, "live-missing")), /has ended, and Live no longer holds it/);
   find(
     byTestId(tree, "live-missing"),
@@ -422,10 +363,10 @@ test("the call open is the address's: a row opens it by replacing the address, n
       [["live/c-live-2", { replace: true }]],
       "replaced: Back leaves Live rather than replaying every call looked at",
     );
-    const head = (tree) => textOf(find(tree, (n) => n.props?.className === "lm-head-name"));
-    // The shell hands the page the address it asked for (the page stays mounted: its row's `mount`, app-routes.jsx).
+    const head = (tree) => textOf(headName(tree));
+    // The shell hands the page the address it asked for (the page stays mounted: its route's `mount`, surfaces/live/routes.ts).
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "the address names the call on screen");
-    cells = [];
+    fresh();
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");
   } finally {
     globalThis.window.appNavigate = keep;
@@ -434,13 +375,9 @@ test("the call open is the address's: a row opens it by replacing the address, n
 
 test("a call gone quiet says when it was last heard from, before the checking banner minutes later", () => {
   withLive([call({ updated_at: iso(40_000) })]);
-  assert.match(textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")), /last heard 4\d s ago/);
+  assert.match(textOf(headMeta(mount())), /last heard 4\d s ago/);
   withLive([call({ updated_at: iso(2_000) })]);
-  assert.doesNotMatch(
-    textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")),
-    /last heard/,
-    "a call heard from seconds ago needs no line about it",
-  );
+  assert.doesNotMatch(textOf(headMeta(mount())), /last heard/, "a call heard from seconds ago needs no line about it");
 });
 
 /* --------------------------- the shell's live bar --------------------------- */
@@ -514,10 +451,10 @@ test("the list is who is on the phone right now: a finished call is no row here,
   );
   assert.equal(
     find(tree, (n) => n.type === "table"),
-    undefined,
+    null,
     "no table at all: the rows are the Inbox's shape",
   );
-  assert.equal(byTestId(tree, "recent-row"), undefined);
+  assert.equal(byTestId(tree, "recent-row"), null);
 });
 
 test("a row says who, how long, and what they last said -- in the Inbox's three lines", () => {
@@ -528,7 +465,7 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
   assert.match(text, /1:3\d/, "the running clock, from the call's real start");
   assert.match(text, /“Hi, is Marisa in today\?”/, "the caller's own last words, not the receptionist's");
   assert.ok(
-    find(row, (n) => n.type === "StatePill" && n.props.value === "live"),
+    find(row, (n) => n.type === StatePill && n.props.value === "live"),
     "and the live pill",
   );
   // The receptionist usually has the last word -- the row still quotes the caller, which is what the call is about.
@@ -572,14 +509,15 @@ test("with nobody on the line the list says what the line is doing and opens Con
 test("the work first: no title, no sub-headline, no stat cards above the calls", () => {
   withLive([call(), ended()]);
   const tree = mount();
+  assert.ok(StatCell && StatStrip, "the shell's stat cards are there to be drawn, and this page draws neither");
   assert.equal(
-    find(tree, (n) => n.type === "StatCell" || n.type === "StatStrip"),
-    undefined,
+    find(tree, (n) => n.type === StatCell || n.type === StatStrip),
+    null,
     "REGRESSION: three cards said what the list and the panel already say",
   );
   assert.equal(
     find(tree, (n) => n.props?.className === "cl-page-title"),
-    undefined,
+    null,
   );
   assert.ok(
     find(tree, (n) => n.props?.className === "lm-body lm-body-rows"),
@@ -590,7 +528,7 @@ test("the work first: no title, no sub-headline, no stat cards above the calls",
 test("a door that names a finished call still opens it here, and one Live no longer holds says so", () => {
   withLive([call(), ended()]);
   assert.match(
-    textOf(find(mount({ initialCallId: "c-done" }), (n) => n.props?.className === "lm-head-name")),
+    textOf(headName(mount({ initialCallId: "c-done" }))),
     /Emily Chen/,
     "the bar and Today's links open the call they name",
   );
@@ -601,4 +539,54 @@ test("a door that names a finished call still opens it here, and one Live no lon
     /has ended, and Live no longer holds it/,
     "REGRESSION: it counted the calls 'shown here', which the list no longer shows",
   );
+});
+
+/* ------------------------ what the page draws, and where from ------------------------ */
+// The page draws again when its surface moves: its calls read again, a turn, an end (the override says so on "surface:live",
+// which the frame counts against the surface's key before React draws: hearSurfaces over the overrides' own events).
+
+test("the page is drawn again when the live surface moves, and shows what the read now holds", () => {
+  withLive([call()]);
+  assert.equal(callRows(mount()).length, 1);
+  quiet();
+  setSurfaceValue("live", live([call(), call({ id: "c-live-2", contact: { display_name: "Ada Byron" } })]));
+  assert.equal(redrawWanted(), false, "a value nobody has said moved is not yet a reason to draw");
+  const stop = hearSurfaces([liveOverride], globalThis);
+  try {
+    globalThis.window.dispatchEvent({ type: "surface:today" });
+    assert.equal(redrawWanted(), false, "another surface's read is not this page's");
+    globalThis.window.dispatchEvent({ type: liveOverride.events[0] });
+    assert.equal(redrawWanted(), true, "the surface's own event is a reason to draw again");
+  } finally {
+    stop();
+  }
+  assert.equal(callRows(mount()).length, 2, "and the next draw is the new read");
+});
+
+// The route draws the real page whenever the surface holds a value, a demo session draws the same page over a contracts
+// sample (surfaces/live/sample.ts: the mockup's scripted console is gone), and a session with neither draws nothing.
+
+test("the page draws what the surface holds; before its first read nothing, and in a demo session the sample", () => {
+  withLive([call()]);
+  assert.ok(byTestId(mount(), "live-real"), "a value the surface holds is the page");
+  setSurfaceValue("live", undefined);
+  fresh();
+  assert.equal(mount(), null, "before the first read of a real workspace the page draws nothing");
+  globalThis.window.__DEMO_MODE = true;
+  try {
+    fresh();
+    const tree = mount();
+    assert.ok(byTestId(tree, "live-real"), "a demo session draws the one Live page");
+    assert.deepEqual(
+      callRows(tree).map((r) => textOf(find(r, (n) => n.props?.className === "lm-row-who"))),
+      ["Rosa Díaz"],
+      "over the sample's call on the line, not a customer's",
+    );
+    assert.ok(byTestId(tree, "live-controls"), "with the controls a live call has");
+    setSurfaceValue("live", live([]));
+    fresh();
+    assert.equal(callRows(mount()).length, 0, "a value the surface holds wins over the sample, even an empty one");
+  } finally {
+    globalThis.window.__DEMO_MODE = false;
+  }
 });

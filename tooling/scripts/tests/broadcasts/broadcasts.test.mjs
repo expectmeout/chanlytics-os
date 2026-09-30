@@ -23,6 +23,7 @@ import {
   eligibleFor,
   emptyAudienceRefusal,
   mayReceive,
+  numberHealth,
   renderTemplate,
   toBroadcastVM,
   whenLabel,
@@ -30,6 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { installLegacyReact, fresh as freshTree, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -563,13 +565,133 @@ test("the routes: an approved template, values Meta accepts, an audience crossed
   );
 });
 
-test("the surface and the page: Broadcasts is real, fed by the same rules, and the seeded page keeps the demo", async () => {
+/* ---- the page, drawn: TSX (surfaces/campaigns/broadcasts) on a stub React, over the values the seam holds ---- */
+
+const went = [];
+installLegacyReact({
+  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: TID,
+  usePPToast: () => [null, () => {}],
+  CHANLY: { nav: (to) => went.push(to) },
+  __ME: { role: "owner" },
+  canDo: () => true,
+  gate: () => ({}),
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+  __DEMO_MODE: false,
+});
+const SRC = "../../../../apps/dashboard/src";
+// What the shell still owns and the page draws by name: Confirm, StatePill.
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
+
+const marketing = {
+  id: "tpl-m",
+  name: "spring_offer",
+  language: "en_US",
+  channel: "whatsapp",
+  meta_status: "approved",
+  category: "MARKETING",
+  purpose: "marketing",
+  body_preview: "Hi {{1}}, spring is here.",
+  variables: [{ position: 1, label: "First name" }],
+};
+const utility = { ...marketing, id: "tpl-u", name: "visit_note", category: "UTILITY", purpose: "conversational" };
+/** Who a send to an audience reaches, as the surface keeps them (contracts AudiencePreview): a few of them, and the counts. */
+const reach = (sending, saidYes) => ({
+  people: sending > 0 ? [{ id: "k1", label: "Ada Lovelace", firstName: "Ada", refusal: null }] : [],
+  sending,
+  held: 0,
+  saidYes,
+  heard: 0,
+});
+/** An audience the page offers, counted for each purpose as the surface counts it: a message and an offer each need their own yes. */
+const audienceOf = (id, label, counts, saidYes = counts) => ({
+  kind: "saved",
+  id,
+  label,
+  hint: `${label}, of those whose yes covers this message`,
+  counts,
+  preview: {
+    conversational: reach(counts.conversational, saidYes.conversational),
+    marketing: reach(counts.marketing, saidYes.marketing),
+  },
+});
+const REGULARS = audienceOf("s-regulars", "Regulars", { conversational: 3, marketing: 2 });
+const NOBODY = audienceOf("s-nobody", "New this week", { conversational: 0, marketing: 0 });
+const RUN = toBroadcastVM(
+  {
+    id: "b1",
+    name: "Spring offer · Sep 5",
+    template_id: "tpl-m",
+    template_name: "spring_offer",
+    template_language: "en_US",
+    params: [{ kind: "first_name" }],
+    audience: { kind: "saved", id: "s-regulars", label: "Regulars" },
+    state: "sent",
+    scheduled_for: "2026-09-05T13:00:00Z",
+    started_at: "2026-09-05T13:00:00Z",
+    finished_at: "2026-09-05T13:02:00Z",
+    recipient_count: 2,
+    failure: null,
+    created_at: "2026-09-05T12:50:00Z",
+    playbook_id: null,
+    run_for: null,
+    counts: { queued: 0, sent: 2, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
+  },
+  ZONE,
+);
+const GOOD_NUMBER = {
+  present: true,
+  display: "+1 305-555-0100",
+  health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+};
+/** The Broadcasts surface as a workspace that has read its own holds it (surface.ts BroadcastsSurface). */
+const surfaceOf = (over = {}) => ({
+  rows: [RUN],
+  templates: [marketing],
+  listsRead: true,
+  audiences: [REGULARS],
+  number: GOOD_NUMBER,
+  heldReasons: {},
+  chunk: 25,
+  replyWindow: "within 3 days",
+  optIn: {
+    phrase: "YES OFFERS",
+    phraseEs: "SI OFERTAS",
+    link: "https://wa.me/13055550100?text=YES%20OFFERS",
+    qrPath: "/api/v1/consent/qr",
+    pageUrl: "https://app.chanlytics.com/yes/studio",
+  },
+  getYes: "broadcasts/get-yes",
+  businessName: "Northside Studio",
+  bookingLink: false,
+  offersNote: OFFERS_BY_WHATSAPP_NOTE,
+  more: false,
+  scheduleMaxDays: 30,
+  fetchedAt: 1,
+  ...over,
+});
+/** The page drawn afresh over a surface: a link that names a list opens the send screen on it, none opens the ledger. */
+const drawn = (props = {}, over = {}) => {
+  setSurfaceValue("broadcasts", surfaceOf(over));
+  freshTree();
+  return BroadcastsPage(props);
+};
+const compose = (over = {}) => drawn({ initialSegment: "s-regulars" }, over);
+const chipOf = (tree) =>
+  textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active")))
+    .replace(/\s+/g, " ")
+    .trim();
+
+test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
   const reg = await import(
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
   );
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
-  const s = readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.ok(s.includes('key: "broadcasts",'));
   // BOTH sizes per audience, because there is no one number any more: the chip's
   // count depends on the purpose of the template the composer has selected, which
@@ -585,52 +707,61 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   );
   assert.ok(
     s.includes(".map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }))"),
-    "the purpose is stamped by the bridge, never decided in a .jsx",
+    "the purpose is stamped by the surface, never decided in the page",
   );
   assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
-  assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts.jsx";'),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsSeed;"),
-  );
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
-  for (const id of [
-    "broadcasts-real",
-    "bc-audience",
-    "bc-no-template",
-    "bc-preview",
-    "bc-send",
-    "bc-nobody",
-    // bc-open and bc-history are the ledger's (broadcasts-ledger.jsx, Reach out Part 2.5); broadcasts-honest draws them.
-  ]) {
-    assert.ok(p.includes(`data-testid="${id}"`), id);
+  // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
+  assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
+
+  // The demo keeps the page: a session that declared itself a demo draws the sample through it; a real workspace that
+  // has read nothing draws nothing, never the sample.
+  setSurfaceValue("broadcasts", undefined);
+  assert.equal(BroadcastsPage({}), null, "nothing read, nothing drawn");
+  globalThis.__DEMO_MODE = true;
+  try {
+    freshTree();
+    const demo = BroadcastsPage({});
+    assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page");
+    assert.ok(textOf(byTestId(demo, "bc-runs")).includes("A quick note"), "over the sample's runs");
+    assert.ok(byTestId(demo, "bc-new"), "on its ledger, one press from a send");
+  } finally {
+    globalThis.__DEMO_MODE = false;
   }
+
+  const composer = compose();
+  for (const id of ["broadcasts-real", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
   // The template picker is one component across both composers, so the page
   // names its chips rather than spelling the attribute.
-  assert.ok(
-    p.includes('<window.TemplateChips templates={templates} value={tplId} onPick={setTplId} testid="bc-template" />'),
-    "bc-template",
-  );
+  assert.ok(byTestId(composer, "bc-template"), "bc-template");
+  assert.ok(byTestId(compose({ templates: [] }), "bc-no-template"), "no approved template says so");
   // The empty-audience line names WHICH yes is missing and where to record it. It
   // used to say "said yes to offers" for every template, which for a `utility` one
   // sent the owner to record a consent that message does not need.
-  assert.ok(p.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"));
+  const nobody = { audiences: [NOBODY] };
+  const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
   assert.ok(
-    p.includes('purpose === "marketing"'),
-    "the page reads the purpose the bridge stamped, and does not decide it",
+    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
+    offers,
   );
-  assert.ok(
-    p.includes("const sizeOf = (a) => (a && a.counts ? (a.counts[purpose] || 0) : 0);"),
-    "one place reads the count, for the chosen purpose",
+  const messages = textOf(
+    byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
   );
-  assert.ok(!/active\.count\b/.test(p), "REGRESSION: a single purpose-blind count is back");
-  assert.ok(!/credits|Booked from broadcasts|\$\d/.test(p), "nothing invented: no credits, no revenue");
+  assert.ok(messages.includes("has said yes to messages yet") && !/yes to offers/.test(messages), messages);
+  // The count on a chip is the one for the chosen template's purpose: an offer needs the separate yes, a message does not.
+  assert.equal(chipOf(compose()), "Regulars 2", "an offer reaches those who said yes to offers");
+  assert.equal(
+    chipOf(compose({ templates: [utility] })),
+    "Regulars 3",
+    "a message reaches everyone whose yes covers it",
+  );
+  // Nothing invented: no credits, no revenue, on the send screen or the ledger.
+  for (const tree of [composer, drawn()])
+    assert.ok(!/credits|Booked from broadcasts|\$\d/.test(textOf(tree)), "nothing the schema has no column for");
 });
 
 test("the number's health: what WhatsApp said decides what may be sent; nothing reported is said so", async () => {
-  const { numberHealth, overLimitRefusal, dailyLimit } = await import("@chanlytics/contracts");
+  const { overLimitRefusal, dailyLimit } = await import("@chanlytics/contracts");
   assert.equal(dailyLimit("TIER_1K"), 1000);
   assert.equal(dailyLimit("tier_250"), 250);
   assert.equal(dailyLimit(null), null);
@@ -662,18 +793,39 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
+  const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.match(
     sd,
     /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
-  // bc-detail, bc-person and bc-open-who are a run's and the ledger's (broadcasts-run.jsx, broadcasts-ledger.jsx);
-  // broadcasts-honest and runs-honest draw them.
-  for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit"])
-    assert.ok(p.includes(`data-testid="${id}"`), id);
-  assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
+  // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
+  // broadcasts-honest and runs-honest draw them. The number the send goes from, on the send screen: what WhatsApp says
+  // of it, why it may not send, and the button that follows it.
+  const numberOn = (health, over = {}) =>
+    compose({ number: { present: true, display: "+1 305-555-0100", health }, ...over });
+  const send = (tree) => byTestId(tree, "bc-send");
+  const ok = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }));
+  assert.ok(byTestId(ok, "bc-number"), "the number is said");
+  assert.equal(byTestId(ok, "bc-number-refusal"), null);
+  assert.equal(byTestId(ok, "bc-over-limit"), null);
+  assert.equal(
+    send(ok).props.disabled,
+    false,
+    "a number that may send, an audience inside its limit: the button is live",
+  );
+  const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
+  assert.ok(textOf(byTestId(flagged, "bc-number-refusal")).includes("flagged"), "why it may not send");
+  assert.equal(send(flagged).props.disabled, true, "the button follows the number");
+  const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
+  const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });
+  assert.ok(textOf(byTestId(over, "bc-over-limit")).includes("up to 250"), "an audience past the day's limit says so");
+  assert.equal(send(over).props.disabled, true, "and the button follows the limit too");
+  const none = compose({
+    number: { present: false, display: null, health: numberHealth({ quality: null, event: null, limit: null }) },
+  });
+  assert.ok(textOf(byTestId(none, "bc-number")).includes("No WhatsApp number connected"));
+  assert.equal(send(none).props.disabled, true, "no number, nothing to send from");
   const vm = readCode("packages/contracts/src/conversations/message-author.ts");
   assert.ok(
     vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
@@ -685,7 +837,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "the thread says which broadcast, or which playbook",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/broadcast-verbs.ts").includes(
+    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts").includes(
       "window.__refreshBroadcasts = refreshBroadcasts;",
     ),
   );
@@ -715,29 +867,49 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
     "the code encodes one link and nothing a caller chooses",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts").includes(
+    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts").includes(
       'qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,',
     ),
   );
-  const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
+  const ledger = drawn();
+  const optIn = byTestId(ledger, "bc-optin");
+  assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the section, and the link to copy");
   assert.ok(
-    p.includes('data-testid="bc-optin"') &&
-      p.includes('data-testid="bc-optin-copy"') &&
-      p.includes('download="say-yes-to-offers.svg"'),
+    find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"),
+    "the QR downloads as the file the owner prints",
   );
   // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the
   // page, where the composer is and this section is below the fold, and three printed it beside a disabled
   // button. broadcasts/get-yes lands on the section itself.
   assert.ok(
-    p.includes('<section id="bc-optin" className="ct-section bc-optin"') &&
-      p.includes('document.getElementById("bc-optin")'),
-    "the door lands on the QR, not above it",
+    optIn.props.id === "bc-optin" && String(optIn.props.className).includes("ct-section bc-optin"),
+    "the section carries the anchor the door goes to",
+  );
+  const scrolled = [];
+  const fold = { open: false };
+  const keep = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) =>
+    id === "bc-optin" ? { querySelector: () => fold, scrollIntoView: (o) => scrolled.push(o) } : null;
+  try {
+    drawn({ initialYes: true });
+  } finally {
+    globalThis.document.getElementById = keep;
+  }
+  assert.deepEqual(
+    [fold.open, scrolled],
+    [true, [{ block: "start" }]],
+    "the door lands on the QR, opened, not above it",
   );
   // And the QR reaches the desk: a bare code printed says nothing about whose messages or how to stop them, and
   // the .svg it downloaded as is a file most owners cannot open. The sign is the code with those words, one sheet.
-  assert.ok(
-    p.includes("href={`${data.optIn.pageUrl}/sign`}") &&
-      p.includes('data-testid="bc-optin-sign">Print a desk sign</a>'),
+  const sign = byTestId(ledger, "bc-optin-sign");
+  assert.equal(sign.props.href, "https://app.chanlytics.com/yes/studio/sign");
+  assert.equal(textOf(sign), "Print a desk sign");
+  assert.deepEqual(
+    all(optIn, (n) => ["bc-optin-sign", "bc-optin-copy"].includes(n.props?.["data-testid"])).map(
+      (n) => n.props["data-testid"],
+    ),
+    ["bc-optin-sign", "bc-optin-copy"],
     "the section's first button prints the sign",
   );
 });

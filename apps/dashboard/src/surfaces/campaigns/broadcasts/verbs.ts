@@ -16,19 +16,21 @@ import {
   saidYesWords,
   toApprovalVM,
   toRunReportVM,
+  type AudienceKind,
   type BroadcastDetailDto,
+  type ParamSpec,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import { api } from "./api";
-import { readCache } from "./read-cache";
-import type { ApiResult, Output } from "../client/api";
-import { broadcastsOverride } from "./surfaces/broadcasts";
-import { refreshSurfaces } from "./surface-runner";
+import { api } from "@/legacy-bridge/api";
+import { readCache } from "@/legacy-bridge/read-cache";
+import type { ApiResult, Output } from "@/client/api";
+import { broadcastsOverride } from "./surface";
+import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 
 export interface SendBody {
   template_id: string;
-  params: string[];
-  audience: { kind: "everyone" | "list" | "saved"; id: string | null };
+  params: ParamSpec[];
+  audience: { kind: AudienceKind; id: string | null };
   scheduled_for?: string | null;
   name?: string | null;
 }

@@ -145,7 +145,8 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const realConsoleError = console.error;
 console.error = () => {};
-const { broadcastsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
+const { broadcastsOverride } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+const { surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 console.error = realConsoleError;
 
 /**
@@ -186,24 +187,24 @@ test("REGRESSION: an audience counts every page of people -- it counted the firs
   const offsets = wire();
   await broadcastsOverride.apply();
   assert.deepEqual(offsets, [0, 1], "the second page of people was read before counting");
-  const everyone = globalThis.window.__BROADCASTS.audiences.find((a) => a.kind === "everyone");
+  const everyone = surfaceValue("broadcasts").audiences.find((a) => a.kind === "everyone");
   assert.equal(everyone.counts.marketing, 2, JSON.stringify(everyone.counts));
 });
 
 test("the surface carries the route's word that more than fifty broadcasts exist", async () => {
   wire({ more: true });
   await broadcastsOverride.apply();
-  assert.equal(globalThis.window.__BROADCASTS.more, true);
+  assert.equal(surfaceValue("broadcasts").more, true);
   wire({ more: false });
   await broadcastsOverride.apply();
-  assert.equal(globalThis.window.__BROADCASTS.more, false);
+  assert.equal(surfaceValue("broadcasts").more, false);
 });
 
 test("the surface says where a yes is got, in contracts' one spelling -- the send screen's 'nobody has said yes' is a door there", async () => {
   const { GET_YES_ROUTE } = await import("@chanlytics/contracts");
   wire();
   await broadcastsOverride.apply();
-  assert.equal(globalThis.window.__BROADCASTS.getYes, GET_YES_ROUTE);
+  assert.equal(surfaceValue("broadcasts").getYes, GET_YES_ROUTE);
 });
 
 test("REGRESSION: an audience says, per purpose, how many on it said yes, a number or not -- the send screen read a yes with no number as nobody having said yes", async () => {
@@ -238,7 +239,7 @@ test("REGRESSION: an audience says, per purpose, how many on it said yes, a numb
     ],
   });
   await broadcastsOverride.apply();
-  const { audiences } = globalThis.window.__BROADCASTS;
+  const { audiences } = surfaceValue("broadcasts");
   const option = (id) => audiences.find((a) => a.id === id);
   /** For one purpose: how many the send reaches (the chip), and how many said yes to what it needs. */
   const sizes = (a, purpose) => [a.counts[purpose], a.preview[purpose].saidYes];
@@ -270,13 +271,15 @@ test("an archived list is offered to no new broadcast: it is off People's rail, 
   });
   await broadcastsOverride.apply();
   assert.deepEqual(
-    globalThis.window.__BROADCASTS.audiences.filter((a) => a.kind === "saved").map((a) => a.id),
+    surfaceValue("broadcasts")
+      .audiences.filter((a) => a.kind === "saved")
+      .map((a) => a.id),
     ["s1"],
   );
 });
 
 test("the verbs publish the words for a list whose yeses have no number to send to -- People's, from contracts (#663)", async () => {
-  const { broadcasts } = await import("../../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
+  const { broadcasts } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
   assert.equal(typeof broadcasts.noNumberWords, "function", "the send screen's words for it");
   assert.equal(
     broadcasts.noNumberWords("“Regulars”", "marketing"),
@@ -289,7 +292,7 @@ test("the verbs publish the words for a list whose yeses have no number to send 
 });
 
 test("the verbs publish how many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it", async () => {
-  const { broadcasts } = await import("../../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
+  const { broadcasts } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
   assert.equal(typeof broadcasts.saidYesWords, "function", "the send screen's words for it");
   assert.equal(
     broadcasts.saidYesWords("“Regulars”", "marketing", 0, 1),

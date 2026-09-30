@@ -11,11 +11,21 @@
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
+import type { SetupSurface } from "../legacy-bridge/setup";
+import type { ApiResult } from "../client/api";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
-interface LegacyFlash {
+export interface LegacyFlash {
   tone?: string;
   msg: ReactNode;
+  /** One act beside the words (an Undo that is not the toast's own, a way on): pressing it closes the toast. */
+  action?: { label: string; onClick: () => unknown } | null;
+  /** Doors to a route, each a button that closes the toast and goes there. */
+  links?: { label: string; to: string }[];
+  undo?: () => void;
+  ms?: number;
+  icon?: string;
+  once?: string;
 }
 
 declare global {
@@ -357,4 +367,51 @@ export function askOnScreenKey(): string | null {
 /** Ask for the one deal sheet (components/deal-sheet.jsx); nothing where the shell has none. */
 export function openDealSheet(ask: DealSheetAsk): void {
   window.openDealSheet?.(ask);
+}
+
+declare global {
+  interface Window {
+    appNavigate?: (route: string, opts?: { replace?: boolean }) => void;
+  }
+}
+
+/**
+ * Say where the page stands without a new entry in the history (`appNavigate(route, { replace: true })`): the address is
+ * replaced by the route, and Back leaves the page rather than replaying every item it opened.
+ */
+export function replaceRoute(route: string): void {
+  window.appNavigate?.(route, { replace: true });
+}
+
+/** Who is acting, as the workspace read said (`window.__ME`); null before it lands. */
+export function meNow(): { id?: string | null; role?: string | null; display_name?: string | null } | null {
+  type Me = { id?: string | null; role?: string | null; display_name?: string | null };
+  return (window as Window & { __ME?: Me | null }).__ME ?? null;
+}
+
+/** What Setup read (`window.__SETUP.dto`), or null before it lands and where its read failed. */
+export function setupDto(): SetupSurface["dto"] | null {
+  return (window.__SETUP && window.__SETUP.dto) || null;
+}
+
+/** Whether Setup's read failed (`window.__SETUP` is null, where before its first read it is undefined). */
+export function setupFailed(): boolean {
+  return window.__SETUP === null;
+}
+
+/** Whether the surface a route draws from failed to read (`window.__surfaceFailed`): where the registry has none, no. */
+export function surfaceFailed(page: string, param?: string | null): boolean {
+  const failed = (window as Window & { __surfaceFailed?: (page: string, param?: string | null) => boolean })
+    .__surfaceFailed;
+  return !!(failed && failed(page, param));
+}
+
+/** People's list verbs (`window.__lists`): whether they are there, and an archived list put back on the rail. */
+export function canRestoreList(): boolean {
+  return !!window.__lists;
+}
+export function restoreList(id: string | null): Promise<ApiResult<unknown>> {
+  // The card offers it only where canRestoreList() says so; an id of null is the list the playbook lost, which the door refuses.
+  if (!window.__lists) return Promise.reject(new Error("People's lists are not read here"));
+  return window.__lists.restore(id as string);
 }

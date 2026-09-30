@@ -4,7 +4,7 @@
  * snooze, reply and the bulk bar) moved with it to src/surfaces/inbox/verbs.ts (decision 0015, step 3). Business logic
  * stays server-side: this is a courier.
  */
-import { liveOverride } from "./surfaces/live";
+import { liveOverride } from "@/surfaces/live/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";

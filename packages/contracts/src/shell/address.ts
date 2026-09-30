@@ -30,7 +30,12 @@ export interface AddressParts {
  * A surface takes its word as it leaves the shell (decision 0015, condition 6): its row is added here with the surface,
  * and the shell's table, its links and its tests go on saying the route's own name until the frame's step retires it.
  */
-export const ROUTE_WORDS: Readonly<Record<string, string>> = { clients: "people", segments: "lists" };
+export const ROUTE_WORDS: Readonly<Record<string, string>> = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates",
+};
 
 const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
 

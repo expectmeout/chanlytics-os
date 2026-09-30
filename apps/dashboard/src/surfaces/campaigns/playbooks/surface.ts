@@ -4,7 +4,7 @@
  * (../surface-data.ts).
  */
 
-import { read } from "../api";
+import { read } from "@/legacy-bridge/api";
 import {
   PEOPLE_LISTS,
   REPLY_WINDOW_WORDS,
@@ -19,10 +19,14 @@ import {
   triggerOffered,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "../surface-data";
-import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
-import { onlyOnItsPage } from "../surface-registry";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
+import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+
+// The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
+declareSurfaceValue("playbooks", "__PLAYBOOKS");
 
 /* ------------------------------- Playbooks ------------------------------- */
 
@@ -69,6 +73,8 @@ export interface PlaybookCardVM extends PlaybookDto {
   named: PlaybookNamed | null;
   /** Why it runs nothing here, where its moment is not offered (a proposal follow-up where deals are off, 0006). */
   off: string | null;
+  /** Its list was archived (00169): paused until the list is restored or the playbook moved to another. */
+  listArchived?: boolean;
 }
 
 /**
@@ -145,7 +151,7 @@ export interface PlaybooksSurface {
  */
 export const playbooksOverride: SurfaceOverride = {
   key: "playbooks",
-  globals: ["__PLAYBOOKS"],
+  value: "playbooks",
   events: ["surface:playbooks"],
   refreshOnMessageInserts: true,
   // A message moves a playbook's replies: read again only while its page is on screen, and once when it comes back
@@ -201,7 +207,7 @@ export const playbooksOverride: SurfaceOverride = {
     const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
-    (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
+    setSurfaceValue("playbooks", {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
         const onArchived = p.trigger === "saved_list" && !!listsKept.find((l) => l.id === p.list_id)?.archived;
@@ -259,6 +265,6 @@ export const playbooksOverride: SurfaceOverride = {
       bookingLink: !!brain?.booking_link,
       replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),
-    };
+    });
   },
 };

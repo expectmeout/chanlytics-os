@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { routeOf } from "./address";
 
 /**
  * Live, on a real workspace.
@@ -99,5 +100,45 @@ test.describe("Live on a real workspace", () => {
     const tab = page.locator(".stabs-tab", { hasText: "Live" });
     await expect(tab).toBeVisible();
     await expect(tab.locator(".live-dot")).toHaveCount(liveRows > 0 ? 1 : 0);
+  });
+  /**
+   * Live is a page of its own (decision 0015, step 8): an App Router page at /w/<slug>/live, and a call a door names is an
+   * address under it (/w/<slug>/live/<call>), which the page follows and writes back as it opens calls (replaced, never
+   * pushed). The frame draws its chrome around the page: the Inbox's Live tab lit, its crumbs the Inbox and Live.
+   */
+  test("Live is a page of its own on its path: it boots there, the frame around it, and the router walks it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
+    const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
+    if (!slug) throw new Error(`the home sent this tab somewhere with no workspace in it: ${page.url()}`);
+
+    // A load of the path boots the frame with Inbox lit and Live's page drawn inside it.
+    await page.goto("/api/version");
+    await page.goto(`/w/${slug}/live`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Inbox");
+    await expect(page.getByTestId("live-real")).toBeVisible();
+    expect(routeOf(page.url())).toBe("live");
+
+    // Away to a route the frame's own table draws, and Back: the router lands on Live again.
+    await page.locator(".nav-item", { hasText: "Today" }).click();
+    await expect.poll(() => routeOf(page.url())).toBe("today");
+    await expect(page.getByTestId("live-real")).toHaveCount(0);
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toBe("live");
+    await expect(page.getByTestId("live-real")).toBeVisible();
+
+    // The hash address emails and bells say still lands, and moves to the path.
+    await page.goto(`/w/${slug}#/live`);
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/live`);
+    await expect(page.getByTestId("live-real")).toBeVisible();
+
+    // A call the workspace does not hold is said to be gone, never another call in its place.
+    await page.goto(`/w/${slug}/live/no-such-call`);
+    await expect(page.getByTestId("live-real")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("live-missing")).toBeVisible();
+    expect(routeOf(page.url())).toBe("live/no-such-call");
   });
 });

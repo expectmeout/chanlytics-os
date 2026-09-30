@@ -25970,7 +25970,12 @@ function roleGate(role, perm, doing) {
 }
 
 // src/shell/address.ts
-var ROUTE_WORDS = { clients: "people", segments: "lists" };
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates"
+};
 var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
 function shellRoute(route) {
   const head = headOf(route);

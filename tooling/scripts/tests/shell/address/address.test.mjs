@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 
 /** The path's word for a route the shell names otherwise (docs/glossary.md), written here on its own, not read from contracts. */
-const WORDS = { clients: "people", segments: "lists" };
+const WORDS = { clients: "people", segments: "lists", outbound: "playbooks", messages: "templates" };
 const inPath = (route) => {
   const head = route.split("/")[0];
   return Object.hasOwn(WORDS, head) ? WORDS[head] + route.slice(head.length) : route;
@@ -202,4 +202,23 @@ test("the old name in an address moves to the word, for ever: a path, and a hash
     "a route that only begins with the name",
   );
   assert.equal(movedAddress({ pathname: "/login/clients", hash: "" }), null, "off a workspace page");
+});
+
+test("Campaigns take the product's words: playbooks and templates, where the shell's route says outbound and messages", () => {
+  assert.equal(workspacePath("acme", "outbound"), "/w/acme/playbooks");
+  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/playbooks/pb-1");
+  assert.equal(workspacePath("acme", "messages"), "/w/acme/templates");
+  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1", "Broadcasts keep their word");
+  assert.equal(routeOfPath("/w/acme/playbooks"), "outbound");
+  assert.equal(routeOfPath("/w/acme/playbooks/pb-1"), "outbound/pb-1");
+  assert.equal(routeOfPath("/w/acme/templates"), "messages");
+  assert.equal(routeOfPath("/w/acme/outbound/pb-1"), "outbound/pb-1", "the old name still reads");
+  assert.equal(routeOfHash("#/playbooks"), "outbound");
+  // The old name, in a path or a hash, moves to the word for ever.
+  assert.equal(movedAddress({ pathname: "/w/acme/outbound/pb-1", hash: "" }), "/w/acme/playbooks/pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/messages", search: "?a=1", hash: "" }), "/w/acme/templates?a=1");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/playbooks");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/templates");
+  assert.equal(movedAddress({ pathname: "/w/acme/playbooks", hash: "" }), null, "the word is where it should be");
+  assert.equal(movedAddress({ pathname: "/w/acme/broadcasts", hash: "" }), null);
 });

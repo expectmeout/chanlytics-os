@@ -286,6 +286,8 @@ export const KIT_PENDING = [
   "apps/dashboard/src/surfaces/reports",
   "apps/dashboard/src/surfaces/inbox",
   "apps/dashboard/src/surfaces/today",
+  "apps/dashboard/src/surfaces/campaigns",
+  "apps/dashboard/src/surfaces/live",
 ];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */

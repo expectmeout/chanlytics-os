@@ -12,7 +12,9 @@
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
  * page does not take stays with the frame's table (People's Leads scope, until Leads leaves).
  */
+import { broadcastsChrome, playbooksChrome } from "./campaigns/routes";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
+import { liveChrome } from "./live/routes";
 
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
@@ -80,6 +82,28 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     pane: true,
     params: true,
     mount: "conversations",
+  },
+  outbound: {
+    activeNav: "outbound",
+    crumbs: ["Campaigns", "Playbooks"],
+    pane: true,
+    takes: () => true,
+    chrome: playbooksChrome,
+  },
+  messages: { activeNav: "messages", crumbs: ["Campaigns", "Templates"], pane: true },
+  broadcasts: {
+    activeNav: "broadcasts",
+    crumbs: ["Campaigns", "Broadcasts"],
+    pane: false,
+    takes: () => true,
+    chrome: broadcastsChrome,
+  },
+  live: {
+    activeNav: "live",
+    crumbs: [{ label: "Inbox", to: "inbox" }, "Live"],
+    pane: true,
+    takes: () => true,
+    chrome: liveChrome,
   },
 };
 

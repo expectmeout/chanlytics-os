@@ -10,7 +10,7 @@
  * approved). A draft is a read and refreshes nothing. Owner or operator on
  * the server; a viewer's click returns the server's refusal.
  */
-import { api } from "./api";
+import { api } from "@/legacy-bridge/api";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,
@@ -171,42 +171,46 @@ function viewedSellsBy(): string | null {
   return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
 }
 
+/** The starter set as the pages read it, from contracts: the library, and the words and slots for any template. */
+export const starters: StarterLibrary = {
+  // Read each time a page draws the set: an answer changed in Settings › Business changes it.
+  get list() {
+    return startersOffered(dealsAreOn(viewedSellsBy()));
+  },
+  languages: STARTER_LANGUAGES,
+  byName: starterByName,
+  forTrigger: starterForTrigger,
+  text: starterText,
+  preview: starterPreview,
+  rowPreview: templatePreview,
+  rowValues: templatePreviewValues,
+  starterValues: starterPreviewValues,
+  title: titleOf,
+  slotKinds: defaultSlotKinds,
+  slotLabels,
+  compare: compareTemplates,
+  group: groupTemplates,
+  defaultFor: defaultTemplate,
+  sources: PARAM_SOURCE_LABELS,
+  sourceHints: PARAM_SOURCE_HINTS,
+  slotChoices,
+  slots: templateSlots,
+  stillSends: playbooksStillSending,
+  langWords: languageWords,
+  langLabel: languageLabel,
+  langTag: languageTag,
+  allLanguages: WHATSAPP_LANGUAGES,
+  findLanguages,
+  languageChoices: messageLanguageChoices,
+  languageGroups: LANGUAGE_GROUP_WORDS,
+  untranslatable: templateUntranslatable,
+  footer: templateFooter,
+  sendable: sendableTemplates,
+};
+
+/** Publish the verbs and the library for the pages that have not moved (Campaigns' own leave the shell with it). */
 export function installTemplates(): void {
   window.__syncTemplates = syncTemplates;
   window.__templates = templates;
-  window.__starters = {
-    // Read each time a page draws the set: an answer changed in Settings › Business changes it.
-    get list() {
-      return startersOffered(dealsAreOn(viewedSellsBy()));
-    },
-    languages: STARTER_LANGUAGES,
-    byName: starterByName,
-    forTrigger: starterForTrigger,
-    text: starterText,
-    preview: starterPreview,
-    rowPreview: templatePreview,
-    rowValues: templatePreviewValues,
-    starterValues: starterPreviewValues,
-    title: titleOf,
-    slotKinds: defaultSlotKinds,
-    slotLabels,
-    compare: compareTemplates,
-    group: groupTemplates,
-    defaultFor: defaultTemplate,
-    sources: PARAM_SOURCE_LABELS,
-    sourceHints: PARAM_SOURCE_HINTS,
-    slotChoices,
-    slots: templateSlots,
-    stillSends: playbooksStillSending,
-    langWords: languageWords,
-    langLabel: languageLabel,
-    langTag: languageTag,
-    allLanguages: WHATSAPP_LANGUAGES,
-    findLanguages,
-    languageChoices: messageLanguageChoices,
-    languageGroups: LANGUAGE_GROUP_WORDS,
-    untranslatable: templateUntranslatable,
-    footer: templateFooter,
-    sendable: sendableTemplates,
-  };
+  window.__starters = starters;
 }

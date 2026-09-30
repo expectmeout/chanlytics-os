@@ -88,10 +88,17 @@ import {
   type ReachOutReachDto,
   type BroadcastDetailDto,
 } from "@chanlytics/contracts";
-import { api, read } from "../api";
-import { readCache } from "../read-cache";
-import { broadcasts } from "../broadcast-verbs";
-import type { SurfaceOverride } from "../surface-data";
+import { api, read } from "@/legacy-bridge/api";
+import { readCache } from "@/legacy-bridge/read-cache";
+import { broadcasts } from "../broadcasts/verbs";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+
+/** The chains GET reach-outs lists; null when they could not be read (each page says so), never an empty list it did not read. */
+export type ReachOutsSurface = ReachOutChainDto[] | null;
+
+// Leads (reach-out-leads.jsx) reads this under its old name until it moves.
+declareSurfaceValue("reach_outs", "__REACH_OUTS");
 
 /**
  * The reach-outs surface: the workspace's chains (GET reach-outs, without their reports, R23) as `__REACH_OUTS`, set
@@ -103,15 +110,14 @@ import type { SurfaceOverride } from "../surface-data";
  */
 export const reachOutsOverride: SurfaceOverride = {
   key: "reach_outs",
-  globals: ["__REACH_OUTS"],
+  value: "reach_outs",
   events: ["surface:reach_outs"],
   apply: async () => {
-    const w = window as Window & { __REACH_OUTS?: ReachOutChainDto[] | null };
     try {
-      w.__REACH_OUTS = (await read("GET reach-outs")).chains;
+      setSurfaceValue("reach_outs", (await read("GET reach-outs")).chains);
     } catch (e) {
       // Null, not undefined, and said at once: each page draws what could not be read instead of waiting for it.
-      w.__REACH_OUTS = null;
+      setSurfaceValue("reach_outs", null);
       window.dispatchEvent(new CustomEvent("surface:reach_outs"));
       throw e;
     }

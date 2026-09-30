@@ -9,13 +9,15 @@
  * agrees); the adapter speaks the provider's exact contract; the edge takes
  * the words without logging them; the route proves visibility, then the
  * role door, then the provider, and records the decision LAST; the page
- * offers it only on a live call, behind the same gate the server enforces.
+ * offers it only on a live call, behind the same gate the server enforces
+ * (the Live page, apps/dashboard/src/surfaces/live, TSX since decision 0015, drawn on the legacy stub React).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DECISION_VERBS, DECISION_SUBJECTS } from "@chanlytics/contracts";
+import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
 import { updateLiveCall } from "@chanlytics/channels";
 import { readCode, readRaw } from "../../_source.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf } from "../../_legacy-react.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
@@ -81,16 +83,120 @@ test("the route proves visibility, then the role door, then the provider — and
   assert.ok(fn.includes('"/api/admin/whisper"'));
 });
 
-test("the page offers it only on a live call, behind the gate the server enforces", () => {
-  const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor.jsx");
-  assert.ok(page.includes("{c.live && <LrWhisper c={c} />}"));
-  assert.ok(page.includes('data-testid="live-whisper"'));
-  assert.ok(page.includes('{...window.gate("approve")}'), "the same door: operator or owner");
-  assert.ok(
-    page.includes("window.__whisperCall(c.callId, t, false)"),
-    "no nudge to speak: a whisper is used when it fits",
-  );
-  const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  assert.ok(verbs.includes("export async function whisperCall(callId: string, text: string, trigger = false)"));
-  assert.ok(verbs.includes("window.__whisperCall = whisperCall;"));
+const ZONE = "America/New_York";
+const NOW = Date.now();
+const iso = (msAgo) => new Date(NOW - msAgo).toISOString();
+const call = (over = {}) => ({
+  id: "c-live",
+  retell_call_id: "call_abc123def456",
+  direction: "inbound",
+  call_type: "phone_call",
+  status: "ongoing",
+  from_e164: "+16465550123",
+  from_raw: null,
+  to_e164: "+13055550100",
+  started_at: iso(90_000),
+  ended_at: null,
+  duration_ms: null,
+  disconnection_reason: null,
+  sentiment: null,
+  call_successful: null,
+  in_voicemail: null,
+  summary: null,
+  wanted: null,
+  outcome: null,
+  follow_up: null,
+  caller_name: null,
+  transcript_object: [{ role: "agent", content: "Thank you for calling Harbor Moving!" }],
+  recording: null,
+  conversation_id: "cv1",
+  contact_id: "k1",
+  message_id: null,
+  created_at: iso(90_000),
+  updated_at: iso(2_000),
+  contact: { display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+16465550123" },
+  ...over,
+});
+
+test("the page offers it only on a live call, behind the gate the server enforces", async () => {
+  installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  const S = "../../../../../apps/dashboard/src";
+  // The role gate the buttons ask (data-bits.jsx), drawn for real; the toast is this harness's own.
+  await import(`${S}/legacy/components/data-bits.jsx`);
+  globalThis.usePPToast = () => [null, () => {}];
+  const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+  const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+  const { whisperCall } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);
+  // The whisper is the bridge's verb, imported by the page and run for real over the client: this is the wire.
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(url, "https://app.chanlytics.com").pathname;
+    sent.push({ method: init.method, path, body: init.body ? JSON.parse(init.body) : null });
+    return new Response(JSON.stringify({ ok: true, data: {} }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const mount = () => again(() => LivePage({}));
+  const withCalls = (calls) => {
+    setSurfaceValue("live", toLiveVM(calls, [], ZONE, new Date(NOW)));
+    fresh();
+  };
+  const sendButton = (tree) =>
+    find(byTestId(tree, "live-whisper"), (n) => n.type === "button" && textOf(n).trim() === "Whisper");
+  const type = (tree, words) =>
+    find(byTestId(tree, "live-whisper"), (n) => n.type === "input").props.onChange({ target: { value: words } });
+  try {
+    // Only on a live call: an ended one has nobody to whisper to.
+    withCalls([call()]);
+    assert.ok(byTestId(mount(), "live-whisper"), "a call on the line offers the whisper");
+    withCalls([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, summary: "Asked for a person." })]);
+    assert.equal(byTestId(mount(), "live-whisper"), null, "a call that ended offers none");
+
+    // Behind the same door the server enforces (operator or owner: the `approve` gate): where the role may not, the
+    // control stays, says so, and sends nothing.
+    withCalls([call()]);
+    globalThis.ST_STORE = { can: (action) => action !== "approve" };
+    try {
+      let tree = mount();
+      type(tree, "offer the 3pm slot");
+      tree = mount();
+      const gated = sendButton(tree);
+      assert.equal(gated.props["aria-disabled"], true, "the whisper asks the approve gate, and this role is refused");
+      assert.ok(gated.props["data-gated"] !== undefined);
+      await gated.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: {} });
+      assert.deepEqual(sent, [], "and pressing it sends nothing");
+      globalThis.ST_STORE = { can: () => true };
+      tree = mount();
+      assert.equal(sendButton(tree).props["aria-disabled"], undefined, "a role that may approve is not gated");
+    } finally {
+      delete globalThis.ST_STORE;
+    }
+
+    // No nudge to speak: a whisper is used when it fits, which may be a later turn.
+    fresh();
+    let tree = mount();
+    type(tree, "offer the 3pm slot");
+    await sendButton(mount()).props.onClick();
+    assert.deepEqual(
+      sent,
+      [{ method: "POST", path: "/api/v1/calls/c-live/whisper", body: { text: "offer the 3pm slot", trigger: false } }],
+      "no nudge to speak: a whisper is used when it fits",
+    );
+
+    // The verb the page takes takes the nudge off unless it is asked for.
+    sent.length = 0;
+    await whisperCall("c-live", "hello");
+    await whisperCall("c-live", "now", true);
+    assert.deepEqual(
+      sent.map((r) => r.body),
+      [
+        { text: "hello", trigger: false },
+        { text: "now", trigger: true },
+      ],
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

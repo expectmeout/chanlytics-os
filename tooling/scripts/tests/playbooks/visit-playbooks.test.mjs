@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   MOMENT_TRIGGERS,
   PLAYBOOK_CLASS_LABEL,
+  stateOf,
   eligibleForPlaybook,
   playbookRunReach,
   scheduleLine,
@@ -27,6 +28,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -96,6 +98,82 @@ const withVisits = (id, next, last, over = {}) =>
     NOW,
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
+
+/* ---- the composer, drawn: TSX since decision 0015, on the stub React over the view model the seam hands the page ---- */
+
+installLegacyReact({ __DEMO_MODE: false });
+const SRC = "../../../../apps/dashboard/src";
+// The shell's own components the composer draws by name (PolicyChip, the record kit's sheet), loaded as the app loads them.
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+await import(`${SRC}/legacy/components/record-fold.jsx`);
+Object.assign(globalThis, {
+  canDo: () => true,
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+  __chrome: { state: stateOf },
+});
+await import(`${SRC}/legacy/components/record-sheet.jsx`);
+// The Autonomy store as the app builds it, over the workspace's own rows: the booking class has its row.
+const { installPolicyStore } = await import(`${SRC}/legacy-bridge/policy-store.ts`);
+installPolicyStore(globalThis);
+globalThis.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }], dealsOn: false };
+const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+/** The playbooks surface as the bridge publishes it: every moment offered, none set up, the reminder approved. */
+const playbooksVM = (over = {}) => {
+  const reminder = starterForTrigger("visit_tomorrow");
+  const words = starterText(reminder, "en_US");
+  return {
+    rows: [],
+    timezone: TZ,
+    countsRead: true,
+    calendar: "ok",
+    triggers: MOMENT_TRIGGERS.map((t) => ({
+      id: t.id,
+      label: t.label,
+      hint: t.hint,
+      cls: t.cls,
+      list: t.list,
+      kind: t.kind,
+      candidates: 3,
+      held: 0,
+      named: null,
+    })),
+    lists: [],
+    templates: [
+      {
+        id: "tpl-visit_reminder",
+        channel: "whatsapp",
+        name: reminder.name,
+        language: "en_US",
+        meta_status: "approved",
+        category: reminder.category,
+        purpose: "conversational",
+        source: "starter",
+        title: null,
+        body_preview: words.body,
+        variables: words.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
+      },
+    ],
+    number: { present: true, health: { canSend: true } },
+    businessName: "Northside Studio",
+    bookingLink: true,
+    replyWindow: "24 hours",
+    fetchedAt: nowMs,
+    ...over,
+  };
+};
+/** The page with the visit reminder's "Set it up" pressed: the composer open on it, over a calendar that is `calendar`. */
+const composingVisit = (calendar) => {
+  setSurfaceValue("playbooks", playbooksVM({ calendar }));
+  fresh();
+  const tree = again(() => PlaybooksPage({}));
+  const slot = find(
+    tree,
+    (n) => n.props?.["data-testid"] === "pb-slot" && n.props["data-trigger"] === "visit_tomorrow",
+  );
+  press(find(slot, (n) => n.props?.["data-testid"] === "pb-slot-start"));
+  return again(() => PlaybooksPage({}));
+};
 
 test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
   assert.deepEqual(
@@ -303,18 +381,23 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     handler.includes('.select("contact_id, facts")'),
     "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
+  const sd = readCode("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
   assert.ok(
     sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
     "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
   );
-  // The composer is playbook-composer.jsx (moved whole from outbound-real.jsx, Reach out Part 2.5).
-  const page = readCode("apps/dashboard/src/legacy/pages/playbook-composer.jsx");
+  // The composer is composer*.tsx (moved whole from outbound-real.jsx, Reach out Part 2.5), drawn on the visit moment.
+  const composer = composingVisit("none");
   assert.ok(
-    page.includes("<PolicyChip cls={trig.cls} />") &&
-      page.includes('trig.kind === "visit"') &&
-      page.includes("A visit moment reads the calendar"),
-    "the composer says it plainly",
+    textOf(byTestId(composer, "pb-calendar")).includes("A visit moment reads the calendar"),
+    "the composer says it plainly where there is no calendar",
+  );
+  assert.equal(byTestId(composingVisit("ok"), "pb-calendar"), null, "and says nothing where the calendar is connected");
+  const runsUnder = find(byTestId(composer, "pb-runs-under"), (n) => n.type === globalThis.PolicyChip);
+  assert.equal(runsUnder?.props.cls, triggerOf("visit_tomorrow").cls, "the Autonomy row the reminder's runs keep to");
+  assert.ok(
+    textOf(byTestId(composer, "pb-clock")).includes("one message per visit") && byTestId(composer, "pb-cap") === null,
+    "a visit moment has no cap and no gap: one message per visit",
   );
   // No gap and no breath promised for a visit trigger, and the card's count of the day's visits, are run in
   // playbook-composer.test.mjs; the preview's visit words are drawn there too. The assistant counts with the calendar

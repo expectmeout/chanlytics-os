@@ -34,6 +34,7 @@ import {
 import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
+import { CAMPAIGN_GLOBALS } from "../surfaces/campaigns/globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
@@ -167,6 +168,8 @@ if (typeof window !== "undefined") {
   });
   // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
   hearPresence();
+  // Campaigns' door to a reach-out, its sheet and its receipt's time, for Leads and Today until they move (campaigns/globals.ts).
+  Object.assign(window, CAMPAIGN_GLOBALS);
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;

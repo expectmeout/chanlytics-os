@@ -1,7 +1,7 @@
 /**
- * The reach-out sheet and the Leads door (Reach out, Part 4 PR 6), run on the stub React over the bridge's own words
- * (legacy-bridge/reach-out/reach-outs.ts, contracts reach-out-draft.ts and reach-out-sheet.ts) and a stubbed
- * `window.__reachOuts`: who gets it as the database counts it; each field's problems in contracts' words and Start held
+ * The reach-out sheet and the Leads door (Reach out, Part 4 PR 6), run on the stub React over the surface's own words
+ * (surfaces/campaigns/reach-out/surface.ts, contracts reach-out-draft.ts and reach-out-sheet.ts) and its verbs stubbed
+ * on the one `reachOuts` object the TSX sheet and door import: who gets it as the database counts it; each field's problems in contracts' words and Start held
  * until there are none; a slot put in at the caret; the steps; the pace and the domains; one business's email at a time,
  * asked for by a press, its refusals said; Start saving exactly ReachOutChainSchema's shape and the sheet staying open
  * to say what the run did (R14); an edit passing its steps' ids; the domains and the booking link unread said as
@@ -27,17 +27,32 @@ Object.assign(W, {
     get: (k, fallback) => fallback,
   },
   __ME: { id: "u1", display_name: "Sam Rivera" },
-  __SETTINGS: { config: { brain: { business_name: "Harbor Moving Co" } }, broken: null },
 });
+// The shell's own parts (the record kit's sheet and its unsaved-words rule, the role gate) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-fold.jsx`);
 await import(`${L}/components/record-sheet.jsx`);
-await import(`${L}/pages/playbook-bits.jsx`);
-await import(`${L}/pages/reach-out/reach-out-sheet.jsx`);
-await import(`${L}/pages/reach-out/reach-out-door.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
-const WORDS = bridge.reachOuts.words;
+// The sheet and the door are TSX (decision 0015); Leads' JSX, which draws the door, is not part of this test.
+const S = "../../../../apps/dashboard/src/surfaces";
+const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
+const { ReachOutDoor } = await import(`${S}/campaigns/reach-out/door.tsx`);
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
+// The verbs as the surface has them: a test stubs some on the surface's one object, and `realVerbs()` puts every one back.
+const REAL_VERBS = { ...bridge.reachOuts };
+const realVerbs = (stubs = {}) => Object.assign(bridge.reachOuts, REAL_VERBS, stubs);
+// What the sheet reads of Settings (the business's words) comes through the settings seam, as the page has it.
+const settingsRead = (settings) =>
+  setSurfaceValue("settings", {
+    settings,
+    facts: null,
+    channels: null,
+    templatesAll: null,
+    templateUse: null,
+    templateSent: null,
+  });
+settingsRead({ config: { brain: { business_name: "Harbor Moving Co" } }, broken: null });
 
 const SEARCH = { id: "44444444-4444-4444-8444-444444444444", name: "Personal trainers · Austin" };
 const REACH = { ready: 44, with_unconfirmed: 88, phone_only: 72, of: 160, chain: null };
@@ -58,8 +73,7 @@ const setup = (domains = [DOMAIN()]) => {
 /** The verbs, stubbed: each call recorded, each answered as the test says. */
 const verbs = (answers = {}) => {
   const calls = [];
-  W.__reachOuts = {
-    words: WORDS,
+  realVerbs({
     reach: async (id) => (calls.push(["reach", id]), answers.reach === undefined ? REACH : answers.reach),
     save: async (body) => (calls.push(["save", body]), answers.save ?? { ok: true, data: SAVED() }),
     update: async (id, body) => (calls.push(["update", id, body]), { ok: true, data: { ...SAVED(), start: null } }),
@@ -67,7 +81,7 @@ const verbs = (answers = {}) => {
       calls.push(["preview", body]),
       answers.preview ? answers.preview(body) : { ok: true, data: { preview: PREVIEW(body.index) } }
     ),
-  };
+  });
   return calls;
 };
 const SAVED = () => ({
@@ -92,7 +106,7 @@ const PREVIEW = (index) => ({
 const sheet = (props = {}) => {
   const done = [];
   const draw = () =>
-    W.React.createElement(W.ReachOutSheet, {
+    W.React.createElement(ReachOutSheet, {
       search: SEARCH,
       onClose: () => done.push("closed"),
       onDone: (saved) => done.push(saved),
@@ -346,7 +360,7 @@ test("with no verified domain it says where to add one, and Start waits", async 
 
 test("the domains and the booking link unread are said as reading, never as none, and Start waits for them", async () => {
   verbs();
-  const keepSettings = W.__SETTINGS;
+  const keepSettings = { config: { brain: { business_name: "Harbor Moving Co" } }, broken: null };
   try {
     W.__SETUP = undefined;
     let s = sheet();
@@ -363,7 +377,7 @@ test("the domains and the booking link unread are said as reading, never as none
     assert.equal(byTestId(tree, "ro-unread"), null);
     assert.ok(byTestId(tree, "ro-domain-d1"));
     // Settings not in yet: words naming the booking link are not told it is missing, and Start still waits.
-    W.__SETTINGS = undefined;
+    setSurfaceValue("settings", undefined);
     s = sheet();
     await settle();
     typeInto(byTestId(s.draw(), "ro-body"), "Book here: {{booking link}}\n\n{{your name}}");
@@ -371,7 +385,7 @@ test("the domains and the booking link unread are said as reading, never as none
     assert.equal(byTestId(tree, "ro-chain-issues"), null, "an unread link is not a missing one");
     assert.equal(byTestId(tree, "ro-start").props.disabled, true);
     // Setup's read failed: said so, and Start waits.
-    W.__SETTINGS = keepSettings;
+    settingsRead(keepSettings);
     W.__SETUP = null;
     s = sheet();
     await settle();
@@ -379,7 +393,7 @@ test("the domains and the booking link unread are said as reading, never as none
     assert.match(textOf(byTestId(tree, "ro-unread")), /couldn't be read/);
     assert.equal(byTestId(tree, "ro-start").props.disabled, true);
   } finally {
-    W.__SETTINGS = keepSettings;
+    settingsRead(keepSettings);
     setup();
   }
 });
@@ -464,7 +478,7 @@ test("before it goes: one business at a time, by a press; Next and Rewrite ask a
 /* ------------------------------ the Leads door ------------------------------ */
 
 const door = (search = SEARCH, phone = false) => {
-  const draw = () => W.React.createElement(W.ReachOutDoor, { search, phone });
+  const draw = () => W.React.createElement(ReachOutDoor, { search, phone });
   fresh();
   again(draw);
   return () => again(draw);
@@ -549,8 +563,8 @@ test("through the door: saved, the sheet stays and says what the run did, and th
   setup();
   let chain = null;
   const calls = verbs({ reach: undefined });
-  const reach = W.__reachOuts.reach;
-  W.__reachOuts.reach = async (id) => {
+  const reach = bridge.reachOuts.reach;
+  bridge.reachOuts.reach = async (id) => {
     await reach(id);
     return { ...REACH, chain };
   };
@@ -586,6 +600,7 @@ test("Leads reads Setup and Settings next, after its own surface: the sheet send
 /* ------------------------------ the bridge ------------------------------ */
 
 test("the bridge's verbs press the routes they name, and a search's reach is read once until a chain changes", async () => {
+  realVerbs();
   const calls = [];
   const was = W.fetch;
   W.fetch = async (url, init = {}) => {

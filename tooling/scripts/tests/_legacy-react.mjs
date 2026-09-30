@@ -61,9 +61,14 @@ const HOOKS = [
   "useLayoutEffect",
   "useSyncExternalStore",
 ];
-const reactModule = createRequire(
+const requireFromDashboard = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
-)("react");
+);
+const reactModule = requireFromDashboard("react");
+// A TSX surface that draws into another node (a picker's list, on the body) imports `ReactDOM from "react-dom"` and calls
+// `ReactDOM.createPortal` as it draws; under this runner's react-server condition that entry has no createPortal, so the stub
+// gives it the one the pages' `window.ReactDOM` has: the node itself, drawn where it stands.
+const reactDomModule = requireFromDashboard("react-dom");
 
 /**
  * For a test that builds its own stub React (`globalThis.React`) and draws a kit component that has hooks (MoreMenu,
@@ -236,7 +241,10 @@ export function installLegacyReact(extra = {}) {
     },
   };
   for (const hook of HOOKS) reactModule[hook] = globalThis.React[hook];
+  // A TSX surface that keys a fragment imports `Fragment` from "react": it is the stub's, as the JSX's `React.Fragment` is.
+  reactModule.Fragment = globalThis.React.Fragment;
   globalThis.ReactDOM = { createPortal: (node) => node };
+  reactDomModule.createPortal = globalThis.ReactDOM.createPortal;
   // The bridge's one hook (legacy-bridge/surface-status.ts), made over this React as LegacyApp makes it over the
   // app's: a page redraws when a surface it draws moves.
   globalThis.useSurface = surfaceHook(globalThis.React);

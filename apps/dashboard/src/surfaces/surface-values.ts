@@ -16,8 +16,13 @@
  */
 import type { ReportsSurface } from "./reports/surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
+import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
+import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
+import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
+import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { TodayVM } from "@chanlytics/contracts";
+import type { LiveSurface } from "./live/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -26,6 +31,11 @@ export interface SurfaceValues {
   inbox: InboxSurface;
   conversations: ConversationsSurface;
   today: TodayVM;
+  playbooks: PlaybooksSurface;
+  broadcasts: BroadcastsSurface;
+  reach_outs: ReachOutsSurface;
+  settings: SettingsSurface;
+  live: LiveSurface;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -76,4 +86,9 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   inbox: true,
   conversations: true,
   today: true,
+  playbooks: true,
+  broadcasts: true,
+  reach_outs: true,
+  settings: true,
+  live: true,
 };

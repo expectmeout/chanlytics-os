@@ -1,6 +1,6 @@
 /**
  * A list of your own, drawn (Reach out Part 7: J4, J5, J7, J12), on the stub React over the bridge's own words
- * (legacy-bridge/reach-out/reach-outs.ts over contracts lead-import.ts). The two doors are the only things stubbed, so
+ * (surfaces/campaigns/reach-out/surface.ts over contracts lead-import.ts). The two doors are the only things stubbed, so
  * what is proved is what each piece draws and what it asks of the bridge: the import sheet reads pasted rows, says what
  * it read, and hands the door the rows it can take; *Write to them* hands the door the chosen ids, lands the page on
  * the list and opens the reach-out sheet on it, or says the refusal; the rail's foot carries *Import leads*; the bar
@@ -17,7 +17,7 @@ const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
 await import(`${L}/pages/leads-scope.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
+const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
 
 const went = [];
 const flashed = [];

@@ -1,6 +1,6 @@
 /**
  * What comes back, drawn (Reach out Part 6: H3, H8–H10), on the stub React over the bridge's own words
- * (legacy-bridge/reach-out/reach-outs.ts over contracts). The reads and the writes are the only things stubbed, so what
+ * (surfaces/campaigns/reach-out/surface.ts over contracts). The reads and the writes are the only things stubbed, so what
  * is proved is what each page draws and what it asks of the bridge: Reports' Reach-outs section in each state it can
  * be in; Leads' strip over a search a reach-out writes to, and its doors; the Stage column beside the name with its
  * line; and the peek's block, its story, "Stop writing to them" asked first and pressed once, and the undo of a no.
@@ -24,7 +24,7 @@ await import(`${L}/pages/leads-finder.jsx`);
 await import(`${L}/pages/people-table.jsx`);
 await import(`${L}/pages/leads-cells.jsx`);
 await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/reach-outs.ts");
+const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
 
 const went = [];
 const flashed = [];

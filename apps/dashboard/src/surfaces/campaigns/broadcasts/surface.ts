@@ -4,8 +4,8 @@
  * audiences read People through ./people.
  */
 
-import { api, read } from "../api";
-import { workspaceZone } from "../zone";
+import { api, read } from "@/legacy-bridge/api";
+import { workspaceZone } from "@/legacy-bridge/zone";
 import {
   PEOPLE_LISTS,
   savedListIds,
@@ -32,11 +32,15 @@ import {
   type NumberHealth,
   type AskedPurpose,
 } from "@chanlytics/contracts";
-import { type SurfaceOverride, workspaceOverride } from "../surface-data";
-import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
-import { onlyOnItsPage } from "../surface-registry";
+import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
+import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
+import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { everyPerson, viewerId } from "./people";
+import { everyPerson, viewerId } from "@/legacy-bridge/surfaces/people";
+import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+
+// The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
+declareSurfaceValue("broadcasts", "__BROADCASTS");
 
 /* ------------------------------ Broadcasts ------------------------------- */
 
@@ -120,6 +124,39 @@ export interface BroadcastsSurface {
 }
 
 /**
+ * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
+ * eligibility filter the list is already crossed with, and not one whose data the workspace has not switched on.
+ */
+function listIsAnAudience(
+  l: (typeof PEOPLE_LISTS)[number],
+  has: { calendar: boolean; consultFirst: boolean; deals: boolean },
+): boolean {
+  return (
+    l.id !== "opted_in" &&
+    l.id !== "offers_ok" &&
+    l.id !== "opted_out" &&
+    (!l.needsCalendar || has.calendar) &&
+    (!l.needsConsultFirst || has.consultFirst) &&
+    (!l.needsDeals || has.deals)
+  );
+}
+
+/** The approved WhatsApp templates with the consent each needs; null where the templates read failed. */
+function approvedTemplates(tpl: { templates?: TemplateDto[] } | Error): BroadcastTemplate[] | null {
+  if (tpl instanceof Error) return null;
+  return (tpl.templates ?? [])
+    .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
+    .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }));
+}
+
+/** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
+function savedHint(byHand: boolean): string {
+  return byHand
+    ? "A list kept by hand — of those whose yes covers this message"
+    : "A list that keeps itself current — of those whose yes covers this message";
+}
+
+/**
  * Broadcasts: the rows with the numbers their messages earned, the approved
  * templates, and every audience with the count of people who may receive an
  * offer — computed here by the same contracts predicate the route enrols
@@ -127,7 +164,7 @@ export interface BroadcastsSurface {
  */
 export const broadcastsOverride: SurfaceOverride = {
   key: "broadcasts",
-  globals: ["__BROADCASTS"],
+  value: "broadcasts",
   events: ["surface:broadcasts"],
   refreshOnMessageInserts: true,
   // A message moves a run's replies: read again only while its page is on screen, and once when it comes back
@@ -188,14 +225,12 @@ export const broadcastsOverride: SurfaceOverride = {
       // from. The three consent lists are never audiences: each is a restatement of
       // the eligibility filter this list is already crossed with, so picking one
       // would read as narrowing while changing nothing.
-      ...PEOPLE_LISTS.filter(
-        (l) =>
-          l.id !== "opted_in" &&
-          l.id !== "offers_ok" &&
-          l.id !== "opted_out" &&
-          (!l.needsCalendar || people.calendar?.state === "ok") &&
-          (!l.needsConsultFirst || !!people.consult_first) &&
-          (!l.needsDeals || !!people.deals_on),
+      ...PEOPLE_LISTS.filter((l) =>
+        listIsAnAudience(l, {
+          calendar: people.calendar?.state === "ok",
+          consultFirst: !!people.consult_first,
+          deals: !!people.deals_on,
+        }),
       ).map((l) => ({
         kind: "list" as const,
         id: l.id,
@@ -229,27 +264,19 @@ export const broadcastsOverride: SurfaceOverride = {
                   savedListLookup(saved.lists),
                 ),
               ),
-              hint:
-                s.rule == null
-                  ? "A list kept by hand — of those whose yes covers this message"
-                  : "A list that keeps itself current — of those whose yes covers this message",
+              hint: savedHint(s.rule == null),
             }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
     // The workspace being VIEWED, for the public page's address.
     const slug = workspaceOverride.current()?.slug ?? null;
-    (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
+    setSurfaceValue("broadcasts", {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, tz, now)),
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
-      templates:
-        tpl instanceof Error
-          ? null
-          : (tpl.templates ?? [])
-              .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-              .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
+      templates: approvedTemplates(tpl),
       audiences,
       number: {
         present: !!wa,
@@ -277,6 +304,6 @@ export const broadcastsOverride: SurfaceOverride = {
       },
       getYes: GET_YES_ROUTE,
       fetchedAt: now.getTime(),
-    };
+    });
   },
 };

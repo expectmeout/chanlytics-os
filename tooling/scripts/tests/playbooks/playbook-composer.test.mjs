@@ -8,13 +8,22 @@
  * - It opened on whichever template sorted first when the moment's own was not approved; it opens on the moment's
  *   own, or on nothing, and says what to do.
  * - It was a panel over the grid: opening it pushed the cards down and took the unset moments away.
- * Run against the page on a stub React, over the view models and the starter library the bridge publishes.
+ * Run against the page (TSX since decision 0015) on a stub React, over the view model the seam hands it and the starter
+ * library the page imports.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  fresh as freshTree,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  press,
+} from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -113,26 +122,10 @@ const surface = (over = {}) => ({
 
 /* ---------------------------------- the window ---------------------------------- */
 
-const listeners = {};
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: {},
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
+const went = [];
+const toasts = [];
+const said = [];
+installLegacyReact({
   location: {
     pathname: "/w/studio",
     hash: "#/outbound",
@@ -141,100 +134,18 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  history: { replaceState() {} },
-  innerHeight: 800,
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h),
-  setInterval: () => 1,
-  clearInterval() {},
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
-};
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
+  __DEMO_MODE: false,
+});
+const SRC = "../../../../apps/dashboard/src";
+const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
-const { installTemplates } = await import("../../../../apps/dashboard/src/legacy-bridge/templates.ts");
-installTemplates();
-const { installPlaybooks } = await import("../../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
-installPlaybooks();
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-const went = [];
-const toasts = [];
-const said = [];
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-Object.assign(globalThis.window, kitPages);
-kitHooks();
-for (const k of ["EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
-  globalThis[k] = globalThis.window[k];
-Object.assign(globalThis.window, {
+// The shell's own components the page draws by name (PolicyChip, the record kit's sheet): the frame's JSX, loaded as the
+// app loads it; the page and its verbs are TSX (decision 0015) and imported.
+await import(`${SRC}/legacy/components/data-bits.jsx`);
+await import(`${SRC}/legacy/components/record-fold.jsx`);
+Object.assign(globalThis, {
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -243,73 +154,34 @@ Object.assign(globalThis.window, {
   canDo: () => true,
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __DEMO_MODE: false,
 });
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-// The verbs, as the bridge publishes them: what the composer sends is what the route would be sent.
-globalThis.window.__playbooks = {
-  ...globalThis.window.__playbooks,
-  create: async (body) => {
-    said.push(["create", body]);
-    return { ok: true, data: { id: "pb-new", name: body.name || "Win-back" } };
-  },
-  update: async (id, body) => {
-    said.push(["update", id, body]);
-    return { ok: true, data: { id, name: body.name || "Win-back" } };
-  },
+await import(`${SRC}/legacy/components/record-sheet.jsx`);
+const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { pbGuardWords } = await import(`${SRC}/surfaces/campaigns/playbooks/words.tsx`);
+const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+// The verbs, as the page imports them: what the composer sends is what the route would be sent.
+playbooks.create = async (body) => {
+  said.push(["create", body]);
+  return { ok: true, data: { id: "pb-new", name: body.name || "Win-back" } };
+};
+playbooks.update = async (id, body) => {
+  said.push(["update", id, body]);
+  return { ok: true, data: { id, name: body.name || "Win-back" } };
 };
 
-// What is drawn: a component's own drawing when it has one (the sheet draws the children it is given, and its title
-// and foot, where it puts them), else the children -- walking both counted everything inside the sheet twice.
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  if (n.rendered !== undefined) walk(n.rendered, fn);
-  else walk(n.props?.children, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const allByTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
-const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const fresh = () => {
-  cells = [];
-  frames.begin();
+  freshTree();
   went.length = 0;
   said.length = 0;
   toasts.length = 0;
-  for (const k of Object.keys(listeners)) delete listeners[k];
 };
-const page = () => {
-  frames.begin();
-  return globalThis.window.OutboundPage({});
-};
+const page = () => again(() => PlaybooksPage({}));
 /** The page, then the composer opened the way a person opens it: a moment's Set it up, or New playbook. */
 const composing = (over = {}, moment = null) => {
-  globalThis.window.__PLAYBOOKS = surface(over);
+  setSurfaceValue("playbooks", surface(over));
   fresh();
   const tree = page();
   if (moment)
@@ -319,7 +191,7 @@ const composing = (over = {}, moment = null) => {
         (n) => n.props?.["data-testid"] === "pb-slot-start",
       ),
     );
-  else globalThis.window.dispatchEvent({ type: "playbooks:new" });
+  else globalThis.dispatchEvent({ type: "playbooks:new" });
   return page();
 };
 /** Each slot as the composer lists it: what fills it, and what else it offers (nothing, when it has no choice). */
@@ -537,11 +409,11 @@ test("words to write hold Start until they are written, and the name is the rout
 
 test("REGRESSION: a playbook stored with its first name filled by the booking link is put right when it is changed, and its card says so until then", async () => {
   const broken = playbook({ params: [{ kind: "booking_link" }, { kind: "business_name" }, { kind: "booking_link" }] });
-  globalThis.window.__PLAYBOOKS = surface({ rows: [broken] });
+  setSurfaceValue("playbooks", surface({ rows: [broken] }));
   fresh();
   const flashed = [];
   let edited = null;
-  const card = globalThis.window.PlaybookCard({
+  const card = PlaybookCard({
     p: broken,
     canAct: true,
     onEdit: (p) => {
@@ -554,7 +426,7 @@ test("REGRESSION: a playbook stored with its first name filled by the booking li
   press(byTestId(card, "pb-slot-wrong-edit"));
   assert.equal(edited, broken, "Edit opens the composer on it");
   assert.equal(
-    byTestId(globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash() {} }), "pb-slot-wrong"),
+    byTestId(PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash() {} }), "pb-slot-wrong"),
     null,
     "and a playbook whose slots are right says nothing",
   );
@@ -578,7 +450,7 @@ test("REGRESSION: a playbook stored with its first name filled by the booking li
 
 test("a playbook whose message WhatsApp no longer approves says so when changed, and is never moved to another behind its back", () => {
   const p = playbook({ template_id: "tpl-gone", template_name: "old_offer" });
-  globalThis.window.__PLAYBOOKS = surface({ rows: [p] });
+  setSurfaceValue("playbooks", surface({ rows: [p] }));
   fresh();
   let tree = page();
   press(find(byTestId(tree, "pb-card"), (n) => n.props?.["data-testid"] === "pb-open"));
@@ -596,12 +468,12 @@ test("a playbook whose message WhatsApp no longer approves says so when changed,
 /* ---------------------------------- the page under it ---------------------------------- */
 
 test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel", () => {
-  globalThis.window.__PLAYBOOKS = surface({ rows: [playbook()] });
+  setSurfaceValue("playbooks", surface({ rows: [playbook()] }));
   fresh();
   const before = page();
   const slots = (t) => allByTestId(t, "pb-slot").map((s) => s.props["data-trigger"]);
   const was = slots(before);
-  globalThis.window.dispatchEvent({ type: "playbooks:new" });
+  globalThis.dispatchEvent({ type: "playbooks:new" });
   const after = page();
   assert.ok(byTestId(after, "pb-composer"), "the sheet is open");
   assert.deepEqual(slots(after), was, "every unset moment is where it was");
@@ -664,14 +536,14 @@ test("slotChoices: what keeps a known slot true, anything for a guessed one; tem
 test("the card says what it keeps to: the workspace's mode for its class, and for a visit trigger the day's visits and one message each", () => {
   // Once four source pins on outbound-real.jsx; run here since the card and its words are their own files (Reach out
   // Part 2.5).
-  globalThis.window.__PLAYBOOKS = surface();
+  setSurfaceValue("playbooks", surface());
   fresh();
-  const card = globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash() {} });
+  const card = PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash() {} });
   const chip = find(card, (n) => n.type === globalThis.PolicyChip);
   assert.equal(chip?.props.cls, "reengage", "the mode chip is the playbook's class, which opens Settings › Autonomy");
 
   fresh();
-  const visit = globalThis.window.PlaybookCard({
+  const visit = PlaybookCard({
     p: playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
     canAct: true,
     onEdit() {},
@@ -684,8 +556,8 @@ test("the card says what it keeps to: the workspace's mode for its class, and fo
   assert.ok(tip, "a visit playbook's count says the day's visits are picked from the people who said yes");
   assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's visits are picked from them/);
 
-  const guard = globalThis.window.pbGuardWords("visit");
+  const guard = pbGuardWords("visit");
   assert.match(guard, /One message per visit\. Anyone who asked to stop/);
   assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
-  assert.match(globalThis.window.pbGuardWords("list"), /Never twice within its gap/);
+  assert.match(pbGuardWords("list"), /Never twice within its gap/);
 });

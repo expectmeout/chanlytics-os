@@ -1,5 +1,5 @@
 /**
- * Playbooks, the verbs: `window.__playbooks` — make one, change one, pause,
+ * Playbooks, the verbs (`playbooks`, imported by the page and its cards) — make one, change one, pause,
  * resume, run now, delete; approve or skip a run that waited for a person.
  *
  * Every write goes through the typed client (owner or operator on the
@@ -8,19 +8,10 @@
  * a broadcast, so the cards and the runs must move together — never a row
  * the page invented while it waited.
  */
-import {
-  PLAYBOOK_REACH_WORDS,
-  playbookName,
-  playbookNoNumberWords,
-  playbookReach,
-  playbookReachDoor,
-  poolWords,
-  reachLines,
-} from "@chanlytics/contracts";
-import { api } from "./api";
-import type { Output } from "../client/api";
-import { playbooksOverride } from "./surfaces/playbooks";
-import { refreshSurfaces } from "./surface-runner";
+import { api } from "@/legacy-bridge/api";
+import type { Output } from "@/client/api";
+import { playbooksOverride } from "./surface";
+import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 
 export interface PlaybookBody {
   name?: string | null;
@@ -71,31 +62,11 @@ export const playbooks = {
 
 declare global {
   interface Window {
-    __playbooks?: typeof playbooks;
+    /** The one hook a page that has not moved still calls: Today's approve re-reads the cards behind it (refresh-map.ts HOOKS). */
     __refreshPlaybooks?: () => Promise<void>;
-    /** What the next run will actually do -- the card reads it beside the state. */
-    __playbookReach?: typeof playbookReach;
-    __playbookReachWords?: typeof PLAYBOOK_REACH_WORDS;
-    __playbookReachDoor?: typeof playbookReachDoor;
-    /** A card's count when its yes has no number to send to, in the send screen's words; null when its own count stands. */
-    __playbookNoNumberWords?: typeof playbookNoNumberWords;
-    /** Who a moment names and why the rest are left out, in the words the approval sheet says them. */
-    __reachLines?: typeof reachLines;
-    /** What "of 312" counts on a card: "on the list", "in People", "with a visit tomorrow". */
-    __poolWords?: typeof poolWords;
-    /** The name a playbook gets when it is given none, which the composer shows before it is saved. */
-    __playbookName?: typeof playbookName;
   }
 }
 
 export function installPlaybooks(): void {
-  window.__playbooks = playbooks;
   window.__refreshPlaybooks = refreshPlaybooks;
-  window.__playbookReach = playbookReach;
-  window.__playbookReachWords = PLAYBOOK_REACH_WORDS;
-  window.__playbookReachDoor = playbookReachDoor;
-  window.__playbookNoNumberWords = playbookNoNumberWords;
-  window.__reachLines = reachLines;
-  window.__poolWords = poolWords;
-  window.__playbookName = playbookName;
 }

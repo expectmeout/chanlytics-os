@@ -34,7 +34,9 @@ const quiet = async (fn) => {
     console.error = e;
   }
 };
-const { broadcasts } = await quiet(() => import("../../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts"));
+const { broadcasts } = await quiet(
+  () => import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts"),
+);
 
 test("a run's report is kept for the run once read, and a refusal never is", async () => {
   assert.equal(broadcasts.peekDetail("b-1"), null, "nothing held before a read");

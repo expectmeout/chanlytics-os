@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { BookingReportVM, CampaignSourceVM, ReportFactVM, ReportTileVM, ReportVM } from "@chanlytics/contracts";
 import { listRoute, navigate } from "../legacy-verbs";
-import { titleOf } from "@/legacy-bridge/templates";
+import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";

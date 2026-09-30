@@ -1533,14 +1533,14 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
       routes.includes("initialSaved={savedId} initialState={stateId}"),
   );
   const sd = [
-    "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts",
+    "apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts",
     "apps/dashboard/src/legacy-bridge/surfaces/people.ts",
   ]
     .map((p) => readCode(p))
     .join("\n");
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
   assert.ok(
-    sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'),
+    sd.includes("(!l.needsCalendar || has.calendar)") && sd.includes('calendar: people.calendar?.state === "ok"'),
     "a calendar list is an audience only with a calendar",
   );
   const ports = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");

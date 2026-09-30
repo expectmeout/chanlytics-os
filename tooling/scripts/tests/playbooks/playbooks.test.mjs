@@ -46,6 +46,7 @@ import {
   GET_YES_ROUTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { installLegacyReact, fresh, byTestId, textOf } from "../_legacy-react.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -76,6 +77,66 @@ const person = (id, over = {}) => ({
 });
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
 const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
+
+/* ---- the page: TSX since decision 0015, drawn on the stub React over the view model the seam hands it ---- */
+
+installLegacyReact({
+  __DEMO_MODE: false,
+  canDo: () => true,
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+});
+const SRC = "../../../../apps/dashboard/src";
+const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+/** The playbooks surface as the bridge publishes it, with one running playbook whose moment reaches `candidates`. */
+const playbooksVM = (rows = []) => ({
+  rows,
+  timezone: ZONE,
+  countsRead: true,
+  calendar: "ok",
+  triggers: [],
+  lists: [],
+  templates: [],
+  number: { present: true, health: { canSend: true } },
+  businessName: "Northside Studio",
+  bookingLink: true,
+  replyWindow: "24 hours",
+  fetchedAt: NOW,
+});
+const winback = (over = {}) => ({
+  id: "pb-1",
+  name: "Win-back",
+  trigger: "quiet_30",
+  template_id: "tpl-winback_offer",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  params: [{ kind: "first_name" }],
+  policy_class: "reengage",
+  state: "running",
+  run_hour: 10,
+  cap_per_run: 25,
+  gap_days: 90,
+  cadence_days: 30,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: "2026-08-01T00:00:00Z",
+  triggerLabel: "Win-back",
+  triggerHint: "Nothing heard in 30 days",
+  schedule: "Daily 10:00 · up to 25 · once per person, again after 90 days",
+  next: "tomorrow 10:00",
+  candidates: 0,
+  held: 0,
+  named: null,
+  off: null,
+  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+  ...over,
+});
+/** The page for a surface (undefined: nothing read yet), drawn from the root as a route draws it. */
+const drawPlaybooks = (value) => {
+  setSurfaceValue("playbooks", value);
+  fresh();
+  return PlaybooksPage({});
+};
 
 test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue limit for offers and does not apply; the list is in visit order", () => {
   const TZ = "America/New_York";
@@ -356,15 +417,24 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'),
     "flipped, and the gate waits on its surface",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/outbound.jsx");
-  // A playbook's card and its composer are playbook-card.jsx and playbook-composer.jsx (Reach out Part 2.5): their
-  // doors are drawn and pressed by playbook-composer, campaigns-drafts, runs-honest, reports-honest and confirm.
-  assert.ok(page.includes('data-testid="playbooks-real"'));
-  assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
-  assert.ok(
-    page.includes("window.OutboundPage = (props) =>") &&
-      readCode("apps/dashboard/src/legacy/demo/pages/outbound.jsx").includes("window.OutboundSeed = OutboundSeed;"),
-  );
+  // The page is TSX (surfaces/campaigns/playbooks/playbooks-page.tsx and its page-parts.tsx), drawn here rather than
+  // scanned. A playbook's card and its composer are card*.tsx and composer*.tsx (Reach out Part 2.5): their doors are
+  // drawn and pressed by playbook-composer, campaigns-drafts, runs-honest, reports-honest and confirm.
+  assert.equal(typeof PlaybooksPage, "function", "the page is the module's export: the route draws it");
+  const none = drawPlaybooks(playbooksVM());
+  assert.ok(byTestId(none, "playbooks-real"));
+  const emptyState = byTestId(none, "pb-empty");
+  assert.ok(emptyState, "the empty state, through the one EmptyState, with the verb on it");
+  assert.ok(textOf(emptyState).includes("New playbook"), textOf(emptyState));
+  // Where the twin was the mockup's own page (OutboundSeed), a demo session draws the same page over the sample, and a
+  // real workspace that has read nothing yet draws nothing.
+  globalThis.__DEMO_MODE = true;
+  assert.ok(byTestId(drawPlaybooks(undefined), "playbooks-real"), "a demo draws the page from its sample");
+  globalThis.__DEMO_MODE = false;
+  assert.equal(drawPlaybooks(undefined), null, "nothing read, no demo: nothing drawn");
+  const page = ["playbooks-page.tsx", "page-parts.tsx"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/playbooks/${f}`))
+    .join("\n");
   assert.ok(
     !/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")),
     "no number the schema has no column for",
@@ -434,8 +504,16 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   // "Running · next run tomorrow 10:00" is a promise the run cannot keep when
   // the pool is empty: the card says what the next run will DO, beside the
   // state and in the sentence, and the standing line counts them.
-  // The card's reach, its next run and its one-run sentence are playbook-card.jsx's, drawn by runs-honest.
-  assert.ok(page.includes('data-testid="pb-reaches-nobody"'));
+  // The card's reach, its next run and its one-run sentence are card.tsx's, drawn by runs-honest. The line says which
+  // running playbook has nobody to send to, and says nothing where every one reaches somebody.
+  const triggers = [{ id: "quiet_30", label: "Win-back", hint: "", cls: "reengage", list: "quiet", kind: "list" }];
+  const stood = drawPlaybooks({ ...playbooksVM([winback()]), triggers });
+  assert.equal(textOf(byTestId(stood, "pb-reaches-nobody")), "Win-back has nobody to send to");
+  assert.equal(
+    byTestId(drawPlaybooks({ ...playbooksVM([winback({ candidates: 4 })]), triggers }), "pb-reaches-nobody"),
+    null,
+    "a playbook that reaches somebody says nothing of the kind",
+  );
 });
 
 test("what the next run will DO: a playbook running against an empty list is not running in the sense the owner means", () => {
@@ -567,8 +645,18 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
   );
+  // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its screens, in surfaces/campaigns/broadcasts.
+  const broadcastsTsx = [
+    "broadcasts-page.tsx",
+    "when.tsx",
+    ...["acts", "audience", "ledger-screen", "runs", "send-screen", "state"].map((f) => `page/${f}.tsx`),
+    ...["reach", "types", "words"].map((f) => `page/${f}.ts`),
+  ];
   assert.ok(
-    !readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("Not available yet"),
+    !broadcastsTsx
+      .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/broadcasts/${f}`))
+      .join("\n")
+      .includes("Not available yet"),
     "no disabled channel chips until a second channel is real",
   );
 });
