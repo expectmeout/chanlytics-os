@@ -33,6 +33,7 @@ import {
   type PartnerPayoutAnswer,
 } from "@chanlytics/db";
 import { recordEvent, type Database } from "@chanlytics/db";
+import { requeueFailedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AppError,
@@ -415,4 +416,52 @@ export async function platformPartnerSecondFactorReset(
     removed += 1;
   }
   return { removed };
+}
+
+/* ------------------------------------------------------------------------ the ledger's dead letters */
+
+/**
+ * A failed job of another workspace, run again (the requeue door). A failed row is final, so it stays as the record
+ * and a fresh one of its kind and payload is due now; who asked is written first (platform.acted, as the lines' doors
+ * write it), once the row is known to be one that may go again, and nothing is run when that record cannot be written. A kind that speaks to a person is refused:
+ * a send whose outcome nobody knows goes again from its thread or its broadcast, where a person can see whether it
+ * left, never from here.
+ */
+export async function platformJobRequeue(
+  office: BackOffice,
+  ctx: RouteContext,
+  tenantId: string,
+  jobId: string,
+): Promise<{ ok: true; job_id: string; kind: string }> {
+  const r = await requeueFailedJob(office.db, tenantId, jobId, async (kind) => {
+    const { error } = await recordEvent(office.db, tenantId, "platform.acted", "job", jobId, {
+      action: `requeue:${kind}`,
+      by: ctx.userId,
+      by_email: ctx.email ?? null,
+    });
+    if (error)
+      throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+  });
+  switch (r.outcome) {
+    case "requeued":
+      return { ok: true, job_id: jobId, kind: r.kind };
+    case "not_found":
+      throw new AppError("not_found", "That job does not exist in that workspace.", 404);
+    case "not_failed":
+      throw new AppError("conflict", `That job is ${r.state}, not failed: only a failed job is run again.`, 409);
+    case "speaks_to_a_person":
+      throw new AppError(
+        "conflict",
+        "A send is never run again from here: it may have reached the person. Send it again from its thread or its broadcast.",
+        409,
+      );
+    case "unknown_kind":
+      throw new AppError(
+        "conflict",
+        "This deploy does not know that kind of job yet: run it again once the deploy that does is live.",
+        409,
+      );
+    case "already_scheduled":
+      throw new AppError("conflict", "That work is on the ledger again already.", 409);
+  }
 }

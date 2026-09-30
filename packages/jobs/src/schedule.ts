@@ -4,9 +4,9 @@
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client.
  */
-import type { Json } from "@chanlytics/db";
-import type { JobKind } from "@chanlytics/contracts";
-import type { Db } from "./ledger";
+import { readJobToRequeue, type Json } from "@chanlytics/db";
+import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
+import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
 
 export interface ScheduleParams {
   tenantId: string;
@@ -73,4 +73,39 @@ export async function cancelJobsFor(
     return 0;
   }
   return data?.length ?? 0;
+}
+
+/** What a requeue came to (requeueFailedJob). */
+export type Requeued =
+  | { outcome: "requeued"; kind: string }
+  | { outcome: "not_found" }
+  | { outcome: "not_failed"; state: string }
+  | { outcome: "speaks_to_a_person"; kind: string }
+  | { outcome: "unknown_kind"; kind: string }
+  | { outcome: "already_scheduled" };
+
+/**
+ * A failed job, run again: a fresh row of its kind and payload, due now, beside the failed one, which stays as the
+ * record of what went wrong (kept 90 days, 00215). `failed` is final (jobs_guard), so the row is never moved back.
+ * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
+ * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
+ * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
+ * A kind the ledger holds once per subject answers `already_scheduled` when the subject is on the ledger again.
+ */
+export async function requeueFailedJob(
+  db: Db,
+  tenantId: string,
+  jobId: string,
+  record: (kind: string) => Promise<void>,
+): Promise<Requeued> {
+  const row = await readJobToRequeue(db, tenantId, jobId);
+  if (!row) return { outcome: "not_found" };
+  if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
+  if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  // A kind a newer deploy wrote and this one does not know (failed after a day unknown) waits for the deploy that does.
+  const kind = JOB_KINDS.find((k) => k === row.kind);
+  if (!kind) return { outcome: "unknown_kind", kind: row.kind };
+  await record(kind);
+  const again = await scheduleJobOnce(db, { tenantId, kind, dueAt: new Date(), payload: row.payload });
+  return again === "scheduled" ? { outcome: "requeued", kind } : { outcome: "already_scheduled" };
 }

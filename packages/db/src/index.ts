@@ -192,6 +192,8 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
+export { readJobToRequeue } from "./jobs";
+export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export { templatesFor } from "./repositories/templates";
