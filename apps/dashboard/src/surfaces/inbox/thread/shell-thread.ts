@@ -11,22 +11,8 @@ import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/legacy-bridge/surface-status";
 import type { replies } from "@/legacy-bridge/reach-out/replies";
 import type { PeopleSurface } from "@/legacy-bridge/surfaces/people";
+import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
-
-/** A name off the window, whatever it holds. */
-const named = (name: string): unknown => Reflect.get(window, name);
-
-/** A function the shell published, or nothing where it has not. */
-function fn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
-  const v = named(name);
-  return typeof v === "function" ? (v as (...args: A) => R) : undefined;
-}
-
-/** An object the shell published, or nothing where it has not. */
-function object<T extends object>(name: string): T | undefined {
-  const v = named(name);
-  return typeof v === "object" && v !== null ? (v as T) : undefined;
-}
 
 /* ------------------------------- what a page hands over ------------------------------- */
 

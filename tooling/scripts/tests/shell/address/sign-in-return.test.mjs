@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 const { returnFragmentOf } = await importSrc("apps/dashboard/src/auth/sign-in-return.ts");
 const { routeOfHash, routeOfPath } = await import("@chanlytics/contracts");

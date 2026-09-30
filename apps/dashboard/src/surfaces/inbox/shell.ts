@@ -12,21 +12,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { canDo, navigate } from "../legacy-verbs";
 import { useLegacyToast } from "../legacy-verbs";
-
-/** A name off the window, whatever it holds. */
-const named = (name: string): unknown => Reflect.get(window, name);
-
-/** A function the shell published, or nothing where it has not. */
-function fn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
-  const v = named(name);
-  return typeof v === "function" ? (v as (...args: A) => R) : undefined;
-}
-
-/** An object the shell published, or nothing where it has not. */
-function object<T extends object>(name: string): T | undefined {
-  const v = named(name);
-  return typeof v === "object" && v !== null ? (v as T) : undefined;
-}
+import { fn, object, windowValue } from "../shell-doors";
 
 /* --------------------------------- roles --------------------------------- */
 
@@ -164,7 +150,7 @@ export function liveCallEnded(id: string): boolean {
 
 /** Who a thread's teammate is, from the team Settings reads: nobody when the roster is unread. */
 export function team(): Array<{ userId: string; email: string; displayName?: string | null }> | null {
-  const t = named("__TEAM");
+  const t = windowValue("__TEAM");
   return Array.isArray(t) ? (t as Array<{ userId: string; email: string; displayName?: string | null }>) : null;
 }
 
@@ -205,7 +191,7 @@ export function setAskOnScreen(value: OnScreen | null): void {
 
 /** The surface whose rows Ask was last told of, when one is. */
 export function askOnScreenKey(): string | null {
-  const v = named("__askOnScreen");
+  const v = windowValue("__askOnScreen");
   return typeof v === "object" && v !== null && "key" in v && typeof v.key === "string" ? v.key : null;
 }
 
@@ -219,7 +205,7 @@ export interface SeededLead {
 
 /** The demo's leads, whose stage a verdict changes; none where the seed is not loaded. */
 export function seededLeads(): SeededLead[] {
-  const l = named("LEADS");
+  const l = windowValue("LEADS");
   return Array.isArray(l) ? (l as SeededLead[]) : [];
 }
 

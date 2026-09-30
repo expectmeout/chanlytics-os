@@ -5,13 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fresh, installLegacyReact } from "../../_legacy-react.mjs";
+import { fresh, installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const { inboxDateline, inboxStanding } =
-  await import("../../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
-const { Glass, useLook } = await import("../../../../../apps/dashboard/src/surfaces/kit/look/look.tsx");
-const { PageHead } = await import("../../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
+  await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
+const { Glass, useLook } = await import("../../../../apps/dashboard/src/surfaces/kit/look/look.tsx");
+const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
 // Friday 2 October 2026, 4:02 PM in New York (20:02 UTC).
 const NOW = Date.UTC(2026, 9, 2, 20, 2, 0);
