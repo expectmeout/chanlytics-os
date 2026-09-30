@@ -11,7 +11,7 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 
-export interface Standing {
+interface Standing {
   /** The page's name; the last crumb's words where the page says none. */
   title?: ReactNode;
   /** Where the page stands, in one line beside the name. */

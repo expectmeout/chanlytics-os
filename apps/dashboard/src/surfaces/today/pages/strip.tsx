@@ -13,12 +13,12 @@ import { useDayVm } from "./day";
 import { liveClock, useLiveNow } from "./live-now";
 
 /** The next appointment today: the one under way, else the next to come. */
-export function nextOf(items: TodayDayItemVM[]): TodayDayItemVM | null {
+function nextOf(items: TodayDayItemVM[]): TodayDayItemVM | null {
   return items.find((b) => b.phase === "now") ?? items.find((b) => b.phase === "next") ?? null;
 }
 
 /** "5:00 PM Dulce Amaro · Color · 1h 30m": the appointment's start, who or what, and how long. */
-export function nextWords(b: TodayDayItemVM): string {
+function nextWords(b: TodayDayItemVM): string {
   const what = b.person ? [b.person.name, b.service].filter(Boolean) : [b.service];
   return [`${b.start} ${what.join(" · ")}`, b.dur].filter(Boolean).join(" · ");
 }

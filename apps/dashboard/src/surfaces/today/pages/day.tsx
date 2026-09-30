@@ -122,7 +122,7 @@ type Open = (b: TodayDayItemVM) => void;
  * is a number, and its own types (CalendarLike, PlaybookCardLike) say neither null: what the surfaces published is
  * handed over as the JSX handed it.
  */
-export function dayVmOf(
+function dayVmOf(
   C: CalendarSurface | undefined,
   P: PlaybooksSurface | undefined,
   people: PeopleSurface | undefined,

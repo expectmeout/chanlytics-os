@@ -35,7 +35,7 @@ function pipelineSentence(people: PeopleSurface, nowMs: number, zone: string): s
     .join(" · ");
 }
 
-export type PeopleScope = "people" | "pipeline";
+type PeopleScope = "people" | "pipeline";
 
 /** People's or the Pipeline's standing, said to the frame's head as the page draws; null (a person's page) says nothing. */
 export function usePeopleStanding(scope: PeopleScope | null): void {

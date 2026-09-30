@@ -53,7 +53,7 @@ literal style values               1088   in 22 stylesheets
 primitives outside the kit         2175   selectors naming 862 classes
 inline style props                  219   in 53 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     316
+dead exports, types and modules     306
 source-text reads in tests          788
 lint warnings                       386   in 156 files, 83 of them exhaustive-deps
 workspace route JS, KB gzipped      923   the shell included

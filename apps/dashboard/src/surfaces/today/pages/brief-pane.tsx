@@ -11,7 +11,7 @@ import { appNavigate, askAbout, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
 
 /** The brief's line: the day's own, or a quiet day's headline with the proof the lines are listening. */
-export function briefLine(vm: TodayVM): string | null {
+function briefLine(vm: TodayVM): string | null {
   return vm.recap ? vm.recap.line : vm.quiet ? `${vm.quiet.headline} ${vm.proof}` : null;
 }
 
