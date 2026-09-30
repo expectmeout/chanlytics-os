@@ -5,9 +5,9 @@
  * sweep key, then hands this its tick.
  *
  * pg_cron asks every ten seconds whether anything in the ledger is due and
- * calls this only when something is (trigger_jobs_tick, 00098). Auth, the
- * database and each job's own tenant credentials are bound here; the loop is
- * packages/jobs/src/tick.ts, which is tested by running it against fakes.
+ * calls this only when something is (trigger_jobs_tick, 00098). Auth and the
+ * database are sweepDoor's; each job's own tenant credentials are bound here;
+ * the loop is packages/jobs/src/tick.ts, which is tested by running it against fakes.
  *
  * Its ceiling is apps/edge/vercel.json's, and the ledger's timings hang off
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
