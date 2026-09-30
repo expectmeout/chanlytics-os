@@ -479,15 +479,24 @@ const SHELL_ROUTES = [
   { page: "soon", when: (param) => !!param, draw: drawSoon },
 ];
 
-// The top bar's act a moved surface names (src/surfaces/routes.ts SurfaceAct): the Ask door, which only a demo session offers ("New
-// task" opens the Ask overlay, which is a no-op outside a demo: a primary button that did nothing sat in the real chrome),
-// composing from the words the surface gives.
-const surfaceAct = (act) =>
-  window.__DEMO_MODE && act.ask ? (
-    <button className={`btn ${act.primary ? "btn-primary " : ""}btn-sm`} onClick={() => window.askAbout({ mode: "compose", prompt: act.prompt })}>
+// The top bar's act a moved surface names (src/surfaces/routes.ts SurfaceAct): a link out (the Calendar's booking link), or the
+// Ask door, which only a demo session offers ("New task" opens the Ask overlay, which is a no-op outside a demo: a primary
+// button that did nothing sat in the real chrome). The door composes from the words the surface gives (`prompt`), else it opens Ask.
+const surfaceAct = (act, openAsk) => {
+  const cls = `btn ${act.primary ? "btn-primary " : ""}btn-sm`;
+  if (act.href) {
+    return (
+      <a className={cls} href={act.href} target="_blank" rel="noreferrer" data-testid={act.testid}>
+        <Icon name={act.glyph} size={12} />{" " + act.label}
+      </a>
+    );
+  }
+  return window.__DEMO_MODE && act.ask ? (
+    <button className={cls} onClick={act.prompt ? () => window.askAbout({ mode: "compose", prompt: act.prompt }) : openAsk}>
       <Icon name={act.glyph} size={12} />{" " + act.label}
     </button>
   ) : null;
+};
 
 /**
  * What an address draws: the first row that takes it, else not found, then the honesty gate. `r` is the route as the
@@ -507,17 +516,16 @@ const drawRoute = (r) => {
   const takes = !!at && (!r.param || at.params === true || (!!at.takes && at.takes(r.param)));
   const surface = takes ? at : null;
   const chrome = surface && surface.chrome ? surface.chrome({ param: r.param, backToPeople: r.backToPeople }) : null;
+  // The act an address has: its chrome's (none where the chrome says null), else the route's.
+  const act = chrome && chrome.act !== undefined ? chrome.act : surface && surface.act;
   const asked = (v) => (typeof v === "function" ? v(r.param || null) : v);
   const answer = surface
     ? {
         ...surface,
         activeNav: asked(surface.activeNav),
         crumbs: chrome ? chrome.crumbs : asked(surface.crumbs),
-        primaryAction: surface.act ? surfaceAct(surface.act) : null,
+        primaryAction: act ? surfaceAct(act, r.openAsk) : null,
         content: r.routePage,
-        ...(chrome && chrome.demoAsk
-          ? { primaryAction: window.__DEMO_MODE ? <button className="btn btn-sm" onClick={r.openAsk}><Icon name="plus" size={12} /> {" " + chrome.demoAsk}</button> : null }
-          : {}),
       }
     : row ? row.draw(r) : drawNotFound(r);
   const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (chrome && chrome.mount) || (surface && surface.mount) || r.routeKey };

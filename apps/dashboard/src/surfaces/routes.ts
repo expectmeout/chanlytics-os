@@ -17,32 +17,34 @@ import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/rout
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
 
+/**
+ * The top bar's one act, drawn by the frame (app-routes.jsx drawRoute) from what the surface says: a link that opens
+ * elsewhere (`href`: the Calendar's booking link), or the Ask door (`ask`), which only a demo session offers (Ask opens there
+ * over seeded pages; a real workspace has nothing to ask), composing from `prompt` where the surface gives one. `glyph` is an icon of
+ * the kit; `primary` is the filled button.
+ */
+interface SurfaceAct {
+  label: string;
+  glyph: string;
+  primary?: boolean;
+  href?: string;
+  ask?: boolean;
+  prompt?: string;
+  testid?: string;
+}
+
 /** What the frame draws around a route's page. */
 interface SurfaceChrome {
   crumbs: readonly Crumb[];
   /** What the view is mounted under, where the page follows its address itself: absent, the route's own key. */
   mount?: string;
-  /** The top bar's one act, drawn by the frame from what the surface says (a demo session's Ask door). */
-  demoAsk?: string;
+  act?: SurfaceAct | null;
 }
 
 /** What the frame hands a route's `chrome`: the address's param, and the shell's own Back to People. */
 interface ChromeAt {
   param: string | null;
   backToPeople: unknown;
-}
-
-/**
- * The top bar's one act, drawn by the frame (app-routes.jsx drawRoute) from what the surface says: the Ask door, which only a
- * demo session offers (Ask opens there over seeded pages; a real workspace has nothing to ask), composing from `prompt` where
- * the surface gives one. `glyph` is an icon of the kit; `primary` is the filled button.
- */
-interface SurfaceAct {
-  label: string;
-  glyph: string;
-  primary?: boolean;
-  ask?: boolean;
-  prompt?: string;
 }
 
 /** How the frame wraps a route's page: the row's `activeNav`, `crumbs` and `pane`, each fixed or asked of the address's param. */
