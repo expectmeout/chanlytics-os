@@ -134,6 +134,6 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   assert.ok(sw.includes("self.skipWaiting()") && sw.includes("self.clients.claim()"));
   assert.ok(!/caches\.|cache\.put|respondWith/.test(sw), "caches nothing: the workspace is live data");
   const boot = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(boot.includes('process.env.NODE_ENV === "production"'), "no worker on a dev origin");
+  assert.ok(boot.includes("publicEnv.productionBuild"), "no worker on a dev origin");
   assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));
 });

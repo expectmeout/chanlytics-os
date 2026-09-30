@@ -72,13 +72,16 @@ const DOORS = [
 ];
 const NOT_OBJECTS = ["null", "[]", "5", '"x"', "true"];
 
-/** A door knocked with a raw body, answered as the platform answers it: a throw is the runtime's 500. */
+/**
+ * A door knocked with a raw body, answered as the platform answers it: a throw is the runtime's 500. `headers` is
+ * given the body and answers the headers to send: a token opens a door once, so each knock carries a token of its own.
+ */
 async function knock(door, aud, raw, headers) {
   try {
     const res = await door.POST(
       new Request(`http://edge${aud}`, {
         method: "POST",
-        headers: { ...headers, "content-type": "application/json" },
+        headers: { ...headers(raw), "content-type": "application/json" },
         body: raw,
       }),
     );
@@ -99,7 +102,10 @@ for (const name of DOORS) {
         ],
       }),
     );
-    const token = { "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1" }) };
+    // A fresh token for every knock, bound to the body it carries: the edge refuses a token it has seen.
+    const token = (raw) => ({
+      "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, aud, { workspace: A, user: "u1", body: raw }),
+    });
     const notJson = await knock(door, aud, "not json", token);
     assert.ok(
       notJson[0] < 500,
@@ -113,7 +119,8 @@ for (const name of DOORS) {
 
 test("REGRESSION: an anonymous null at sending-domains is refused as a stranger, before anything is read", async () => {
   const door = await importSrc("apps/edge/api/admin/sending-domains.ts");
-  const [status, text] = await knock(door, "/api/admin/sending-domains", "null", {});
+  const stranger = () => ({});
+  const [status, text] = await knock(door, "/api/admin/sending-domains", "null", stranger);
   assert.equal(status, 403, text);
-  assert.deepEqual(await knock(door, "/api/admin/sending-domains", "not json", {}), [status, text]);
+  assert.deepEqual(await knock(door, "/api/admin/sending-domains", "not json", stranger), [status, text]);
 });

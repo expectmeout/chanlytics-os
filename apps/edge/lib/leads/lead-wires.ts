@@ -13,6 +13,7 @@
 import { createHmac } from "node:crypto";
 import {
   apifyClient,
+  publicFetcher,
   leadJudge,
   LEAD_JUDGE_DEFAULT_MODEL,
   type ApifyClient,
@@ -21,12 +22,11 @@ import {
   type LeadJudgeClient,
 } from "../packages/channels.js";
 import { judgeShadowSpecs } from "../packages/contracts.js";
-import { env } from "../env.js";
+import { env, httpsOriginOf } from "../env.js";
+import { edgeOrigin } from "../dashboard-origin.js";
 import { callModel } from "../model.js";
 import { startShadow } from "../shadow.js";
 import { imageBytes, pageText } from "./lead-marks.js";
-
-const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 
 export interface LeadWires {
   apify: ApifyClient;
@@ -39,10 +39,9 @@ export interface LeadWires {
   webhookToken(runRowId: string): Promise<string>;
 }
 
-/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else EDGE_ORIGIN, else the address the edge has always had. */
+/** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else the edge's own (EDGE_ORIGIN). */
 function leadWebhookBase(): string {
-  const o = env.LEAD_WEBHOOK_BASE || env.EDGE_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_ORIGIN;
+  return httpsOriginOf(env.LEAD_WEBHOOK_BASE) ?? edgeOrigin();
 }
 
 async function leadWebhookToken(runRowId: string): Promise<string> {
@@ -112,15 +111,20 @@ function shadowed(inner: LeadJudge): LeadJudge {
   };
 }
 
-export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
+/**
+ * The finder's wires. `fetchImpl` stands in for the network in a test; unset, the provider (Apify) is called with the
+ * platform's fetch, and a lead's own pages and pictures are read through the guarded one (channels publicFetcher): a
+ * lead's website is an address somebody else typed, and it may resolve, or redirect, to a private one.
+ */
+export function leadWires(fetchImpl?: typeof fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
-    apify: apifyClient(fetchImpl, token),
+    apify: apifyClient(fetchImpl ?? fetch, token),
     judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
-    fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),
-    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl, url, timeoutMs, maxBytes),
+    fetchText: (url, timeoutMs) => pageText(fetchImpl ?? publicFetcher(), url, timeoutMs),
+    fetchBytes: (url, timeoutMs, maxBytes) => imageBytes(fetchImpl ?? publicFetcher(), url, timeoutMs, maxBytes),
   };
 }

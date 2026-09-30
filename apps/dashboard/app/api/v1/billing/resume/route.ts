@@ -9,10 +9,11 @@ import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "billing",
-  handle: async ({ member }) => {
-    const a = await edgeBilling({ op: "resume", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeBilling({ op: "resume", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";

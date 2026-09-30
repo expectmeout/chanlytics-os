@@ -36,7 +36,7 @@ export const POST = write({
         409,
       );
     }
-    const sent = await handOverLiveCall(call.retell_call_id, line);
+    const sent = await handOverLiveCall(call.retell_call_id, line, { workspace: call.tenant_id, user: ctx.userId });
     if (!sent.ok) {
       throw new AppError(
         "upstream_retell",

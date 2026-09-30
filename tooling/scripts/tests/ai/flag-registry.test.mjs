@@ -9,11 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { FLAGS, FLAG_MECHANISMS, FeaturesConfigSchema } from "@chanlytics/contracts";
-import { ROOT, readRaw } from "../_source.mjs";
+import { FLAGS, FLAG_MECHANISMS, FeaturesConfigSchema, daysToSunset } from "@chanlytics/contracts";
+import { ROOT, readRaw, importSrc } from "../_source.mjs";
 
 const envSource = readRaw("apps/edge/lib/env.ts");
-const deployment = readRaw("apps/dashboard/src/server/deployment.ts");
+const dashboardEnv = readRaw("apps/dashboard/src/server/env.ts");
+const { LOG_EVENTS } = await importSrc("apps/edge/lib/log-events.ts");
 /** The e2e specs' sources: a switch a spec reads from its own environment is read there. */
 const specs = (function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -59,11 +60,12 @@ test("a listed switch is read where its mechanism says it is", () => {
         `${f.name}: a getter in apps/edge/lib/env.ts`,
       );
     if (f.mechanism === "dashboard_env" || f.mechanism === "deployment")
-      assert.ok(deployment.includes(`process.env.${f.name}`), `${f.name}: read in the dashboard's deployment.ts`);
+      assert.ok(dashboardEnv.includes(`process.env.${f.name}`), `${f.name}: read in the dashboard's env.ts`);
+    if (f.mechanism === "rollout")
+      assert.ok(f.weaker, `${f.name}: a rollout is a compatibility window, so it says what its weaker mode allows`);
     if (f.mechanism === "model_override")
       assert.ok(
-        getters.some((g) => g.name === f.name) ||
-          readRaw("apps/dashboard/src/server/ask/model.ts").includes(`process.env.${f.name}`),
+        getters.some((g) => g.name === f.name) || dashboardEnv.includes(`process.env.${f.name}`),
         `${f.name}: a variable somebody reads`,
       );
     if (f.mechanism === "workspace_feature")
@@ -74,6 +76,46 @@ test("a listed switch is read where its mechanism says it is", () => {
         `${f.name}: a workflow or an e2e spec reads it`,
       );
   }
+});
+
+/**
+ * A security switch is a fallback that kept production working while a stronger credential was put in place. It says
+ * what it allows, the log event whose readings prove it can be closed (an event the edge can write, or the
+ * dashboard's own for the one switch that lives there), and what closes it; and it has a day, never "kept".
+ */
+test("every security switch says what it allows, how it is proven closable, what closes it, and has a day", () => {
+  const security = FLAGS.filter((f) => f.weaker !== undefined);
+  assert.deepEqual(
+    security.map((f) => f.name).sort(),
+    [
+      "DIAG_KEY",
+      "EDGE_TOKEN_UNBOUND",
+      "GOOGLE_OAUTH_STATE_SECRET",
+      "RETELL_DOORS_SIGNED",
+      "RETELL_FN_SECRET",
+      "RETELL_WEBHOOK_KEY",
+    ],
+    "the weaker modes the platform still allows: a new one is listed here, with the change that adds it",
+  );
+  for (const f of security) {
+    assert.ok(f.sunset, `${f.name}: a weaker mode has a day, not "kept"`);
+    assert.ok(f.weaker.allows.length > 30, `${f.name}: what the weaker mode allows`);
+    assert.ok(f.weaker.closes.length > 30, `${f.name}: what closes it`);
+    // The dashboard's own log line is written by the dashboard; every other readiness event is the edge's.
+    if (f.mechanism !== "dashboard_env")
+      assert.ok(
+        LOG_EVENTS.includes(f.weaker.readiness.event),
+        `${f.name}: ${f.weaker.readiness.event} is an edge log event`,
+      );
+  }
+});
+
+test("days to a sunset are whole UTC days, zero on the day, negative after it, and null for a switch kept for good", () => {
+  const day = { sunset: "2026-10-17" };
+  assert.equal(daysToSunset(day, new Date("2026-10-03T23:59:59Z")), 14);
+  assert.equal(daysToSunset(day, new Date("2026-10-17T00:00:00Z")), 0);
+  assert.equal(daysToSunset(day, new Date("2026-10-18T12:00:00Z")), -1);
+  assert.equal(daysToSunset({ sunset: null }, new Date("2026-10-18T12:00:00Z")), null);
 });
 
 /** How long past its day a switch may stand before the build says so: a month to decide it. */
@@ -96,6 +138,68 @@ test("every switch has an owner and a day it is looked at again; one with no day
         f.sunset >= lastDay,
         `${f.name}: its day (${f.sunset}) passed more than ${SUNSET_GRACE_DAYS} days ago: decide it, and move or remove the row`,
       );
+    }
+  }
+});
+
+/**
+ * The edge reports which weaker modes are open on the deployment it runs in (lib/security-switches.ts, /api/diag's
+ * `securitySwitches`), from the variables it holds now: every edge-held switch of the registry is answered, and each
+ * answer follows the code it describes.
+ */
+test("the edge answers for every weaker mode it holds, and each answer follows the variables the code reads", async () => {
+  const { securitySwitchesHere } = await importSrc("apps/edge/lib/security-switches.ts");
+  const KEYS = ["EDGE_CALL_SECRET", "DIAG_KEY", "RETELL_FN_SECRET", "RETELL_WEBHOOK_KEY", "RETELL_DOORS_SIGNED"];
+  const before = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  const openWith = (vars) => {
+    for (const k of KEYS) delete process.env[k];
+    Object.assign(process.env, vars);
+    return Object.fromEntries(securitySwitchesHere(new Date("2026-10-03T12:00:00Z")).map((s) => [s.name, s.open]));
+  };
+  try {
+    const held = FLAGS.filter((f) => f.weaker && f.mechanism !== "dashboard_env").map((f) => f.name);
+    assert.deepEqual(Object.keys(openWith({})).sort(), held.sort(), "no edge-held weaker mode goes unanswered");
+
+    assert.deepEqual(openWith({}), {
+      DIAG_KEY: false,
+      EDGE_TOKEN_UNBOUND: false,
+      RETELL_DOORS_SIGNED: true,
+      RETELL_FN_SECRET: false,
+      RETELL_WEBHOOK_KEY: true,
+    });
+    // An edge that holds the secret: the key opens nothing alone, tokens without a body are let in, the voice secret opens.
+    assert.deepEqual(
+      openWith({ EDGE_CALL_SECRET: "s", DIAG_KEY: "k", RETELL_FN_SECRET: "f", RETELL_WEBHOOK_KEY: "w" }),
+      {
+        DIAG_KEY: false,
+        EDGE_TOKEN_UNBOUND: true,
+        RETELL_DOORS_SIGNED: true,
+        RETELL_FN_SECRET: true,
+        RETELL_WEBHOOK_KEY: false,
+      },
+    );
+    // A preview with a key and no secret: the key opens every admin door.
+    assert.equal(openWith({ DIAG_KEY: "k" }).DIAG_KEY, true);
+    // Closed: any value but an explicit off is signature-only, and closes the secret with it.
+    for (const v of ["1", "true", "yes", "on", "anything"])
+      assert.deepEqual(
+        [
+          openWith({ RETELL_DOORS_SIGNED: v, RETELL_FN_SECRET: "f" }).RETELL_DOORS_SIGNED,
+          openWith({ RETELL_DOORS_SIGNED: v, RETELL_FN_SECRET: "f" }).RETELL_FN_SECRET,
+        ],
+        [false, false],
+        v,
+      );
+    for (const v of ["0", "false", "off", "no"])
+      assert.equal(openWith({ RETELL_DOORS_SIGNED: v }).RETELL_DOORS_SIGNED, true, `${v} leaves it open on purpose`);
+
+    const rows = securitySwitchesHere(new Date("2026-10-03T12:00:00Z"));
+    const voice = rows.find((r) => r.name === "RETELL_DOORS_SIGNED");
+    assert.deepEqual([voice.sunset, voice.days_left], ["2026-10-17", 14], "each answer carries its day");
+  } finally {
+    for (const k of KEYS) {
+      if (before[k] === undefined) delete process.env[k];
+      else process.env[k] = before[k];
     }
   }
 });

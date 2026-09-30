@@ -1,4 +1,8 @@
-/** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+/**
+ * Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
+ *
+ * Workspace scope: the package's barrel names each export and holds no statement; each repository keeps its own scope.
+ */
 export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
 export type { EmittedKind, EventData } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
@@ -8,6 +12,8 @@ export type { MigrationHead } from "./ops";
 export { createServiceClient } from "./service-client";
 export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";
 export type { DbLog, DbObserver } from "./observe";
+export { tenantDb, platformWide } from "./tenant-db";
+export type { TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
@@ -174,6 +180,7 @@ export {
   claimCallNotification,
   claimCallActivity,
   callerNameOf,
+  isWorkspaceCall,
 } from "./repositories/calls";
 export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
 export {
@@ -240,6 +247,7 @@ export { yesesSince } from "./repositories/deals";
 export type { YesRow } from "./repositories/deals";
 export {
   getOwnPartner,
+  sessionHoldsPartnerSeat,
   getPartnerBroughtCount,
   getPartnerBalance,
   getPartnerLetters,

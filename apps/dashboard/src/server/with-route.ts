@@ -22,7 +22,7 @@ import {
 // rather than by grepping its source.
 import { createClient } from "../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import { sessionHoldsPartnerSeat, type Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
@@ -30,8 +30,20 @@ import { serverTimingHeader } from "./server-timing";
 import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";
 
+/**
+ * Whether the Auth server still knows a session: `live`, `gone` (revoked, signed out elsewhere, its user deleted), or
+ * `unknown` (it could not be asked, which is not `gone`). getClaims() verifies the token's signature locally, so it
+ * cannot tell a session revoked a minute ago from a live one until the token expires; this asks.
+ */
+export type SessionLiveness = "live" | "gone" | "unknown";
+
 export interface RouteContext {
   supabase: SupabaseClient<Database>;
+  /**
+   * Asks the Auth server whether this session is still live (getUser). Only a route that declares `fresh` pays for it
+   * (route.ts). Every request through withRoute has one; a test's context without it reads as live.
+   */
+  live?: () => Promise<SessionLiveness>;
   userId: string;
   email: string | undefined;
   /**
@@ -175,8 +187,15 @@ function answerOf<T>(
           ? undoOfHeader
           : undefined;
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const live = async (): Promise<SessionLiveness> => {
+        // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
+        const asked = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
+        if (asked.error) return isRetryableAuthError(asked.error) ? "unknown" : "gone";
+        return asked.data.user?.id === String(user.sub) ? "live" : "gone";
+      };
       const data = await handler(req, {
         supabase,
+        live,
         userId: String(user.sub),
         email: typeof user.email === "string" ? user.email : undefined,
         metadata,
@@ -259,6 +278,10 @@ export async function memberContext(
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
   const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
+  // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
+  // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
+  // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
+  if (!m && !secondFactorShown(ctx.aal) && (await sessionHoldsPartnerSeat(ctx.supabase))) requireSecondFactor(ctx);
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
   // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
   // request passes. The database refuses the same session on its own (00218).
@@ -270,6 +293,20 @@ export async function memberContext(
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
   };
+}
+
+/**
+ * A session the Auth server no longer knows is refused (401), before the sensitive act it would have opened: erasing a
+ * person or a lead, an export, a change to who is on the team, billing, deleting the account. getClaims() verifies the
+ * token's signature locally, so a session revoked a minute ago passes until its token expires (an hour); a route that
+ * declares `fresh` (route.ts) asks the Auth server instead. "We could not ask" is a 503, as the wrapper says it
+ * elsewhere, never a sign-out.
+ */
+export async function requireFreshSession(ctx: Pick<RouteContext, "live">): Promise<void> {
+  const verdict = ctx.live ? await ctx.live() : "live";
+  if (verdict === "gone") throw new AppError("unauthorized", "Sign in again to do this.", 401);
+  if (verdict === "unknown")
+    throw new AppError("upstream_auth", "Could not verify your session just now — try again.", 503);
 }
 
 /**

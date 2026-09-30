@@ -43,8 +43,8 @@ export const GET = read({
   scope: workspace,
   role: "partner",
   rate: "google_search",
-  handle: async ({ member }) => {
-    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
     if (a.status !== 200 || b.ok !== true)

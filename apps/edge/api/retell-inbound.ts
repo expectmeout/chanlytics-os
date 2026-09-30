@@ -2,9 +2,15 @@
  * Retell inbound-call webhook — fires when a call arrives on the number, and answers with what the receptionist is
  * told before it speaks: whose facts, whose memory, the greeting, the line a transfer dials (the shell's dynamic
  * variables business_facts, caller_context, greeting and, when the workspace has a line to dial, handoff_number).
- * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL while this door still reads
- * one; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that came in carried is
- * logged (voice_door_auth; lib/voice/voice-door-auth.ts says which doors read the secret, and why).
+ * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL until Ruben sets
+ * RETELL_DOORS_SIGNED=1; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that
+ * came in carried is logged (voice_door_auth; lib/voice/voice-door-auth.ts says which doors read the secret, what is
+ * built and what waits).
+ *
+ * FINISHED as a door. It routes on the agent the call arrived on, hands the agent the business's facts and the
+ * caller's memory, takes the caller's thread for the length of the call (00132) and proves a test of "keep my number"
+ * from the diversion headers. What is not done is not in this file: the shared secret on the URL is still accepted here,
+ * and closing it is Ruben's switch, decided by reading `voice_door_auth` on production from 3 October 2026.
  *
  * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the tenant right is not bookkeeping — it
  * decides whose words come out of the agent's mouth. It resolves the tenant from the agent the call arrived on, the
@@ -93,7 +99,7 @@ export const POST = door(async function POST(request: Request): Promise<Response
   // provider's budget while making the common case -- a Resend POST, well
   // under a second -- actually happen.
   if (start.alert) {
-    // The timer is cleared whichever side wins, as lib/call-recording.ts does:
+    // The timer is cleared whichever side wins, as lib/voice/call-recording.ts does:
     // the common case is a send well under a second, and leaving three seconds
     // of timer armed behind the answer is the same class of thing this await
     // exists to stop.

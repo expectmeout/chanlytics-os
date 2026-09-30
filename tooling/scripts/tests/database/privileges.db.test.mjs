@@ -68,6 +68,17 @@ select 'column_fence' as rule, coalesce(array_agg(x order by x), '{}') as offend
           and g.grantee = 'authenticated'::regrole and g.privilege_type = 'UPDATE')
 ) s
 union all
+select 'insert_fence', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname::text as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('r', 'p')
+     and has_table_privilege('authenticated', c.oid, 'INSERT')
+     and exists (
+       select 1 from pg_policy p
+        where p.polrelid = c.oid and p.polcmd in ('a', '*')
+          and (p.polroles = '{0}' or 'authenticated'::regrole = any (p.polroles)))
+) s
+union all
 select 'definer_anon', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -183,6 +194,17 @@ test("a column UPDATE grant is a fence: no table also hands authenticated table-
     rules.column_fence,
     [],
     "these tables grant columns and the whole row at once: revoke update on the table, then grant the columns again",
+  );
+});
+
+test("a column INSERT grant is a fence: a table a session may insert into holds no table-wide INSERT", { skip }, () => {
+  // A row policy decides which rows a member adds, never which columns: on a table with an INSERT policy for
+  // authenticated the whole-table grant let the session write any column the predicate did not read, the edge's
+  // among them (00278). REVOKE INSERT takes the column grants with it, so revoke first, then grant the columns.
+  assert.deepEqual(
+    rules.insert_fence,
+    [],
+    "these tables let a session insert and grant it the whole row: revoke insert on the table, then grant the columns the product writes",
   );
 });
 

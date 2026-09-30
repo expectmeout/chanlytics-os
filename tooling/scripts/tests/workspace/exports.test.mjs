@@ -646,8 +646,8 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
   );
   assert.deepEqual(
     route.GET.policy,
-    { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false },
-    "the whole customer record: owners, in the workspace the tab named, ten a minute like the CSV",
+    { kind: "read", fresh: true, scope: "workspace", role: "owner", rate: "export", spend: false },
+    "the whole customer record: owners, in the workspace the tab named, ten a minute like the CSV, and a session the Auth server still knows",
   );
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const tables = (role) => ({
@@ -910,7 +910,14 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
   const csv = await import(
     pathToFileURL(path.join(here, "../../../../apps/dashboard/app/api/v1/contacts/export/route.ts")).href
   );
-  assert.deepEqual(csv.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false });
+  assert.deepEqual(csv.GET.policy, {
+    kind: "read",
+    fresh: true,
+    scope: "workspace",
+    role: "owner",
+    rate: "export",
+    spend: false,
+  });
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const tables = (role) => ({
     memberships: [

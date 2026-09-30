@@ -17,6 +17,8 @@
  * none or empty, so the app boots whichever deploys first; any other failure throws, except the brought count, the
  * letter switch and getOpenHandovers, which answer null or hand their error back so a side read never takes the
  * page or the boot down.
+ *
+ * Cross-workspace: a partner sees the workspaces they brought and the back office all; RLS and SQL checks decide.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
@@ -48,6 +50,21 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
     throw new Error(`getOwnPartner: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Whether the session holds a partner's seat that row policy hides from it until it shows its second factor (00280
+ * session_has_partner_seat): how a password-only partner is sent to the second step instead of being told there is no
+ * workspace. A database that does not have the door yet, or one that cannot answer, says no: the request is a 404 as it
+ * was.
+ */
+export async function sessionHoldsPartnerSeat(db: Db): Promise<boolean> {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

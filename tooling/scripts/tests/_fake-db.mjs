@@ -479,6 +479,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
         .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
+    // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
+    // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
+    session_has_partner_seat: () => false,
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of

@@ -123,7 +123,14 @@ test("the ten declare their policy: the reads open to every member, the changes 
     rate: "person_create",
     spend: false,
   });
-  assert.deepEqual(person.DELETE.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
+  assert.deepEqual(person.DELETE.policy, {
+    kind: "write",
+    fresh: true,
+    scope: "row",
+    role: "owner",
+    rate: "erase",
+    spend: false,
+  });
   assert.deepEqual(details.PUT.policy, {
     kind: "write",
     scope: "row",

@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+import https from 'node:https';
 import { ModelPurpose, ModelUsage, SystemOneQuestion, SystemOneAnswer, SchemaSet, DomainRecord, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
 export { GREETING_DEFAULT, greetingFor } from '@chanlytics/contracts';
 
@@ -68,6 +70,65 @@ declare function resetBreakers(): void;
 declare function providerFetch(provider: Provider, url: string, call: ProviderCall, deps?: ProviderDeps): Promise<ProviderReply>;
 /** An answer's JSON as an object, or null: what most adapters read. */
 declare function answerObject(a: ProviderReply): Record<string, unknown> | null;
+
+/**
+ * A fetch of an address a person typed: resolve the name, refuse every private answer, and connect to the address that
+ * was checked.
+ *
+ * `feedUrlOk` (contracts) judges the address as a string, so a public name that RESOLVES to a private address passed:
+ * a calendar feed at `feed.example.com` whose record points at 169.254.169.254 (a cloud's metadata service) or 10.0.0.5
+ * was read from inside the platform's own network, by the preview, the receptionist's availability tool and Ask's
+ * openings. Checking the name's addresses first and connecting afterwards is no better: a name can answer once with a
+ * public address and again with a private one (DNS rebinding) between the check and the connect. So the check is the
+ * connect: the socket's own lookup is replaced by one that resolves the name, refuses the connection if ANY of its
+ * addresses is not a public one (a name that answers both is the attack), and hands the socket the address it judged.
+ * A redirect is followed hop by hop (up to five; `redirect: "manual"` answers the 3xx as it is), each hop connected to
+ * through the same lookup, so a redirect to a private name is refused at its own connect.
+ *
+ * https and http only; a host that is an IP literal is judged before any socket is made (a literal skips the lookup).
+ * The body arrives as a stream, decompressed as fetch does, and capped once decoded (RESPONSE_MAX_BYTES): the callers
+ * read a whole page, feed or listing, and a small file that inflates to a gigabyte is an error to the reader, not
+ * the platform's memory.
+ */
+
+/** One address a name resolved to. */
+interface Resolved {
+    address: string;
+    family: number;
+}
+/** Every address a name answers (the resolver's seam: a test hands a fake one). */
+type Resolve = (host: string) => Promise<Resolved[]>;
+/** Whether an address is on the public internet: what a fetch of a person's address may connect to. */
+declare function isPublicAddress(address: string): boolean;
+/** A name's refusal: it answered an address that is not the public internet's, or nothing. */
+declare class NotPublicError extends Error {
+    constructor(host: string, detail: string);
+}
+type LookupCallback = (err: Error | null, address: string | dns.LookupAddress[], family?: number) => void;
+/**
+ * The lookup a socket is given instead of the system's: it resolves, judges every address, and answers the socket an
+ * address that passed. This is what makes the check the connect.
+ */
+declare function publicLookup(resolve: Resolve): (host: string, options: dns.LookupOptions | number | undefined, callback: LookupCallback) => void;
+/** What a caller may supply: the resolver (a test's), and the transport (a test's). */
+interface PublicFetchDeps {
+    resolve?: Resolve;
+    request?: typeof https.request;
+}
+/**
+ * A `fetch` for addresses a person typed. `redirect: "manual"` answers the 3xx as it is (the caller judges the next
+ * address); the default follows up to REDIRECTS_MAX hops, each connected to through the same lookup, so a redirect to a
+ * private address is refused at its own connect. It takes an AbortSignal. The default resolves through the system and
+ * uses node's own http and https; the deps are the seams a test uses.
+ */
+declare function publicFetch(deps?: PublicFetchDeps): typeof fetch;
+/**
+ * The fetch every server-side read of an address a person typed goes through: the guarded one, or a test's.
+ * (`setPublicFetch`, as `setPg` and `setBearerVerifier` are the other seams the suites stand in for.)
+ */
+declare function publicFetcher(): typeof fetch;
+/** For tests only: stand in for the network. Returns the one before, to put back; null restores the guarded one. */
+declare function setPublicFetch(f: typeof fetch | null): typeof fetch | null;
 
 /** A content block as the port reads it: text is all the platform's callers take from an answer. */
 interface ModelBlock {
@@ -737,8 +798,6 @@ declare const HANDOFF_VAR = "{{handoff_number}}";
 declare const FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 declare const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-/** Where the booking-link tool posts. Overridable for previews. */
-declare const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 /** The availability tool posts beside it, on the same host and secret. */
 declare function availabilityUrl(fnUrl: string): string;
 /** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
@@ -760,9 +819,9 @@ interface VoiceShellTarget {
  * live tool's headers are carried over untouched, and a tool with none is
  * reported rather than silently created secret-less.
  */
-declare function voiceShellTools(fnUrl?: string, bookingHeaders?: Record<string, string> | null): RetellTool[];
+declare function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[];
 /** The whole target: what a converged agent's LLM holds. */
-declare function desiredVoiceShell(fnUrl?: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget;
+declare function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget;
 /** What the converger reads off a live Retell LLM. */
 interface LiveVoiceLlm {
     general_prompt?: string | null;
@@ -792,7 +851,7 @@ declare function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTar
  * The diagnostic's view: on the shell or not, and why not. Strings only —
  * this is printed by /api/diag, and the live tools carry a secret header.
  */
-declare function voiceShellDrift(live: LiveVoiceLlm): {
+declare function voiceShellDrift(live: LiveVoiceLlm, fnUrl: string): {
     converged: boolean;
     drift: string[];
 };
@@ -911,7 +970,7 @@ declare const VOICE_NUMBER_DEFAULTS: {
     readonly number_provider: "twilio";
 };
 /** The product's voice endpoints, from the one base the shell already pins. */
-declare function voiceEndpoints(fnUrl?: string): {
+declare function voiceEndpoints(fnUrl: string): {
     fn: string;
     availability: string;
     webhook: string;
@@ -930,13 +989,13 @@ declare function withKey(url: string, secret: string): string;
 /** The URL without its query string — the only form a response or a log may carry. */
 declare function stripKey(url: string | null | undefined): string | null;
 /** POST /create-retell-llm: the shell, with the secret on its tools. */
-declare function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+declare function voiceLlmCreateBody(s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** POST /create-agent: the voice, the webhook and its events, the analysis fields, retention. */
 declare function voiceAgentCreateBody(o: {
     llmId: string;
     llmVersion: number | null;
     agentName: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** The agent on the number. Pinned to latest_published, a saved draft cannot go live by itself. */
 declare function voiceNumberBinding(o: {
     agentId: string;
@@ -948,13 +1007,13 @@ declare function voiceNumberCreateBody(o: {
     agentId: string;
     pinned: boolean;
     nickname: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 /** PATCH /update-phone-number: an existing Retell number, bound the same way. */
 declare function voiceNumberBindBody(o: {
     agentId: string;
     pinned: boolean;
     nickname: string;
-}, s: ProvisionSecrets, fnUrl?: string): Record<string, unknown>;
+}, s: ProvisionSecrets, fnUrl: string): Record<string, unknown>;
 interface VoiceProvisionRequest {
     /** An existing Retell number to bind, E.164. */
     number?: string | null;
@@ -2889,14 +2948,18 @@ interface EdgeClaims {
     user: string | null;
     iat: number;
     exp: number;
+    /** Minted fresh for every token: the edge refuses one it has seen before the token expires. */
     nonce: string;
     /** The request this call was made in, when the dashboard was serving one: a name shaped by `requestIdShaped`. */
     rid?: string | null;
+    /** The body's hash (edgeBodyHash), when the call has a body: the token opens the door for that body only. */
+    bh?: string;
 }
 declare function signEdgeToken(secret: string, aud: string, ctx?: {
     workspace?: string | null;
     user?: string | null;
     request?: string | null;
+    body?: string;
 }, nowMs?: number): string;
 type EdgeTokenVerdict = {
     ok: true;
@@ -2907,6 +2970,8 @@ type EdgeTokenVerdict = {
 };
 /** Signature first, in constant time; only a signed payload is parsed. */
 declare function verifyEdgeToken(secret: string, token: string, aud: string, nowMs?: number): EdgeTokenVerdict;
+/** Whether a body is the one a token's hash names, in constant time. A token that names no body says nothing here. */
+declare function edgeBodyMatches(claims: Pick<EdgeClaims, "bh">, body: string): boolean;
 
 /**
  * One request's name: how it is chosen, and what a name may look like. "What happened to this click?" is then one
@@ -3100,4 +3165,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MESSAGING, type MailCapability, type MailDomainFacts, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderAnswer, type ProviderCall, type ProviderDomain, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, REQUEST_ID_HEADER, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, formatRejected, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, providerFetch, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, resendLimitOf, resendRequest, resendWebhookSignature, resetBreakers, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey, withRequestId };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MESSAGING, type MailCapability, type MailDomainFacts, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderAnswer, type ProviderCall, type ProviderDomain, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, REQUEST_ID_HEADER, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, edgeBodyMatches, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, formatRejected, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, resendLimitOf, resendRequest, resendWebhookSignature, resetBreakers, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, setPublicFetch, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey, withRequestId };

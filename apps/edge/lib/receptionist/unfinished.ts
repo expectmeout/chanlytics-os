@@ -28,6 +28,8 @@
  * not a backlog processor, and a day-old message it did not see is the
  * platform's problem, paged elsewhere. Every write is guarded on the row's
  * present state, so two overlapping ticks cannot double-flag.
+ *
+ * Cross-workspace: the deadman sweep visits every workspace; each write carries the row's own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";

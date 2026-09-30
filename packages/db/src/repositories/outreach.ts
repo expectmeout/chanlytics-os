@@ -28,6 +28,8 @@
  * there is a lead (a database before 00184 knows five arguments), and away and stopped read false where the facts lack
  * them (00226, 00241). A database that does not say whether the person wrote back (00181) is a failed read, not a
  * never: a business that asked to be left alone would be written to cold.
+ *
+ * Cross-workspace: only reachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";

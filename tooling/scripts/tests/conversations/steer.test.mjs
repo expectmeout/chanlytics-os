@@ -72,7 +72,7 @@ test("the dashboard route keeps its doors and records the decision only after th
   assert.ok(r.includes('rate: "whisper",'));
   assert.ok(r.includes('role: "operator",'));
   assert.ok(r.includes('if (m.sender !== "ai" || m.status !== "queued") {'));
-  const steered = r.indexOf("const r = await steerDraft(id, text);");
+  const steered = r.indexOf("const r = await steerDraft(id, text, {");
   const recorded = r.search(
     /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: r\.messageId,?\s*\}\)/,
   );
@@ -87,7 +87,7 @@ test("the dashboard route keeps its doors and records the decision only after th
     "and the race has its own sentence, not a token",
   );
   const svc = readCode("apps/dashboard/src/server/conversations/thread-control.ts");
-  assert.ok(svc.includes('callEdge("/api/admin/steer"'));
+  assert.ok(svc.includes('"/api/admin/steer"'));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__steerDraft = steerDraft;"));
   assert.ok(bridge.includes('"POST messages/[id]/steer", { params: { id: messageId }, body: { text } }'));

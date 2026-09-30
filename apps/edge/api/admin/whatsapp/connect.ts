@@ -13,11 +13,11 @@
  * the receptionist answers on this number with this business's token, never
  * the environment's.
  *
- * Diagnostic-key only: the dashboard is the sole caller, as for steer.
+ * Signed admin token only: the dashboard is the sole caller, as for steer.
  */
 import { json, refuse } from "../../../lib/http.js";
 import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent, recordActivation } from "../../../lib/packages/db.js";
 import type { Json } from "../../../lib/packages/db.js";
@@ -69,7 +69,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/connect");
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/connect");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const appSecret = env.META_APP_SECRET;
@@ -80,7 +80,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
-  const userId = String(body.user_id || "");
+  const userId = personFor(auth, body.user_id) ?? "";
   const code = String(body.code || "").trim();
   const phoneNumberId = String(body.phone_number_id || "").trim();
   const wabaId = String(body.waba_id || "").trim();
@@ -233,7 +233,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (credErr) {
     L.info("wa_connect_credentials_failed", { error: credErr.message });
     // Without credentials the row would ride the environment token: not this business's. Disable it.
-    await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);
+    await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id).eq("tenant_id", tenantId);
     return refuse(500, "credentials_failed");
   }
 

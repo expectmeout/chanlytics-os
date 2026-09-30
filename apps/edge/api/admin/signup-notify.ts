@@ -6,7 +6,7 @@
  * create_workspace; the one thing the dashboard cannot do is send the
  * email. A failure here is a shrug: the workspace exists and its owner is
  * in it. What travels is the workspace's name, slug and id and the owner's
- * address; no customer content exists yet. Diagnostic-key only.
+ * address; no customer content exists yet. Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -24,7 +24,7 @@ interface Body {
 }
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/signup-notify");
+  const auth = await authorizeAdmin(request, "/api/admin/signup-notify");
   if (!auth.ok) return auth.response;
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();

@@ -6,7 +6,7 @@
  * The dashboard's partner routes call it after create_workspace_for_business or partner_handover_resend, from
  * production only, and treat a failure as a shrug the partner is told of: the handover is on record and can be sent
  * again. The address is the one the handover holds, read here, never one the call carries, so this door writes to
- * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Diagnostic-key
+ * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Signed admin token
  * only; the address is never logged.
  */
 import { json } from "../../lib/http.js";
@@ -22,7 +22,7 @@ import { handoverInviteEmail } from "../../lib/packages/contracts.js";
 const L = logger();
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/handover-invite");
+  const auth = await authorizeAdmin(request, "/api/admin/handover-invite");
   if (!auth.ok) return auth.response;
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });

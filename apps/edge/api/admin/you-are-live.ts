@@ -7,7 +7,7 @@
  * as a shrug: the activation is already on record. What it says is the workspace's own: its numbers, where a caller who
  * asks for a person goes, and its test call (who called and how long). Every sentence is contracts' (youAreLiveEmail).
  * Addressed to the workspace's alert addresses only (mail(): no bell row, and nothing to the platform when there are
- * none). Diagnostic-key only.
+ * none). Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -22,7 +22,7 @@ import { parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../../
 const L = logger();
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/you-are-live");
+  const auth = await authorizeAdmin(request, "/api/admin/you-are-live");
   if (!auth.ok) return auth.response;
   const db = pg();
   if (!db) return refuse(503, "no_database");

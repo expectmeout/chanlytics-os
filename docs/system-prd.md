@@ -105,7 +105,7 @@ flowchart LR
 
 The two apps deploy independently from `main`, so a change both must agree on ships in a shape that works in either order. `packages/*/dist` is committed and the edge imports it by relative path (`apps/edge/lib/packages/*.ts` re-export `../../../../packages/<pkg>/dist/index.js`), because Vercel's function bundler does not follow pnpm's workspace symlinks. CI fails when the committed `dist` differs from a fresh build, and the dashboard is built on every pull request the way Vercel builds it.
 
-**What a deployment may do** is decided once (`server/deployment.ts`): production reaches the real providers; a preview or a laptop reaches them only when `EDGE_PROVIDERS=live` says its `EDGE_URL` points at an edge holding sandbox keys, and otherwise every such call — buying a number, filing a registration, connecting WhatsApp, syncing templates, Checkout, a word into a live call, the model — answers "not here". An unset `VERCEL_ENV` is a laptop, never production.
+**What a deployment may do** is decided once (`server/env.ts`): production reaches the real providers; a preview or a laptop reaches them only when `EDGE_PROVIDERS=live` says its `EDGE_URL` points at an edge holding sandbox keys, and otherwise every such call — buying a number, filing a registration, connecting WhatsApp, syncing templates, Checkout, a word into a live call, the model — answers "not here". An unset `VERCEL_ENV` is a laptop, never production.
 
 ### Providers
 

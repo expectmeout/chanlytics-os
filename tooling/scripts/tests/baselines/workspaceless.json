@@ -1,0 +1,19 @@
+{
+  "apps/edge/api/admin/google.ts": 1,
+  "apps/edge/api/admin/lines.ts": 2,
+  "apps/edge/api/admin/steer.ts": 1,
+  "apps/edge/api/admin/whatsapp/connect.ts": 3,
+  "apps/edge/api/admin/whatsapp/templates-create.ts": 1,
+  "apps/edge/api/admin/whatsapp/templates-sync.ts": 2,
+  "apps/edge/lib/billing/billing.ts": 5,
+  "apps/edge/lib/google/listing-check.ts": 3,
+  "apps/edge/lib/google/profile-connection.ts": 2,
+  "apps/edge/lib/google/profile-sync.ts": 1,
+  "apps/edge/lib/lines/line-release.ts": 1,
+  "apps/edge/lib/playbooks.ts": 1,
+  "apps/edge/lib/reach-out/clock.ts": 2,
+  "apps/edge/lib/receptionist/draft-queue.ts": 1,
+  "apps/edge/lib/voice/forwarding.ts": 1,
+  "apps/edge/lib/whatsapp/persist.ts": 1,
+  "apps/edge/lib/whatsapp/waba-events.ts": 1
+}

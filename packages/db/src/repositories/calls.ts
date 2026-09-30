@@ -23,6 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { IDS_PER_READ } from "./people";
 import { dbLog } from "../observe";
+import { tenantDb } from "../tenant-db";
 
 type Db = SupabaseClient<Database>;
 
@@ -270,4 +271,20 @@ export async function callerNameOf(db: Db, tenantId: string, contactId: string):
     .maybeSingle();
   if (error) throw new Error(`caller_name: ${error.message}`);
   return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}
+
+/**
+ * Whether the call the provider knows as `retellCallId` is this workspace's: what a live-call door asks before it
+ * speaks into, ends or hands over a call for a token's workspace (the dashboard's route proved it under RLS; the edge
+ * acts through the service role and proves it again). Null when the read failed: the door answers that, never a yes.
+ */
+export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: string): Promise<boolean | null> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("calls")
+    .select("id")
+    .eq("retell_call_id", retellCallId)
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data !== null;
 }

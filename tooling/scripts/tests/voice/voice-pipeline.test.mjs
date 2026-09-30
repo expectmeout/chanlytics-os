@@ -27,6 +27,9 @@ import {
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "../_source.mjs";
 
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+
 const brain = {
   business_name: "Marisa's Beauty Salon",
   phone_display: "(212) 555-0142",
@@ -131,7 +134,7 @@ test("the health-advice rule is opt-in and lands last with the other rules", () 
 test("the shell is only placeholders and tools, and the transfer dials the variable", () => {
   assert.ok(VOICE_SHELL_PROMPT.includes("{{business_facts}}") && VOICE_SHELL_PROMPT.includes("{{caller_context}}"));
   assert.equal(VOICE_SHELL_BEGIN, "{{greeting}}");
-  const d = desiredVoiceShell();
+  const d = desiredVoiceShell(FN_URL);
   assert.deepEqual(
     d.general_tools.map((t) => t.name),
     ["end_call", "transfer_to_staff", "send_booking_link", "check_availability"],
@@ -153,7 +156,7 @@ test("the shell is only placeholders and tools, and the transfer dials the varia
   for (const v of Object.values(d.default_dynamic_variables))
     assert.ok(!v.includes("{{"), "a default that is a placeholder is read aloud");
   // Provisioning creates the shell itself: the same prompt, the same variable.
-  const created = voiceLlmCreateBody({ fnSecret: "s" });
+  const created = voiceLlmCreateBody({ fnSecret: "s" }, FN_URL);
   assert.equal(created.general_prompt, VOICE_SHELL_PROMPT, "provisioning is the first converge");
   assert.equal(created.general_tools[1].transfer_destination.number, HANDOFF_VAR);
 });
@@ -185,7 +188,7 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
       { type: "custom", name: "check_weather", description: "somebody's experiment", url: "https://x" },
     ],
   };
-  const desired = desiredVoiceShell(undefined, { "x-fn-secret": "sealed" });
+  const desired = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
   const plan = planVoiceConvergence(live, desired);
   assert.deepEqual(Object.keys(plan.llmPatch).sort(), [
     "begin_message",
@@ -215,12 +218,12 @@ test("the converger's plan is complete against the hand-typed agent, and idempot
   assert.equal(again.llmPatch, null);
   assert.deepEqual(again.drift, []);
   // The diagnostic reads the same rule, and flags a secret-less booking tool.
-  assert.equal(voiceShellDrift(after).converged, true);
+  assert.equal(voiceShellDrift(after, FN_URL).converged, true);
   const bare = {
     ...after,
     general_tools: after.general_tools.map((t) => (t.name === "send_booking_link" ? { ...t, headers: undefined } : t)),
   };
-  assert.ok(voiceShellDrift(bare).drift.some((l) => l.includes("no x-fn-secret header")));
+  assert.ok(voiceShellDrift(bare, FN_URL).drift.some((l) => l.includes("no x-fn-secret header")));
 });
 
 /* --------------------------- the settings form ---------------------------- */

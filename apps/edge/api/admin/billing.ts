@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/billing — a workspace's way to pay. Diagnostic-key only;
+ * POST /api/admin/billing — a workspace's way to pay. Signed admin token only;
  * the dashboard's /api/v1/billing verbs call it for an owner.
  *
  *   { op: "status" }                                  → what this deployment can do, whether its key is live or test, the plan as Stripe states it, the trial length
@@ -79,7 +79,7 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/billing");
+  const auth = await authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
   const body = await readBody<BillingBody>(request);
   const op = typeof body.op === "string" ? body.op : "";

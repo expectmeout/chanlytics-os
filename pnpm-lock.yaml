@@ -377,6 +377,9 @@ importers:
       '@chanlytics/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@supabase/postgrest-js':
+        specifier: ^2.116.0
+        version: 2.116.0
       '@supabase/supabase-js':
         specifier: ^2.116.0
         version: 2.116.0

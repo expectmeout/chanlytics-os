@@ -16,7 +16,7 @@
  *   gone          released meanwhile; nothing to do
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { tenantDb, type Database } from "../packages/db.js";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
 import {
@@ -57,6 +57,8 @@ function realLineProvisionDeps(): LineProvisionDeps {
 
 export async function provisionLineJob(
   db: SupabaseClient<Database>,
+  /** The job's workspace: the line named is that workspace's, or there is nothing to do. */
+  tenantId: string,
   lineId: string,
   by: ResumedBy,
   deps: LineProvisionDeps = realLineProvisionDeps(),
@@ -69,7 +71,7 @@ export async function provisionLineJob(
   if (!apiKey || !fnSecret)
     return { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret", did: "nothing", why: "no credentials" };
 
-  const row = await db.from("lines").select("*").eq("id", lineId).maybeSingle();
+  const row = await tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
   if (row.error) throw new Error(`line_provision: ${row.error.message}`);
   if (!row.data) return { ok: true, did: "nothing", why: "released" };
   let line = row.data;

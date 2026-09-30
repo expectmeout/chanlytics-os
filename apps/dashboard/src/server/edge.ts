@@ -1,9 +1,11 @@
 /**
  * How the dashboard reaches the edge: where it is, and what a call carries.
  *
- * The address was a literal in five files; it is one variable now, EDGE_URL,
- * with the old literal as its default so nothing moves until it is set (a
- * preview pointed at a staging edge is then one variable away). The
+ * The address was a literal in five files; it is one variable now, EDGE_URL.
+ * Production must name it (env.ts: it refuses to boot without), so a
+ * production deployment never quietly calls an address it was not given; a
+ * preview or a laptop keeps the old literal as its default, and a preview
+ * pointed at a staging edge is one variable away. The
  * credential was one shared key in a header; a call now carries a token
  * minted for the door it opens (packages/channels edge-token), bound to the
  * workspace and the person, valid for a minute, when EDGE_CALL_SECRET is set
@@ -16,9 +18,11 @@
  */
 import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels";
 import { MIN_MS, type EdgeAnswerBody, type EdgeAnswerCode } from "@chanlytics/contracts";
+import { env, isProduction } from "./env";
 import { requestId } from "./log";
 
-const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
+/** Where a preview or a laptop calls when EDGE_URL is unset: the edge's production address, as it always was. */
+const NOT_PRODUCTION_EDGE_URL = "https://chanlytics-messaging.vercel.app";
 
 /**
  * How long a lambda keeps what the edge said this deployment can do (Google's, billing's, own domains'): five
@@ -26,14 +30,20 @@ const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
  */
 export const READY_TTL_MS = 5 * MIN_MS;
 
-/** The edge's origin, no trailing slash. */
+/**
+ * The edge's origin, no trailing slash (env.ts strips it). A production deployment without EDGE_URL never starts
+ * (instrumentation.ts), and one that somehow runs without it throws here rather than call an address nobody set.
+ */
 export function edgeUrl(): string {
-  return (process.env.EDGE_URL || DEFAULT_EDGE_URL).replace(/\/+$/, "");
+  const set = env.EDGE_URL;
+  if (set) return set;
+  if (isProduction()) throw new Error("env_invalid: EDGE_URL is required in production");
+  return NOT_PRODUCTION_EDGE_URL;
 }
 
 /** Whether this deployment holds any credential the edge would honour. */
 export function edgeConfigured(): boolean {
-  return !!(process.env.EDGE_CALL_SECRET || process.env.DIAG_KEY);
+  return !!(env.EDGE_CALL_SECRET || env.DIAG_KEY);
 }
 
 /**
@@ -48,17 +58,21 @@ export function edgeRefusalWords(body: EdgeAnswerBody | null | undefined): strin
   return typeof body?.error === "string" ? body.error : null;
 }
 
-/** The headers a call to the door at `aud` carries, and the name of the request it is made for (log.ts). */
+/**
+ * The headers a call to the door at `aud` carries, and the name of the request it is made for (log.ts). A call with a
+ * body names it (`body`, the exact text sent): the token then opens the door for that body only, and once.
+ */
 export function edgeHeaders(
   aud: string,
-  ctx: { workspace?: string | null; user?: string | null } = {},
+  ctx: { workspace?: string | null; user?: string | null; body?: string } = {},
 ): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
   const id = requestId();
   if (id) h[REQUEST_ID_HEADER] = id;
-  const secret = process.env.EDGE_CALL_SECRET;
+  const secret = env.EDGE_CALL_SECRET;
+  const key = env.DIAG_KEY;
   if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, { ...ctx, request: id });
-  else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
+  else if (key) h["x-diag-key"] = key;
   return h;
 }
 
@@ -99,19 +113,22 @@ export async function callEdge(
   aud: string,
   body: unknown,
   opts: {
-    workspace?: string | null;
-    user?: string | null;
+    /** The workspace the call is for, or null said out loud for a call about none (a readiness probe, a search). */
+    workspace: string | null;
+    /** The person behind the call, or null said out loud for a call nobody is behind (a webhook's follow-up). */
+    user: string | null;
     timeoutMs?: number;
     method?: "GET" | "POST";
     fetch?: typeof fetch;
-  } = {},
+  },
 ): Promise<EdgeAnswer> {
   const method = opts.method ?? "POST";
+  const sent = method === "POST" ? JSON.stringify(body ?? {}) : undefined;
   try {
     const r = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
       method,
-      headers: edgeHeaders(aud, { workspace: opts.workspace ?? null, user: opts.user ?? null }),
-      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
+      headers: edgeHeaders(aud, { workspace: opts.workspace, user: opts.user, body: sent }),
+      ...(sent === undefined ? {} : { body: sent }),
       cache: "no-store",
       signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
     });

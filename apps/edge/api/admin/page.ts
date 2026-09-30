@@ -30,7 +30,7 @@ const isCondition = (v: unknown): v is OutsideCondition =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(OUTSIDE_CONDITIONS, v);
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/page", { platformKey: true });
+  const auth = await authorizeAdmin(request, "/api/admin/page", { platformKey: true });
   if (!auth.ok) return auth.response;
   if (auth.via !== "key") return refuse(403, "platform_only", "the platform's key pages; a workspace's token does not");
 

@@ -19,12 +19,12 @@
  * month: only { apply: true } with area_code does it. Secrets never come
  * back: every URL is returned without its query string, and a provider's
  * success body (which echoes the webhook URL) is never echoed.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { edgeFnUrl } from "../../lib/lines/lines.js";
+import { edgeFnUrl } from "../../lib/dashboard-origin.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { emitEvent } from "../../lib/packages/db.js";
@@ -132,7 +132,7 @@ interface ProvisionKnock {
  * body's workspace. A refused request reads nothing past the refusal.
  */
 async function checkProvisionKnock(request: Request): Promise<ProvisionKnock | Response> {
-  const auth = authorizeAdmin(request, "/api/admin/voice-provision");
+  const auth = await authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
@@ -325,7 +325,7 @@ async function bindExistingNumber(
   const w = await updatePhoneNumber(
     cfg,
     number,
-    voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets),
+    voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
   if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
   const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
@@ -341,7 +341,7 @@ async function buyInAreaCode(
 ): Promise<BoundNumber | RefusedLeg> {
   const w = await createPhoneNumber(
     cfg,
-    voiceNumberCreateBody({ areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets),
+    voiceNumberCreateBody({ areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
   if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
   const bought = typeof w.body?.phone_number === "string" ? w.body.phone_number : "";
@@ -430,7 +430,7 @@ async function readBackLeg(cfg: RetellConfig, { agentId, llmId }: MadeAgent): Pr
           retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
         }).drift
       : ["unreadable"],
-    shell: llmAfter ? voiceShellDrift(llmAfter).drift : ["unreadable"],
+    shell: llmAfter ? voiceShellDrift(llmAfter, edgeFnUrl()).drift : ["unreadable"],
     published: after?.is_published ?? null,
   };
 }

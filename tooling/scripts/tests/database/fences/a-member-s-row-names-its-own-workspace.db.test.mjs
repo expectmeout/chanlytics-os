@@ -179,12 +179,15 @@ test("a broadcast and its recipients name their own workspace's template, playbo
   const own = ok(await run({ template_id: mine.template }), "a broadcast of their own template");
   refused(await run({ template_id: theirs.template }), "a broadcast of another workspace's template");
 
-  const recipient = (message_id) =>
+  const recipient = (over) =>
     me.session
       .from("broadcast_recipients")
-      .insert({ tenant_id: mine.t, broadcast_id: own[0].id, contact_id: mine.contact, message_id });
-  refused(await recipient(theirs.message), "a recipient naming another workspace's message");
-  ok(await recipient(null), "a recipient with no message yet");
+      .insert({ tenant_id: mine.t, broadcast_id: own[0].id, contact_id: mine.contact, ...over });
+  // A recipient's message is the edge's to write when it sends (00278 grants a session no such column), so a session
+  // names none: another workspace's is refused, and so is its own; the policy stands under the grant.
+  refused(await recipient({ message_id: theirs.message }), "a recipient naming another workspace's message");
+  refused(await recipient({ message_id: mine.message }), "a recipient naming any message: the column is the edge's");
+  ok(await recipient({}), "a recipient with no message yet");
 });
 
 test("a moment is on their own workspace's list and template, made or moved", { skip }, async () => {
@@ -193,7 +196,6 @@ test("a moment is on their own workspace's list and template, made or moved", { 
       .from("playbooks")
       .insert({
         tenant_id: mine.t,
-        kind: "moment",
         name: `Moment ${Math.random().toString(36).slice(2, 7)}`,
         trigger: "saved_list",
         template_name: "visit_reminder",

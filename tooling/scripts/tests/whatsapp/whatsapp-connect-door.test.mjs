@@ -249,8 +249,6 @@ test("connect, the door: a token for another door, a forgery and no credential a
       detail: "tenant_id, user_id, code, phone_number_id and waba_id required",
     };
     for (const body of [
-      signedUp({ user_id: undefined }),
-      signedUp({ user_id: "not-a-person" }),
       signedUp({ code: "" }),
       signedUp({ code: "x".repeat(2001) }),
       signedUp({ phone_number_id: "12345" }),
@@ -264,8 +262,23 @@ test("connect, the door: a token for another door, a forgery and no credential a
         [400, required],
         "a key-holder must name the workspace",
       );
+      // ... and the person: a key names none, so the body must.
+      for (const user_id of [undefined, "not-a-person"])
+        assert.deepEqual(
+          await answer(await knock(signedUp({ user_id }), { "x-diag-key": "diag-key-for-this-file" })),
+          [400, required],
+          "a key-holder must name a person",
+        );
     });
     assert.equal(db.seen.length, 0);
+    // A token names the person, and the door writes down the token's, not a body's: a body without one, or with a name
+    // that is no person's, is still the token's owner, and reaches Meta's exchange (refused here, by the wire above).
+    for (const user_id of [undefined, "not-a-person"])
+      assert.deepEqual(
+        (await answer(await knock(signedUp({ user_id }))))[1].error,
+        "exchange_failed",
+        `the token's person stands in for ${String(user_id)}`,
+      );
     setPg(null);
     assert.deepEqual(await answer(await knock(signedUp())), [503, { ok: false, error: "no_database" }]);
   } finally {

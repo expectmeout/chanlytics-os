@@ -52,7 +52,7 @@ const adminKnock = (headers) =>
   new Request("https://edge.test/api/admin/stop-call", {
     method: "POST",
     headers: {
-      "x-edge-token": signEdgeToken(SECRET, "/api/admin/stop-call", { workspace: "ws-1", user: "u-1" }),
+      "x-edge-token": signEdgeToken(SECRET, "/api/admin/stop-call", { workspace: "ws-1", user: "u-1", body: "{}" }),
       ...headers,
     },
     body: "{}",

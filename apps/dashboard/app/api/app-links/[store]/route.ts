@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appLinksFor } from "@/server/public/app-links";
+import { env } from "@/server/env";
 
 /**
  * GET /.well-known/apple-app-site-association and /.well-known/assetlinks.json (next.config rewrites both here;
@@ -7,7 +8,7 @@ import { appLinksFor } from "@/server/public/app-links";
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ store: string }> }): Promise<Response> {
   const { store } = await ctx.params;
-  const file = appLinksFor(store, { apple: process.env.APP_LINKS_APPLE, android: process.env.APP_LINKS_ANDROID });
+  const file = appLinksFor(store, { apple: env.APP_LINKS_APPLE, android: env.APP_LINKS_ANDROID });
   if (!file) return new NextResponse(null, { status: 404 });
   return NextResponse.json(file, {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" },

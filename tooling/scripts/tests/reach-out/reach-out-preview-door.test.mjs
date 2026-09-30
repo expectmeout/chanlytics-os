@@ -241,5 +241,11 @@ test("a preview spends the model, so it counts in Ask's daily budget as a lead d
   const [s2, b2] = await answer(await knock(BODY()));
   assert.deepEqual([s2, b2.error], [429, "ask_budget"]);
   assert.equal(full.asked.length, 0, "no business was read for it");
-  assert.deepEqual(await answer(await knock(BODY({ user_id: "ada" }))), [400, { ok: false, error: "bad_request" }]);
+  // The token's person is the asker. A token about no person leaves the body to say who, and a body that names no
+  // person is refused; a token that names one is believed over whatever the body says.
+  const nobody = { "x-edge-token": signEdgeToken(process.env.EDGE_CALL_SECRET, AUD, { workspace: A, user: null }) };
+  assert.deepEqual(await answer(await knock(BODY({ user_id: "ada" }), nobody)), [
+    400,
+    { ok: false, error: "bad_request" },
+  ]);
 });

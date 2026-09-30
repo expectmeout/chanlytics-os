@@ -75,6 +75,7 @@ test("the thirteen declare a read of the workspace, and the one that hands over 
   const people = await import(at("apps/dashboard/app/api/v1/contacts/export/route.ts"));
   assert.deepEqual(people.GET.policy, {
     kind: "read",
+    fresh: true,
     scope: "workspace",
     role: "owner",
     rate: "export",

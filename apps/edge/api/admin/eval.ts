@@ -53,7 +53,7 @@ export const POST = adminDoor(async function POST(request: Request, brain?: Brai
   const ask = brain?.generateReply ?? generateReply;
   // A door for one workspace: the harness (tooling/scripts/eval-brain.mjs) mints a token for it and that workspace,
   // as the dashboard mints one; the key opens it only on an edge without the secret.
-  const auth = authorizeAdmin(request, "/api/admin/eval");
+  const auth = await authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 

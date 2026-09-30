@@ -27,7 +27,7 @@ const L = logger();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-sync");
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-sync");
   if (!auth.ok) return auth.response;
   const body = await readBody<{ tenant_id?: unknown }>(request);
   const ws = workspaceFor(auth, body.tenant_id);

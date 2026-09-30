@@ -16,12 +16,12 @@
  * paused, ended or unbilled spends nothing (402 payment_required), and a day that could not be counted holds the turn
  * (503 read_failed). Every round is written to the usage ledger with the model that answered and its dollars.
  *
- * Diagnostic-key only: the dashboard is the sole caller, exactly as it is for
+ * Signed admin token only: the dashboard is the sole caller, exactly as it is for
  * steer and whisper.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { ASK_TOKENS_DAY, MIN_MS, MODEL_ROUTES, NO_USAGE, usageOf } from "../../lib/packages/contracts.js";
 import {
@@ -52,7 +52,7 @@ const BUDGET_TTL_MS = MIN_MS;
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const tIn = Date.now();
-  const auth = authorizeAdmin(request, "/api/admin/llm");
+  const auth = await authorizeAdmin(request, "/api/admin/llm");
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
@@ -62,6 +62,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
   if (

@@ -353,6 +353,208 @@ function answerObject(a) {
   return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
 }
 
+// src/public-fetch.ts
+import dns from "dns";
+import http from "http";
+import https from "https";
+import net from "net";
+import { pipeline, Readable, Transform } from "stream";
+import zlib from "zlib";
+var resolveByLookup = async (host) => {
+  const all = await dns.promises.lookup(host, { all: true, verbatim: true });
+  return all.map((a) => ({ address: a.address, family: a.family }));
+};
+function octetsOf(address) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+  if (!m) return null;
+  const o = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  return o.every((n) => n <= 255) ? o : null;
+}
+function v4IsPublic(o) {
+  const [a, b, c] = o;
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  if (a >= 224) return false;
+  return true;
+}
+function bytesOfV6(address) {
+  const bare = address.replace(/^\[|\]$/g, "").split("%")[0] ?? "";
+  if (net.isIP(bare) !== 6) return null;
+  let head = bare;
+  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(bare);
+  if (tail) {
+    const o = octetsOf(tail[1] ?? "");
+    if (!o) return null;
+    head = bare.slice(0, tail.index) + (o[0] << 8 | o[1]).toString(16) + ":" + (o[2] << 8 | o[3]).toString(16);
+  }
+  const [left = "", right] = head.split("::");
+  const groups = (s) => s ? s.split(":").filter((x) => x !== "") : [];
+  const l = groups(left);
+  const r2 = right === void 0 ? [] : groups(right);
+  const zeros = right === void 0 ? 0 : 8 - l.length - r2.length;
+  if (zeros < 0 || right === void 0 && l.length !== 8) return null;
+  const all = [...l, ...Array(zeros).fill("0"), ...r2];
+  const bytes = [];
+  for (const g of all) {
+    const n = parseInt(g, 16);
+    if (!Number.isFinite(n) || n < 0 || n > 65535) return null;
+    bytes.push(n >> 8, n & 255);
+  }
+  return bytes.length === 16 ? bytes : null;
+}
+function carriedV4(b) {
+  return [b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0];
+}
+var zeroBetween = (b, from, to) => b.slice(from, to).every((x) => x === 0);
+function v6IsPublic(b) {
+  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false;
+  if (zeroBetween(b, 0, 10) && b[10] === 255 && b[11] === 255) return v4IsPublic(carriedV4(b));
+  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
+  if (b[0] === 0 && b[1] === 100 && b[2] === 255 && b[3] === 155 && zeroBetween(b, 4, 12))
+    return v4IsPublic(carriedV4(b));
+  const first = b[0] ?? 0;
+  const second = b[1] ?? 0;
+  if ((first & 254) === 252) return false;
+  if (first === 254 && (second & 192) === 128) return false;
+  if (first === 255) return false;
+  if (first === 32 && second === 1 && b[2] === 13 && b[3] === 184) return false;
+  return true;
+}
+function isPublicAddress(address) {
+  const o = octetsOf(address);
+  if (o) return v4IsPublic(o);
+  const b = bytesOfV6(address);
+  return b ? v6IsPublic(b) : false;
+}
+var NotPublicError = class extends Error {
+  constructor(host, detail) {
+    super(`${host}: ${detail}`);
+    this.name = "NotPublicError";
+  }
+};
+function publicLookup(resolve) {
+  return (host, options, callback) => {
+    resolve(host).then(
+      (answers) => {
+        const bad = answers.find((a) => !isPublicAddress(a.address));
+        if (answers.length === 0) return callback(new NotPublicError(host, "no address"), "");
+        if (bad) return callback(new NotPublicError(host, `resolves to ${bad.address}, not a public address`), "");
+        if (typeof options === "object" && options?.all) return callback(null, answers);
+        const first = answers[0];
+        return first ? callback(null, first.address, first.family) : callback(new NotPublicError(host, "no address"), "");
+      },
+      (e) => callback(e instanceof Error ? e : new Error(String(e)), "")
+    );
+  };
+}
+var BODYLESS = /* @__PURE__ */ new Set([101, 103, 204, 205, 304]);
+function bodyText(body) {
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  throw new TypeError("publicFetch sends a string or form fields as a body");
+}
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+function capped(limit) {
+  let seen = 0;
+  return new Transform({
+    transform(chunk, _encoding, done) {
+      seen += chunk.length;
+      if (seen > limit) done(new Error(`the response is over ${limit} bytes`));
+      else done(null, chunk);
+    }
+  });
+}
+function decoded(res) {
+  const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
+  const cap2 = capped(RESPONSE_MAX_BYTES);
+  const ignore = () => void 0;
+  if (coding === "gzip" || coding === "x-gzip") return pipeline(res, zlib.createGunzip(), cap2, ignore);
+  if (coding === "deflate") return pipeline(res, zlib.createInflate(), cap2, ignore);
+  if (coding === "br") return pipeline(res, zlib.createBrotliDecompress(), cap2, ignore);
+  return pipeline(res, cap2, ignore);
+}
+function publicFetch(deps = {}) {
+  const lookup = publicLookup(deps.resolve ?? resolveByLookup);
+  const request = deps.request ?? https.request;
+  const once2 = async (input, init) => {
+    const target = new URL(input instanceof Request ? input.url : String(input));
+    if (target.protocol !== "https:" && target.protocol !== "http:")
+      throw new NotPublicError(target.host, `${target.protocol} is not fetched`);
+    const literal = target.hostname.replace(/^\[|\]$/g, "");
+    if (net.isIP(literal) && !isPublicAddress(literal)) throw new NotPublicError(target.host, "not a public address");
+    const headers2 = { "accept-encoding": "gzip, deflate, br" };
+    new Headers(input instanceof Request ? input.headers : void 0).forEach((v, k) => headers2[k] = v);
+    new Headers(init?.headers).forEach((v, k) => headers2[k] = v);
+    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : void 0);
+    return new Promise((resolveResponse, reject) => {
+      if (signal?.aborted) return reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+      const send = deps.request ?? (target.protocol === "http:" ? http.request : request);
+      const req = send(target, { method, headers: headers2, lookup }, (res) => {
+        const out = new Headers();
+        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2)
+          out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
+        const status = res.statusCode ?? 0;
+        if (out.has("content-encoding")) {
+          out.delete("content-encoding");
+          out.delete("content-length");
+        }
+        const body2 = BODYLESS.has(status) || method === "HEAD" ? null : Readable.toWeb(decoded(res));
+        if (body2 === null) res.resume();
+        resolveResponse(new Response(body2, { status, statusText: res.statusMessage ?? "", headers: out }));
+      });
+      const onAbort = () => req.destroy(signal?.reason instanceof Error ? signal.reason : new Error("aborted"));
+      signal?.addEventListener("abort", onAbort, { once: true });
+      req.on("error", (e) => {
+        signal?.removeEventListener("abort", onAbort);
+        reject(e);
+      });
+      req.on("close", () => signal?.removeEventListener("abort", onAbort));
+      const body = init?.body;
+      if (body !== void 0 && body !== null && method !== "GET" && method !== "HEAD") req.write(bodyText(body));
+      req.end();
+    });
+  };
+  return async (input, init) => {
+    const manual = init?.redirect === "manual" || input instanceof Request && input.redirect === "manual";
+    if (manual) return once2(input, init);
+    let url = input instanceof Request ? input.url : String(input);
+    let at = init;
+    for (let hop = 0; ; hop += 1) {
+      const res = await once2(url, at);
+      const next = REDIRECT_STATUSES.has(res.status) ? res.headers.get("location") : null;
+      if (!next) return res;
+      await res.body?.cancel().catch(() => void 0);
+      if (hop >= REDIRECTS_MAX) throw new NotPublicError(new URL(url).host, "too many redirects");
+      url = new URL(next, url).toString();
+      if (res.status !== 307 && res.status !== 308) at = { ...at, method: "GET", body: void 0 };
+    }
+  };
+}
+var REDIRECTS_MAX = 5;
+var REDIRECT_STATUSES = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
+var STAND_IN = /* @__PURE__ */ Symbol.for("chanlytics.publicFetch.standIn");
+var guarded = null;
+function publicFetcher() {
+  const standIn = globalThis[STAND_IN];
+  if (standIn) return standIn;
+  guarded ??= publicFetch();
+  return guarded;
+}
+function setPublicFetch(f) {
+  const holder = globalThis;
+  const before = holder[STAND_IN] ?? null;
+  holder[STAND_IN] = f;
+  return before;
+}
+
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -4287,11 +4489,10 @@ var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
 var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 function availabilityUrl(fnUrl) {
   return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
 }
-function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+function voiceShellTools(fnUrl, bookingHeaders) {
   return [
     {
       type: "end_call",
@@ -4359,7 +4560,7 @@ function voiceShellTools(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
     }
   ];
 }
-function desiredVoiceShell(fnUrl = DEFAULT_FN_URL, bookingHeaders) {
+function desiredVoiceShell(fnUrl, bookingHeaders) {
   return {
     general_prompt: VOICE_SHELL_PROMPT,
     begin_message: VOICE_SHELL_BEGIN,
@@ -4440,9 +4641,9 @@ function planVoiceConvergence(live, desired) {
   if (toolsDiffer) patch.general_tools = desired.general_tools;
   return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
 }
-function voiceShellDrift(live) {
+function voiceShellDrift(live, fnUrl) {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
-  const url = typeof booking?.url === "string" ? booking.url : DEFAULT_FN_URL;
+  const url = typeof booking?.url === "string" ? booking.url : fnUrl;
   const headers2 = booking?.headers ?? null;
   const plan = planVoiceConvergence(live, desiredVoiceShell(url, headers2));
   const drift = [...plan.drift];
@@ -4566,7 +4767,7 @@ var VOICE_NUMBER_DEFAULTS = {
   country_code: "US",
   number_provider: "twilio"
 };
-function voiceEndpoints(fnUrl = DEFAULT_FN_URL) {
+function voiceEndpoints(fnUrl) {
   const base = fnUrl.replace(/\/api\/retell-fn$/, "");
   return {
     fn: fnUrl,
@@ -4581,10 +4782,10 @@ function withKey(url, secret) {
 function stripKey(url) {
   return typeof url === "string" ? url.split("?")[0] ?? url : null;
 }
-function voiceLlmCreateBody(s, fnUrl = DEFAULT_FN_URL) {
+function voiceLlmCreateBody(s, fnUrl) {
   return { ...VOICE_LLM_DEFAULTS, ...desiredVoiceShell(fnUrl, { "x-fn-secret": s.fnSecret }) };
 }
-function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceAgentCreateBody(o, s, fnUrl) {
   return {
     agent_name: o.agentName,
     response_engine: {
@@ -4604,7 +4805,7 @@ function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
 function voiceNumberBinding(o) {
   return [{ agent_id: o.agentId, ...o.pinned ? { agent_version: "latest_published" } : {}, weight: 1 }];
 }
-function voiceNumberCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceNumberCreateBody(o, s, fnUrl) {
   return {
     ...VOICE_NUMBER_DEFAULTS,
     area_code: o.areaCode,
@@ -4613,7 +4814,7 @@ function voiceNumberCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
     inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret)
   };
 }
-function voiceNumberBindBody(o, s, fnUrl = DEFAULT_FN_URL) {
+function voiceNumberBindBody(o, s, fnUrl) {
   return {
     nickname: o.nickname,
     inbound_agents: voiceNumberBinding(o),
@@ -4808,9 +5009,9 @@ function rowsOf(b, key) {
   const rows = b[key];
   return Array.isArray(rows) ? rows.filter((r2) => !!r2 && typeof r2 === "object" && !Array.isArray(r2)) : [];
 }
-async function createSubaccount(http, master, friendlyName) {
+async function createSubaccount(http2, master, friendlyName) {
   const b = need(
-    await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
+    await http2(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
     "create subaccount"
   );
   const sid2 = str(b, "sid");
@@ -4818,25 +5019,25 @@ async function createSubaccount(http, master, friendlyName) {
   if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
   return { sid: sid2, token, status: str(b, "status") ?? "active" };
 }
-async function findSubaccount(http, master, friendlyName) {
+async function findSubaccount(http2, master, friendlyName) {
   const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
-  for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+  for (const a of rowsOf(need(await http2(master, "GET", url), "list subaccounts"), "accounts")) {
     const sid2 = str(a, "sid");
     const token = str(a, "auth_token");
     if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
   }
   return null;
 }
-async function findTrunk(http, acct, domainName) {
-  for (const t of rowsOf(need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
+async function findTrunk(http2, acct, domainName) {
+  for (const t of rowsOf(need(await http2(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
     const sid2 = str(t, "sid");
     if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
   }
   return null;
 }
-async function findCredentialList(http, acct, friendlyName) {
+async function findCredentialList(http2, acct, friendlyName) {
   const b = need(
-    await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+    await http2(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
     "list credential lists"
   );
   for (const l of rowsOf(b, "credential_lists")) {
@@ -4845,9 +5046,9 @@ async function findCredentialList(http, acct, friendlyName) {
   }
   return null;
 }
-async function findCredential(http, acct, listSid, username) {
+async function findCredential(http2, acct, listSid, username) {
   const b = need(
-    await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+    await http2(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
     "list credentials"
   );
   for (const c of rowsOf(b, "credentials")) {
@@ -4856,13 +5057,13 @@ async function findCredential(http, acct, listSid, username) {
   }
   return null;
 }
-async function deleteCredential(http, acct, listSid, credentialSid) {
-  const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+async function deleteCredential(http2, acct, listSid, credentialSid) {
+  const a = await http2(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
   if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
 }
-async function findOrigination(http, acct, trunkSid, sipUrl) {
+async function findOrigination(http2, acct, trunkSid, sipUrl) {
   const b = need(
-    await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+    await http2(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
     "list origination urls"
   );
   for (const o of rowsOf(b, "origination_urls")) {
@@ -4871,14 +5072,14 @@ async function findOrigination(http, acct, trunkSid, sipUrl) {
   }
   return null;
 }
-async function searchLocal(http, acct, q) {
+async function searchLocal(http2, acct, q) {
   const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
     AreaCode: String(q.areaCode),
     VoiceEnabled: "true",
     SmsEnabled: "true",
     PageSize: String(Math.min(Math.max(q.limit, 1), 30))
   }).toString()}`;
-  const b = need(await http(acct, "GET", url), "search numbers");
+  const b = need(await http2(acct, "GET", url), "search numbers");
   const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
   return rows.map((n) => {
     const e164 = str(n, "phone_number");
@@ -4893,9 +5094,9 @@ async function searchLocal(http, acct, q) {
     };
   }).filter((n) => n !== null);
 }
-async function buyNumber(http, acct, e164, friendlyName) {
+async function buyNumber(http2, acct, e164, friendlyName) {
   const b = need(
-    await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
+    await http2(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
       PhoneNumber: e164,
       FriendlyName: friendlyName.slice(0, 64)
     }),
@@ -4905,8 +5106,8 @@ async function buyNumber(http, acct, e164, friendlyName) {
   if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
   return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
 }
-async function ownedNumber(http, acct, e164) {
-  const a = await http(
+async function ownedNumber(http2, acct, e164) {
+  const a = await http2(
     acct,
     "GET",
     `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
@@ -4921,13 +5122,13 @@ async function ownedNumber(http, acct, e164) {
   }
   return null;
 }
-async function releaseNumber(http, acct, numberSid) {
-  const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
+async function releaseNumber(http2, acct, numberSid) {
+  const a = await http2(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
   if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
 }
-async function createTrunk(http, acct, o) {
+async function createTrunk(http2, acct, o) {
   const b = need(
-    await http(acct, "POST", twilioUrls.trunks, {
+    await http2(acct, "POST", twilioUrls.trunks, {
       FriendlyName: o.friendlyName.slice(0, 64),
       DomainName: o.domainName
     }),
@@ -4937,37 +5138,37 @@ async function createTrunk(http, acct, o) {
   if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
   return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
 }
-async function deleteTrunk(http, acct, trunkSid) {
-  const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
+async function deleteTrunk(http2, acct, trunkSid) {
+  const a = await http2(acct, "DELETE", twilioUrls.trunk(trunkSid));
   if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
 }
-async function createCredentialList(http, acct, friendlyName) {
+async function createCredentialList(http2, acct, friendlyName) {
   const b = need(
-    await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
+    await http2(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
     "create credential list"
   );
   const sid2 = str(b, "sid");
   if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
   return { sid: sid2 };
 }
-async function addCredential(http, acct, listSid, username, password) {
+async function addCredential(http2, acct, listSid, username, password) {
   const b = need(
-    await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
+    await http2(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
     "add credential"
   );
   const sid2 = str(b, "sid");
   if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
   return { sid: sid2 };
 }
-async function attachCredentialList(http, acct, trunkSid, listSid) {
+async function attachCredentialList(http2, acct, trunkSid, listSid) {
   need(
-    await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
+    await http2(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
     "attach credential list"
   );
 }
-async function addOrigination(http, acct, trunkSid, o) {
+async function addOrigination(http2, acct, trunkSid, o) {
   const b = need(
-    await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
+    await http2(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
       SipUrl: o.sipUrl,
       FriendlyName: o.friendlyName.slice(0, 64),
       Weight: "10",
@@ -4980,15 +5181,15 @@ async function addOrigination(http, acct, trunkSid, o) {
   if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
   return { sid: sid2 };
 }
-async function attachNumber(http, acct, trunkSid, numberSid) {
+async function attachNumber(http2, acct, trunkSid, numberSid) {
   need(
-    await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
+    await http2(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
     "attach number to trunk"
   );
 }
-async function createMessagingService(http, acct, o) {
+async function createMessagingService(http2, acct, o) {
   const b = need(
-    await http(acct, "POST", twilioUrls.messagingServices, {
+    await http2(acct, "POST", twilioUrls.messagingServices, {
       FriendlyName: o.friendlyName.slice(0, 64),
       InboundRequestUrl: o.inboundUrl,
       InboundMethod: "POST",
@@ -5002,17 +5203,17 @@ async function createMessagingService(http, acct, o) {
   if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
   return { sid: sid2 };
 }
-async function addNumberToService(http, acct, serviceSid, numberSid) {
+async function addNumberToService(http2, acct, serviceSid, numberSid) {
   const b = need(
-    await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
+    await http2(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
     "add number to messaging service"
   );
   const sid2 = str(b, "sid");
   if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
   return { sid: sid2 };
 }
-async function sendSms(http, acct, o) {
-  const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+async function sendSms(http2, acct, o) {
+  const a = await http2(acct, "POST", twilioUrls.messages(acct.sid), {
     MessagingServiceSid: o.serviceSid,
     To: o.to,
     Body: o.body,
@@ -5027,30 +5228,30 @@ async function sendSms(http, acct, o) {
     ...a.outcome ? { outcome: ok2 ? "ok" : a.outcome === "ok" ? "unknown" : a.outcome } : {}
   };
 }
-function twilioProvider(http = fetchTwilio) {
+function twilioProvider(http2 = fetchTwilio) {
   return {
     name: "twilio",
-    createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
-    findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
-    findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
-    findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
-    findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),
-    deleteCredential: (acct, listSid, credentialSid) => deleteCredential(http, acct, listSid, credentialSid),
-    findOrigination: (acct, trunkSid, sipUrl) => findOrigination(http, acct, trunkSid, sipUrl),
-    searchLocal: (acct, q) => searchLocal(http, acct, q),
-    buyNumber: (acct, e164, friendlyName) => buyNumber(http, acct, e164, friendlyName),
-    ownedNumber: (acct, e164) => ownedNumber(http, acct, e164),
-    releaseNumber: (acct, numberSid) => releaseNumber(http, acct, numberSid),
-    createTrunk: (acct, o) => createTrunk(http, acct, o),
-    deleteTrunk: (acct, trunkSid) => deleteTrunk(http, acct, trunkSid),
-    createCredentialList: (acct, friendlyName) => createCredentialList(http, acct, friendlyName),
-    addCredential: (acct, listSid, username, password) => addCredential(http, acct, listSid, username, password),
-    attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http, acct, trunkSid, listSid),
-    addOrigination: (acct, trunkSid, o) => addOrigination(http, acct, trunkSid, o),
-    attachNumber: (acct, trunkSid, numberSid) => attachNumber(http, acct, trunkSid, numberSid),
-    createMessagingService: (acct, o) => createMessagingService(http, acct, o),
-    addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http, acct, serviceSid, numberSid),
-    sendSms: (acct, o) => sendSms(http, acct, o)
+    createSubaccount: (master, friendlyName) => createSubaccount(http2, master, friendlyName),
+    findSubaccount: (master, friendlyName) => findSubaccount(http2, master, friendlyName),
+    findTrunk: (acct, domainName) => findTrunk(http2, acct, domainName),
+    findCredentialList: (acct, friendlyName) => findCredentialList(http2, acct, friendlyName),
+    findCredential: (acct, listSid, username) => findCredential(http2, acct, listSid, username),
+    deleteCredential: (acct, listSid, credentialSid) => deleteCredential(http2, acct, listSid, credentialSid),
+    findOrigination: (acct, trunkSid, sipUrl) => findOrigination(http2, acct, trunkSid, sipUrl),
+    searchLocal: (acct, q) => searchLocal(http2, acct, q),
+    buyNumber: (acct, e164, friendlyName) => buyNumber(http2, acct, e164, friendlyName),
+    ownedNumber: (acct, e164) => ownedNumber(http2, acct, e164),
+    releaseNumber: (acct, numberSid) => releaseNumber(http2, acct, numberSid),
+    createTrunk: (acct, o) => createTrunk(http2, acct, o),
+    deleteTrunk: (acct, trunkSid) => deleteTrunk(http2, acct, trunkSid),
+    createCredentialList: (acct, friendlyName) => createCredentialList(http2, acct, friendlyName),
+    addCredential: (acct, listSid, username, password) => addCredential(http2, acct, listSid, username, password),
+    attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http2, acct, trunkSid, listSid),
+    addOrigination: (acct, trunkSid, o) => addOrigination(http2, acct, trunkSid, o),
+    attachNumber: (acct, trunkSid, numberSid) => attachNumber(http2, acct, trunkSid, numberSid),
+    createMessagingService: (acct, o) => createMessagingService(http2, acct, o),
+    addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http2, acct, serviceSid, numberSid),
+    sendSms: (acct, o) => sendSms(http2, acct, o)
   };
 }
 
@@ -6951,8 +7152,8 @@ function refusal(status, body) {
   }
   return new PlacesError(status, message);
 }
-async function call(http, req) {
-  const r2 = await http(req);
+async function call(http2, req) {
+  const r2 = await http2(req);
   if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   try {
     return JSON.parse(r2.body);
@@ -6960,11 +7161,11 @@ async function call(http, req) {
     throw new PlacesError(502, "Google answered with something other than JSON");
   }
 }
-async function searchPlaces(http, key, query, opts = {}) {
-  return parsePlacesSearch(await call(http, placesSearchRequest(key, query, opts)));
+async function searchPlaces(http2, key, query, opts = {}) {
+  return parsePlacesSearch(await call(http2, placesSearchRequest(key, query, opts)));
 }
-async function getPlace(http, key, placeId, opts = {}) {
-  return parsePlaceDetails(await call(http, placesDetailsRequest(key, placeId, opts)));
+async function getPlace(http2, key, placeId, opts = {}) {
+  return parsePlaceDetails(await call(http2, placesDetailsRequest(key, placeId, opts)));
 }
 function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
   return async (req) => {
@@ -7323,8 +7524,8 @@ function parseReviewsPage(json) {
   const total = typeof o?.totalReviewCount === "number" ? o.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: nonBlankOrNull(o?.nextPageToken) };
 }
-async function callProfileApi(http, req) {
-  const r2 = await http(req);
+async function callProfileApi(http2, req) {
+  const r2 = await http2(req);
   if (r2.status < 200 || r2.status >= 300) throw refusal(r2.status, r2.body);
   if (!r2.body.trim()) return {};
   try {
@@ -7333,35 +7534,35 @@ async function callProfileApi(http, req) {
     throw new PlacesError(502, "Google answered with something other than JSON");
   }
 }
-async function listAccounts(http, token) {
+async function listAccounts(http2, token) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseAccounts(await callProfileApi(http, accountsRequest(token, page)));
+    const r2 = parseAccounts(await callProfileApi(http2, accountsRequest(token, page)));
     out.push(...r2.accounts);
     page = r2.next;
     if (!page) break;
   }
   return out;
 }
-async function listLocations(http, token, accountName) {
+async function listLocations(http2, token, accountName) {
   const out = [];
   let page = null;
   for (let i = 0; i < 5; i++) {
-    const r2 = parseLocations(await callProfileApi(http, locationsRequest(token, accountName, page)));
+    const r2 = parseLocations(await callProfileApi(http2, locationsRequest(token, accountName, page)));
     out.push(...r2.locations);
     page = r2.next;
     if (!page) break;
   }
   return out;
 }
-async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES) {
+async function listReviews(http2, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES) {
   const all = [];
   let page = null;
   let avg = null;
   let total = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r2 = parseReviewsPage(await callProfileApi(http, reviewsRequest(token, parent, page)));
+    const r2 = parseReviewsPage(await callProfileApi(http2, reviewsRequest(token, parent, page)));
     all.push(...r2.reviews);
     if (i === 0) {
       avg = r2.average_rating;
@@ -7372,8 +7573,8 @@ async function listReviews(http, token, parent, maxPages = GBP_REVIEWS_MAX_PAGES
   }
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
 }
-async function replyToReview(http, token, reviewName, comment) {
-  const o = recordOrNull(await callProfileApi(http, replyRequest(token, reviewName, comment)));
+async function replyToReview(http2, token, reviewName, comment) {
+  const o = recordOrNull(await callProfileApi(http2, replyRequest(token, reviewName, comment)));
   return {
     reply_text: nonBlankOrNull(o?.comment) ?? comment,
     replied_at: nonBlankOrNull(o?.updateTime) ?? (/* @__PURE__ */ new Date()).toISOString()
@@ -7385,7 +7586,7 @@ function cleanReply(text) {
 }
 
 // src/tokens/edge-token.ts
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 // src/tokens/request-id.ts
 var REQUEST_ID_HEADER = "x-request-id";
@@ -7404,6 +7605,9 @@ function requestIdShaped(value) {
 
 // src/tokens/edge-token.ts
 var EDGE_TOKEN_TTL_MS = MIN_MS;
+function edgeBodyHash(body) {
+  return createHash("sha256").update(body, "utf8").digest("base64url");
+}
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
   const rid = requestIdShaped(ctx.request);
   const claims = {
@@ -7412,8 +7616,9 @@ function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
     user: ctx.user ?? null,
     iat: nowMs,
     exp: nowMs + EDGE_TOKEN_TTL_MS,
-    nonce: randomBytes(8).toString("hex"),
-    ...rid ? { rid } : {}
+    nonce: randomBytes(16).toString("hex"),
+    ...rid ? { rid } : {},
+    ...ctx.body === void 0 ? {} : { bh: edgeBodyHash(ctx.body) }
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   return `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`;
@@ -7435,11 +7640,19 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
     return { ok: false, reason: "malformed" };
   if (claims.aud !== aud) return { ok: false, reason: "audience" };
   if (typeof claims.iat !== "number" || typeof claims.exp !== "number") return { ok: false, reason: "malformed" };
+  if (typeof claims.nonce !== "string" || !claims.nonce) return { ok: false, reason: "malformed" };
+  if (claims.bh !== void 0 && typeof claims.bh !== "string") return { ok: false, reason: "malformed" };
   if (nowMs > claims.exp || claims.iat > nowMs + EDGE_TOKEN_TTL_MS) return { ok: false, reason: "expired" };
   return {
     ok: true,
     claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null, rid: requestIdShaped(claims.rid) }
   };
+}
+function edgeBodyMatches(claims, body) {
+  if (claims.bh === void 0) return false;
+  const a = Buffer.from(edgeBodyHash(body));
+  const b = Buffer.from(claims.bh);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // src/tokens/unsubscribe-token.ts
@@ -7661,7 +7874,7 @@ function apifyClient(fetchImpl, token) {
 }
 
 // src/leads/lead-judge.ts
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 var LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES.lead_judge.maxTokens;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 var LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES.lead_judge.model;
@@ -7674,7 +7887,7 @@ function leadJudge(client, model, fallbacks) {
     async judge(plan, places, tenantId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
-      const requestHash = createHash("sha256").update(`${system}
+      const requestHash = createHash2("sha256").update(`${system}
 ${user}`).digest("hex");
       const base = {
         model,
@@ -7719,7 +7932,6 @@ export {
   ApifyRetryable,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
-  DEFAULT_FN_URL,
   EDGE_TOKEN_TTL_MS,
   EMPTY_A2P_STATE,
   FACTS_UNAVAILABLE,
@@ -7743,6 +7955,7 @@ export {
   LINE_STEPS,
   LOW_VOLUME_USECASE,
   MESSAGING2 as MESSAGING,
+  NotPublicError,
   PLACES_BASE,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,
@@ -7814,6 +8027,7 @@ export {
   desiredVoiceShell,
   dmarcOf,
   dryProvider,
+  edgeBodyMatches,
   emailHtml,
   emailPlainText,
   emailReceiptEffect,
@@ -7847,6 +8061,7 @@ export {
   isAreaCode,
   isBrandNotReady,
   isEmailRequest,
+  isPublicAddress,
   isValidSipPassword,
   keywordsFor,
   leadJudge,
@@ -7887,6 +8102,9 @@ export {
   platformRecipient,
   providerDomainFrom,
   providerFetch,
+  publicFetch,
+  publicFetcher,
+  publicLookup,
   publishAgentVersion,
   receivedEmailFrom,
   referencesFor,
@@ -7923,6 +8141,7 @@ export {
   sendText,
   sendsAs,
   sendsAsOwnDomain,
+  setPublicFetch,
   signEdgeToken,
   signState,
   signUnsubscribeToken,

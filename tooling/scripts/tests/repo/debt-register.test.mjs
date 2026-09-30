@@ -97,6 +97,11 @@ function blockFrom(by, scanCounts) {
     ["table names outside packages/db", total(tableCalls(by["tables.json"], false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by["tables.json"], true)), "called by .rpc"],
     [
+      "edge statements naming no workspace",
+      total(by["workspaceless.json"]),
+      `in ${keys(by["workspaceless.json"])} files`,
+    ],
+    [
       "doors importing db or channels",
       total(by["route-doors.json"]),
       `imports in ${keys(by["route-doors.json"])} files`,

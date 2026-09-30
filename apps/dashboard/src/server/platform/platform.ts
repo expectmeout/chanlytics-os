@@ -23,6 +23,8 @@ import "server-only";
  * and the only way to construct one is to await `backOffice(ctx)`, which throws
  * unless the database says yes. The type is branded so it cannot be forged from
  * an object literal either. Nothing is exported that hands out authority.
+ *
+ * Cross-workspace: the back office; its service-role client exists only behind backOffice(ctx)'s admin check.
  */
 import {
   getPlatformPartners,

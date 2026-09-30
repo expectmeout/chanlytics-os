@@ -21,6 +21,8 @@
  * boundaries — which is why every call site names a tiebreak column. One
  * pager for the edge and the dashboard: the edge wraps it with its own logger
  * (apps/edge/lib/paged.ts).
+ *
+ * Workspace scope: no statement of its own; the caller's page() carries the client and the tenant filter, this only pages it.
  */
 import { dbLog } from "./observe";
 

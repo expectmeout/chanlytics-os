@@ -171,7 +171,8 @@ test("the landing is a RELATIVE redirect, so no header can choose the host it la
     new Request("http://internal.vercel/auth/callback", { headers: { "x-forwarded-host": "evil.example" } }),
   );
   assert.equal(noCode.headers.get("location"), "/login");
-  const { printableOrigin, CANONICAL_ORIGIN } = await import(at("apps/dashboard/src/server/origin.ts"));
+  const { printableOrigin, canonicalOrigin } = await import(at("apps/dashboard/src/server/origin.ts"));
+  const CANONICAL_ORIGIN = canonicalOrigin();
   assert.equal(
     printableOrigin("https", "evil.example"),
     CANONICAL_ORIGIN,

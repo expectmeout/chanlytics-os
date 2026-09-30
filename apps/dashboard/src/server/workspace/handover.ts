@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
@@ -48,6 +48,7 @@ interface HandoverMailPorts {
 export async function sendHandoverInvite(
   tenantId: string,
   email: string,
+  userId: string,
   ports: HandoverMailPorts = {},
 ): Promise<boolean> {
   const svc = ports.svc ?? serviceDb();
@@ -67,7 +68,7 @@ export async function sendHandoverInvite(
     const r = await callEdge(
       "/api/admin/handover-invite",
       { tenant_id: tenantId },
-      { workspace: tenantId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
+      { workspace: tenantId, user: userId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
     if (!edgeAnswered(r))
       log.error("handover_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });

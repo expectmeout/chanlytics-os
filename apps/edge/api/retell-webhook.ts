@@ -28,6 +28,8 @@
  * the claim, the copy -- is decided by planCallEvent (lib/voice/call-event.ts)
  * over the ingest's answer, and applied here step by step in the order it
  * lists them. The same split the texting door and the inbound-call door use.
+ *
+ * Cross-workspace: a provider webhook; the Retell agent id (or call id) names the workspace before anything is written.
  */
 import { notify } from "../lib/ops/notify.js";
 import type { NotifyMessage } from "../lib/ops/notify.js";

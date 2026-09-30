@@ -23,8 +23,11 @@ import { DASHBOARD_LOG_EVENTS } from "../../../../apps/dashboard/src/server/log.
 const SET = "apps/edge/lib/log-events.ts";
 /** The edge, and the packages whose lines go out through the one logger on it. */
 const TREES = ["apps/edge", "packages/core/src", "packages/jobs/src", "packages/db/src", "packages/channels/src"];
-/** The dashboard's server and its routes: their lines are `log.info|warn|error`, the one logger's dashboard name. */
-const DASHBOARD_TREES = ["apps/dashboard/src/server", "apps/dashboard/app"];
+/**
+ * The dashboard's server and its routes: their lines are `log.info|warn|error`, the one logger's dashboard name. Its
+ * boot check (`instrumentation.ts`, which says what a production deployment lacks) sits outside both and logs too.
+ */
+const DASHBOARD_TREES = ["apps/dashboard/src/server", "apps/dashboard/app", "apps/dashboard/instrumentation.ts"];
 const DASHBOARD_SET = "apps/dashboard/src/server/log.ts";
 const LEVELS = new Set(["info", "warn", "error"]);
 

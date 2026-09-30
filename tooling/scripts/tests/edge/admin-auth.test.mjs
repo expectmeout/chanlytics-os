@@ -48,7 +48,8 @@ const token = (o = {}) =>
 const knock = (headers = {}, aud = AUD, opts = undefined) =>
   authorizeAdmin(new Request(`https://edge.test${aud}`, { headers }), aud, opts);
 /** A refusal, as the caller reads it. */
-const refused = async (auth) => {
+const refused = async (pending) => {
+  const auth = await pending;
   assert.equal(auth.ok, false);
   return [auth.response.status, await auth.response.json()];
 };
@@ -76,9 +77,14 @@ async function logged(fn) {
 }
 
 test("with the secret: a token minted for this door opens it and names the workspace and the person; nothing is logged", async () => {
-  const lines = await logged(() => {
-    assert.deepEqual(knock({ "x-edge-token": token() }), { ok: true, via: "token", workspace: "ws-1", user: "u-1" });
-    assert.deepEqual(knock({ "x-edge-token": token({ workspace: null, user: null }) }), {
+  const lines = await logged(async () => {
+    assert.deepEqual(await knock({ "x-edge-token": token() }), {
+      ok: true,
+      via: "token",
+      workspace: "ws-1",
+      user: "u-1",
+    });
+    assert.deepEqual(await knock({ "x-edge-token": token({ workspace: null, user: null }) }), {
       ok: true,
       via: "token",
       workspace: null,
@@ -128,8 +134,8 @@ test("with the secret: a bad signature is refused whatever rides beside it; ther
 test("without the secret (a preview): the key decides and a token is ignored; nothing is logged, there being nothing yet to move to", async () => {
   await withEnv({ EDGE_CALL_SECRET: undefined }, async () => {
     const lines = await logged(async () => {
-      assert.deepEqual(knock({ "x-diag-key": KEY }), { ok: true, via: "key", workspace: null, user: null });
-      assert.deepEqual(knock({ "x-edge-token": token(), "x-diag-key": KEY }), {
+      assert.deepEqual(await knock({ "x-diag-key": KEY }), { ok: true, via: "key", workspace: null, user: null });
+      assert.deepEqual(await knock({ "x-edge-token": token(), "x-diag-key": KEY }), {
         ok: true,
         via: "key",
         workspace: null,
@@ -151,14 +157,14 @@ test("without the secret (a preview): the key decides and a token is ignored; no
 
 test("a door that names the platform's key as its credential: the key still opens it on an edge with the secret, logged as such; a token does too; a wrong key does not", async () => {
   const lines = await logged(async () => {
-    assert.deepEqual(knock({ "x-diag-key": KEY }, "/api/diag", { platformKey: true }), {
+    assert.deepEqual(await knock({ "x-diag-key": KEY }, "/api/diag", { platformKey: true }), {
       ok: true,
       via: "key",
       workspace: null,
       user: null,
     });
     assert.deepEqual(
-      knock({ "x-edge-token": token({ aud: "/api/diag", workspace: null }) }, "/api/diag", { platformKey: true }),
+      await knock({ "x-edge-token": token({ aud: "/api/diag", workspace: null }) }, "/api/diag", { platformKey: true }),
       {
         ok: true,
         via: "token",
@@ -189,4 +195,142 @@ test("a door that names the platform's key as its credential: the key still open
     ],
     "each key-only knock on an edge with the secret, and whether it came in",
   );
+});
+
+/** The lines of one event written while `fn` ran, as fields. */
+async function loggedEvent(event, fn) {
+  const lines = [];
+  const real = console.log;
+  console.log = (...args) => {
+    for (const a of args) {
+      try {
+        const o = JSON.parse(String(a));
+        if (o.event === event) lines.push(o);
+      } catch {
+        /* not a log line */
+      }
+    }
+  };
+  try {
+    await fn();
+  } finally {
+    console.log = real;
+  }
+  return lines;
+}
+
+/** A POST to a door with a raw body; `headers` may carry a token minted for that body. */
+const post = (headers, raw, aud = AUD, opts = undefined) =>
+  authorizeAdmin(new Request(`https://edge.test${aud}`, { method: "POST", headers, body: raw }), aud, opts);
+/** A token as the dashboard mints one for a call with a body. */
+const bound = (raw, o = {}) =>
+  signEdgeToken(SECRET, o.aud ?? AUD, {
+    workspace: "ws-1",
+    user: "u-1",
+    ...(o.workspace === undefined ? {} : { workspace: o.workspace }),
+    body: raw,
+  });
+
+test("a token opens a door once: the same token again is refused as replayed, and a fresh one opens it", async () => {
+  const raw = JSON.stringify({ op: "status" });
+  const t = bound(raw);
+  assert.deepEqual(await post({ "x-edge-token": t }, raw), { ok: true, via: "token", workspace: "ws-1", user: "u-1" });
+  assert.deepEqual(await refused(post({ "x-edge-token": t }, raw)), [403, { ok: false, error: "token_replayed" }]);
+  assert.deepEqual(await refused(post({ "x-edge-token": t, "x-diag-key": KEY }, raw)), [
+    403,
+    { ok: false, error: "token_replayed" },
+  ]);
+  assert.equal((await post({ "x-edge-token": bound(raw) }, raw)).ok, true, "the next call carries its own token");
+});
+
+test("a token that is refused is not spent: a wrong body does not use up the nonce of the right one", async () => {
+  const raw = JSON.stringify({ op: "status" });
+  const t = bound(raw);
+  assert.deepEqual(await refused(post({ "x-edge-token": t }, JSON.stringify({ op: "cancel" }))), [
+    403,
+    { ok: false, error: "token_body" },
+  ]);
+  assert.equal((await post({ "x-edge-token": t }, raw)).ok, true, "the caller's own body still opens the door once");
+});
+
+test("a token that names a body opens the door for that body only: another body, an appended byte and an empty one are refused", async () => {
+  const raw = JSON.stringify({ tenant_id: "ws-1", op: "status" });
+  const t = () => bound(raw);
+  assert.equal((await post({ "x-edge-token": t() }, raw)).ok, true);
+  for (const other of [JSON.stringify({ tenant_id: "ws-2", op: "status" }), `${raw} `, "", "{}"]) {
+    assert.deepEqual(await refused(post({ "x-edge-token": t() }, other)), [403, { ok: false, error: "token_body" }]);
+  }
+  // A door that read its body before asking (sending-domains) hands the text over; the request is not read twice.
+  const spent = new Request(`https://edge.test${AUD}`, { method: "POST", body: raw });
+  await spent.text();
+  assert.equal((await authorizeAdmin(spent, AUD, { body: raw })).ok, false, "no token, no key: nothing opens");
+  const handed = new Request(`https://edge.test${AUD}`, {
+    method: "POST",
+    headers: { "x-edge-token": t() },
+    body: raw,
+  });
+  await handed.text();
+  assert.equal(
+    (await authorizeAdmin(handed, AUD, { body: raw })).ok,
+    true,
+    "the text the door read is the text checked",
+  );
+});
+
+test("a dashboard from before tokens named their body is let in and said, on a POST only; a body-bound token says nothing", async () => {
+  const raw = JSON.stringify({ op: "status" });
+  const old = () => signEdgeToken(SECRET, AUD, { workspace: "ws-1", user: "u-1" });
+  const lines = await loggedEvent("edge_token_unbound", async () => {
+    assert.equal((await post({ "x-edge-token": old() }, raw)).ok, true);
+    assert.equal((await knock({ "x-edge-token": old() })).ok, true, "a GET has no body to name");
+    assert.equal((await post({ "x-edge-token": bound(raw) }, raw)).ok, true);
+  });
+  assert.deepEqual(
+    lines.map((l) => [l.door, l.missing]),
+    [[AUD, "body"]],
+    "one line, for the call that could have named its body and did not",
+  );
+});
+
+test("a door that acts on one workspace's row reads the workspace from the token, and says when the token names none", async () => {
+  const { tokenWorkspace } = await importSrc("apps/edge/lib/admin-auth.ts");
+  const lines = await loggedEvent("edge_token_unbound", async () => {
+    assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: "ws-1", user: "u-1" }, AUD), "ws-1");
+    assert.equal(tokenWorkspace({ ok: true, via: "token", workspace: null, user: null }, AUD), null);
+    assert.equal(
+      tokenWorkspace({ ok: true, via: "key", workspace: null, user: null }, AUD),
+      null,
+      "a preview's key names none, said nowhere",
+    );
+  });
+  assert.deepEqual(
+    lines.map((l) => [l.door, l.missing]),
+    [[AUD, "workspace"]],
+  );
+});
+
+test("the nonces an instance remembers are bounded: past the bound the oldest is forgotten, and a token still inside it is refused", async () => {
+  const raw = "{}";
+  const first = bound(raw);
+  assert.equal((await post({ "x-edge-token": first }, raw)).ok, true);
+  const recent = bound(raw);
+  assert.equal((await post({ "x-edge-token": recent }, raw)).ok, true);
+  for (let i = 0; i < 10_010; i++) assert.equal((await post({ "x-edge-token": bound(raw) }, raw)).ok, true);
+  assert.equal((await post({ "x-edge-token": first }, raw)).ok, true, "the oldest was forgotten to make room");
+  const last = bound(raw);
+  assert.equal((await post({ "x-edge-token": last }, raw)).ok, true);
+  assert.deepEqual(await refused(post({ "x-edge-token": last }, raw)), [403, { ok: false, error: "token_replayed" }]);
+});
+
+test("a door writes down the person the token names, not the one the body claims; the body's is used only where the token names none", async () => {
+  const { personFor } = await importSrc("apps/edge/lib/admin-auth.ts");
+  const ME = "11111111-1111-4111-8111-111111111111";
+  const THEM = "22222222-2222-4222-8222-222222222222";
+  const via = (user) => ({ ok: true, via: "token", workspace: "ws-1", user });
+  assert.equal(personFor(via(ME), THEM), ME, "a token names its person: a body cannot write another's name");
+  assert.equal(personFor(via(ME), undefined), ME);
+  assert.equal(personFor(via(null), THEM), THEM, "a token that names none (from before they did) leaves the body's");
+  assert.equal(personFor({ ok: true, via: "key", workspace: null, user: null }, ` ${THEM} `), THEM, "a preview's key");
+  assert.equal(personFor(via(null), "not-a-person"), null, "nothing but a person's id is a person");
+  assert.equal(personFor(via(null), 5), null);
 });

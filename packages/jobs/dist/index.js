@@ -1,5 +1,11 @@
 // ../channels/dist/index.js
 import { AsyncLocalStorage } from "async_hooks";
+import dns from "dns";
+import http from "http";
+import https from "https";
+import net from "net";
+import { pipeline, Readable, Transform } from "stream";
+import zlib from "zlib";
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
@@ -30,9 +36,9 @@ import { z as z27 } from "zod";
 import crypto2 from "crypto";
 import { randomInt } from "crypto";
 import { convert } from "html-to-text";
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 var CONTACT = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
 var CONTACT_SUFFIX = /_(phone|email|e164)$/;
 var WORDS_KEYS = /* @__PURE__ */ new Set(["body", "text"]);
@@ -190,6 +196,7 @@ var breakerHolder = globalThis;
 var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
 var breakerMap = breakers.held;
 var breakerLog = logger();
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -6552,6 +6559,12 @@ var PARTNER_INVITE_WORDS2 = {
 
 // ../core/dist/index.js
 import { AsyncLocalStorage as AsyncLocalStorage2 } from "async_hooks";
+import dns2 from "dns";
+import http2 from "http";
+import https2 from "https";
+import net2 from "net";
+import { pipeline as pipeline2, Readable as Readable2, Transform as Transform2 } from "stream";
+import zlib2 from "zlib";
 import { z as z30 } from "zod";
 import { z as z210 } from "zod";
 import { z as z33 } from "zod";
@@ -6582,9 +6595,9 @@ import { z as z273 } from "zod";
 import crypto22 from "crypto";
 import { randomInt as randomInt2 } from "crypto";
 import { convert as convert2 } from "html-to-text";
-import { createHmac as createHmac3, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual3 } from "crypto";
+import { createHash as createHash3, createHmac as createHmac3, randomBytes as randomBytes2, timingSafeEqual as timingSafeEqual3 } from "crypto";
 import { createHmac as createHmac22, timingSafeEqual as timingSafeEqual22 } from "crypto";
-import { createHash as createHash2 } from "crypto";
+import { createHash as createHash22 } from "crypto";
 import { z as z282 } from "zod";
 import { z as z292 } from "zod";
 import { z as z322 } from "zod";
@@ -6797,6 +6810,7 @@ var breakerHolder2 = globalThis;
 var breakers2 = breakerHolder2[BREAKER_SLOT2] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
 var breakerMap2 = breakers2.held;
 var breakerLog2 = logger2();
+var RESPONSE_MAX_BYTES2 = 5 * 1024 * 1024;
 z30.config({ jitless: true });
 var MODELS3 = {
   OPUS_5_5: "claude-opus-5-5",

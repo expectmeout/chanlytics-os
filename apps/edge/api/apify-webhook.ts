@@ -10,6 +10,8 @@
  * once the work is written, 503 when the ledger cannot take it so the
  * delivery comes back (up to 11 times over about 32 hours). The provider is
  * called for nothing but aborting a run the row does not hold.
+ *
+ * Cross-workspace: the delivery names a run row; its token proves it and the row supplies the workspace.
  */
 import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";

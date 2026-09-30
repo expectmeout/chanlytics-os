@@ -33,7 +33,11 @@ export const POST = write({
     if (call.status !== "ongoing") {
       throw new AppError("conflict", "This call is not in progress — there is nobody on the line to whisper to.", 409);
     }
-    const sent = await whisperLiveCall(call.retell_call_id, text, trigger);
+    const sent = await whisperLiveCall(
+      call.retell_call_id,
+      { text, trigger },
+      { workspace: call.tenant_id, user: ctx.userId },
+    );
     if (!sent.ok) {
       throw new AppError(
         "upstream_retell",

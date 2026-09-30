@@ -37,6 +37,8 @@ import {
   tableNames,
   rpcNames,
   importsMatching,
+  workspacelessStatements,
+  headerOf,
   durationsIn,
   inlineStyles,
   sourceReads,
@@ -102,6 +104,30 @@ const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f
  * all they have and they are not held.
  */
 const MARKUP = SRC.filter((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\/.*\.(jsx|tsx)$/.test(f));
+
+/** The tables whose every row belongs to one workspace: each names `tenant_id` in its Row (the generated types). */
+export function tenantTablesOf() {
+  const tables = new Set();
+  let table = null;
+  let inRow = false;
+  let inTables = false;
+  for (const line of fs.readFileSync(path.join(ROOT, "packages/db/src/database.types.ts"), "utf8").split(/\r?\n/)) {
+    if (/^ {2}public: \{/.test(line)) inTables = true;
+    else if (/^ {2}\w+: \{/.test(line)) inTables = false;
+    if (!inTables) continue;
+    const t = /^ {6}(\w+): \{$/.exec(line);
+    if (t) table = t[1];
+    if (/^ {8}Row: \{$/.test(line)) inRow = true;
+    else if (inRow && /^ {8}\}$/.test(line)) inRow = false;
+    else if (inRow && table && /^ {10}tenant_id: /.test(line)) tables.add(table);
+  }
+  return tables;
+}
+
+/** A file that reads across workspaces on purpose says so in its header, as a line `Cross-workspace: <why>`. */
+export const CROSS_WORKSPACE = /^\s*(?:\/\/|\/\*\*|\*)?\s*Cross-workspace: \S/m;
+/** The edge's own code: its doors and what they call, less the facades that re-export the packages' dist. */
+const EDGE = SRC.filter((f) => /^apps\/edge\/(api|lib)\//.test(f) && !f.startsWith("apps/edge/lib/packages/"));
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -206,6 +232,23 @@ export const MEASURES = [
     measure: () => perFile(ROUTES, (sf) => importsMatching(sf, DOOR_FORBIDS)),
     advice:
       "A route file is a door: it verifies, parses its input and answers, and everything else is a call into lib/ (the edge), src/server (the dashboard) or a core verb. Read or write through a repository behind that call, and reach a provider through a wire in packages/channels behind it too.",
+  },
+  {
+    name: "edge statements that name no workspace",
+    file: "workspaceless.json",
+    measure: () => {
+      const tables = tenantTablesOf();
+      const out = {};
+      for (const f of EDGE) {
+        const sf = parse(f);
+        if (CROSS_WORKSPACE.test(headerOf(sf))) continue;
+        const n = workspacelessStatements(sf, tables);
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "A statement on a workspace's table names the workspace: tenantDb(db, tenantId).from(...) (packages/db), or .eq(\"tenant_id\", …), or a row that carries its tenant_id. A module that reads across workspaces on purpose (a sweep, a provider's webhook) says why in its header, on a line that begins Cross-workspace: and is not measured.",
   },
   {
     name: "unnamed durations",

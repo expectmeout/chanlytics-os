@@ -379,6 +379,31 @@ export const WIDE_PARAMS = [
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
 
+/**
+ * The dashboard's own code, as the TypeScript blocks below read it: everything but the ported mockup.
+ */
+const DASHBOARD_CODE = [
+  "apps/dashboard/app/**/*.{ts,tsx}",
+  "apps/dashboard/src/server/**/*.ts",
+  "apps/dashboard/src/lib/**/*.ts",
+  "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+  // The typed client and the sign-in screens ran without any static
+  // analysis until the boundaries below needed to see them.
+  "apps/dashboard/src/client/**/*.{ts,tsx}",
+  "apps/dashboard/src/auth/**/*.{ts,tsx}",
+  // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
+  "apps/dashboard/src/yes/**/*.tsx",
+  // The surfaces that leave the shell (decision 0015), and the kit they draw with.
+  "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
+  // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
+  "apps/dashboard/src/*.ts",
+  // The app's own configuration and entry points (next.config.ts, proxy.ts, instrumentation.ts), which its tsconfig compiles.
+  "apps/dashboard/*.ts",
+];
+
+/** The two modules that read the dashboard's environment; a read anywhere else in DASHBOARD_CODE is refused. */
+const DASHBOARD_ENV_READERS = ["apps/dashboard/src/server/env.ts", "apps/dashboard/src/lib/public-env.ts"];
+
 /** The typescript-eslint rules that read a type, which a block without a program cannot run. */
 const NEEDS_TYPES = new Set(
   Object.entries(tseslint.plugin.rules)
@@ -506,24 +531,7 @@ export default [
 
   // The dashboard's own code (not the ported mockup).
   {
-    files: [
-      "apps/dashboard/app/**/*.{ts,tsx}",
-      "apps/dashboard/src/server/**/*.ts",
-      "apps/dashboard/src/lib/**/*.ts",
-      "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
-      // The typed client and the sign-in screens ran without any static
-      // analysis until the boundaries below needed to see them.
-      "apps/dashboard/src/client/**/*.{ts,tsx}",
-      "apps/dashboard/src/auth/**/*.{ts,tsx}",
-      // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
-      "apps/dashboard/src/yes/**/*.tsx",
-      // The surfaces that leave the shell (decision 0015), and the kit they draw with.
-      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
-      // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
-      "apps/dashboard/src/*.ts",
-      // The app's own configuration and entry points (next.config.ts, proxy.ts), which its tsconfig compiles.
-      "apps/dashboard/*.ts",
-    ],
+    files: DASHBOARD_CODE,
     languageOptions: {
       parser: tseslint.parser,
       ecmaVersion: 2023,
@@ -540,6 +548,24 @@ export default [
       // errors. Adopting those is a decision about the mockup, not a bump.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+
+  // The dashboard reads its environment in one place too, as the edge does: src/server/env.ts on the server, typed by
+  // one zod schema and checked at boot, and src/lib/public-env.ts for the NEXT_PUBLIC_ values the browser's bundles
+  // carry. A read anywhere else is a second opinion on what a variable means, and a default nobody checks at boot.
+  {
+    files: DASHBOARD_CODE,
+    ignores: DASHBOARD_ENV_READERS,
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message: "Read the environment through src/server/env.ts (or src/lib/public-env.ts in the browser).",
+        },
+      ],
     },
   },
 

@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { log } from "@/server/log";
 
@@ -47,6 +47,7 @@ export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
   return callEdge("/api/admin/billing", body, {
     workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    user: typeof body.user_id === "string" ? body.user_id : null,
     timeoutMs,
   });
 }

@@ -17,6 +17,12 @@
  * platform through alertUnroutable, suppressed for fifteen minutes per number -- once for the whole class when no line
  * carries the number, because that number is whatever the caller wrote, and never for a bad signature, which is what an
  * unsigned probe looks like.
+||||||| base
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What to do with the text is
+ * decided by planSmsIngress (lib/sms-ingress.ts), which runs over a database
+ * in memory in a test; what is left here is reading the form, logging, the
+ * alert's own suppression, and the shape Twilio wants back. The same split
+ * the health route and the OAuth callback already use.
  *
  * An accepted text then takes the same road a WhatsApp message takes: handleInbound (lib/whatsapp/inbound.ts, onto
  * core's answerInbound) with the line as its carrier (carrierFor) -- answered by the same brain under the same Autonomy

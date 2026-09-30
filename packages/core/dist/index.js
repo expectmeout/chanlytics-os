@@ -1,5 +1,11 @@
 // ../channels/dist/index.js
 import { AsyncLocalStorage } from "async_hooks";
+import dns from "dns";
+import http from "http";
+import https from "https";
+import net from "net";
+import { pipeline, Readable, Transform } from "stream";
+import zlib from "zlib";
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
@@ -30,9 +36,9 @@ import { z as z27 } from "zod";
 import crypto2 from "crypto";
 import { randomInt } from "crypto";
 import { convert } from "html-to-text";
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 var CONTACT = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
 var CONTACT_SUFFIX = /_(phone|email|e164)$/;
 var WORDS_KEYS = /* @__PURE__ */ new Set(["body", "text"]);
@@ -340,6 +346,7 @@ async function providerFetch(provider, url, call2, deps = {}) {
 function answerObject(a) {
   return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
 }
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",

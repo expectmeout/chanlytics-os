@@ -5,7 +5,7 @@
  * The dashboard's team route calls it after partner_invite, from production only, and treats a failure as a shrug
  * the owner is told of: the invitation is on record, the partner's pane shows it, and it can be asked again. The
  * address is the partner's own account's, read here, never one the call carries, so this door writes to nobody but
- * the partner the workspace named. Every sentence is contracts' (partnerInviteEmail). Diagnostic-key only; the
+ * the partner the workspace named. Every sentence is contracts' (partnerInviteEmail). Signed admin token only; the
  * address is never logged. The body, the workspace and the refusals around it are admin-door.ts's.
  */
 import { json } from "../../lib/http.js";
@@ -20,7 +20,7 @@ import { partnerInviteEmail } from "../../lib/packages/contracts.js";
 const L = logger();
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/partner-invite");
+  const auth = await authorizeAdmin(request, "/api/admin/partner-invite");
   if (!auth.ok) return auth.response;
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });

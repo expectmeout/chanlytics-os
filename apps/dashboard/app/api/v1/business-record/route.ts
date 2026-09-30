@@ -95,7 +95,7 @@ export const PUT = write({
       throw new AppError("validation", first ?? "Something is missing.", 400, { fields: problems });
     }
 
-    const a = await edgeLines({ op: "record", tenant_id: member.tenantId, record, path }, 20_000);
+    const a = await edgeLines({ op: "record", tenant_id: member.tenantId, user_id: ctx.userId, record, path }, 20_000);
     const b = a.body ?? {};
     // The first problem the edge found on the row it would write, in the owner's words (`detail`).
     if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That could not be saved.", 400);

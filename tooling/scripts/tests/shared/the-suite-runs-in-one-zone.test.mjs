@@ -23,7 +23,14 @@ test("the suite runs in UTC unless TEST_TZ names a zone, and a zone Node does no
 
 test("with no files it runs the suite; files, globs and directories asked for replace it; flags pass through", () => {
   const args = (argv) => planOf(argv, {}).args;
-  const loader = ["--conditions=react-server", "--import", "tsx", "--test"];
+  const loader = [
+    "--conditions=react-server",
+    "--import",
+    "tsx",
+    "--import",
+    "./tooling/scripts/tests/calendar/_stand-in-network.mjs",
+    "--test",
+  ];
   // a full run is measured: the coverage flags sit between the loader and the files
   const full = args([]);
   assert.deepEqual([full.slice(0, loader.length), full.slice(-SUITES.test.length)], [loader, SUITES.test]);

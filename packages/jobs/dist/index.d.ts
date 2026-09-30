@@ -18,6 +18,8 @@ import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, IncomingEmail } fr
  * Whether that later claim RUNS the job or GIVES UP on it is `verdictFor`, and
  * it is pure. `jobs_guard` (00098) refuses every other transition inside the
  * database, so no writer here has to remember the machine.
+ *
+ * Cross-workspace: the job runner claims the next due job of any workspace; the job then acts in its own.
  */
 
 type Db = SupabaseClient<Database>;

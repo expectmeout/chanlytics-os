@@ -46,8 +46,8 @@ export const DELETE = write({
   scope: workspace,
   role: "partner",
   rate: "google_link",
-  handle: async ({ member }) => {
-    const a = await edgeGoogle({ op: "unlink", tenant_id: member.tenantId }, 15_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeGoogle({ op: "unlink", tenant_id: member.tenantId, user_id: ctx.userId }, 15_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true)
       throw new AppError(

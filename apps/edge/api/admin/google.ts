@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/google — a workspace's listing on Google Maps, found and
- * read; its Business Profile, connected and answered from. Diagnostic-key
+ * read; its Business Profile, connected and answered from. Signed admin token
  * only; the dashboard's /api/v1/google verbs call it for an owner or an
  * operator.
  *
@@ -26,7 +26,7 @@
  * shape the dashboard wants back.
  */
 import { json, refuse } from "../../lib/http.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { readBody, respond, workspaceOf, workspaceRow, type Refused } from "../../lib/admin-door.js";
 import { emitEvent } from "../../lib/packages/db.js";
 import { UUID } from "../../lib/packages/contracts.js";
@@ -114,13 +114,14 @@ const reviewIdOf = (v: unknown): string | null => {
 };
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/google");
+  const auth = await authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
   const body = await readBody<GoogleBody>(request);
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
 
   if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });
   if (op === "search") return search(body);

@@ -13,6 +13,7 @@ import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/request-ip";
 import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
+import { env } from "@/server/env";
 import { log } from "@/server/log";
 
 /**
@@ -38,7 +39,7 @@ export async function GET(): Promise<Response> {
   // The page asks what to render before it renders anything. `posture` is the
   // one field it needs; the two booleans stay so a client deployed before this
   // keeps working, which matters because the page and the API ship separately.
-  const posture = signupPosture(process.env.SIGNUP_CODE);
+  const posture = signupPosture(env.SIGNUP_CODE);
   return NextResponse.json(ok({ posture, open: posture !== "waitlist", code_required: posture === "invite" }), {
     headers: PRIVATE,
   });
@@ -53,7 +54,7 @@ export async function POST(req: Request): Promise<Response> {
     const input = parsed.data;
     await takeRate(`ip:${hash(ipOf(req))}`, "signup_ip");
     await takeRate(`email:${hash(input.email)}`, "signup_email");
-    const posture = signupPosture(process.env.SIGNUP_CODE);
+    const posture = signupPosture(env.SIGNUP_CODE);
 
     // THE WAITLIST BRANCH RETURNS BEFORE ANYTHING IS CREATED.
     //

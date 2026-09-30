@@ -279,6 +279,9 @@
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
     "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
     "00276_people_are_paged_by_their_kept_moments.sql": "c353c94ee3d5a362f03f1a2009ee1127acc4dcc13ce234c26616b38cf864d226",
-    "00277_what_happened_is_named_audited_and_counted.sql": "b958ed0900957430803a370878166f2a1a7b7e7f5cbc03f5318ea4ace6c9e787"
+    "00277_what_happened_is_named_audited_and_counted.sql": "b958ed0900957430803a370878166f2a1a7b7e7f5cbc03f5318ea4ace6c9e787",
+    "00278_a_session_inserts_only_the_columns_it_writes.sql": "d3eb31d387cc99044a23788f3cd3dd5a3d4a62b047bcaa00d5bb281c9c32589c",
+    "00279_a_child_names_only_its_own_workspace_s_parent.sql": "3fd7d8267c42480fe5c88721ef07388bfdb31f6c6d544cf3eff388337ea770a5",
+    "00280_a_partner_s_password_opens_no_door_a_seat_opens.sql": "764ea8127cc2b0d10bed0245f7716ba2d6e9a0cb4ccd2a87c47159a3b32abea5"
   }
 }

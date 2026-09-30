@@ -33,6 +33,13 @@ import { finish } from "./coverage.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
+/**
+ * The network as the suites stand in for it, loaded before every test file: the server's reads of an address a person
+ * typed go through channels' guarded fetcher, and a suite that stubs `globalThis.fetch` must not reach the real guard or
+ * DNS (tests/calendar/_stand-in-network.mjs says how).
+ */
+const STAND_IN_NETWORK = "./tooling/scripts/tests/calendar/_stand-in-network.mjs";
+
 /** What each command runs when it is given no files. */
 export const SUITES = {
   test: ["tooling/scripts/tests/**/*.test.mjs", "apps/mobile/test/*.test.mjs"],
@@ -82,7 +89,17 @@ export function planOf(argv, env) {
     zone,
     coverage,
     held: measured && full,
-    args: ["--conditions=react-server", "--import", "tsx", "--test", ...report, ...flags, ...files],
+    args: [
+      "--conditions=react-server",
+      "--import",
+      "tsx",
+      "--import",
+      STAND_IN_NETWORK,
+      "--test",
+      ...report,
+      ...flags,
+      ...files,
+    ],
     env: { ...env, TZ: zone },
   };
 }

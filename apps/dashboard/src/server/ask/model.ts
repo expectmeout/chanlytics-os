@@ -1,6 +1,7 @@
 import "server-only";
 import { askModelProfile, type AskModelProfile } from "@chanlytics/contracts";
 import { log } from "@/server/log";
+import { env } from "../env";
 
 /**
  * The profile this deployment runs Ask on: ASK_MODEL in the environment, one
@@ -10,7 +11,7 @@ import { log } from "@/server/log";
  */
 let warnedFor: string | null = null;
 export function askModel(): AskModelProfile {
-  const name = process.env.ASK_MODEL || undefined;
+  const name = env.ASK_MODEL;
   const profile = askModelProfile(name);
   if (name && profile.id !== name && warnedFor !== name) {
     warnedFor = name;

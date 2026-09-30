@@ -44,6 +44,7 @@ const REFUSALS: Record<string, string> = {
 
 export const DELETE = write({
   scope: account,
+  fresh: true,
   role: null,
   rate: "profile_set",
   handle: async ({ ctx }) => {

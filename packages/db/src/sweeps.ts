@@ -14,6 +14,8 @@
  * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
  * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
  * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
+ *
+ * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS } from "@chanlytics/contracts";

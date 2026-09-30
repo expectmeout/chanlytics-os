@@ -16,7 +16,7 @@ export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import type { EdgeErrorCode } from "@chanlytics/contracts";
 
 export interface GatewayCall {
@@ -125,6 +125,12 @@ const RETRY_PAUSE_MS = 400;
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
   if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
+  const body = JSON.stringify({
+    tenant_id: call.tenantId,
+    user_id: call.userId,
+    purpose: call.purpose ?? "ask",
+    request: call.request,
+  });
   let res: (Response & { body: ReadableStream<Uint8Array> }) | null = null;
   let sentAt = Date.now();
   for (let attempt = 0; !res; attempt++) {
@@ -133,13 +139,8 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     try {
       const r = await fetch(`${edgeUrl()}/api/admin/llm`, {
         method: "POST",
-        headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId }),
-        body: JSON.stringify({
-          tenant_id: call.tenantId,
-          user_id: call.userId,
-          purpose: call.purpose ?? "ask",
-          request: call.request,
-        }),
+        headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId, body }),
+        body,
         signal: call.signal,
       });
       if (r.ok && r.body) res = r as Response & { body: ReadableStream<Uint8Array> };

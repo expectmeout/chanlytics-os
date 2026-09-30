@@ -3497,6 +3497,70 @@ function createServiceClient(cfg) {
   });
 }
 
+// src/tenant-db.ts
+function builderOf(db, table) {
+  return db.from(table);
+}
+var FILTERED = ["select", "update", "delete"];
+var STAMPED = ["insert", "upsert"];
+function stamped(row, tenantId) {
+  if (typeof row !== "object" || row === null) return row;
+  const named = Reflect.get(row, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
+  return { ...row, tenant_id: tenantId };
+}
+function unmoved(patch, tenantId) {
+  if (typeof patch !== "object" || patch === null) return;
+  const named = Reflect.get(patch, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
+}
+function conflictsOnWorkspace(options) {
+  const on = typeof options === "object" && options !== null ? Reflect.get(options, "onConflict") : void 0;
+  const columns = typeof on === "string" ? on.split(",").map((c) => c.trim()) : [];
+  if (!columns.includes("tenant_id")) throw new Error("tenantDb: an upsert must conflict on tenant_id as well");
+}
+function scoped(builder, tenantId) {
+  for (const verb of FILTERED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (...args) => {
+        if (verb === "update") unmoved(args[0], tenantId);
+        const statement = Reflect.apply(build, builder, args);
+        const eq = statement && Reflect.get(statement, "eq");
+        if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
+        const filtered = Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        return filtered;
+      }
+    });
+  }
+  for (const verb of STAMPED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (rows, ...rest) => {
+        if (verb === "upsert") conflictsOnWorkspace(rest[0]);
+        const statement = Reflect.apply(build, builder, [
+          Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
+          ...rest
+        ]);
+        return statement;
+      }
+    });
+  }
+  return builder;
+}
+function tenantDb(db, tenantId) {
+  if (!tenantId) throw new Error("tenantDb: a workspace is required");
+  return {
+    tenantId,
+    from: (table) => scoped(builderOf(db, table), tenantId)
+  };
+}
+function platformWide(db) {
+  return db;
+}
+
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
@@ -4907,6 +4971,11 @@ async function callerNameOf(db, tenantId, contactId) {
   if (error) throw new Error(`caller_name: ${error.message}`);
   return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }
+async function isWorkspaceCall(db, tenantId, retellCallId) {
+  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  if (error) return null;
+  return data !== null;
+}
 
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
@@ -5484,6 +5553,14 @@ async function getOwnPartner(db) {
   }
   return data;
 }
+async function sessionHoldsPartnerSeat(db) {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
 async function getPartnerBroughtCount(db, partnerId) {
   const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
   const r2 = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
@@ -6034,6 +6111,7 @@ export {
   ingestInboundEmail,
   insertQueuedEmail,
   invitePartner,
+  isWorkspaceCall,
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
@@ -6068,6 +6146,7 @@ export {
   peoplePage,
   personReplyMode,
   platformHoldStands,
+  platformWide,
   playbooksOnList,
   purgeAiUsage,
   putTenantConfig,
@@ -6131,6 +6210,7 @@ export {
   sendingDomainsOf,
   sentEmailOf,
   sentEmailWithMessageId,
+  sessionHoldsPartnerSeat,
   setCallRecording,
   setListRule,
   setPartnerLetters,
@@ -6153,6 +6233,7 @@ export {
   takeIdempotencyKey,
   takeReplyRead,
   templatesFor,
+  tenantDb,
   tenantZoneOf,
   touchIndex,
   touchSendingDomain,

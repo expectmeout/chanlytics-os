@@ -25,7 +25,6 @@ import {
   planAgentSettings,
   voiceShellDrift,
   agentSettingsDrift,
-  DEFAULT_FN_URL,
   VOICE_SHELL_PROMPT,
   VOICE_SHELL_BEGIN,
   HANDOFF_VAR,
@@ -34,21 +33,20 @@ import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw, ROOT } from "../_source.mjs";
 
 const S = { fnSecret: "sealed-secret" };
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 const tenant = { id: "f7b4aeea-6ea8-4ece-b8d9-3818272d0e86", name: "Northside Movers" };
 const fresh = (request) => ({ tenant, channel: null, request });
 
 test("the LLM body is the shell itself, so the converger plans nothing against it", () => {
-  const body = voiceLlmCreateBody(S);
+  const body = voiceLlmCreateBody(S, FN_URL);
   assert.equal(body.general_prompt, VOICE_SHELL_PROMPT);
   assert.equal(body.begin_message, VOICE_SHELL_BEGIN);
   assert.equal(body.model, VOICE_LLM_DEFAULTS.model);
   assert.equal(body.model_temperature, 0);
   assert.equal(body.start_speaker, "agent");
-  assert.deepEqual(
-    planVoiceConvergence(body, desiredVoiceShell(DEFAULT_FN_URL, { "x-fn-secret": S.fnSecret })).drift,
-    [],
-  );
-  assert.equal(voiceShellDrift(body).converged, true, "the diagnostic reads it as on the shell");
+  assert.deepEqual(planVoiceConvergence(body, desiredVoiceShell(FN_URL, { "x-fn-secret": S.fnSecret })).drift, []);
+  assert.equal(voiceShellDrift(body, FN_URL).converged, true, "the diagnostic reads it as on the shell");
   const transfer = body.general_tools.find((t) => t.name === "transfer_to_staff");
   assert.equal(transfer.transfer_destination.number, HANDOFF_VAR, "the transfer dials the per-call variable");
   for (const name of ["send_booking_link", "check_availability"]) {
@@ -59,7 +57,11 @@ test("the LLM body is the shell itself, so the converger plans nothing against i
 });
 
 test("the agent body carries the product's voice and every setting the pipeline needs; retention is the product's", () => {
-  const body = voiceAgentCreateBody({ llmId: "llm_abc", llmVersion: 0, agentName: "Northside Movers front desk" }, S);
+  const body = voiceAgentCreateBody(
+    { llmId: "llm_abc", llmVersion: 0, agentName: "Northside Movers front desk" },
+    S,
+    FN_URL,
+  );
   assert.deepEqual(body.response_engine, { type: "retell-llm", llm_id: "llm_abc", version: 0 });
   assert.equal(body.voice_id, VOICE_AGENT_DEFAULTS.voice_id);
   assert.equal(body.language.length, 10, "multilingual, like the live line");
@@ -79,7 +81,7 @@ test("the agent body carries the product's voice and every setting the pipeline 
   );
   assert.deepEqual(planAgentSettings(body, { retentionDays: 90 }).drift, [], "the agent converger plans nothing");
   assert.equal(agentSettingsDrift(body).converged, true);
-  const noVersion = voiceAgentCreateBody({ llmId: "llm_abc", llmVersion: null, agentName: "x" }, S);
+  const noVersion = voiceAgentCreateBody({ llmId: "llm_abc", llmVersion: null, agentName: "x" }, S, FN_URL);
   assert.deepEqual(
     noVersion.response_engine,
     { type: "retell-llm", llm_id: "llm_abc" },
@@ -91,6 +93,7 @@ test("the number is bound to the agent, pinned to latest_published, with the inb
   const buy = voiceNumberCreateBody(
     { areaCode: 305, agentId: "agent_1", pinned: true, nickname: "Northside Movers · Chanlytics" },
     S,
+    FN_URL,
   );
   assert.equal(buy.area_code, 305);
   assert.equal(buy.country_code, "US");
@@ -98,7 +101,7 @@ test("the number is bound to the agent, pinned to latest_published, with the inb
   assert.deepEqual(buy.inbound_agents, [{ agent_id: "agent_1", agent_version: "latest_published", weight: 1 }]);
   assert.equal(buy.inbound_webhook_url, `https://chanlytics-messaging.vercel.app/api/retell-inbound?key=${S.fnSecret}`);
   assert.ok(!("toll_free" in buy), "local by default");
-  const bind = voiceNumberBindBody({ agentId: "agent_1", pinned: false, nickname: "n" }, S);
+  const bind = voiceNumberBindBody({ agentId: "agent_1", pinned: false, nickname: "n" }, S, FN_URL);
   assert.deepEqual(
     bind.inbound_agents,
     [{ agent_id: "agent_1", weight: 1 }],
@@ -109,7 +112,7 @@ test("the number is bound to the agent, pinned to latest_published, with the inb
 });
 
 test("the endpoints derive from the one base the shell pins; the key rides the query and is stripped for any reader", () => {
-  const e = voiceEndpoints();
+  const e = voiceEndpoints(FN_URL);
   assert.deepEqual(e, {
     fn: "https://chanlytics-messaging.vercel.app/api/retell-fn",
     availability: "https://chanlytics-messaging.vercel.app/api/retell-availability",
@@ -205,8 +208,8 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   // voice-doors.test.mjs.
   const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
   for (const pin of [
-    "createRetellLlm(cfg, voiceLlmCreateBody(secrets))",
-    "createAgent(cfg, voiceAgentCreateBody(",
+    "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
+    "voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl)",
     'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
   ]) {
     assert.ok(agent.includes(pin), pin);

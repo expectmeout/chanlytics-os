@@ -11,8 +11,8 @@
     "ai/flag-registry.test.mjs"
   ],
   "counts": {
-    "ai/flag-registry.test.mjs": 4,
-    "ask/ask.test.mjs": 53,
+    "ai/flag-registry.test.mjs": 3,
+    "ask/ask.test.mjs": 52,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,

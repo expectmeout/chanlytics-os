@@ -18,6 +18,7 @@ import { log } from "@/server/log";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   handle: async ({ ctx, member }) => {

@@ -99,7 +99,7 @@ export const DELETE = write({
     if (pErr) throw new Error(pErr.message);
     if (running?.length) throw new AppError("conflict", playbooksStillSending(running.map((p) => String(p.name))), 409);
 
-    const r = await deleteTemplate(tpl.tenant_id, id);
+    const r = await deleteTemplate(tpl.tenant_id, id, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The template could not be deleted (${r.reason}).`;
       throw new AppError(

@@ -45,6 +45,8 @@
  *
  * Its lines carry `sweep: "calls"`. The provider's state is said once a tick (calls_sweep_provider_unavailable,
  * calls_sweep_provider_refused_key), never once per row, and the tick ends in one calls_sweep_done with the counts.
+ *
+ * Cross-workspace: the calls sweep visits every workspace's calls; each write carries the row's own tenant_id.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

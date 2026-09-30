@@ -18,7 +18,7 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { logger, adminDoor } from "../../lib/log.js";
@@ -31,7 +31,7 @@ const L = logger();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
+  const auth = await authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
   const body = await readBody<{
     tenant_id?: unknown;
@@ -41,6 +41,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body.user_id === "string" ? body.user_id : "";

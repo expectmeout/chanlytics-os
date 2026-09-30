@@ -14,6 +14,7 @@ import { acceptOpenInvites } from "@/server/workspace/team";
 import { getOpenHandovers, getOwnPartner } from "@chanlytics/db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
+import { env } from "@/server/env";
 import { log } from "@/server/log";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
@@ -156,7 +157,7 @@ export const GET = read({
         workspaces: [],
         activeWorkspaceId: null,
         pending: pendingWorkspaceOf(ctx.metadata),
-        posture: signupPosture(process.env.SIGNUP_CODE),
+        posture: signupPosture(env.SIGNUP_CODE),
         user: {
           id: userId,
           email: email ?? null,

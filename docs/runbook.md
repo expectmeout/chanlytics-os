@@ -44,7 +44,7 @@ corepack pnpm --filter @chanlytics/dashboard dev
 ```
 
 `.claude/launch.json` starts the same command on port 3100. An unset
-`VERCEL_ENV` is a laptop, never production (`src/server/deployment.ts`): every
+`VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
 
@@ -562,6 +562,12 @@ for `sig: true` on each of the three voice doors. The verifier tries one key,
 `RETELL_WEBHOOK_KEY` (`RETELL_API_KEY` when it is unset): `sig: false` on the
 fn and availability doors while the webhook shows `true` can mean the wrong
 key, not an unsigned delivery.
+
+Each switch that keeps a weaker mode open has a row in contracts' registry (`packages/contracts/src/ai/flags.ts`) with
+its day, the log line that proves it can close, and what closes it. `GET /api/diag` answers `securitySwitches`, one
+entry per switch the edge holds: whether its weaker mode is open on the deployment you asked, its day, and the days left.
+Start the 3 October read there. `RETELL_DOORS_SIGNED` closes the voice secret on any value but an explicit off (`0`,
+`false`, `off`, `no`); the edge never sets it, and the build fails a month after a switch's day.
 
 ## Turn on cold email
 

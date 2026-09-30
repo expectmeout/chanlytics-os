@@ -1,6 +1,15 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export { providerFetch, answerObject, breakerOf, breakerStates, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
+export {
+  publicFetch,
+  publicFetcher,
+  setPublicFetch,
+  isPublicAddress,
+  publicLookup,
+  NotPublicError,
+} from "./public-fetch";
+export type { Resolve, Resolved, PublicFetchDeps } from "./public-fetch";
 export { askModel, streamModel, formatRejected } from "./models/anthropic";
 export type {
   ModelAsk,
@@ -76,7 +85,6 @@ export {
   HANDOFF_VAR,
   FACTS_UNAVAILABLE,
   CALLER_UNKNOWN,
-  DEFAULT_FN_URL,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
@@ -323,7 +331,7 @@ export {
   GBP_REPLY_MAX,
 } from "./google/google-profile";
 export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
-export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
+export { signEdgeToken, verifyEdgeToken, edgeBodyMatches, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
 export { requestIdOf, requestIdShaped, REQUEST_ID_HEADER } from "./tokens/request-id";
 export { logger, errField } from "./log/logger";
 export type { Logger, LogFields, LogLevel } from "./log/logger";

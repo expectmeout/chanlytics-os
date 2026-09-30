@@ -9,7 +9,7 @@
  * after the RPC, from production only, and treats a failure as a shrug —
  * the request is already on record. What travels is the workspace's own
  * name and id and who asked; no customer content exists here to withhold.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -59,7 +59,7 @@ const WHAT: Record<string, { subject: string; how: string }> = {
 };
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/setup-request");
+  const auth = await authorizeAdmin(request, "/api/admin/setup-request");
   if (!auth.ok) return auth.response;
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();

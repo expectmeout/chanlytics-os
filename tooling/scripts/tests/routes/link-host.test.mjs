@@ -43,5 +43,5 @@ test("the proxy asks it first, before any other rule, with the dashboard's UNSUB
   const proxy = fs.readFileSync(path.join(ROOT, "apps/dashboard/proxy.ts"), "utf8");
   const asked = proxy.indexOf("linkHostAnswers(");
   assert.ok(asked > 0 && asked < proxy.indexOf("const moved = canonicalRedirect(request);"));
-  assert.match(proxy, /linkHostOf\(process\.env\.UNSUBSCRIBE_ORIGIN\)/);
+  assert.match(proxy, /linkHostOf\(env\.UNSUBSCRIBE_ORIGIN\)/);
 });

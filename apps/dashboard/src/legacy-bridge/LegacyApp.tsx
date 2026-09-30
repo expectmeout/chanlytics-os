@@ -81,6 +81,7 @@ import { installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
 import type { OpenHandoverDto } from "@chanlytics/contracts";
+import { publicEnv } from "@/lib/public-env";
 
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
@@ -93,7 +94,7 @@ installPeopleCourier();
 // door (leads.ts).
 installLeadsCourier();
 // The streets under the lead map, when the product hosts a basemap (lead-map.ts); unset, the page keeps its square.
-installLeadMap(process.env.NEXT_PUBLIC_LEAD_MAP_BASE);
+installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE);
 installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
@@ -136,7 +137,7 @@ installShell();
 // and answers nothing — the workspace is live data — and exists so a phone
 // can add the app to its home screen. Production only: a worker on a dev
 // origin outlives the dev server and confuses the next session.
-if (typeof window !== "undefined" && "serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+if (typeof window !== "undefined" && "serviceWorker" in navigator && publicEnv.productionBuild) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 

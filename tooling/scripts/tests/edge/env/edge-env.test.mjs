@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../../../..");
+const ROOT = path.join(here, "../../../../..");
 const { env } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/env.ts")).href);
 
 test("a value is read when asked for, not when the module loads", () => {
