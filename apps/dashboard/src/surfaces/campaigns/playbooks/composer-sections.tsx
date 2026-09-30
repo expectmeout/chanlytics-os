@@ -465,85 +465,109 @@ export function messageSection(x: SectionCtx) {
   );
 }
 
+/** When it runs, said as one sentence with its numbers chosen in place. */
+function whenSentence(x: SectionCtx) {
+  const { f, trig, visits, monthly, city, setHour, setCap, setGap, setCadence } = x;
+  const repeat = monthly ? f.cadence : f.gap;
+  return (
+    <p className="pb-when">
+      Every day at{" "}
+      <PbTok
+        value={f.hour}
+        options={pbHours().map((h) => ({ v: h, t: pbHour(h) }))}
+        onChange={setHour}
+        label="The hour it runs at"
+        testid="pb-hour"
+      />
+      {city ? ` ${city} time` : ""}
+      {visits ? (
+        <>
+          , to{" "}
+          {f.trigger === "visit_tomorrow"
+            ? "everyone with a visit the next day"
+            : "everyone who came in the day before"}{" "}
+          — one message per visit.
+        </>
+      ) : (
+        <>
+          , up to{" "}
+          <PbTok
+            value={f.cap}
+            options={pbWith(PB_CAPS, Number(f.cap)).map((n) => ({ v: n, t: String(n) }))}
+            onChange={setCap}
+            label="The most one run sends"
+            testid="pb-cap"
+          />{" "}
+          {Number(f.cap) === 1 ? "person" : "people"} a run.{" "}
+          {/* A follow-up is owed once per proposal (0006): there is no gap to choose. */}
+          {trig && trig.kind === "deal" ? (
+            <>One message per proposal.</>
+          ) : (
+            <>
+              No one hears it more than once every{" "}
+              <PbTok
+                value={repeat}
+                options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({
+                  v: n,
+                  t: `${n} days`,
+                }))}
+                onChange={monthly ? setCadence : setGap}
+                label={
+                  monthly ? "How often the same person hears it" : "The days before the same person hears it again"
+                }
+                testid="pb-gap"
+              />
+              .
+            </>
+          )}
+        </>
+      )}
+    </p>
+  );
+}
+
+/** The row of Autonomy it runs under, and the guardrails every run keeps. */
+export function underLine(x: SectionCtx) {
+  const { trig, runsUnder } = x;
+  const PolicyChip = policyChipPart();
+  return (
+    <div className="pb-rules-line">
+      {runsUnder && (
+        <span className="pb-runs-under" data-testid="pb-runs-under">
+          <span>Runs under</span>
+          <PolicyChip cls={runsUnder} />
+        </span>
+      )}
+      <span
+        className="pb-guard"
+        // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- as the JSX drew it (decision 0015)
+        tabIndex={0}
+        data-tip={pbGuardWords(trig ? trig.kind : "")}
+        aria-description={pbGuardWords(trig ? trig.kind : "")}
+        data-testid="pb-guard"
+      >
+        <Icon name="shield" size={12} /> Guardrails
+      </span>
+    </div>
+  );
+}
+
 /** When it runs: one sentence with its numbers chosen in place, the row of Autonomy it runs under, and the guardrails. */
 export function clockSection(x: SectionCtx) {
-  const { f, trig, visits, monthly, city, runsUnder, setHour, setCap, setGap, setCadence } = x;
-  const PolicyChip = policyChipPart();
-  const repeat = monthly ? f.cadence : f.gap;
   return (
     <section className="pb-sec" data-testid="pb-clock">
       <span className="pb-sec-k">When it runs</span>
-      <p className="pb-when">
-        Every day at{" "}
-        <PbTok
-          value={f.hour}
-          options={pbHours().map((h) => ({ v: h, t: pbHour(h) }))}
-          onChange={setHour}
-          label="The hour it runs at"
-          testid="pb-hour"
-        />
-        {city ? ` ${city} time` : ""}
-        {visits ? (
-          <>
-            , to{" "}
-            {f.trigger === "visit_tomorrow"
-              ? "everyone with a visit the next day"
-              : "everyone who came in the day before"}{" "}
-            — one message per visit.
-          </>
-        ) : (
-          <>
-            , up to{" "}
-            <PbTok
-              value={f.cap}
-              options={pbWith(PB_CAPS, Number(f.cap)).map((n) => ({ v: n, t: String(n) }))}
-              onChange={setCap}
-              label="The most one run sends"
-              testid="pb-cap"
-            />{" "}
-            {Number(f.cap) === 1 ? "person" : "people"} a run.{" "}
-            {/* A follow-up is owed once per proposal (0006): there is no gap to choose. */}
-            {trig && trig.kind === "deal" ? (
-              <>One message per proposal.</>
-            ) : (
-              <>
-                No one hears it more than once every{" "}
-                <PbTok
-                  value={repeat}
-                  options={pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({
-                    v: n,
-                    t: `${n} days`,
-                  }))}
-                  onChange={monthly ? setCadence : setGap}
-                  label={
-                    monthly ? "How often the same person hears it" : "The days before the same person hears it again"
-                  }
-                  testid="pb-gap"
-                />
-                .
-              </>
-            )}
-          </>
-        )}
-      </p>
-      <div className="pb-rules-line">
-        {runsUnder && (
-          <span className="pb-runs-under" data-testid="pb-runs-under">
-            <span>Runs under</span>
-            <PolicyChip cls={runsUnder} />
-          </span>
-        )}
-        <span
-          className="pb-guard"
-          // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- as the JSX drew it (decision 0015)
-          tabIndex={0}
-          data-tip={pbGuardWords(trig ? trig.kind : "")}
-          aria-description={pbGuardWords(trig ? trig.kind : "")}
-          data-testid="pb-guard"
-        >
-          <Icon name="shield" size={12} /> Guardrails
-        </span>
-      </div>
+      {whenSentence(x)}
+      {underLine(x)}
+    </section>
+  );
+}
+
+/** Under Glass, the sentence alone: the rules line is the row under it (Under), and the word is the row's. */
+export function whenOnly(x: SectionCtx) {
+  return (
+    <section className="pb-sec" data-testid="pb-clock">
+      {whenSentence(x)}
     </section>
   );
 }

@@ -3,6 +3,7 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Plain functions that return the elements they draw, called from
  * BroadcastsReal with the page's state.
  */
+import type { ReactNode } from "react";
 import type { ParamSourceKind } from "@chanlytics/contracts";
 import { FailedRead } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
@@ -319,63 +320,122 @@ function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number }: BcV) {
   );
 }
 
+// The send screen's head: its name, and Cancel, which asks first where something was written.
+function bcSendHead(v: BcV) {
+  const UnsavedAsk = unsavedAskPart();
+  const { work } = v;
+  return (
+    <CmHead
+      title="New broadcast"
+      right={
+        work.asking ? (
+          <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
+        ) : (
+          <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">
+            Cancel
+          </button>
+        )
+      }
+    />
+  );
+}
+
+// A template written from here, over the send screen: submitted to WhatsApp, and named once it is in review.
+function bcNewTemplate(v: BcV) {
+  const { composing, data, setComposing, flash } = v;
+  return (
+    composing && (
+      <TemplateComposer
+        businessName={data.businessName}
+        onCancel={() => setComposing(false)}
+        onDone={(made) => {
+          setComposing(false);
+          flash({
+            msg: (
+              <>
+                <b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved
+              </>
+            ),
+          });
+        }}
+      />
+    )
+  );
+}
+
+// The send screen's foot: the name, and the two acts, the second of which asks before anything leaves.
+function bcSendFoot(v: BcV) {
+  const Confirm = confirmPart();
+  const { data, name, setName, canSend, armed, ready, whenNote, submit, setArmed, active, activeCount, tpl, busy } = v;
+  return (
+    <div className="bc-foot">
+      <input
+        className="bc-subject"
+        type="text"
+        placeholder="Name this broadcast (optional)"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        maxLength={80}
+      />
+      {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
+      {!canSend && (
+        <div className="bc-excl-hint" data-testid="bc-role">
+          {gateTitle("approve", "stop or cancel a broadcast")}
+        </div>
+      )}
+      <span className="bc-actions-spacer" />
+      <div className="bc-actions">
+        {/* Schedule stays one press: a scheduled run is cancelled from the row above,
+                and nothing has left. Send now does not -- it is the only act on this
+                surface that cannot be taken back, and it was the only one that was not
+                armed, while Stop, Skip and both Deletes each ask first. */}
+        {!armed && (
+          <button
+            className="btn bc-send-later"
+            disabled={!ready || !whenNote.ok}
+            onClick={() => submit(true)}
+            {...gate("approve", "schedule a broadcast")}
+          >
+            Schedule it
+          </button>
+        )}
+        {!armed && (
+          <button
+            className="btn btn-primary bc-send-now"
+            disabled={!ready}
+            onClick={() => setArmed(true)}
+            data-testid="bc-send"
+            {...gate("approve", "send a broadcast")}
+          >
+            <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
+          </button>
+        )}
+        {armed && tpl && active && (
+          <Confirm
+            question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
+            detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+            yes="Yes, send it"
+            busy={busy}
+            onYes={() => submit(false)}
+            onNo={() => setArmed(false)}
+            testid="bc-send"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // The send screen: who, what and when side by side, and the send alone at the foot.
 export function bcComposer(v: BcV) {
-  const Confirm = confirmPart();
-  const UnsavedAsk = unsavedAskPart();
-  const {
-    work,
-    composing,
-    data,
-    setComposing,
-    flash,
-    name,
-    setName,
-    canSend,
-    armed,
-    ready,
-    whenNote,
-    submit,
-    setArmed,
-    active,
-    activeCount,
-    tpl,
-    busy,
-  } = v;
   return (
     <section className="bc-composer bc-send" data-testid="bc-composer">
       {/* The one screen in Campaigns that cannot be undone, opened on its own:
             who, what and when at once, with the people named rather than counted,
             and the send alone at the foot. */}
       {/* The three columns say who, what and when; the sentence that said so over them went (23 Sep). */}
-      <CmHead
-        title="New broadcast"
-        right={
-          work.asking ? (
-            <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />
-          ) : (
-            <button className="btn btn-ghost" onClick={work.leave} data-testid="bc-compose-close">
-              Cancel
-            </button>
-          )
-        }
-      />
-      {composing && (
-        <TemplateComposer
-          businessName={data.businessName}
-          onCancel={() => setComposing(false)}
-          onDone={(made) => {
-            setComposing(false);
-            flash({
-              msg: (
-                <>
-                  <b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved
-                </>
-              ),
-            });
-          }}
-        />
-      )}
+      {bcSendHead(v)}
+      {bcNewTemplate(v)}
       <div className="bc-cols">
         {bcColWho(v)}
 
@@ -384,61 +444,34 @@ export function bcComposer(v: BcV) {
         {bcColWhen(v)}
       </div>
 
-      <div className="bc-foot">
-        <input
-          className="bc-subject"
-          type="text"
-          placeholder="Name this broadcast (optional)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={80}
-        />
-        {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
-        {!canSend && (
-          <div className="bc-excl-hint" data-testid="bc-role">
-            {gateTitle("approve", "stop or cancel a broadcast")}
-          </div>
-        )}
-        <span className="bc-actions-spacer" />
-        <div className="bc-actions">
-          {/* Schedule stays one press: a scheduled run is cancelled from the row above,
-                and nothing has left. Send now does not -- it is the only act on this
-                surface that cannot be taken back, and it was the only one that was not
-                armed, while Stop, Skip and both Deletes each ask first. */}
-          {!armed && (
-            <button
-              className="btn bc-send-later"
-              disabled={!ready || !whenNote.ok}
-              onClick={() => submit(true)}
-              {...gate("approve", "schedule a broadcast")}
-            >
-              Schedule it
-            </button>
-          )}
-          {!armed && (
-            <button
-              className="btn btn-primary bc-send-now"
-              disabled={!ready}
-              onClick={() => setArmed(true)}
-              data-testid="bc-send"
-              {...gate("approve", "send a broadcast")}
-            >
-              <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
-            </button>
-          )}
-          {armed && tpl && active && (
-            <Confirm
-              question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
-              detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
-              yes="Yes, send it"
-              busy={busy}
-              onYes={() => submit(false)}
-              onNo={() => setArmed(false)}
-              testid="bc-send"
-            />
-          )}
-        </div>
+      {bcSendFoot(v)}
+    </section>
+  );
+}
+
+// Under Glass the same three questions stand as the canvas's rows (the compact composer, C2): To, Says, When, one under
+// the other in one pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup,
+// testids and words; their eyebrows (Who, What, When) go, since the row's word says it.
+function bcGlassRow(word: string, body: ReactNode) {
+  return (
+    <div className="bc-grow">
+      <span className="bc-grow-word">{word}</span>
+      <div className="bc-grow-body">{body}</div>
+    </div>
+  );
+}
+
+export function bcComposerGlass(v: BcV) {
+  return (
+    <section className="bc-composer bc-send bc-glass" data-testid="bc-composer">
+      {bcSendHead(v)}
+      {bcNewTemplate(v)}
+      <div className="bc-grows">
+        {bcGlassRow("To", bcColWho(v))}
+        {bcGlassRow("Says", bcColWhat(v))}
+        {bcGlassRow("When", bcColWhen(v))}
       </div>
+      {bcSendFoot(v)}
     </section>
   );
 }

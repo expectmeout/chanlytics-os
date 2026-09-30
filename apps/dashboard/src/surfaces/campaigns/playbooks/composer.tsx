@@ -22,14 +22,16 @@
  * succeeds unless the server knows something newer (a template no longer approved, a booking link gone).
  */
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { recordSheetPart, tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
+import { useLook } from "../../look";
 import { useSurface } from "../../use-surface";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
 import type { Fields } from "./composer-model";
-import { clockSection, messageSection, whoSection } from "./composer-sections";
+import { clockSection, messageSection, underLine, whenOnly, whoSection } from "./composer-sections";
 import type { SectionCtx } from "./composer-sections";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
 
@@ -80,6 +82,16 @@ function sheetFoot(p: {
   );
 }
 
+/** Under Glass a section is a row: its word at the left (To, Says, When, Under), what it holds beside it (C2). */
+function glassRow(word: string, testid: string, body: ReactNode) {
+  return (
+    <div className="pb-grow" data-testid={testid}>
+      <span className="pb-grow-word">{word}</span>
+      <div className="pb-grow-body">{body}</div>
+    </div>
+  );
+}
+
 /** The sheet's body: the three sections, and what stops a run from sending from the number. */
 function sheetBody(x: SectionCtx) {
   const { data } = x;
@@ -102,7 +114,35 @@ function sheetBody(x: SectionCtx) {
   );
 }
 
+/**
+ * The same sections under Glass stand as the canvas's four rows (the compact composer, C2): To, Says, When, and Under,
+ * which is the row of Autonomy it runs under and its guardrails, drawn apart from the sentence they follow. A row is its
+ * word at the left and a section at the right; what the section holds and its testids are the Classic sheet's.
+ */
+function sheetBodyGlass(x: SectionCtx) {
+  const { data } = x;
+  return (
+    <div className="pb-compose">
+      {glassRow("To", "pb-row-to", whoSection(x))}
+      {glassRow("Says", "pb-row-says", messageSection(x))}
+      {glassRow("When", "pb-row-when", whenOnly(x))}
+      {glassRow("Under", "pb-row-under", underLine(x))}
+      {data.number && data.number.present && !data.number.health.canSend && (
+        <p className="pb-warn" data-testid="pb-number">
+          {data.number.health.refusal}
+        </p>
+      )}
+      {data.number && !data.number.present && (
+        <p className="pb-warn" data-testid="pb-number">
+          No WhatsApp number connected — connect one in Settings › Connections before a run can send.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PlaybookComposer({ data, editing, initialTrigger = null, onDone, onCancel }: ComposerProps) {
+  const glass = useLook() === "glass";
   // As on Broadcasts: a template this product cannot put on the wire is not
   // offered, rather than offered and refused by Meta for every recipient.
   const offered = useMemo(() => composerOffered(data.templates), [data.templates]);
@@ -198,15 +238,17 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
         </span>
       }
       sub={
-        editing
-          ? "A change counts from its next run."
-          : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."
+        glass
+          ? undefined
+          : editing
+            ? "A change counts from its next run."
+            : "One approved message, to the people a moment names who said yes — each on its own clock. Replies land in the Inbox."
       }
       onClose={work.leave}
       closeLabel="Cancel"
       foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
     >
-      {sheetBody(x)}
+      {glass ? sheetBodyGlass(x) : sheetBody(x)}
     </RecordSheet>
   );
 }
