@@ -11,7 +11,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { parseTenantConfig } from "@chanlytics/contracts";
+import { MEMBERSHIP_ROLES, parseTenantConfig } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -87,9 +87,11 @@ test("per-tenant credentials resolve through Vault; a null ref means env fallbac
   assert.equal(none, null, "the pilot rides the env fallback until its ref is set");
 });
 
+// The roles are contracts' one list (MEMBERSHIP_ROLES, held to the memberships.role CHECK at compile time), never a
+// copy: a copy written before 00201 made partner a fourth role failed the nightly, whose database holds a partner.
 test("roles are the widened set and nothing kept 'staff'", { skip }, async () => {
   const { data } = await db.from("memberships").select("role");
-  for (const m of data) assert.ok(["owner", "operator", "viewer"].includes(m.role), `unexpected role ${m.role}`);
+  for (const m of data) assert.ok(MEMBERSHIP_ROLES.includes(m.role), `unexpected role ${m.role}`);
 });
 
 test("policy seeds mirror the edge's previous hardcoded behavior", { skip }, async () => {

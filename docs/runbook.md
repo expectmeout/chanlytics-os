@@ -193,6 +193,41 @@ A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
 skipping. The nightly sets it; the pull-request jobs do not.
 
+**One clock.** `pnpm test` and `pnpm test:db` run through `tooling/scripts/checks/test.mjs`, which sets the zone
+before Node starts: UTC, whatever the machine's, or `TEST_TZ`'s. `TEST_TZ=Pacific/Auckland corepack pnpm test`
+(PowerShell: `$env:TEST_TZ='Pacific/Auckland'; corepack pnpm test`) is CI's second leg, "Node suite,
+Pacific/Auckland": the whole suite twelve hours east, where a rule that reads the viewer's zone, or a test that builds a
+date with no zone, gives the wrong day. A test that reads the wall clock pins it (`t.mock.timers.enable({ apis:
+["Date"], now })`), and one that builds an instant gives it its offset.
+
+**What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
+per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
+dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselines/coverage.json`. Under a floor is a
+red run; a floor is raised by `UPDATE_BASELINES=1 corepack pnpm test` (two points under the measure, so another platform's
+V8 does not fail it) and lowered only by `COVERAGE_FLOORS=lower corepack pnpm test`, argued under "Rises" in `docs/debt.md` (`UPDATE_BASELINES=raise` is for the other ratchets, and neither lowers nor hides a floor). A run of
+some files, a flag, the database suites and the Auckland leg are not held to the floors (`TEST_COVERAGE=1` prints the table for some files); `TEST_COVERAGE=0` skips the measure
+for a full run that wants the speed. A package's code runs from its committed `dist`, so its lines are read back to the
+module that wrote them (`tooling/scripts/checks/coverage.mjs`).
+
+**The database in memory refuses what the real one refuses.** `tooling/scripts/tests/_fake-db.mjs` reads the schema
+the migrations generate (`packages/db/src/database.types.ts`, `packages/contracts/src/schema-sets.generated.ts`
+and `tooling/scripts/tests/_unique-keys.generated.json`, through `_schema.mjs`) and answers a table, column, function
+or embed the database lacks (`PGRST205`, `42703`, `PGRST204`, `PGRST202`, `PGRST200`), a NOT NULL left empty
+(`23502`), a value outside a CHECK's set (`23514`), a second row on a unique key (`23505`; a key is judged when the
+write moves a column it reads, as Postgres does), an upsert whose conflict target no key matches (`42P10`), a request
+line past the gateway's 8 KiB (about 208 uuids in one `.in()`), and reads at most 1,000 rows. It knows no trigger and
+no foreign key: a state machine's writers are run through the real guard by one `*.db.test.mjs` each (a broadcast
+through both guards, an escalation, a job's claim to its end, a message from queued to read, a line's voice, the lead
+money lock). `database/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
+fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
+per table for the ten the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
+breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
+keys from the stack, and `database/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
+processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
+switch list, the jobs ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a suite writing or
+counting them takes for its whole file. `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace
+and passes once per database: reset the stack (`supabase db reset`) before running it again.
+
 ### A signed-in spec, on this machine
 
 A signed-in spec needs a session, and no developer machine holds a service-role
@@ -428,7 +463,7 @@ its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` a
 | `ci.yml`, Secret scan                      | every pull request and push to main                                                               | No secret in what the pull request adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `ci.yml`, Typecheck                        | same, and a merge queue's commit                                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); no production dependency with a high or critical advisory (`pnpm audit --prod`) or under a licence we may not ship (`tooling/scripts/checks/licences.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; dead exports (knip); the formatting check; the node suite; the dashboard builds the way Vercel builds it; the workspace route's bundle budget    |
 | `ci.yml`, Mobile                           | every pull request, push to main and merge queue's commit                                         | The phone app's types, lint, Expo's doctor (the SDK's patch drift warns) and a Metro bundle for each platform                                                                                                                                                                                                                                                                                                                                                                                               |
-| `ci.yml`, Node suite, Pacific/Auckland     | every pull request and push to main                                                               | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; red until the tests lane and the defects lane land their fixes, so its failure does not fail the run (`continue-on-error`)                                                                                                                                                                                                                            |
+| `ci.yml`, Node suite, Pacific/Auckland     | every pull request and push to main                                                               | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; green since the tests lane (29 tests failed under it on 29 Sep 2026), so a failure fails the run                                                                                                                                                                                                                                                      |
 | `ci.yml`, What landed keeps the title rule | every push to main                                                                                | Each commit the push landed: its subject keeps the title rule and carries its `(#N)`, and it is not a merge commit. A break opens an issue, since what landed cannot be undone                                                                                                                                                                                                                                                                                                                              |
 | `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's: every entry main recorded, unchanged |
 | `nightly-e2e.yml`                          | 09:00 UTC; by hand, the credential-free specs alone (against an address that needs no bypass too) | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace; Ask's day against its lines. One rolling issue each, closed by the first green run; the second red run in a row pages                                                                                                                                                                                                                                                                  |
@@ -499,7 +534,12 @@ lists them; deleting one is Ruben's call.
    dashboard's `https://app.chanlytics.com/api/version`); `GET /api/health` on
    the edge answers 200 when the platform's clocks are healthy and due work is
    draining; `GET /api/diag` (keyed) says what the deployment holds, its
-   `migrations.head` production's newest applied migration.
+   `migrations.head` production's newest applied migration. The first two are one command,
+   `node tooling/scripts/checks/smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha <the merge's commit>`
+   (exit 0 when both answer as they should, 1 when one does not; a protected preview takes
+   `VERCEL_AUTOMATION_BYPASS_SECRET`, and `--allow-unhealthy` takes a 503 from a preview with no database), and
+   `node tooling/scripts/ops/golden-edge.mjs --no-secret` probes the edge's public pages and each door refusing a
+   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret.
 5. A merge that carried a migration: compare production's ledger with main's,
    "Apply a migration" step 6. Nothing may be missing.
 

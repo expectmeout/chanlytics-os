@@ -222,8 +222,10 @@ test("the cold account's receipts come to the same door, proven with its own sec
   process.env.RESEND_COLD_WEBHOOK_SECRET = COLD;
   try {
     t = world();
+    // Two emails: the same one twice is one job, whoever signed it (the ledger's key is the mailbox and the received id).
+    const other = received(["bestmovers@mail.chanlytics.com"], { email_id: "rcv_2" });
     assert.equal(await post(ev, { secret: COLD }), 200, "signed by the cold account");
-    assert.equal(await post(ev), 200, "and the platform's, still");
+    assert.equal(await post(other), 200, "and the platform's, still");
     assert.equal(
       await post(ev, { secret: `whsec_${Buffer.from("somebody-else's-signing-secret!!").toString("base64")}` }),
       401,
@@ -232,6 +234,7 @@ test("the cold account's receipts come to the same door, proven with its own sec
     // A cold secret set wrong refuses only what it would have proven: the platform's receipts still land.
     process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_";
     assert.equal(await post(ev), 200, "a bad second secret does not stop the first");
+    assert.equal(t.jobs.length, 2, "and the same email again is the job it already was");
   } finally {
     delete process.env.RESEND_COLD_WEBHOOK_SECRET;
   }

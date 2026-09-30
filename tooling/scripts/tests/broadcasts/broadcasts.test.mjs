@@ -224,7 +224,9 @@ test("the words a person will read, and the values Meta will accept", () => {
   assert.equal(cleanParam(""), null);
   assert.equal(cleanParam("x".repeat(1025)), null);
   assert.equal(cleanParam(42), null);
-  assert.ok(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00")).startsWith("Spring offer · Sep 5"));
+  // The instant carries New York's offset: written with none, it was 3 PM wherever the suite ran, the 4th in New York
+  // from Auckland.
+  assert.equal(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00-04:00")), "Spring offer · Sep 5");
 });
 
 test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {
@@ -268,10 +270,11 @@ test("the view model: delivered and read over sent, open while scheduled or send
     ZONE,
   );
   assert.equal(fresh.deliveredPct, null, "nothing to divide by yet");
-  const now = new Date("2026-09-05T09:00:00");
-  assert.ok(whenLabel("2026-09-05T15:30:00", ZONE, now).startsWith("today "));
-  assert.ok(whenLabel("2026-09-06T15:30:00", ZONE, now).startsWith("tomorrow "));
-  assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", ZONE, now)));
+  // 9 AM in New York, and a send at 3:30 PM there: each instant with its offset, as the database hands one over.
+  const now = new Date("2026-09-05T09:00:00-04:00");
+  assert.equal(whenLabel("2026-09-05T15:30:00-04:00", ZONE, now), "today 3:30 PM");
+  assert.equal(whenLabel("2026-09-06T15:30:00-04:00", ZONE, now), "tomorrow 3:30 PM");
+  assert.equal(whenLabel("2026-09-12T15:30:00-04:00", ZONE, now), "Sep 12 · 3:30 PM");
 });
 
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {

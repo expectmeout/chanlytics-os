@@ -711,7 +711,10 @@ test("a day carries at most what the board draws; the rest are counted and said"
   );
 });
 
-test("the route: the answer carries the feed's state and never its address; a viewer's read adds nobody", async () => {
+test("the route: the answer carries the feed's state and never its address; a viewer's read adds nobody", async (t) => {
+  // The route reads the wall clock for which appointments name people to add (thirty days back, peopleFromItems): pinned
+  // to the week it asks for, since on the wall clock it stopped adding Ana once her 8 September visit was 30 days past.
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const url = "https://cal.example/route.ics";
   answers.set(url, { body: ONE });
   const made = [];

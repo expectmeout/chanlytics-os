@@ -457,7 +457,10 @@ test("a notice whose mail failed: told stays unmarked, the job throws for the le
   });
 });
 
-test("with no model key the reply is other, the chain's stop stands, the owner is told, and it is read again later", async () => {
+test("with no model key the reply is other, the chain's stop stands, the owner is told, and it is read again later", async (t) => {
+  // Five minutes after the fixture's reply arrived (2026-09-29T14:05Z). A reply is read again only inside its first
+  // week (rereadAt), so on the wall clock this failed from 6 October 2026, a week after the fixtures were written.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-29T14:10:00Z") });
   await withEnv({ ANTHROPIC_API_KEY: undefined }, async () => {
     const w = world();
     const { email } = provided(1);
@@ -470,6 +473,7 @@ test("with no model key the reply is other, the chain's stop stands, the owner i
     assert.equal(w.tables.reach_out_check_spend.length, 0, "nothing is spent on a read not made");
     const reread = w.readJobs().find((j) => j.payload.stage === "reread-1");
     assert.ok(reread, "read again later");
+    assert.equal(reread.due_at, "2026-09-29T15:10:00.000Z", "in an hour, the first time");
     assert.match(w.told[0].notice.body, /could not be read/);
   });
 });

@@ -22,7 +22,7 @@ import {
   verbalOptInScript,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
-import { personRow } from "../_person-row.mjs";
+import { personRow } from "./_person-row.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";

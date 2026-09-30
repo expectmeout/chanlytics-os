@@ -2,19 +2,24 @@
  * Golden verification suite for the frozen edge surface (Blueprint P7).
  * Runs against a DEPLOYED URL (preview or prod) — never against local source.
  *
- * Env: BASE_URL (required), META_APP_SECRET, WHATSAPP_VERIFY_TOKEN,
- *      RETELL_FN_SECRET, DIAG_KEY, BYPASS (optional x-vercel-protection-bypass),
+ * Env: BASE_URL (required; VERCEL_URL, a preview's host, stands in for it), META_APP_SECRET,
+ *      WHATSAPP_VERIFY_TOKEN, RETELL_FN_SECRET, DIAG_KEY, BYPASS (optional x-vercel-protection-bypass),
  *      PROD=1 to skip preview-only assertions.
+ *
+ * --no-secret runs only the probes that need no secret (the public pages, and each door refusing a caller with no key
+ * or the wrong one), so a pull request's preview can be probed by CI, which holds none; every probe that signs or keys
+ * a request says it was skipped.
  *
  * Exit 0 = all pass. Non-zero = failures listed.
  */
 import crypto from "node:crypto";
 
-const BASE = process.env.BASE_URL;
+const BASE = process.env.BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
 if (!BASE) {
-  console.error("BASE_URL required");
+  console.error("BASE_URL (or VERCEL_URL) required");
   process.exit(2);
 }
+const NO_SECRET = process.argv.includes("--no-secret");
 const SECRET = process.env.META_APP_SECRET || "";
 const VERIFY = process.env.WHATSAPP_VERIFY_TOKEN || "";
 const FN = process.env.RETELL_FN_SECRET || "";
@@ -23,7 +28,8 @@ const BYPASS = process.env.BYPASS || "";
 
 const extra = BYPASS ? { "x-vercel-protection-bypass": BYPASS } : {};
 let pass = 0,
-  fail = 0;
+  fail = 0,
+  skipped = 0;
 const failures = [];
 
 function sign(body) {
@@ -40,6 +46,13 @@ async function check(name, fn) {
     failures.push(`${name}: ${e.message}`);
     console.error(` FAIL ${name}: ${e.message}`);
   }
+}
+
+/** A probe that signs or keys its request with a secret: skipped, and said so, under --no-secret. */
+async function secretCheck(name, fn) {
+  if (!NO_SECRET) return check(name, fn);
+  skipped++;
+  console.log(`  skip ${name} (needs a secret; --no-secret)`);
 }
 
 function assert(cond, msg) {
@@ -65,7 +78,7 @@ await check("GET /privacy.html is 200 and is a privacy policy", async () => {
 });
 
 // --- WhatsApp webhook: Meta handshake ---
-await check("GET /api/whatsapp handshake echoes challenge", async () => {
+await secretCheck("GET /api/whatsapp handshake echoes challenge", async () => {
   const r = await get(
     `/api/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(VERIFY)}&hub.challenge=golden12345`,
   );
@@ -87,7 +100,7 @@ await check("POST /api/whatsapp bad signature is 401", async () => {
   const r = await post("/api/whatsapp", body, { "x-hub-signature-256": "sha256=" + "0".repeat(64) });
   assert(r.status === 401, `status ${r.status}`);
 });
-await check("POST /api/whatsapp signed status payload is 200 ok", async () => {
+await secretCheck("POST /api/whatsapp signed status payload is 200 ok", async () => {
   const body = JSON.stringify({
     object: "whatsapp_business_account",
     entry: [
@@ -106,7 +119,7 @@ await check("POST /api/whatsapp signed status payload is 200 ok", async () => {
   assert(r.status === 200, `status ${r.status}`);
   assert((await r.json()).ok === true, "body not ok:true");
 });
-await check("POST /api/whatsapp signed text from non-allowlisted number is 200 (dropped)", async () => {
+await secretCheck("POST /api/whatsapp signed text from non-allowlisted number is 200 (dropped)", async () => {
   const body = JSON.stringify({
     object: "whatsapp_business_account",
     entry: [
@@ -134,7 +147,7 @@ await check("POST /api/whatsapp signed text from non-allowlisted number is 200 (
   const r = await post("/api/whatsapp", body, { "x-hub-signature-256": sign(body) });
   assert(r.status === 200, `status ${r.status}`);
 });
-await check("POST /api/whatsapp escaped-unicode payload verifies (raw-byte HMAC)", async () => {
+await secretCheck("POST /api/whatsapp escaped-unicode payload verifies (raw-byte HMAC)", async () => {
   // literal \uXXXX escapes + multibyte chars: the classic re-serialization breaker
   const body =
     '{"object":"whatsapp_business_account","entry":[{"id":"0","changes":[{"field":"messages","value":{"messages":[{"from":"15550001111","id":"wamid.golden3","type":"text","timestamp":"' +
@@ -149,14 +162,14 @@ await check("POST /api/retell-webhook unauthorized is 401", async () => {
   const r = await post("/api/retell-webhook", JSON.stringify({ event: "call_started", call: { call_id: "golden" } }));
   assert(r.status === 401, `status ${r.status}`);
 });
-await check("POST /api/retell-webhook with key, call_started is 200", async () => {
+await secretCheck("POST /api/retell-webhook with key, call_started is 200", async () => {
   const r = await post(
     `/api/retell-webhook?key=${encodeURIComponent(FN)}`,
     JSON.stringify({ event: "call_started", call: { call_id: "golden" } }),
   );
   assert(r.status === 200, `status ${r.status}`);
 });
-await check("POST /api/retell-inbound with key returns caller_context", async () => {
+await secretCheck("POST /api/retell-inbound with key returns caller_context", async () => {
   const r = await post(
     `/api/retell-inbound?key=${encodeURIComponent(FN)}`,
     JSON.stringify({ call_inbound: { from_number: "+15550001111" } }),
@@ -169,7 +182,7 @@ await check("POST /api/retell-fn bad secret is 401", async () => {
   const r = await post("/api/retell-fn", JSON.stringify({}), { "x-fn-secret": "WRONG" });
   assert(r.status === 401, `status ${r.status}`);
 });
-await check("POST /api/retell-fn short number gets graceful spoken fallback", async () => {
+await secretCheck("POST /api/retell-fn short number gets graceful spoken fallback", async () => {
   const r = await post(
     "/api/retell-fn",
     JSON.stringify({ call: { call_id: "golden" }, args: { phone_number: "123" } }),
@@ -307,5 +320,7 @@ if (process.env.INGEST === "1" && process.env.SUPABASE_URL && process.env.SUPABA
   });
 }
 
-console.log(`\n${pass} passed, ${fail} failed${fail ? ":\n  " + failures.join("\n  ") : ""}`);
+console.log(
+  `\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} skipped (--no-secret)` : ""}${fail ? ":\n  " + failures.join("\n  ") : ""}`,
+);
 process.exit(fail ? 1 : 0);

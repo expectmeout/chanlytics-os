@@ -39,6 +39,7 @@ import {
   importsMatching,
   durationsIn,
   inlineStyles,
+  sourceReads,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -294,12 +295,20 @@ function repoTestFiles() {
   }
 }
 
-/** Every test file and, for those that read source as text, how many times: `readCode(` and `readRaw(` on the comment-stripped file. */
+/**
+ * Every test file and, for those that read source as text, how many times: `readCode(` and `readRaw(` on the
+ * comment-stripped file, and each call of a helper of the file's own that reads a source file with `readFileSync`
+ * (`sourceReads`, measured on the syntax tree). The helpers went uncounted until 29 Sep 2026: 22 reads in 7 files the
+ * count did not see, banked then as a correction of the measure.
+ */
 export function sourceScan() {
   const files = repoTestFiles().filter((f) => f !== SOURCE_SCAN_SELF && fs.existsSync(path.join(ROOT, TESTS_DIR, f)));
   const counts = Object.fromEntries(
     files
-      .map((f) => [f, (readCode(`${TESTS_DIR}/${f}`).match(/\b(readCode|readRaw)\(/g) ?? []).length])
+      .map((f) => {
+        const rel = `${TESTS_DIR}/${f}`;
+        return [f, (readCode(rel).match(/\b(readCode|readRaw)\(/g) ?? []).length + sourceReads(parse(rel))];
+      })
       .filter(([, n]) => n > 0),
   );
   return { files, counts };

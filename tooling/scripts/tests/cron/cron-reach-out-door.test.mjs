@@ -402,7 +402,12 @@ test("the door: the wrong key is a 401, a key Vault cannot produce is a 503, no 
   await refusedAtTheDoor(POST, "reach-out", setPg);
 });
 
-test("reconcile: each queued send reads what became of its email, once", async () => {
+/**
+ * The reconcile case on a clock pinned at `now`: fifteen queued sends, each email's fate, one tick with the lane unset,
+ * and what became of each, the same on either side of the business's hours. Answers the tick's status and body.
+ */
+async function reconcileAt(t, now) {
+  t.mock.timers.enable({ apis: ["Date"], now });
   const sentAt = ago(5 * MIN);
   const s = {
     sent: send({ state: "queued", message_id: "m-sent" }),
@@ -445,10 +450,6 @@ test("reconcile: each queued send reads what became of its email, once", async (
   });
   const ticked = Date.now();
   const [status, body] = await w.tick();
-  // A send planned again inside its business's open hours is due at once, and with the lane unset the clock says so:
-  // which of the two it answers depends on the hour the suite runs, never on what the clock did.
-  if (status === 503) assert.equal(body.error, "cold_lane_unset");
-  else assert.deepEqual([status, body.ok], [200, true]);
   const got = (k) => w.row(s[k].id);
   assert.deepEqual([got("sent").state, got("sent").sent_at], ["sent", sentAt], "sent, when it left");
   const lead = w.tables.leads.find((l) => l.id === s.sent.lead_id);
@@ -504,6 +505,19 @@ test("reconcile: each queued send reads what became of its email, once", async (
     JSON.parse(before).filter((r) => r.state !== "planned").length,
     w.tables.reach_out_sends.filter((r) => r.state !== "planned").length,
   );
+  return [status, body];
+}
+
+test("reconcile: each queued send reads what became of its email, once; outside its business's hours nothing is due, and the tick is a 200", async (t) => {
+  // 3 AM on a Tuesday in Chicago, the workspace's zone: a send planned again waits for the morning.
+  const [status, body] = await reconcileAt(t, Date.parse("2026-09-15T08:00:00Z"));
+  assert.deepEqual([status, body.ok, body.error], [200, true, undefined]);
+});
+
+test("reconcile inside its business's hours: a send planned again is due at once, and with the lane unset the tick says so", async (t) => {
+  // Noon on a Tuesday in Chicago. On the wall clock this case answered one or the other by the hour the suite ran.
+  const [status, body] = await reconcileAt(t, Date.parse("2026-09-15T17:00:00Z"));
+  assert.deepEqual([status, body.ok, body.error], [503, false, "cold_lane_unset"]);
 });
 
 test("unstick: a claim left mid-way is its email's when the email was written, and planned again when it was not", async () => {

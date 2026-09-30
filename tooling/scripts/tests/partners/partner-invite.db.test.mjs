@@ -284,7 +284,8 @@ test(
       await db.from("platform_admins").delete().eq("user_id", admin.userId);
     }
     // The share written for Fresh Shop above is news; the two decided as the partner joined are not.
-    const letters = ok(await db.rpc("partner_letters_due", { p_now: new Date(Date.now() + 1000).toISOString() }));
+    // The database's own now() (the function's default), not the runner's clock plus a second's luck.
+    const letters = ok(await db.rpc("partner_letters_due"));
     const mine = letters.find((l) => l.partner_id === partner.id);
     assert.ok(mine, "the partner has news: a share written");
     const standing = (mine.news.standing ?? []).map((row) => row.workspace);

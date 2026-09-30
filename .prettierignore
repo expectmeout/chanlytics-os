@@ -17,6 +17,7 @@ pnpm-lock.yaml
 packages/db/src/database.types.ts
 *.generated.ts
 docs/data-model.md
+*.generated.json
 tooling/scripts/tests/route-policy.json
 tooling/scripts/tests/source-scan-baseline.json
 tooling/scripts/tests/baselines/

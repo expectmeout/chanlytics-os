@@ -37,13 +37,15 @@ corepack pnpm --filter "./packages/*" build   # apps typecheck against built dis
 corepack pnpm -r typecheck
 corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
-corepack pnpm test                            # the node suite; database suites skip without credentials
+corepack pnpm test                            # the node suite, in UTC, and what it ran of the code held at a floor; database suites skip without credentials
+TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland')
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
 corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise js=<bytes> a rise, by the growth argued
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
+node tooling/scripts/checks/smoke.mjs <host>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer (docs/runbook.md, Deploy)
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
 corepack pnpm gen:api-reference               # docs/api.md (what each route takes), after a route's input or policy changes; the suite fails a stale one
@@ -190,8 +192,11 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 - Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
   (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
   `packages/contracts/src/mobile/app-bridge.ts`.
-- A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
-  shares stays at the root as `tooling/scripts/tests/_<name>.mjs`.
+- A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper several domains share stays at
+  the root as `tooling/scripts/tests/_<name>.mjs` (the root is a directory too, at its 20 modules), and one a single
+  domain uses lives in that domain's folder (`tooling/scripts/tests/leads/_mark-images.mjs`). A row a fixture seeds can be
+  made by `tooling/scripts/tests/_rows.mjs`, which fills every column the table has and refuses one it does not, and a
+  database in memory refuses what the real one refuses (`docs/runbook.md`, "Test it").
 - A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it
   proves, named for it, as `packages/contracts/src/shared/identity.type-test.ts` is for
   `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles

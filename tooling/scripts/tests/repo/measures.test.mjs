@@ -14,7 +14,16 @@ import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
-import { functionsIn, windowUse, unknownCasts, castsIn, copiesAmong, repoFiles, importsMatching } from "../_ast.mjs";
+import {
+  functionsIn,
+  windowUse,
+  unknownCasts,
+  castsIn,
+  copiesAmong,
+  repoFiles,
+  importsMatching,
+  sourceReads,
+} from "../_ast.mjs";
 import { bankedSourceScan, DOOR_FORBIDS } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
@@ -61,6 +70,26 @@ test("a source-scan count banks by the same rule, and a repo-wide lint's count i
   const counts = { "a.test.mjs": 5, "new.test.mjs": 2, "repo/lint.test.mjs": 12 };
   assert.deepEqual(bankedSourceScan(counts, baseline, false), { "a.test.mjs": 3, "repo/lint.test.mjs": 12 });
   assert.deepEqual(bankedSourceScan(counts, baseline, true), counts);
+});
+
+// A helper of the test's own that reads a file is as much a source-text read as readCode: it went uncounted until
+// 29 Sep 2026 (22 reads in 7 files). What the helper's name is bound to where it is called decides, and a helper
+// that loads data is not source.
+test("a source read through a helper of the file's own counts, a shadowing name or a data file does not", () => {
+  const sf = source(`
+    import fs from "node:fs";
+    const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
+    function load(name) { return JSON.parse(fs.readFileSync(name, "utf8")); }
+    const a = read("apps/edge/lib/pg.ts");
+    const b = read(\`packages/core/src/inbound/\${m}.ts\`);
+    const c = load("fixtures/reply.json");
+    const d = read("docs/runbook.md");
+    test("x", async () => {
+      const read = async (tenants) => world(tenants);
+      await read("apps/edge/lib/pg.ts");
+    });
+  `);
+  assert.equal(sourceReads(sf), 2);
 });
 
 test("a set's numbers are a record: its keys may only go, its numbers follow the measure", () => {

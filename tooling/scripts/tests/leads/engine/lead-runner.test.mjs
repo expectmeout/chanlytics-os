@@ -24,7 +24,7 @@ import { leadDb } from "../../../../../apps/edge/lib/leads/lead-db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "../../_lead-world.mjs";
 import { PLAN, actorRun, mapsItem } from "../../_lead-fixtures.mjs";
 import { MARK_MAX_BYTES } from "../../../../../packages/core/src/leads/mark-image.ts";
-import { notAnImage, png } from "../../_mark-images.mjs";
+import { notAnImage, png } from "../_mark-images.mjs";
 
 const OWNER = "job-1";
 function world(over = {}) {
