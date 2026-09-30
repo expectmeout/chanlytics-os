@@ -23,6 +23,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -36,12 +37,14 @@ const skip =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stamp = Date.now().toString(36);
-// A day newer than the job walk's stamp (jobs/a-job-is-claimed-run-and-settled): claim_due_jobs takes the oldest due row
-// of the whole ledger, so when both walks tick at once the newer waits for the older's rows to go (turn() below), and
-// neither carries the other's row off on its own lease.
-const DUE = "1990-01-02T00:00:00.000Z";
+const DUE = "1990-01-01T00:00:00.000Z";
 const WA = { phoneId: "100000000000003", accessToken: "graph-token-for-this-suite" };
 
+// The jobs ledger is one queue the whole database suite shares: claim_due_jobs takes the oldest due row of all of it, and
+// jobs_backlog() counts every due row. This file, the job walk (jobs/a-job-is-claimed-run-and-settled), the broadcast
+// walk (broadcasts/a-broadcast-runs-to-its-end-through-both-guards) and jobs-outbox.db make rows due and count them, so
+// they take a lock for the whole file (_file-lock.mjs) and run one after the other.
+let releaseLedger;
 let db;
 let T;
 let jobs;
@@ -130,25 +133,6 @@ async function oursWaiting() {
   ]);
   return ok(due).length + ok(lapsed).length > 0;
 }
-/** Wait while another suite's row is due at or before this walk's stamp: the ledger would claim it first. */
-async function turn() {
-  for (let i = 0; i < 300; i += 1) {
-    const now = new Date().toISOString();
-    const [due, lapsed] = await Promise.all([
-      db.from("jobs").select("id").neq("tenant_id", T).eq("state", "scheduled").lte("due_at", DUE).limit(1),
-      db
-        .from("jobs")
-        .select("id")
-        .neq("tenant_id", T)
-        .eq("state", "fired")
-        .lte("due_at", DUE)
-        .lt("lease_until", now)
-        .limit(1),
-    ]);
-    if (ok(due).length + ok(lapsed).length === 0) return;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
 function ctxFor(job, deadline) {
   return {
     db,
@@ -169,7 +153,6 @@ function tick(log = tickLog()) {
     {
       claim: async (lease) => {
         if (!(await oursWaiting())) return null;
-        await turn();
         const row = await jobs.claimNext(db, lease);
         if (row && row.tenant_id !== T) {
           strays.push(row);
@@ -301,6 +284,7 @@ const messageOf = async (id) => ok(await db.from("messages").select("status, err
 
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   jobs = await import(at("packages/jobs/src/index.ts"));
   ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
@@ -336,9 +320,13 @@ before(async () => {
 after(async () => {
   globalThis.fetch = realFetch;
   console.error = realError;
-  if (skip || !T) return;
-  await db.from("events").delete().eq("tenant_id", T);
-  await db.from("tenants").delete().eq("id", T);
+  try {
+    if (skip || !T) return;
+    await db.from("events").delete().eq("tenant_id", T);
+    await db.from("tenants").delete().eq("id", T);
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 /* ---------------------------------------------------------------- the cases */

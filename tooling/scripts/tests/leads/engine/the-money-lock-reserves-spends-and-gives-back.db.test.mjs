@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { fakeApify, fakeJudge, checkerItem, probeItems } from "../../_lead-fixtures.mjs";
 import { webhookToken } from "../../_lead-world.mjs";
+import { takeLock } from "../../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -180,8 +181,13 @@ const search = async (count, estimateUsd) => {
   );
 };
 
+// The platform's switch list is one array every lead suite reads, adds itself to and writes back: this file and
+// leads/engine/the-money-lock... take a lock for the whole file (_file-lock.mjs), or one's write erases the other's and
+// its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   runner = {
     ...(await import(at("packages/core/src/leads/runner/start.ts"))),
@@ -209,12 +215,14 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip || !A) return;
+  if (skip) return;
+  if (!A) return releaseList?.();
   await listed(false).catch(() => undefined);
   await db.from("jobs").delete().eq("tenant_id", A);
   await db.from("events").delete().eq("tenant_id", A);
   await db.from("tenants").delete().eq("id", A);
   if (owner) await db.auth.admin.deleteUser(owner.userId).catch(() => {});
+  await releaseList?.();
 });
 
 test(

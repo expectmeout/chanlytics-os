@@ -222,7 +222,11 @@ money lock). `database/fake-db-agrees.db.test.mjs` sends the same requests to th
 fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
 per table for the ten the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
 breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
-keys from the stack, and `database/unique-keys.db.test.mjs` fails a stale file.
+keys from the stack, and `database/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
+processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
+switch list, the jobs ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a suite writing or
+counting them takes for its whole file. `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace
+and passes once per database: reset the stack (`supabase db reset`) before running it again.
 
 ### A signed-in spec, on this machine
 

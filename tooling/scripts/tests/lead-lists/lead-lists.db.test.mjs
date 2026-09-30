@@ -25,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { showSecondFactor } from "../_second-factor.mjs";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -249,8 +250,13 @@ const bellOf = async (round) =>
   ok(await db.from("notifications").select("kind, title, body, route").eq("tenant_id", A).eq("subject_id", round));
 
 let C;
+// The platform's switch list is one array every lead suite reads, adds itself to and writes back: this file and
+// leads/engine/the-money-lock... take a lock for the whole file (_file-lock.mjs), or one's write erases the other's and
+// its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = await one(
     db.from("tenants").insert({ slug: `lists-a-${stamp}`, name: "Harbor Fitness Co", timezone: "America/Chicago" }),
@@ -299,6 +305,7 @@ after(async () => {
       .eq("kind", "day")
       .in("period", [...platformDays]);
   for (const u of users) await db.auth.admin.deleteUser(u).catch(() => {});
+  await releaseList?.();
 });
 
 test(

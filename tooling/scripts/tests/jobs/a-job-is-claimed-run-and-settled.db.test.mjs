@@ -26,6 +26,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,14 +44,15 @@ process.env.RESEND_API_KEY = "resend-key-for-this-suite";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stamp = Date.now().toString(36);
-/**
- * Older than anything another suite leaves due: the claim that follows takes this suite's row and no other. The
- * broadcast walk (broadcasts/a-broadcast-runs-to-its-end-through-both-guards) stamps a day later and waits for this
- * walk's rows to go, so the two never carry each other's row off.
- */
+/** Older than anything another suite leaves due: the claim that follows takes this suite's row and no other. */
 const DUE = "1990-01-01T00:00:00.000Z";
 const WA = { phoneId: "100000000000001", accessToken: "graph-token-for-this-suite" };
 
+// The jobs ledger is one queue the whole database suite shares: claim_due_jobs takes the oldest due row of all of it, and
+// jobs_backlog() counts every due row. This file, the job walk (jobs/a-job-is-claimed-run-and-settled), the broadcast
+// walk (broadcasts/a-broadcast-runs-to-its-end-through-both-guards) and jobs-outbox.db make rows due and count them, so
+// they take a lock for the whole file (_file-lock.mjs) and run one after the other.
+let releaseLedger;
 let db;
 let T;
 let jobs;
@@ -280,6 +282,7 @@ async function emailArrived(receivedId) {
 
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   jobs = await import(at("packages/jobs/src/index.ts"));
   ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
@@ -308,9 +311,13 @@ before(async () => {
 
 after(async () => {
   globalThis.fetch = realFetch;
-  if (skip || !T) return;
-  await db.from("events").delete().eq("tenant_id", T);
-  await db.from("tenants").delete().eq("id", T);
+  try {
+    if (skip || !T) return;
+    await db.from("events").delete().eq("tenant_id", T);
+    await db.from("tenants").delete().eq("id", T);
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 /* ---------------------------------------------------------------- the cases */
