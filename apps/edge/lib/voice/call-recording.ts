@@ -23,7 +23,7 @@
  * column reaches every member's browser.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "../packages/db.js";
 import { fetchRecording } from "../packages/channels.js";
 import { setCallRecording } from "../packages/db.js";
 import { DAY_MS, RECORDING_RETENTION_DAYS } from "../packages/contracts.js";
@@ -63,7 +63,7 @@ export function sniffAudioType(bytes: ArrayBuffer, given: string | null): string
   const b = new Uint8Array(bytes.slice(0, 12));
   const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
   if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WAVE") return "audio/wav";
-  if (ascii(0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  if (ascii(0, 3) === "ID3" || (b[0] === 0xff && ((b[1] ?? 0) & 0xe0) === 0xe0)) return "audio/mpeg";
   return given && given.startsWith("audio/") ? given : "audio/wav";
 }
 
@@ -143,7 +143,7 @@ export async function purgeExpiredRecordings(
           purged_at: ports.now.toISOString(),
           retention_days: RECORDING_RETENTION_DAYS,
           mime: row.recording?.mime ?? null,
-        } as Json,
+        },
       })
       .eq("id", row.id)
       .eq("tenant_id", row.tenant_id);

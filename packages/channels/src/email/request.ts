@@ -152,7 +152,7 @@ export function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refere
   const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x): x is string => x !== null);
   const unique = [...new Set(ids)];
   const MAX = 20;
-  return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
+  return unique.length <= MAX ? unique : [...unique.slice(0, 1), ...unique.slice(unique.length - (MAX - 1))];
 }
 
 /**

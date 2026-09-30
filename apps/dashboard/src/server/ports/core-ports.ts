@@ -226,7 +226,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       return data.id;
     },
     schedule: async (tenantId, dueAt, payload) => {
-      await schedule(tenantId, "outbound_send", dueAt, payload as unknown as Json);
+      await schedule(tenantId, "outbound_send", dueAt, payload);
     },
     cancelOrphan: async (id) => {
       await ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id);

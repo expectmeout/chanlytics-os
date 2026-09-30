@@ -105,7 +105,8 @@ const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply", OnC
 };
 const ON_LISTING: Record<"unlink" | "refresh", OnListing> = { unlink, refresh };
 
-const pick = <T>(table: Record<string, T>, op: string): T | null => (Object.hasOwn(table, op) ? table[op] : null);
+const pick = <T>(table: Record<string, T>, op: string): T | null =>
+  Object.hasOwn(table, op) ? (table[op] ?? null) : null;
 /** A review's row, as the body names it, or null. */
 const reviewIdOf = (v: unknown): string | null => {
   const id = typeof v === "string" ? v.trim() : "";

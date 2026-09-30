@@ -159,7 +159,7 @@ export const settingsOverride: SurfaceOverride = {
               words: templateUseWords(u),
               note: templateUseNote(u),
               unused: templateUnused(u),
-              playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null,
+              playbook: u.playbooks.length === 1 ? u.playbooks[0].id : null,
               running: u.playbooks.some((p) => !p.paused),
             },
           ];

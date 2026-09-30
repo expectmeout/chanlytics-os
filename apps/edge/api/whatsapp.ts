@@ -185,7 +185,7 @@ export const POST = door(async function POST(request: Request): Promise<Response
                 await pgSafe("status", () =>
                   recordStatusByExternalId(
                     db,
-                    tenantId!,
+                    tenantId,
                     s.id!,
                     s.status as "sent" | "delivered" | "read" | "failed",
                     s.errors ? ({ errors: s.errors } as unknown as Json) : undefined,

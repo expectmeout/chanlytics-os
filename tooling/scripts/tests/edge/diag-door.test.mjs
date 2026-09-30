@@ -115,6 +115,7 @@ const functions = (over = {}) => ({
   sweep_health: () => [clock("jobs", true)],
   jobs_backlog: () => 0,
   number_drift: () => [],
+  migration_head: () => [{ head: "00280", applied: 239 }],
   ...over,
 });
 /** The database the door will find. */
@@ -246,6 +247,29 @@ test("the environment report is booleans only and carries no value; the memory i
 });
 
 /* --------------------------------- the clocks ----------------------------- */
+
+test("the migrations: migration_head()'s newest version and count, a database without the function said in its own line, and no database said", async () => {
+  // migration_head(): what production has applied, so a release can compare it with main's head (docs/runbook.md, Deploy).
+  use({}, { migration_head: () => [{ head: "00280", applied: 239 }] });
+  assert.deepEqual((await read()).migrations, { head: "00280", applied: 239 });
+  use({}, { migration_head: () => [] });
+  assert.deepEqual((await read()).migrations, { head: null, applied: 0 }, "an empty ledger is a head of none");
+  use(
+    {},
+    {
+      migration_head: () => {
+        throw new Error("Could not find the function public.migration_head without parameters");
+      },
+    },
+  );
+  assert.deepEqual((await read()).migrations, {
+    error: "Could not find the function public.migration_head without parameters",
+  });
+  setPg(null);
+  assert.deepEqual((await read()).migrations, {
+    unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)",
+  });
+});
 
 test("the clocks: sweep_health()'s rows are judged and shown with the backlog beside them; a function that cannot be read is an error and the backlog is not asked; no database is said, once per section", async () => {
   const rows = [clock("jobs", true), clock("health", false), clock("deadman", true)];
@@ -829,6 +853,7 @@ test("the report answers part by part in one order; a part that cannot read says
     "retellAuth",
     "whatsapp",
     "brain",
+    "migrations",
     "breakers",
   ];
   const every = {
@@ -867,6 +892,9 @@ test("the report answers part by part in one order; a part that cannot read says
       number_drift: () => {
         throw new Error("function public.number_drift() does not exist");
       },
+      migration_head: () => {
+        throw new Error("function public.migration_head() does not exist");
+      },
     },
     {
       "operator_pages.select": { message: "relation does not exist" },
@@ -886,7 +914,7 @@ test("the report answers part by part in one order; a part that cannot read says
       "no backlog without the clocks, no auth evidence without the agents",
     );
     assert.deepEqual(
-      [body.sweeps, body.pages, body.numbers, body.waTokenCheck, body.voiceAgents, body.brain],
+      [body.sweeps, body.pages, body.numbers, body.waTokenCheck, body.voiceAgents, body.brain, body.migrations],
       [
         { error: "permission denied for schema cron" },
         { error: "relation does not exist" },
@@ -894,6 +922,7 @@ test("the report answers part by part in one order; a part that cannot read says
         { error: "getaddrinfo ENOTFOUND" },
         { error: "getaddrinfo ENOTFOUND" },
         { error: "canceling statement due to statement timeout" },
+        { error: "function public.migration_head() does not exist" },
       ],
       "each part's failure in its own line",
     );

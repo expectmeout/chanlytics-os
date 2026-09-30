@@ -43,7 +43,7 @@ export async function platformVitals(office: BackOffice): Promise<PageVitalsRowD
   // The generator types every column of a returned table as present; the row over every page has no page.
   return (r.data ?? []).map((row) => ({
     metric: row.metric,
-    page: row.page as string | null,
+    page: row.page,
     samples: row.samples,
     p75: row.p75,
   }));

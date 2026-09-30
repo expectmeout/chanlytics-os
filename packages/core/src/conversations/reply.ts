@@ -461,7 +461,7 @@ async function queueReply(
       bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
     });
     templateName = tpl.name;
-    templateVars = { language: tpl.language, params } as Json;
+    templateVars = { language: tpl.language, params };
     messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }

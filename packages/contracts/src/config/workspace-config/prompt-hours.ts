@@ -80,7 +80,7 @@ function dayText(h: Hours | undefined): string {
 
 export function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[] {
   if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d as string, text: dayText(hours[d]) }));
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
   // A seven-line block is harder to read aloud AND longer in a prompt, for no
   // extra information.
   const out: HoursRun[] = [];

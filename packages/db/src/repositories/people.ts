@@ -64,7 +64,7 @@ export async function peoplePage(
     ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return (data ?? []) as unknown as PersonRowDto[];
+  return data ?? [];
 }
 
 /**
@@ -92,5 +92,11 @@ export async function erasureDigests(db: Db, tenantId: string, values: string[])
   if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
   const digests = data ?? [];
   if (digests.length !== asked.length) throw new Error("the erasure digests came back short");
-  return new Map(asked.map((v, i) => [v, digests[i]]));
+  const out = new Map<string, string>();
+  for (const [i, value] of asked.entries()) {
+    const digest = digests[i];
+    if (digest === undefined) throw new Error("the erasure digests came back short");
+    out.set(value, digest);
+  }
+  return out;
 }

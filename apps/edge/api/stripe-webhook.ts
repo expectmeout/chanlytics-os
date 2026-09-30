@@ -376,6 +376,6 @@ const EVENT_HANDLERS = {
 /** The handler for a kind: its own when the table names it (never a name the table inherits), else onIgnored. */
 function handlerOf(type: string): Handler<Stripe.Event.Type> {
   return Object.hasOwn(EVENT_HANDLERS, type)
-    ? (EVENT_HANDLERS as Record<string, Handler<Stripe.Event.Type>>)[type]
+    ? ((EVENT_HANDLERS as Record<string, Handler<Stripe.Event.Type>>)[type] ?? onIgnored)
     : onIgnored;
 }

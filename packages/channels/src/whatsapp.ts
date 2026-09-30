@@ -203,7 +203,7 @@ export function normalizeInbound(m: WaRawMessage, value: WaChangeValue): Normali
       ? (() => {
           const loose = mediaSrc as { mime_type?: string; caption?: string; filename?: string };
           return {
-            provider_media_id: mediaSrc.id!,
+            provider_media_id: mediaSrc.id,
             mime_type: loose.mime_type ?? null,
             caption: loose.caption ?? null,
             filename: loose.filename ?? null,

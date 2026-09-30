@@ -1,0 +1,61 @@
+name: Preview smoke
+
+# The credential-free specs against a pull request's dashboard preview, once
+# Vercel says it is ready. Nothing ran against the previews before this: both
+# projects post one on every pull request, and a page that breaks only once it
+# is built and served (a route, a header, the auth gate) was first seen in
+# production. No key of any kind is in the environment, so every signed-in spec
+# skips and says why, and nothing here can write.
+#
+# Off until the repository variable PREVIEW_SMOKE is "1" (Settings, Secrets and
+# variables, Actions, Variables), because each run spends minutes and the
+# previews may sit behind Vercel's deployment protection: then the secret
+# VERCEL_AUTOMATION_BYPASS_SECRET (the project's Protection Bypass for
+# Automation) lets the browser in (playwright.config.ts). Not a required check.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+# One run per branch, project and state, so a newer ready preview of a branch replaces the older one's run and nothing
+# else does: every deployment_status event takes the group before the job's `if:` is read, so a group of the branch
+# alone let the other project's event, or the `inactive` status GitHub adds to the previous deployment, cancel the run
+# that mattered.
+concurrency:
+  group: preview-smoke-${{ github.event.deployment.ref }}-${{ github.event.deployment.environment }}-${{ github.event.deployment_status.state }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Credential-free specs against the preview
+    # The dashboard's preview (its Vercel project is chanlytics-os), ready, and the switch on.
+    if: >-
+      vars.PREVIEW_SMOKE == '1' &&
+      github.event.deployment_status.state == 'success' &&
+      contains(github.event.deployment.environment, 'Preview') &&
+      contains(github.event.deployment.environment, 'chanlytics-os')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:install
+      - run: pnpm e2e
+        env:
+          CI: "true"
+          E2E_BASE_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: preview-smoke-report
+          path: playwright-report
+          retention-days: 3

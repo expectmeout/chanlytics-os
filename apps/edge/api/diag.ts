@@ -67,6 +67,7 @@ const REPORT: (() => Section | Promise<Section>)[] = [
   voiceAgentSettings,
   whatsappGates,
   receptionistDay,
+  migrationHead,
   providerBreakers,
 ];
 
@@ -340,5 +341,25 @@ async function receptionistDay(): Promise<Section> {
     return { brain: db ? await brainSummary(db) : null };
   } catch (e) {
     return { brain: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
+  }
+}
+
+/**
+ * The newest migration this database has applied, and how many (migration_head(), over the CLI's ledger, which
+ * PostgREST cannot read). Production took migrations from branches, below main's head, and nothing said what it held:
+ * a release compares this head with main's (docs/runbook.md, Deploy), and so does
+ * tooling/scripts/checks/migration-ledger.mjs, with the whole ledger. A database the function has not reached yet says
+ * so in its own line.
+ */
+async function migrationHead(): Promise<Section> {
+  try {
+    const db = pg();
+    if (!db) return { migrations: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
+    const { data, error } = await db.rpc("migration_head");
+    if (error) return { migrations: { error: error.message.slice(0, 200) } };
+    const row = (data ?? [])[0];
+    return { migrations: { head: row?.head ?? null, applied: row?.applied ?? 0 } };
+  } catch (e) {
+    return { migrations: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }
 }

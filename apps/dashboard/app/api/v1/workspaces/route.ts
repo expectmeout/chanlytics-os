@@ -68,7 +68,9 @@ export const GET = read({
   scope: account,
   handle: async ({ ctx, req: _req }) => {
     const { supabase, userId, email } = ctx;
-    let { data, error } = await tenantsOf(supabase);
+    const tenants = await tenantsOf(supabase);
+    const { error } = tenants;
+    let { data } = tenants;
     if (error) throw new Error(error.message);
     // The name this person gave (profiles, 00068) rides with the identity, so
     // the chrome shows a person rather than the workspace standing in for one.

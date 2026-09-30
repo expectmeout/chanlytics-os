@@ -1,7 +1,8 @@
 /**
  * PUT /api/v1/policies, run (Reach out, Part 3): a reach-out's class takes the modes its runtime honours — veto (its
- * default: a later run gives thirty minutes to be stopped), ask and never, never auto — while every other class keeps
- * the rule it had, veto for replies only. The real route over a database in memory.
+ * default: a later run gives thirty minutes to be stopped), ask and never, never auto — and a class with nothing to
+ * hold refuses veto, by the one rule (contracts policyModeOffered; every class and mode in policy-veto-option). The
+ * real route over a database in memory.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -57,6 +58,10 @@ test("cold email never goes the moment a run is made: auto is refused for a reac
   await refusedWith(put(tables(), { class: "outreach", mode: "auto" }), "cannot be set to auto");
 });
 
-test("every other class keeps its rule: veto for replies only", async () => {
-  await refusedWith(put(tables(), { class: "campaign", mode: "veto" }), "Only replies can be held for review");
+test("a class with nothing to hold for review refuses veto, in its own words", async () => {
+  await refusedWith(put(tables(), { class: "follow_up", mode: "veto" }), "has nothing to hold for review");
+  await refusedWith(
+    put(tables(), { class: "reviews", mode: "veto" }),
+    "The Reviews row has nothing to hold for review.",
+  );
 });

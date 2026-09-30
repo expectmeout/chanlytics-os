@@ -264,9 +264,9 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
   } catch (e) {
     // Out of time is not a failure: the row keeps "provisioning" and its step, and the next run goes on from there.
     if (e === OUT_OF_TIME)
-      return { ok: true, later: true, step: (run.line.step ?? step ?? "subaccount") as LineStep, line: run.line };
+      return { ok: true, later: true, step: run.line.step ?? step ?? "subaccount", line: run.line };
     const error = errorWords(e);
-    const at = (run.line.step ?? step ?? "subaccount") as LineStep;
+    const at = run.line.step ?? step ?? "subaccount";
     await run.save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
     return { ok: false, step: at, error, line: run.line };
   }

@@ -56,7 +56,7 @@ export const POST = door(async function POST(request: Request): Promise<Response
       .eq("id", runRowId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    runRow = (data as IngressRunRow | null) ?? null;
+    runRow = data ?? null;
   } catch (e) {
     L.error("apify_webhook_read_failed", { error: errField(e) });
     return json(503, { ok: false });

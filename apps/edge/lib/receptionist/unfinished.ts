@@ -140,7 +140,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .limit(BATCH);
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
   const rows = (inbound ?? []) as unknown as InboundRow[];
-  if (rows.length) {
+  if (rows[0]) {
     // A reply that went out after the message, before the stamp, is not a
     // customer with no answer: the crash was between the send and the mark.
     const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];

@@ -8,7 +8,7 @@ import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWh
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
 import { isLeadList } from "./lead-import";
-import { LEAD_CLOSED_REASONS, type LeadEmailState } from "./search/sets";
+import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
   LEAD_CLOSED_WORDS,
@@ -405,6 +405,6 @@ export function leadsStanding(
   return {
     total: `${counts.all} leads`,
     parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
-    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]!.id } : null,
+    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null,
   };
 }

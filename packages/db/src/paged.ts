@@ -90,8 +90,9 @@ export async function readAllRowsByKey<T>(
     if (error) throw new Error(`${what}: ${error.message}`);
     const rows = data ?? [];
     out.push(...rows);
-    if (rows.length < size) return out;
-    after = key(rows[rows.length - 1]);
+    const last = rows.at(-1);
+    if (rows.length < size || last === undefined) return out;
+    after = key(last);
   }
   onCapped(what, cap);
   return out;

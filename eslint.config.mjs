@@ -27,8 +27,8 @@ import globals from "globals";
  * been called "glitchy" here.
  */
 
-const OUR_TS_RULES = {
-  ...js.configs.recommended.rules,
+/** Our own choices over the presets, for every TypeScript block, typed or not. */
+const OURS = {
   // TypeScript already rejects genuinely undefined identifiers, and the base
   // rule cannot see type-only imports or JSX pragmas.
   "no-undef": "off",
@@ -58,6 +58,82 @@ const OUR_TS_RULES = {
       minimumDescriptionLength: 10,
     },
   ],
+  // verbatimModuleSyntax (tsconfig.base.json) keeps every import as it is written, so an import that only a type reads
+  // says `import type`, or its module is loaded for nothing: under the flag `import { type A } from "m"` still loads m.
+  // Held at zero, these two keep what tsup, Vercel and Next emit what they emitted before the flag.
+  "@typescript-eslint/consistent-type-imports": [
+    "error",
+    { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },
+  ],
+  "@typescript-eslint/no-import-type-side-effects": "error",
+};
+
+/** The TypeScript no program is built for (the browser specs, until e2e has a tsconfig): ESLint's recommended set. */
+const OUR_TS_RULES = { ...js.configs.recommended.rules, ...OURS };
+
+/**
+ * Types in the lint. The TypeScript each project's tsconfig compiles (the edge, the packages, the dashboard) is read
+ * through typescript-eslint's project service, so a rule sees the program tsc checks, on the one compiler the pnpm
+ * catalog pins (tests/types/typescript-is-installed-once.test.mjs). What only a type shows is caught: a promise left
+ * floating in a webhook, a promise handed to a form's submit, an assertion that changes nothing.
+ *
+ * The set is typescript-eslint's recommended-type-checked (it carries `recommended`, so `any` and `@ts-ignore` too),
+ * plus switch-exhaustiveness-check, where a `default` counts as exhaustive (noImplicitReturns holds the rest), and
+ * no-deprecated. Every rule is an error but those in HELD_TYPED, which had findings the day this landed: each is a
+ * warning, held per file and rule by tooling/scripts/checks/lint.mjs (baselines/lint-warnings.json), and becomes an
+ * error in the change that banks its last finding. It costs about a minute over the tree, once per lint run, and about
+ * 4 GB of heap (the dashboard's program alone is 2.8 GB, and every project's stays loaded), which is why the `lint` script
+ * in package.json raises Node's heap limit: at the default 2 GB the run dies out of memory on CI's runner.
+ */
+const TYPED = { projectService: true, tsconfigRootDir: import.meta.dirname };
+const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? {}));
+
+/**
+ * The typed rules with findings when they arrived (29 September 2026), held by the lint baseline until each reaches
+ * zero. no-unnecessary-type-assertion is among them though its autofix ran: it removed every assertion tsc agreed
+ * changed nothing (each project typechecks after it), and what it still reports is either in a file another lane was
+ * rewriting that day (Ask's server, routes, bridge and contracts, the kit's components, the Retell availability door,
+ * the policies route, the edge-token doors, the jobs handlers), left for that lane, or an assertion the rule misreads
+ * as doing nothing. One gives a generic its type: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the
+ * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
+ * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
+ * lint-boundaries.test.mjs fails a held rule the baseline no longer holds, so the last one banked turns it an error. no-misused-promises holds one, a route context's params
+ * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
+ */
+export const HELD_TYPED = [
+  "@typescript-eslint/no-base-to-string",
+  "@typescript-eslint/no-unnecessary-type-assertion",
+  "@typescript-eslint/no-deprecated",
+  "@typescript-eslint/no-misused-promises",
+  "@typescript-eslint/no-redundant-type-constituents",
+  "@typescript-eslint/no-unsafe-argument",
+  "@typescript-eslint/no-unsafe-assignment",
+  "@typescript-eslint/no-unsafe-call",
+  "@typescript-eslint/no-unsafe-member-access",
+  "@typescript-eslint/no-unsafe-return",
+  "@typescript-eslint/only-throw-error",
+  "@typescript-eslint/prefer-promise-reject-errors",
+  "@typescript-eslint/require-await",
+  "@typescript-eslint/restrict-template-expressions",
+  "@typescript-eslint/unbound-method",
+];
+
+/** A rule's entry at warning, its options kept. */
+const asWarning = (entry) => (Array.isArray(entry) ? ["warn", ...entry.slice(1)] : "warn");
+
+const TYPED_AT_ERROR = {
+  ...js.configs.recommended.rules,
+  ...rulesOf(tseslint.configs.recommendedTypeChecked),
+  ...OURS,
+  "@typescript-eslint/switch-exhaustiveness-check": ["error", { considerDefaultExhaustiveForUnions: true }],
+  // A promise where a void is expected, but for a JSX handler: React ignores what `onSubmit` returns, so `void` there
+  // would change nothing in the browser, and the screens' tests await the handler's promise to read what it did.
+  "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: { attributes: false } }],
+  "@typescript-eslint/no-deprecated": "error",
+};
+const OUR_TYPED_TS_RULES = {
+  ...TYPED_AT_ERROR,
+  ...Object.fromEntries(HELD_TYPED.map((rule) => [rule, asWarning(TYPED_AT_ERROR[rule] ?? "error")])),
 };
 
 /** Plugin map for every TypeScript block. */
@@ -252,6 +328,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
+  "apps/edge/lib/google",
   "apps/edge/lib/ops",
   "apps/edge/lib/packages",
   "apps/edge/lib/sms",
@@ -275,9 +352,34 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
+  "apps/edge/lib/google",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
+
+/** The typescript-eslint rules that read a type, which a block without a program cannot run. */
+const NEEDS_TYPES = new Set(
+  Object.entries(tseslint.plugin.rules)
+    .filter(([, rule]) => rule.meta?.docs?.requiresTypeChecking)
+    .map(([name]) => `@typescript-eslint/${name}`),
+);
+
+/**
+ * `config` with its types taken out: the same blocks, files and rules, but no program built and each rule that reads a
+ * type off. The tests that lint a probe as if it sat at a path (repo/lint-boundaries.test.mjs, the accessibility test)
+ * ask only of rules that read the syntax, and a probe's path is a file no tsconfig holds, which the project service
+ * refuses; building each project's program for them would also cost a minute a probe.
+ */
+export const withoutTypes = (config) =>
+  config.map((block) => {
+    const parserOptions = block.languageOptions?.parserOptions;
+    if (!parserOptions?.projectService) return block;
+    const { projectService: _service, tsconfigRootDir: _root, ...rest } = parserOptions;
+    const rules = Object.fromEntries(
+      Object.entries(block.rules ?? {}).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
+    );
+    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules };
+  });
 
 export default [
   {
@@ -301,16 +403,17 @@ export default [
     files: ["apps/edge/**/*.ts"],
     languageOptions: {
       parser: tseslint.parser,
+      parserOptions: TYPED,
       ecmaVersion: 2023,
       sourceType: "module",
       globals: { ...globals.node },
     },
     plugins: TS_PLUGINS,
     rules: {
-      ...OUR_TS_RULES,
+      ...OUR_TYPED_TS_RULES,
       // A floating promise in a webhook means work that silently did not happen
-      // before the lambda froze. Without type information the base rule cannot
-      // see async calls, so this is the reachable subset.
+      // before the lambda froze: no-floating-promises sees it with types, and
+      // this catches a write that races the await before it.
       "require-atomic-updates": "error",
       // Every line the edge logs is one JSON object with a level, an event and
       // whatever context is bound (lib/log.ts). A bare console call is a line
@@ -380,12 +483,13 @@ export default [
     files: ["packages/*/src/**/*.ts"],
     languageOptions: {
       parser: tseslint.parser,
+      parserOptions: TYPED,
       ecmaVersion: 2023,
       sourceType: "module",
       globals: { ...globals.node, ...globals.browser },
     },
     plugins: TS_PLUGINS,
-    rules: OUR_TS_RULES,
+    rules: OUR_TYPED_TS_RULES,
   },
 
   // The dashboard's own code (not the ported mockup).
@@ -405,20 +509,19 @@ export default [
       "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
       // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
       "apps/dashboard/src/*.ts",
-      "apps/dashboard/*.{ts,mjs}",
+      // The app's own configuration and entry points (next.config.ts, proxy.ts), which its tsconfig compiles.
+      "apps/dashboard/*.ts",
     ],
     languageOptions: {
-      // The TS parser without the type-aware ruleset: the build already
-      // typechecks, and the slow project-service pass would only duplicate it.
       parser: tseslint.parser,
       ecmaVersion: 2023,
       sourceType: "module",
       globals: { ...globals.browser, ...globals.node },
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: { ...TYPED, ecmaFeatures: { jsx: true } },
     },
     plugins: { ...TS_PLUGINS, "react-hooks": reactHooks },
     rules: {
-      ...OUR_TS_RULES,
+      ...OUR_TYPED_TS_RULES,
       // The two rules by name, not the plugin's `recommended`: from v7 that
       // preset also carries the React Compiler's lints (set-state-in-effect,
       // purity, refs, immutability), which read the ported mockup's patterns as
@@ -451,6 +554,12 @@ export default [
   // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
   // a surface moved before its kit step waits in KIT_PENDING.
   rawElementsRule(KIT_PENDING),
+
+  // A type test proves a type refuses `any` by writing one, under `@ts-expect-error <why>`.
+  {
+    files: ["**/*.type-test.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
 
   // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they
   // do to the ratchet.

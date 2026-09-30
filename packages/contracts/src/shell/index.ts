@@ -24,7 +24,6 @@ export {
   inAppFrom,
   inAppBootScript,
   routePrefetchScript,
-  workspaceHotkey,
   isTypingTarget,
   pageTitle,
   notFoundPageMetadata,

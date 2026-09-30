@@ -7,10 +7,10 @@
  */
 import {
   ROLE_PERMS,
-  ASK_PAGES,
   answerFromV1,
   askIntent,
   askJump,
+  askPages,
   buildAskSuggestions,
   callsAnswer,
   callsToday,
@@ -61,7 +61,8 @@ export interface PaletteGlobals {
   __SETTINGS?: { config?: { calendar?: { ical_url?: string } } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
-  __ME?: { role?: string | null } | null;
+  /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
+  __ME?: { role?: string | null; platform_admin?: boolean } | null;
   __TEAM_INVITES?: unknown[] | null;
   /** Today's view model: its queue is who is waiting on you (every surface starts at boot, LegacyApp.tsx). */
   TODAY_DATA?: {
@@ -120,9 +121,14 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
   }
 }
 
+/**
+ * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline where People says
+ * deals are on, the bit its scope strip draws by; the back office for staff, the bit Settings' rail draws by), then
+ * the threads, people and calls the browser holds.
+ */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
   const w = win as unknown as PaletteGlobals;
-  const out: JumpEntry[] = [...ASK_PAGES];
+  const out: JumpEntry[] = askPages({ dealsOn: !!w.__PEOPLE?.dealsOn, platformAdmin: !!w.__ME?.platform_admin });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({

@@ -155,7 +155,7 @@ export async function markProcessed(db: Db, tenantId: string, messageId: string)
   const { error } = await db.rpc("mark_processed", {
     p_tenant_id: tenantId,
     p_message_id: messageId,
-  } as never);
+  });
   if (error) throw new Error(`mark_processed: ${error.message}`);
 }
 

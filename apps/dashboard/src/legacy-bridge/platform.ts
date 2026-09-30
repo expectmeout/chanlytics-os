@@ -216,10 +216,10 @@ export function installPlatform(win: Window = window): void {
       }),
     peekList: () => overviews.peek("all"),
     peekOne: (tenantId) => details.peek(tenantId),
-    warmList: () => overviews.warm("all", () => win.__platform!.list()),
+    warmList: () => void overviews.warm("all", () => win.__platform!.list()),
     // A pointer resting on a row's Open is the whole warning you get that it is
     // about to be pressed, and this read is the one that makes that click wait.
-    warmOne: (tenantId) => details.warm(tenantId, () => win.__platform!.one(tenantId)),
+    warmOne: (tenantId) => void details.warm(tenantId, () => win.__platform!.one(tenantId)),
     async act(action, tenantId, lineId) {
       const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId } });
       // Both caches are already dropped by the write itself: every write
