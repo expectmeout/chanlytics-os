@@ -185,7 +185,7 @@ test("one person who is not the workspace's to send to refuses the whole run: no
 
 test("a template or a playbook of another workspace refuses the run whole, for every caller: a foreign key ignores row security", async (t) => {
   if (skip) return t.skip(skip);
-  // The template belongs to A; B asks for it. The definer function asks what 00270 asks of a session's insert.
+  // The template belongs to A; B asks for it. The door asks itself what 00270 asks of a session's insert.
   const theirs = await db
     .from("templates")
     .insert({ tenant_id: B, channel: "whatsapp", name: "winback", language: "en_US", meta_status: "approved" })
