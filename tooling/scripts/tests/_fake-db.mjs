@@ -443,6 +443,38 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
         .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
+    // A broadcast assembled whole (00280): the run, its people and its send job as one write, the way the database
+    // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
+    // in broadcasts/assemble-broadcast.db.test.mjs.
+    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+      const at = stampOf(tables);
+      const id = crypto.randomUUID();
+      const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
+      (tables.broadcasts ??= []).push(written("broadcasts", { id, created_at: at, tenant_id: p_tenant, ...run }));
+      for (const r of p_recipients ?? [])
+        (tables.broadcast_recipients ??= []).push(
+          written("broadcast_recipients", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            broadcast_id: id,
+            contact_id: r.contact_id,
+            tenant_id: p_tenant,
+            ...(r.facts ? { facts: r.facts } : {}),
+          }),
+        );
+      if (p_send_at)
+        (tables.jobs ??= []).push(
+          written("jobs", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            tenant_id: p_tenant,
+            kind: "broadcast_send",
+            due_at: p_send_at,
+            payload: { broadcast_id: id },
+          }),
+        );
+      return id;
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of

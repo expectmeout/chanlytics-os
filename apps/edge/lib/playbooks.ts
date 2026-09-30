@@ -18,7 +18,6 @@ import {
   type Database,
   type Json,
 } from "./packages/db.js";
-import { scheduleJob } from "./packages/jobs.js";
 import {
   runPlaybook as runOverPorts,
   type PlaybookRow,
@@ -269,36 +268,29 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         await db.from("playbooks").update({ last_run_for: runFor, last_run_at: at.toISOString() }).eq("id", playbookId);
       },
-      create: async (row) => {
-        const { data, error } = await db
-          .from("broadcasts")
-          .insert({
-            tenant_id: tenantId,
-            ...row,
-            params: row.params as unknown as Json,
+      // The run, its people and its job, whole (00280 assemble_broadcast): a sweep that dies halfway leaves nothing.
+      assemble: async (row, recipients, sendAt) => {
+        const { data, error } = await db.rpc("assemble_broadcast", {
+          p_tenant: tenantId,
+          p_run: {
+            name: row.name,
+            template_id: row.template_id,
+            template_name: row.template_name,
+            template_language: row.template_language,
+            params: row.params,
             audience: row.audience as unknown as Json,
-          })
-          .select("id")
-          .single();
+            state: row.state,
+            scheduled_for: row.scheduled_for,
+            recipient_count: row.recipient_count,
+            created_by: row.created_by,
+            playbook_id: row.playbook_id ?? null,
+            run_for: row.run_for ?? null,
+          },
+          p_recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
+          ...(sendAt ? { p_send_at: sendAt.toISOString() } : {}),
+        });
         if (error || !data) throw new Error(error?.message ?? "run not created");
-        return data.id;
-      },
-      enrol: async (id, rows) => {
-        const { error } = await db.from("broadcast_recipients").insert(
-          rows.map((r) => ({
-            broadcast_id: id,
-            contact_id: r.contact_id,
-            tenant_id: tenantId,
-            ...(r.facts ? { facts: r.facts } : {}),
-          })),
-        );
-        if (error) throw new Error(error.message);
-      },
-      fail: async (id, failure) => {
-        await db.from("broadcasts").update({ state: "failed", failure }).eq("id", id);
-      },
-      schedule: async (id, at) => {
-        await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: at, payload: { broadcast_id: id } });
+        return data;
       },
       // The ledger: a run the sweep sends is the system's decision under the
       // mode the owner chose; a run a person asked for is theirs.

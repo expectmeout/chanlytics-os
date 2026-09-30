@@ -2,10 +2,10 @@
  * The adapter between the campaign verbs and this runtime: the tables a
  * person's broadcast, an approval, a cancel and a playbook's check touch. A
  * verb never sees a client, a service module or an environment; it sees
- * these. The session role writes here: it may insert a broadcast and its
- * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
+ * these. The session role writes here: it assembles a broadcast, its people
+ * and its job through one door (00280), and updates a broadcast's `state`
+ * (00046) and `scheduled_for` (00119).
  */
-import type { Json } from "@chanlytics/db";
 import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
@@ -20,9 +20,6 @@ import { recordDecision } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
 import { tenantFacts } from "../tenant";
-
-/** PostgREST takes a payload this size in one statement. */
-const INSERT_CHUNK = 500;
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -48,43 +45,31 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
   };
 }
 
-/** The rows, then the job, as the session role may write them. */
+/**
+ * The run, its people and its job, whole: the one SQL door (00280 assemble_broadcast), asked on the person's own
+ * session, so the database asks what the insert policies ask (an acting member) and makes the run theirs.
+ */
 function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
   return {
-    create: async (row) => {
-      const { data, error } = await ctx.supabase
-        .from("broadcasts")
-        .insert({
-          tenant_id: tenantId,
-          ...row,
-          params: row.params as unknown as Json,
+    assemble: async (row, recipients, sendAt) => {
+      const { data, error } = await ctx.supabase.rpc("assemble_broadcast", {
+        p_tenant: tenantId,
+        p_run: {
+          name: row.name,
+          template_id: row.template_id,
+          template_name: row.template_name,
+          template_language: row.template_language,
+          params: row.params,
           audience: { kind: row.audience.kind, id: row.audience.id, label: row.audience.label },
-        })
-        .select("id")
-        .single();
+          state: row.state,
+          scheduled_for: row.scheduled_for,
+          recipient_count: row.recipient_count,
+        },
+        p_recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
+        ...(sendAt ? { p_send_at: sendAt.toISOString() } : {}),
+      });
       if (error || !data) throw new Error(error?.message ?? "broadcast not created");
-      return data.id;
-    },
-    enrol: async (id, rows) => {
-      for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-        const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => ({
-          broadcast_id: id,
-          contact_id: r.contact_id,
-          tenant_id: tenantId,
-          ...(r.facts ? { facts: r.facts } : {}),
-        }));
-        const { error } = await ctx.supabase.from("broadcast_recipients").insert(chunk);
-        if (error) throw new Error(error.message);
-      }
-    },
-    // The session role may update `state` alone on a broadcast, so the reason
-    // goes to the person in the error; a playbook's run, written by the edge,
-    // carries its reason on the row.
-    fail: async (id) => {
-      await ctx.supabase.from("broadcasts").update({ state: "failed" }).eq("id", id);
-    },
-    schedule: async (id, at) => {
-      await schedule(tenantId, "broadcast_send", at, { broadcast_id: id });
+      return data;
     },
   };
 }
