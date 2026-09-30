@@ -1,4 +1,4 @@
-import { isCampaignEmail, MIN_MS, type SendPurpose } from "@chanlytics/contracts";
+import { isCampaignEmail, jittered, MIN_MS, type SendPurpose } from "@chanlytics/contracts";
 import type { Channel, Delivered } from "../deliver";
 import {
   isNotTakenError,
@@ -124,13 +124,15 @@ async function resendLater(
 ): Promise<void> {
   const p = cmd.payload;
   const resumes = resumesOf(p);
-  const wait = SEND_RETRY_WAITS_MS[resumes];
+  const table = SEND_RETRY_WAITS_MS[resumes];
   const unbound = isWireUnavailableError(e);
-  if (wait === undefined)
+  if (table === undefined)
     throw new Error(
       `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e.message})`,
       { cause: e },
     );
+  // Drawn a little longer at random, so the replies one outage held are not all tried again in the same heartbeat.
+  const wait = jittered(table, ports.random);
   // The fresh job first: it is what keeps the reply. The page is the platform's news, and a pager that throws must
   // not turn a reply that is waiting into one that failed.
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });

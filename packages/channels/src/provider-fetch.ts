@@ -32,6 +32,8 @@
  * strength of another call's timeouts.
  */
 
+import { jittered } from "@chanlytics/contracts";
+
 /** Who is called: the breaker keeps one state per name. */
 export type Provider = "meta" | "twilio" | "retell" | "resend" | "google" | "apify" | "expo" | "anthropic" | "typesafe";
 
@@ -82,6 +84,8 @@ interface ProviderDeps {
   fetch?: typeof fetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** The draw a backoff is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
 }
 
 /** Calls in a row with no answer or a 5xx that open a provider's breaker. */
@@ -245,6 +249,7 @@ export async function providerFetch(
     fetch: deps.fetch ?? globalThis.fetch,
     now: deps.now ?? Date.now,
     sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+    random: deps.random ?? Math.random,
   };
   const started = d.now();
   const max = Math.max(1, Math.floor(call.tries ?? 1));
@@ -254,7 +259,9 @@ export async function providerFetch(
     if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
     // A provider that asks for longer than a call may wait is asked again by its caller, later, not now.
     if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
-    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
+    // The provider's own word when it gave one; else the doubling, drawn a little longer at random so the callers one
+    // outage failed together do not all ask again at the same instant.
+    const wait = a.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (n - 1), d.random);
     const left = call.deadlineMs === undefined ? Infinity : call.deadlineMs - (d.now() - started);
     if (wait + call.timeoutMs > left) return a;
     await d.sleep(wait);

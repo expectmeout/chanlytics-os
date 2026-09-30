@@ -27,12 +27,14 @@ function fakes(over = {}) {
     retry: undefined,
     provision: { ok: true },
     now: () => NOW,
+    // No jitter unless a case asks for it: a wait reads as the table's own.
+    random: () => 0,
     ...over,
   };
   const ports = {};
   for (const [name, answer] of Object.entries(answers)) {
     if (answer === ABSENT) continue;
-    if (name === "now") {
+    if (name === "now" || name === "random") {
       ports[name] = answer;
       continue;
     }
@@ -537,6 +539,14 @@ test("a wire that could not be bound is tried again as a fresh job, the row stil
   await core.sendQueued(third.ports, send({ resumes: 2 }));
   const retried = third.log.find((l) => l[0] === "retry");
   assert.deepEqual(retried.slice(0, 2), ["retry", new Date(NOW + core.SEND_RETRY_WAITS_MS[2])]);
+  // Drawn a little longer at random, so the replies one outage held are not all tried again in one heartbeat.
+  const drawn = fakes({ deliver: third.ports.deliver, random: () => 1 });
+  await core.sendQueued(drawn.ports, send({ resumes: 2 }));
+  assert.deepEqual(
+    drawn.log.find((l) => l[0] === "retry")[1],
+    new Date(NOW + core.SEND_RETRY_WAITS_MS[2] * 1.2),
+    "a fifth longer at the longest draw",
+  );
   assert.equal(retried[2].resumes, 3);
   assert.ok(core.SEND_RETRY_WAITS_MS[2] > core.SEND_RETRY_WAITS_MS[0]);
 

@@ -35,6 +35,8 @@ const clock = (start = 1_000_000) => {
     },
     pass: (ms) => (now += ms),
     waits,
+    // No jitter unless a case asks for it: a wait reads as the doubling's own.
+    random: () => 0,
   };
 };
 
@@ -119,6 +121,16 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
   const down = provider(429, 429, 200);
   await providerFetch("google", "u", { timeoutMs: 1, tries: 3 }, { ...down, ...c2 });
   assert.deepEqual(c2.waits, [250, 500]);
+
+  // Drawn up to a fifth longer at random, so the callers one outage failed do not all ask again at the same instant.
+  const c3 = clock();
+  await providerFetch(
+    "google",
+    "u",
+    { timeoutMs: 1, tries: 3 },
+    { ...provider(429, 429, 200), ...c3, random: () => 1 },
+  );
+  assert.deepEqual(c3.waits, [300, 600]);
 });
 
 test("a wait longer than a call may take, or past its deadline, hands the answer back for the caller to ask later", async () => {
