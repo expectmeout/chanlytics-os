@@ -33,9 +33,6 @@ import "@/legacy/components/record-sheet.jsx";
 import "@/legacy/components/deal-sheet.jsx";
 // The step sheet (0007, amended): after the deal sheet, whose select it draws who a step is for with.
 import "@/legacy/components/step-sheet.jsx";
-import "@/legacy/components/message-preview.jsx";
-import "@/legacy/components/template-chips.jsx";
-import "@/legacy/components/campaign-bits.jsx";
 import "@/legacy/data/constants.jsx";
 import "@/legacy/data/clients-data.jsx";
 import "@/legacy/data/people-data.jsx";
@@ -75,26 +72,6 @@ import "@/legacy/pages/leads-peek.jsx";
 // Leads while a reach-out writes (Reach out Part 6): the strip, the Stage line and the peek's block the pages above draw;
 // and a list of your own (Part 7): Import leads, Write to them, and the sheets they open.
 import "@/legacy/pages/reach-out/reach-out-leads.jsx";
-// A playbook's words, card and composer (moved whole from the page, outbound-real.jsx then): before it, which draws them.
-import "@/legacy/pages/playbook-bits.jsx";
-import "@/legacy/pages/playbook-card.jsx";
-import "@/legacy/pages/playbook-composer.jsx";
-// A reach-out's chain as one row (Reach out Part 4 PR 8): before the page, which draws it.
-// The reach-out sheet and the Leads door to it (Reach out Part 4 PR 6): drawn by the rows below and by Leads.
-import "@/legacy/pages/reach-out/reach-out-sheet.jsx";
-import "@/legacy/pages/reach-out/reach-out-door.jsx";
-import "@/legacy/pages/reach-out/reach-out-row.jsx";
-import "@/legacy/pages/outbound.jsx";
-import "@/legacy/pages/templates-real.jsx";
-// A reach-out's email as a Templates row (Reach out Part 4 PR 8): before the page, which draws it.
-import "@/legacy/pages/reach-out/email-template-row.jsx";
-import "@/legacy/pages/messages.jsx";
-// A run and the ledger of runs (moved whole from the page, broadcasts-real.jsx then): before it, which draws them.
-import "@/legacy/pages/reach-out/reach-out-approval.jsx";
-import "@/legacy/pages/broadcasts-run.jsx";
-import "@/legacy/pages/broadcasts-ledger.jsx";
-import "@/legacy/pages/broadcasts.jsx";
-import "@/legacy/pages/live-monitor.jsx";
 import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/first-run.jsx";

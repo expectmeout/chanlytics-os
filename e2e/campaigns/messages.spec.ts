@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
 import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 
@@ -39,11 +40,15 @@ test.describe("Templates on a real workspace", () => {
     await expect(real.getByTestId("templates-hidden")).toHaveCount(wa.length - shown.length > 0 ? 1 : 0);
 
     const hasNumber = (await real.getByTestId("messages-no-number").count()) === 0;
-    const starterNames = await page.evaluate(
-      () =>
-        (window as unknown as { __starters?: { list: Array<{ name: string }> } }).__starters?.list.map((s) => s.name) ??
-        [],
-    );
+    // The starters offered are contracts' own (the page reads them the same way), by how this workspace says its customers buy.
+    const sellsBy = await page.evaluate(() => {
+      const w = window as unknown as {
+        __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
+        __ACTIVE_WORKSPACE?: string;
+      };
+      return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
+    });
+    const starterNames = startersOffered(dealsAreOn(sellsBy)).map((s) => s.name);
     // A message's languages are the row it opens: no closed row carries a language
     // control (they were a column of every row, "● EN ⌄" sixteen times), and an open
     // row carries ONE, however many languages the message has.

@@ -258,14 +258,16 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   );
   assert.ok(r.includes('results.push({ ...base, status: "submitted", meta_status: r.metaStatus });'));
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
-  const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
+  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
     b.includes('addStarters: (body: StarterBody) => api()("POST templates/starter", { body })'),
     "the verb goes through the client; the map refreshes every surface that shows templates",
   );
   assert.ok(
-    b.includes("window.__starters = {") && b.includes("title: titleOf") && b.includes("slotKinds: defaultSlotKinds"),
-    "the library reaches the pages",
+    b.includes("export const starters: StarterLibrary = {") &&
+      b.includes("title: titleOf") &&
+      b.includes("slotKinds: defaultSlotKinds"),
+    "the library reaches the pages (imported by them since decision 0015, no longer published on window)",
   );
   assert.ok(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).HOOKS["POST templates/starter"].includes(
@@ -276,7 +278,12 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 });
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
-  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  // The Templates page is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one.
+  const s = ["page-parts", "message-row-parts", "message-row", "group", "words"]
+    .map((f) =>
+      readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.ts${f === "group" || f === "words" ? "" : "x"}`),
+    )
+    .join(" ");
   for (const id of ["starters", "starter-add", "starter-add-all", "template-menu"])
     assert.ok(s.includes(`data-testid="${id}"`), id);
   assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
@@ -285,19 +292,18 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "one card per message: the starters, then what the workspace wrote",
   );
   assert.ok(
-    s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"),
+    s.includes('export const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"),
     "Meta's sample is never shown",
   );
   assert.ok(
-    s.includes("<window.MessagePreview") &&
+    s.includes("<MessagePreview") &&
       s.includes("header={row ? row.header : null}") &&
       s.includes("buttons={row ? row.buttons : null}"),
     "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
   );
   assert.ok(
-    // The route is a row of the shell's route table (app-routes.jsx SHELL_ROUTES).
-    readCode("apps/dashboard/src/legacy/pages/app-routes.jsx").includes('page: "messages"') &&
-      readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'),
+    // The route is an App Router page since decision 0015 (its row left app-routes.jsx), on the route `messages`.
+    readCode("apps/dashboard/app/(os)/w/[workspace]/templates/page.tsx").includes("TemplatesPage"),
   );
   assert.ok(
     readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes('messages: "channel-messages"') &&
@@ -311,13 +317,16 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
       tabs.includes('to: "content", demoOnly: true'),
     "Templates is the third door of the shell's own Campaigns strip, on the route that is still `messages`; Content stays seed-only",
   );
-  for (const f of ["outbound", "broadcasts", "messages"])
+  for (const f of ["playbooks/playbooks-page", "broadcasts/broadcasts-page", "templates/templates-page"])
     assert.ok(
-      !readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("CampaignsTabs"),
+      !readCode(`apps/dashboard/src/surfaces/campaigns/${f}.tsx`).includes("CampaignsTabs"),
       `${f}: one strip, the shell's`,
     );
-  assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
-  const b = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
+  assert.ok(s.includes("tplTitle(") && s.includes('" · made here"'), "a title, with the raw name beside it");
+  // Broadcasts' send screen and its slot choices (moved from broadcasts.jsx), read as one.
+  const b = ["page/send-screen.tsx", "page/reach.ts"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/broadcasts/${f}`))
+    .join(" ");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
   assert.ok(
     b.includes(

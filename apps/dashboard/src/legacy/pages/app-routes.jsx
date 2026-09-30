@@ -1,4 +1,4 @@
-/* global React, Icon, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, OutboundPage, MessagesPage, BroadcastsPage */
+/* global React, Icon, ClientsA, ClientProfile, SettingsPage, CalendarPage */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -287,21 +287,6 @@ const drawCalendar = ({ param, openAsk }) => {
   };
 };
 
-const drawLive = ({ param }) => {
-  // live/<callId>: the call a door names, opened on Live and named in the crumbs. The route had no place
-  // for an id, so a door could only open the list.
-  const liveCall = param ? [...(((window.__LIVE || {}).now) || []), ...(((window.__LIVE || {}).recent) || [])].find((c) => c.callId === param) : null;
-  return {
-    activeNav: "live",
-    // Live is a view of the Inbox, so the trail starts where the nav item is.
-    crumbs: liveCall
-      ? [{ label: "Inbox", to: "inbox" }, { label: "Live", to: "live" }, liveCall.who]
-      : [{ label: "Inbox", to: "inbox" }, "Live"],
-    pane: true,
-    content: <LiveMonitorPage initialCallId={param || null} />,
-  };
-};
-
 const drawDealBoard = ({ openAsk }) => ({
   activeNav: "pipeline",
   crumbs: ["People", "Deal board"],
@@ -329,64 +314,11 @@ const drawFleet = ({ param, navigate }) => {
   };
 };
 
-const drawPlaybooks = ({ param, openAsk }) => {
-  // outbound/<id> opens Playbooks on one playbook's card -- a source row on
-  // Reports links here -- named once the playbooks hold it.
-  const pbOpen = param && window.__PLAYBOOKS ? (window.__PLAYBOOKS.rows || []).find(p => p.id === param) : null;
-  return {
-    activeNav: "outbound",
-    crumbs: param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"],
-    pane: true,
-    // A real workspace's New playbook is the page's own, at the right of its one
-    // line, where Broadcasts and Templates keep theirs (outbound-real.jsx): the
-    // page draws only once the playbooks have loaded, so there is never a button
-    // over the skeleton or the failure pane, where the demo's Ask detour opened
-    // Ask (N10). The seeded page keeps its detour here.
-    primaryAction: !window.__PLAYBOOKS && window.__DEMO_MODE ? (
-      <button className="btn btn-primary btn-sm" onClick={openAsk}>
-        <Icon name="plus" size={12} /> New campaign
-      </button>
-    ) : null,
-    content: <OutboundPage initialPlaybook={param} />,
-  };
-};
-
-const drawTemplates = () => ({
-  activeNav: "messages",
-  crumbs: ["Campaigns", "Templates"],
-  pane: true,
-  content: <MessagesPage />,
-});
-
 const drawContent = () => ({
   activeNav: "content",
   crumbs: ["Campaigns", "Content"],
   content: demoPage("ContentPage"),
 });
-
-const drawBroadcasts = ({ param }) => {
-  // broadcasts/run:<id> opens one broadcast -- a playbook's run, from its
-  // card or Today -- named for it once the list holds it. Any other param is
-  // the audience the composer opens on: a real workspace names it by the
-  // page's own rule (a list or a kept list with this id) and its own label;
-  // the demo, its seeded segment.
-  const bcRunId = param && param.startsWith("run:") ? param.slice(4) : null;
-  // broadcasts/get-yes lands on the "Get their yes" section: the door every
-  // "nobody has said yes to offers" on People, Today and Playbooks goes through.
-  const bcYes = param === "get-yes";
-  const bcAudience = bcRunId || bcYes ? null : param;
-  const bcRun = bcRunId && window.__BROADCASTS ? (window.__BROADCASTS.rows || []).find(r => r.id === bcRunId) : null;
-  const bcSeg = bcAudience && (window.__BROADCASTS
-    ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === bcAudience)
-    : (window.CLIENT_SEGMENTS || []).find(s => s.id === bcAudience));
-  return {
-    activeNav: "broadcasts",
-    crumbs: bcRunId ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcRun ? bcRun.name : "Broadcast"]
-      : bcYes ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, "Get their yes"]
-      : bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"],
-    content: <BroadcastsPage initialSegment={bcAudience} initialRun={bcRunId} initialYes={bcYes} />,
-  };
-};
 
 const drawStudio = () => ({
   activeNav: "studio",
@@ -466,13 +398,9 @@ const SHELL_ROUTES = [
   { page: "admin", mount: "admin", draw: drawSettings },
   { page: "tasks", draw: drawTasks },
   { page: "calendar", draw: drawCalendar },
-  { page: "live", mount: "live", draw: drawLive },
   { page: "pipeline", draw: drawDealBoard },
   { page: "fleet", draw: drawFleet },
-  { page: "outbound", draw: drawPlaybooks },
-  { page: "messages", draw: drawTemplates },
   { page: "content", draw: drawContent },
-  { page: "broadcasts", mount: "broadcasts", draw: drawBroadcasts },
   { page: "studio", draw: drawStudio },
   { page: "store", draw: drawStore },
   { page: "soon", when: (param, r) => !!param && r.soonState === "unknown", draw: drawSoonUnknown },

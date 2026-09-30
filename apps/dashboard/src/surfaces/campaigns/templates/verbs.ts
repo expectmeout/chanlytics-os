@@ -1,6 +1,6 @@
 /**
- * Templates, the verbs: `window.__templates` — sync from Meta, draft one
- * with the assistant, submit one to Meta, delete one.
+ * Templates, the verbs (`templates`, `syncTemplates`, imported by the page) and the starter library the pages read
+ * (`starters`): sync from Meta, draft one with the assistant, submit one to Meta, delete one.
  *
  * Every write goes through the typed client, and after it lands the refresh
  * map re-reads the surfaces that show templates: Settings (every template
@@ -154,14 +154,6 @@ export interface StarterLibrary {
   sendable: typeof sendableTemplates;
 }
 
-declare global {
-  interface Window {
-    __syncTemplates?: typeof syncTemplates;
-    __templates?: typeof templates;
-    __starters?: StarterLibrary;
-  }
-}
-
 /** How the workspace being viewed says its customers buy (0008), from the list the workspace surface publishes. */
 function viewedSellsBy(): string | null {
   const w = window as unknown as {
@@ -207,10 +199,3 @@ export const starters: StarterLibrary = {
   footer: templateFooter,
   sendable: sendableTemplates,
 };
-
-/** Publish the verbs and the library for the pages that have not moved (Campaigns' own leave the shell with it). */
-export function installTemplates(): void {
-  window.__syncTemplates = syncTemplates;
-  window.__templates = templates;
-  window.__starters = starters;
-}

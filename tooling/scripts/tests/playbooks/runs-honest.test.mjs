@@ -252,82 +252,9 @@ const metrics = {
 // reach through the bridge's verbs (surfaces/legacy-verbs.ts, legacy-parts.ts) and the workspace its clock reads.
 const went = [];
 const toasts = [];
-<<<<<<< HEAD
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  // A store outside React, read as it stands (this stub draws when a test asks): all Today's rows ask of it.
-  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
-  // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
-  useEffect: (fn, deps) => {
-    const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
-  },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-kitHooks();
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
-  globalThis[k] = globalThis.window[k];
-const { installPolicyStore } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
-installPolicyStore(globalThis.window);
-globalThis.useHotkey = () => {};
-Object.assign(globalThis.window, {
-=======
 installLegacyReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
->>>>>>> 8698e7575 (WIP: Campaigns and Live as TSX beside the JSX, their seams, routes and re-pointed tests (decision 0015, steps 7 and 8; before the switch))
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -340,20 +267,6 @@ installLegacyReact({
   __DEMO_MODE: false,
   useHotkey: () => {},
 });
-<<<<<<< HEAD
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-// Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
-const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
-const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-=======
 const S = "../../../../apps/dashboard/src";
 const { installClock } = await import(`${S}/legacy-bridge/zone.ts`);
 installClock();
@@ -362,12 +275,9 @@ await import(`${S}/legacy/components/data-bits.jsx`);
 await import(`${S}/legacy/components/record-fold.jsx`);
 const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`);
 installPolicyStore(globalThis.window);
-// Today's run rows, which open a run (A21): the shell's own pages, not moved.
-await import(`${S}/legacy/pages/attention-bits.jsx`);
-await import(`${S}/legacy/pages/dashboard-a-brief.jsx`);
-await import(`${S}/legacy/pages/dashboard-a-command.jsx`);
-const { TODAY_HELPERS } = await import(`${S}/legacy-bridge/today.ts`);
-globalThis.window.__today = TODAY_HELPERS;
+// Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
+const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
+const { TodayCard } = await import(`${S}/surfaces/today/pages/card.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
@@ -376,7 +286,6 @@ const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
->>>>>>> 8698e7575 (WIP: Campaigns and Live as TSX beside the JSX, their seams, routes and re-pointed tests (decision 0015, steps 7 and 8; before the switch))
 
 const buttonsSaying = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
@@ -669,13 +578,8 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     counts: quiet,
   });
   const done = dto({ id: "b-done", name: "Save our number · 2026-09-15", state: "sent", started_at: iso(0) });
-<<<<<<< HEAD
-  globalThis.window.__BROADCASTS = { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) };
-  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
-=======
   setSurfaceValue("broadcasts", { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) });
-  globalThis.window.TODAY_DATA = toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z"));
->>>>>>> 8698e7575 (WIP: Campaigns and Live as TSX beside the JSX, their seams, routes and re-pointed tests (decision 0015, steps 7 and 8; before the switch))
+  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   try {
     fresh();
     const queue = AgentCommand();

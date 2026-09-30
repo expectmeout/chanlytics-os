@@ -1,7 +1,8 @@
 /**
- * Reach-outs on Playbooks and Templates (Reach out, Part 4 PR 8): the reach-outs surface (`__REACH_OUTS`, the chains
- * GET reach-outs lists, without their reports), and `window.__reachOuts`, the verbs a chain's row presses and (`.words`)
- * every sentence the rows say (contracts reach-out-sheet.ts).
+ * Reach-outs on Playbooks and Templates (Reach out, Part 4 PR 8): the reach-outs surface (the seam's `reach_outs`, mirrored
+ * as `__REACH_OUTS`: the chains GET reach-outs lists, without their reports), and `reachOuts`, the verbs a chain's row
+ * presses and (`.words`) every sentence the rows say (contracts reach-out-sheet.ts). Leads still reads the verbs as
+ * `window.__reachOuts` (`installReachOuts`), until it moves.
  *
  * A chain's report is read when one of its rows opens (R23), here, and only then. Pause and Resume are the playbook's
  * own door on the chain's first step, which a chain's steps follow (run-context: a paused root pauses every step);
