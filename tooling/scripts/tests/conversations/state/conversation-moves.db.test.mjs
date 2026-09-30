@@ -172,23 +172,51 @@ test(
   },
 );
 
+/**
+ * The rows of `supabase db query --output-format json`. The CLI may print a notice beside the object (the runner's CLI
+ * did, once, and this parse read the notice as part of the JSON), so the answer is the object that carries `rows`,
+ * whatever surrounds it.
+ */
+function rowsOf(out) {
+  for (let start = out.indexOf("{"); start >= 0; start = out.indexOf("{", start + 1)) {
+    for (let end = out.lastIndexOf("}"); end > start; end = out.lastIndexOf("}", end - 1)) {
+      try {
+        const parsed = JSON.parse(out.slice(start, end + 1));
+        if (Array.isArray(parsed?.rows)) return parsed.rows;
+      } catch {
+        // Not this slice: try the next.
+      }
+    }
+  }
+  return null;
+}
+
+/** The columns the session role may update on `conversations`, asked up to three times; a failure says what the CLI printed. */
+function grantedColumns() {
+  let seen = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = spawnSync(
+      CLI,
+      [
+        "db",
+        "query",
+        "--local",
+        "--output-format",
+        "json",
+        "select column_name from information_schema.column_privileges where table_schema = 'public' and table_name = 'conversations' and grantee = 'authenticated' and privilege_type = 'UPDATE' order by 1",
+      ],
+      { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    );
+    if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+    const rows = rowsOf(r.stdout ?? "");
+    if (rows) return rows.map((row) => row.column_name);
+    seen = `status ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`;
+  }
+  throw new Error(`the CLI answered no rows three times:\n${seen}`);
+}
+
 test("the columns every move writes are the columns the session role may update on a thread", { skip }, () => {
-  const r = spawnSync(
-    CLI,
-    [
-      "db",
-      "query",
-      "--local",
-      "--output-format",
-      "json",
-      "select column_name from information_schema.column_privileges where table_schema = 'public' and table_name = 'conversations' and grantee = 'authenticated' and privilege_type = 'UPDATE' order by 1",
-    ],
-    { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-  );
-  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  const out = r.stdout ?? "";
-  const answer = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1));
-  const granted = answer.rows.map((row) => row.column_name);
+  const granted = grantedColumns();
   const written = new Set();
   for (const move of Object.keys(CONVERSATION_MOVES)) {
     for (const col of Object.keys(conversationPatch(move, { until: PAST, user: "u", now: PAST }))) written.add(col);

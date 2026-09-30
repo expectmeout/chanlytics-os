@@ -84,7 +84,8 @@ test("a run's children see the zone: UTC by default, and TEST_TZ's when it is se
     delete env.NODE_TEST_CONTEXT;
     const run = spawnSync(process.execPath, [LAUNCHER, PROBE], { env, encoding: "utf8" });
     assert.equal(run.status, 0, `${zone}: ${run.stdout}\n${run.stderr}`);
-    assert.match(run.stdout, /^ok 1 - the zone the launcher set/m, "the probe ran, and passed");
+    // TAP on Node 22 when stdout is a pipe, the spec reporter's tick on Node 24 (CI): either says the probe ran and passed.
+    assert.match(run.stdout, /^(?:ok 1 - |✔ )the zone the launcher set/m, "the probe ran, and passed");
     assert.ok(run.stderr.includes(`the suite runs in ${zone}`), run.stderr);
   }
 });
