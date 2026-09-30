@@ -10,7 +10,7 @@ import {
   MARK_MAX_BYTES,
   MARK_MIN_SIDE,
 } from "../../../../packages/core/src/leads/mark-image.ts";
-import { gif, heic, ico, jpeg, notAnImage, png, svg, webpExtended, webpLossless, webpLossy } from "../_mark-images.mjs";
+import { gif, heic, ico, jpeg, notAnImage, png, svg, webpExtended, webpLossless, webpLossy } from "./_mark-images.mjs";
 
 const sized = (img) => (img ? [img.kind, img.contentType, img.width, img.height] : null);
 

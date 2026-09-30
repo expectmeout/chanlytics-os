@@ -1,0 +1,1862 @@
+{
+  "generated": "by tooling/scripts/gen/unique-keys.mjs from the replayed migrations; do not edit (supabase start, then corepack pnpm gen:db-types)",
+  "keys": [
+    {
+      "table": "ai_usage",
+      "name": "ai_usage_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_messages",
+      "name": "ask_messages_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_threads",
+      "name": "ask_threads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "billing_accounts",
+      "name": "billing_accounts_customer_idx",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "stripe_customer_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "stripe_customer_id"
+        }
+      }
+    },
+    {
+      "table": "billing_accounts",
+      "name": "billing_accounts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "billing_card_marks",
+      "name": "billing_card_marks_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "billing_events",
+      "name": "billing_events_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "broadcast_recipients",
+      "name": "broadcast_recipients_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "broadcast_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "broadcasts",
+      "name": "broadcasts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "broadcasts",
+      "name": "broadcasts_playbook_run",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "playbook_id"
+        },
+        {
+          "column": "run_for"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "playbook_id"
+        }
+      }
+    },
+    {
+      "table": "business_records",
+      "name": "business_records_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "calls",
+      "name": "calls_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "calls",
+      "name": "calls_tenant_id_retell_call_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "retell_call_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "capability_activations",
+      "name": "capability_activations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "capability"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contact_identities",
+      "name": "contact_identities_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contact_identities",
+      "name": "contact_identities_tenant_id_channel_external_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "channel"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_tenant_email_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "email"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "email"
+        }
+      }
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_tenant_phone_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "phone_e164"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "phone_e164"
+        }
+      }
+    },
+    {
+      "table": "conversations",
+      "name": "conversations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "conversations",
+      "name": "conversations_tenant_id_contact_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "deals",
+      "name": "deals_open_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "contact_id"
+        },
+        {
+          "coalesce": [
+            {
+              "column": "service"
+            },
+            {
+              "value": ""
+            }
+          ]
+        }
+      ],
+      "where": {
+        "in": {
+          "column": "stage"
+        },
+        "values": ["proposed", "won"]
+      }
+    },
+    {
+      "table": "deals",
+      "name": "deals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "decisions",
+      "name": "decisions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "erasure_keying",
+      "name": "erasure_keying_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "escalations",
+      "name": "escalations_one_open",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "conversation_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "state"
+        },
+        "right": {
+          "value": "open"
+        }
+      }
+    },
+    {
+      "table": "escalations",
+      "name": "escalations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "events",
+      "name": "events_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        },
+        {
+          "column": "created_at"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "google_connections",
+      "name": "google_connections_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "google_listing_days",
+      "name": "google_listing_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "google_listings",
+      "name": "google_listings_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "google_reviews",
+      "name": "google_reviews_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "google_reviews",
+      "name": "google_reviews_tenant_id_review_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "review_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "idempotency_keys",
+      "name": "idempotency_keys_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "idempotency_keys",
+      "name": "idempotency_keys_tenant_id_key_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "invitations",
+      "name": "invitations_open_unique",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "lower": {
+            "column": "email"
+          }
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "isNull": {
+              "column": "accepted_at"
+            }
+          },
+          {
+            "isNull": {
+              "column": "revoked_at"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "invitations",
+      "name": "invitations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_email_ingest_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "path": ["payload", "mailbox_id"],
+          "text": true
+        },
+        {
+          "path": ["payload", "received_id"],
+          "text": true
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "kind"
+            },
+            "right": {
+              "value": "email_ingest"
+            }
+          },
+          {
+            "cmp": "<>",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_lead_collect_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "path": ["payload", "run_id"],
+          "text": true
+        },
+        {
+          "path": ["payload", "seq"],
+          "text": true
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "kind"
+            },
+            "right": {
+              "value": "lead_collect"
+            }
+          },
+          {
+            "cmp": "<>",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "jobs",
+      "name": "jobs_reply_read_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "path": ["payload", "message_id"],
+          "text": true
+        },
+        {
+          "coalesce": [
+            {
+              "path": ["payload", "stage"],
+              "text": true
+            },
+            {
+              "value": "read"
+            }
+          ]
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "kind"
+            },
+            "right": {
+              "value": "reply_read"
+            }
+          },
+          {
+            "cmp": "<>",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "lead_counters",
+      "name": "lead_counters_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_counters",
+      "name": "lead_counters_tenant_id_kind_period_key",
+      "primary": false,
+      "nullsNotDistinct": true,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "kind"
+        },
+        {
+          "column": "period"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_judgments",
+      "name": "lead_judgments_op_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "op_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_judgments",
+      "name": "lead_judgments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_niche_priors",
+      "name": "lead_niche_priors_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "category_key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_operations",
+      "name": "lead_operations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_places",
+      "name": "lead_places_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_places",
+      "name": "lead_places_tenant_id_place_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "place_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_platform",
+      "name": "lead_platform_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_preferences",
+      "name": "lead_preferences_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_rounds",
+      "name": "lead_rounds_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_rounds",
+      "name": "lead_rounds_search_id_seq_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "search_id"
+        },
+        {
+          "column": "seq"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_runs",
+      "name": "lead_runs_apify_run_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "apify_run_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_runs",
+      "name": "lead_runs_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_search_members",
+      "name": "lead_search_members_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_search_members",
+      "name": "lead_search_members_search_id_lead_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "search_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_searches",
+      "name": "lead_searches_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_searches",
+      "name": "lead_searches_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_suggestions",
+      "name": "lead_suggestions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_suppressions",
+      "name": "lead_suppressions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "lead_suppressions",
+      "name": "lead_suppressions_tenant_id_kind_hash_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "kind"
+        },
+        {
+          "column": "hash"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "leads",
+      "name": "leads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "leads",
+      "name": "leads_tenant_place_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "place_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "place_id"
+        }
+      }
+    },
+    {
+      "table": "lines",
+      "name": "lines_e164_live_idx",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "e164"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "e164"
+            }
+          },
+          {
+            "cmp": "<>",
+            "left": {
+              "column": "voice_state"
+            },
+            "right": {
+              "value": "failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "lines",
+      "name": "lines_one_live_per_tenant_idx",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": {
+        "in": {
+          "column": "voice_state"
+        },
+        "values": ["provisioning", "answering"]
+      }
+    },
+    {
+      "table": "lines",
+      "name": "lines_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_local_part_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "local_part"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_reply_token_prev_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "reply_token_prev"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "reply_token_prev"
+        }
+      }
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_reply_token_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "reply_token"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "mailboxes",
+      "name": "mailboxes_tenant_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "memberships",
+      "name": "memberships_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "memberships",
+      "name": "memberships_user_id_tenant_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        },
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "messages",
+      "name": "messages_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "messages",
+      "name": "messages_tenant_external_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "external_id"
+        }
+      }
+    },
+    {
+      "table": "notification_marks",
+      "name": "notification_marks_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "notification_id"
+        },
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "notification_reads",
+      "name": "notification_reads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "notifications",
+      "name": "notifications_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "operator_pages",
+      "name": "operator_pages_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "key"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "page_vitals",
+      "name": "page_vitals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_earnings",
+      "name": "partner_earnings_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_earnings",
+      "name": "partner_earnings_share_idx",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "stripe_invoice_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "kind"
+        },
+        "right": {
+          "value": "share"
+        }
+      }
+    },
+    {
+      "table": "partner_earnings",
+      "name": "partner_earnings_stripe_event_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "stripe_event_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_invitations",
+      "name": "partner_invitations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_payouts",
+      "name": "partner_payouts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_reversals_waiting",
+      "name": "partner_reversals_waiting_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "stripe_event_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partner_tenants",
+      "name": "partner_tenants_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partners",
+      "name": "partners_code_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "code"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partners",
+      "name": "partners_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "partners",
+      "name": "partners_user_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_moments",
+      "name": "person_moments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_notes",
+      "name": "person_notes_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "person_notes",
+      "name": "person_notes_reach_out_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "contact_id"
+        },
+        {
+          "column": "source_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "source"
+        },
+        "right": {
+          "value": "reach_out"
+        }
+      }
+    },
+    {
+      "table": "platform_admins",
+      "name": "platform_admins_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "playbooks",
+      "name": "playbooks_one_chain_per_search",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "lead_search_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "lead_search_id"
+        }
+      }
+    },
+    {
+      "table": "playbooks",
+      "name": "playbooks_one_follow_up",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "trigger"
+        },
+        "right": {
+          "value": "proposal_waiting"
+        }
+      }
+    },
+    {
+      "table": "playbooks",
+      "name": "playbooks_one_next",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "after_playbook_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "after_playbook_id"
+        }
+      }
+    },
+    {
+      "table": "playbooks",
+      "name": "playbooks_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "playbooks",
+      "name": "playbooks_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "policies",
+      "name": "policies_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "policies",
+      "name": "policies_tenant_id_class_subject_type_subject_id_key",
+      "primary": false,
+      "nullsNotDistinct": true,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "class"
+        },
+        {
+          "column": "subject_type"
+        },
+        {
+          "column": "subject_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "profiles",
+      "name": "profiles_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "push_devices",
+      "name": "push_devices_activity_token_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "activity_token"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "activity_token"
+        }
+      }
+    },
+    {
+      "table": "push_devices",
+      "name": "push_devices_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "push_devices",
+      "name": "push_devices_token_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "token"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "reach_out_check_spend",
+      "name": "reach_out_check_spend_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "reach_out_replies",
+      "name": "reach_out_replies_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "message_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "reach_out_sends",
+      "name": "reach_out_sends_broadcast_id_lead_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "broadcast_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "reach_out_sends",
+      "name": "reach_out_sends_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "segment_members",
+      "name": "segment_members_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "segment_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "segments",
+      "name": "segments_live_name",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "lower": {
+            "column": "name"
+          }
+        }
+      ],
+      "where": {
+        "isNull": {
+          "column": "archived_at"
+        }
+      }
+    },
+    {
+      "table": "segments",
+      "name": "segments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sending_domains",
+      "name": "sending_domains_host_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "host"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sending_domains",
+      "name": "sending_domains_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sending_domains",
+      "name": "sending_domains_provider_uq",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "provider_domain_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "provider_domain_id"
+        }
+      }
+    },
+    {
+      "table": "sweep_status",
+      "name": "sweep_status_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "sweep"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "templates",
+      "name": "templates_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "templates",
+      "name": "templates_tenant_id_channel_name_language_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "channel"
+        },
+        {
+          "column": "name"
+        },
+        {
+          "column": "language"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_channels",
+      "name": "tenant_channels_kind_external_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "kind"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_channels",
+      "name": "tenant_channels_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_config",
+      "name": "tenant_config_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenants",
+      "name": "tenants_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenants",
+      "name": "tenants_slug_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "slug"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "waitlist",
+      "name": "waitlist_email_idx",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "lower": {
+            "column": "email"
+          }
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "waitlist",
+      "name": "waitlist_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    }
+  ],
+  "unmodelled": []
+}

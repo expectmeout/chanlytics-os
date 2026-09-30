@@ -8,6 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
+import { uniqueKeysOf } from "../_schema.mjs";
+import { keyOf, render } from "../../gen/unique-keys.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const U = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -73,7 +76,7 @@ test("a second row on a unique key is 23505: the primary key, a table's own uniq
   assert.equal((await db.from("memberships").insert({ tenant_id: T, user_id: U, role: "owner" })).error, null);
   assert.equal(code(await db.from("memberships").insert({ tenant_id: T, user_id: U, role: "viewer" })), "23505");
   // lines_one_live_per_tenant_idx (00195): one line a workspace, among those provisioning or answering.
-  const line = (id, voice_state) => ({ id, tenant_id: T, voice_state });
+  const line = (id, voice_state) => rows.line({ id, tenant_id: T, voice_state });
   assert.equal((await db.from("lines").insert(line(uuid(1), "answering"))).error, null);
   assert.equal((await db.from("lines").insert(line(uuid(2), "failed"))).error, null, "outside the index's predicate");
   const second = await db.from("lines").insert(line(uuid(3), "provisioning"));
@@ -81,6 +84,24 @@ test("a second row on a unique key is 23505: the primary key, a table's own uniq
   assert.match(second.error.message, /lines_one_live_per_tenant_idx/);
   // An update that would make a second live line is refused the same way.
   assert.equal(code(await db.from("lines").update({ voice_state: "answering" }).eq("id", uuid(2))), "23505");
+});
+
+test("a write is judged only against the keys it reaches: a column no key reads leaves seeded rows alone", async () => {
+  // Two live lines in one workspace is a state the database could never hold; a fixture that seeds it is not made a
+  // refusal by an update that touches neither the workspace nor the state, as Postgres makes none.
+  const seeded = [
+    rows.line({ id: uuid(1), tenant_id: T, voice_state: "answering" }),
+    rows.line({ id: uuid(2), tenant_id: T, voice_state: "provisioning" }),
+  ];
+  const db = fakeDb({ lines: seeded });
+  const touch = await db.from("lines").update({ state_since: "2026-09-29T13:00:00.000Z" }).eq("id", uuid(1));
+  assert.equal(touch.error, null);
+  assert.equal(seeded[0].state_since, "2026-09-29T13:00:00.000Z");
+  const again = await db.from("lines").update({ voice_state: "provisioning" }).eq("id", uuid(2));
+  assert.equal(again.error, null, "saying the state it already has moves nothing the key reads");
+  // A write that reaches the key (the state its predicate reads) is judged, and refused.
+  assert.equal(code(await db.from("lines").update({ voice_state: "provisioning" }).eq("id", uuid(1))), "23505");
+  assert.equal(seeded[0].voice_state, "answering", "nothing was written");
 });
 
 test("an upsert's conflict target must be a whole unique key (42P10), and a NULL in it conflicts with nothing", async () => {
@@ -127,7 +148,7 @@ test("a write answers rows only when it asks for them, and travels as JSON", asy
     .single();
   assert.deepEqual(back.data, { tenant_id: T, email: undefined, consent_updated_at: "2026-09-29T12:00:00.000Z" });
   assert.equal("email" in tables.contacts[1], false, "an undefined value is not sent");
-  assert.deepEqual(await db.from("contacts").update({ email: "a@example.com" }).eq("tenant_id", T), {
+  assert.deepEqual(await db.from("contacts").update({ email: "a@example.com" }).eq("id", tables.contacts[0].id), {
     data: null,
     error: null,
   });
@@ -141,4 +162,72 @@ test("a function the database does not have, or called by names it does not take
   assert.equal(code(await db.rpc("claim_due_jobs", { p_limit: 5 })), "PGRST202", "p_lease_seconds is not optional");
   assert.equal(code(await db.rpc("claim_due_jobs", { p_limit: 5, p_lease_seconds: 90, p_extra: 1 })), "PGRST202");
   assert.deepEqual(await db.rpc("claim_due_jobs", { p_limit: 5, p_lease_seconds: 90 }), { data: [], error: null });
+});
+
+/* ---- The unique keys the migrations build, read from the database's own index definitions ---- */
+
+/** An index row as tooling/scripts/gen/unique-keys.mjs's query answers it, with the text Postgres prints for it. */
+const index = (over) => ({
+  tbl: "t",
+  name: "t_uq",
+  is_primary: false,
+  nulls_not_distinct: false,
+  def: "",
+  pred: null,
+  keys: ["a"],
+  ...over,
+});
+
+test("an index's printed definition is read to a key the double evaluates: columns, lower(), coalesce(), a jsonb path, and a predicate", () => {
+  const key = keyOf(
+    index({
+      keys: ["tenant_id", "lower((email)::text)", "COALESCE(service, ''::text)", "((payload ->> 'message_id'::text))"],
+      pred: "((kind = 'email_ingest'::text) AND (state <> 'failed'::text) AND (archived_at IS NULL))",
+    }),
+  );
+  assert.equal(key.unmodelled, undefined);
+  const [k] = uniqueKeysOf({ uniques: { t: [key] } }, "t");
+  const row = (over) => ({
+    tenant_id: T,
+    email: "A@Example.com",
+    service: null,
+    payload: { message_id: "m1" },
+    kind: "email_ingest",
+    state: "scheduled",
+    archived_at: null,
+    ...over,
+  });
+  assert.equal(
+    k.key(row()),
+    JSON.stringify([T, "a@example.com", "", "m1"]),
+    "lower(), COALESCE() and ->> as Postgres reads them",
+  );
+  assert.equal(k.where(row()), true);
+  assert.equal(k.where(row({ state: "failed" })), false, "outside the predicate");
+  assert.equal(
+    k.where(row({ state: null })),
+    false,
+    "a NULL comparison is unknown, and a partial index holds only true",
+  );
+  assert.equal(k.key(row({ payload: {} })), null, "a NULL part: NULLs are distinct, so the row never conflicts");
+  assert.deepEqual([...k.reads].sort(), ["archived_at", "email", "kind", "payload", "service", "state", "tenant_id"]);
+});
+
+test("= ANY (ARRAY[...]) and IS NOT NULL predicates are read; a key the double cannot read is kept, with why, never dropped", () => {
+  const set = keyOf(
+    index({ keys: ["tenant_id"], pred: "(voice_state = ANY (ARRAY['provisioning'::text, 'answering'::text]))" }),
+  );
+  assert.deepEqual(set.where, { in: { column: "voice_state" }, values: ["provisioning", "answering"] });
+  assert.deepEqual(keyOf(index({ pred: "(e164 IS NOT NULL)" })).where, { notNull: { column: "e164" } });
+  const odd = keyOf(
+    index({
+      keys: ["date_trunc('day'::text, created_at)"],
+      def: "CREATE UNIQUE INDEX t_uq ON t (date_trunc('day', created_at))",
+    }),
+  );
+  assert.match(odd.unmodelled, /date_trunc\(\) is not modelled/);
+  const file = JSON.parse(
+    render([index({ keys: ["a"] }), index({ name: "odd", keys: ["date_trunc('day'::text, created_at)"] })]),
+  );
+  assert.deepEqual([file.keys.length, file.unmodelled.map((u) => u.name)], [1, ["odd"]]);
 });

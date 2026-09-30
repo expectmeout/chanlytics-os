@@ -278,7 +278,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   jobs = await import(at("packages/jobs/src/index.ts"));
-  ({ whatsappWire } = await import("@chanlytics/core"));
+  ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
   ({ emailIntake } = await import(at("apps/edge/lib/email/email.ts")));
   stubProviders();
   T = ok(

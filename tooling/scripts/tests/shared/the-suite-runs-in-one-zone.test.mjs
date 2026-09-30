@@ -24,7 +24,10 @@ test("the suite runs in UTC unless TEST_TZ names a zone, and a zone Node does no
 test("with no files it runs the suite; files, globs and directories asked for replace it; flags pass through", () => {
   const args = (argv) => planOf(argv, {}).args;
   const loader = ["--conditions=react-server", "--import", "tsx", "--test"];
-  assert.deepEqual(args([]), [...loader, ...SUITES.test]);
+  // a full run is measured: the coverage flags sit between the loader and the files
+  const full = args([]);
+  assert.deepEqual([full.slice(0, loader.length), full.slice(-SUITES.test.length)], [loader, SUITES.test]);
+  assert.ok(full.includes("--experimental-test-coverage"));
   assert.deepEqual(args(["--db"]), [...loader, ...SUITES.db]);
   // pnpm hands on the `--` that separates its own arguments from the script's
   assert.deepEqual(args(["--", PROBE]), [...loader, PROBE]);
@@ -33,6 +36,25 @@ test("with no files it runs the suite; files, globs and directories asked for re
     "--test-name-pattern=zone",
     "tooling/scripts/tests/repo/**/*.test.mjs",
   ]);
+});
+
+test("a full run in UTC is measured, and nothing else is: files, a flag, the db suites, a zone leg, TEST_COVERAGE=0", () => {
+  const full = planOf([], {});
+  assert.match(full.coverage, /chanlytics-\d+\.lcov$/);
+  assert.ok(full.args.includes("--test-reporter=./tooling/scripts/checks/tap-reporter.mjs"));
+  assert.ok(full.args.includes(`--test-reporter-destination=${full.coverage}`), "lcov goes to the file the plan names");
+  for (const [argv, env] of [
+    [[PROBE], {}],
+    [["--test-name-pattern=zone"], {}],
+    [["--db"], {}],
+    [[], { TEST_TZ: "Pacific/Auckland" }],
+    [[], { TEST_TZ: "UTC" }],
+    [[], { TEST_COVERAGE: "0" }],
+  ]) {
+    const plan = planOf(argv, env);
+    assert.equal(plan.coverage, null, JSON.stringify([argv, env]));
+    assert.equal(plan.args.includes("--experimental-test-coverage"), false, JSON.stringify([argv, env]));
+  }
 });
 
 test("a run's children see the zone: UTC by default, and TEST_TZ's when it is set", () => {

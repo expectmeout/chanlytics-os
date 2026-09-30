@@ -392,10 +392,23 @@ function truth(p, row) {
   throw new Error(`fakeDb: a predicate ${JSON.stringify(p)} is not modelled`);
 }
 
+/** Every column a key's parts and predicate read: a write that leaves them all alone cannot make a second row on the key. */
+function columnsRead(node, out = new Set()) {
+  if (Array.isArray(node)) for (const n of node) columnsRead(n, out);
+  else if (node && typeof node === "object")
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "column") out.add(v);
+      else if (k === "path") out.add(v[0]);
+      else columnsRead(v, out);
+    }
+  return out;
+}
+
 /**
  * The relation's unique keys in the double's own shape: `key(row)` is the row's key as one string, or null when a part
  * is NULL and NULLs are distinct (such a row never conflicts); `where` admits the rows a partial index covers;
- * `columns` is the plain column list an upsert's conflict target must match, null for a key on expressions.
+ * `columns` is the plain column list an upsert's conflict target must match, null for a key on expressions, and
+ * `reads` every column the key or its predicate reads.
  */
 export function uniqueKeysOf(schema, table) {
   return (schema.uniques[table] ?? []).map((k) => ({
@@ -403,6 +416,7 @@ export function uniqueKeysOf(schema, table) {
     name: k.name,
     primary: k.primary,
     partial: k.where != null,
+    reads: [...columnsRead([k.keys, k.where])],
     columns: k.keys.every((p) => p.column !== undefined) ? k.keys.map((p) => p.column) : null,
     where: k.where ? (row) => truth(k.where, row) === true : () => true,
     key: (row) => {
@@ -431,7 +445,7 @@ export function unknownFunction(schema, name, args) {
   if (overloads && overloads.some(fits)) return null;
   return refusal(
     "PGRST202",
-    `Could not find the function public.${name}(${given.join(", ")}) in the schema cache`,
+    `Could not find the function public.${name}${given.length ? `(${given.join(", ")})` : " without parameters"} in the schema cache`,
     `Searched for the function public.${name} with parameters ${given.join(", ") || "(none)"} or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.`,
   );
 }

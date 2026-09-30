@@ -97,7 +97,7 @@ before(async () => {
     realError(...args);
   };
   persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-  core = await import("@chanlytics/core");
+  core = await import(at("packages/core/src/index.ts"));
   ports = await import(at("apps/dashboard/src/server/ports/core-ports.ts"));
   // The dashboard's service-role calls (a thread's hold, withdrawing a job) go to this database.
   (await import(at("apps/dashboard/src/server/service-db.ts"))).setServiceClient(db);

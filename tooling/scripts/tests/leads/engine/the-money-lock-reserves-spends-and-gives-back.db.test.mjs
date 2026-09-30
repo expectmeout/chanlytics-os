@@ -221,15 +221,15 @@ test(
   "reserved by the door, spent by the commits, settled against the reservation, and the rest given back at the end",
   { skip },
   async () => {
-    const made = await search(5, 0.3);
+    const made = await search(5, 0.6);
     assert.ok(made.round_id, JSON.stringify(made));
     let round = await roundOf(made.round_id);
     assert.deepEqual(
       await counters(round),
       {
         allowance: { used: 0, reserved: 5 },
-        budget: { used: 0, reserved: 0.3 },
-        day: { used: 0, reserved: 0.3 },
+        budget: { used: 0, reserved: 0.6 },
+        day: { used: 0, reserved: 0.6 },
       },
       "the door reserves the count and the estimate before anything runs",
     );
@@ -254,7 +254,7 @@ test(
     let c = await counters(round);
     assert.deepEqual(c.allowance, { used: 5, reserved: 0 }, "what counted moved from held to used");
     assert.equal(money(c.budget.used), money(round.cost_usd), "the provider's usage is settled against the month");
-    assert.equal(money(c.budget.used + c.budget.reserved), 0.3, "out of the reservation, not on top of it");
+    assert.equal(money(c.budget.used + c.budget.reserved), 0.6, "out of the reservation, not on top of it");
     assert.equal(money(c.day.used), money(round.cost_usd));
     assert.ok(round.cost_usd > 0);
 

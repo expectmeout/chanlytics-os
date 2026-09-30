@@ -167,18 +167,15 @@ jobs:
   # the suite otherwise runs only where CI and Vercel are, in UTC. The committed
   # dist is what the suite imports, so no build; not a required check.
   #
-  # Red on arrival, and said so: 29 tests that build a date with no zone or read
-  # the day in the machine's fail under it (measured 29 Sep 2026: billing,
-  # calendar, broadcasts, business tab, the day stepper). The tests lane fixes
-  # them at the root, and the calendar's day labels are the defects lane's. Until
-  # both have landed a red leg on every pull request would only teach people to
-  # ignore it, so its failure does not fail the run; delete `continue-on-error`
-  # in the change that turns it green. TEST_TZ is the zone the tests lane's
-  # launcher (tooling/scripts/checks/test.mjs) reads, TZ the one node reads.
+  # Green since the tests lane, and a failure fails the run like any leg's: the
+  # 29 tests that built a date with no zone or read the day in the machine's
+  # failed under it on 29 Sep 2026 (billing, calendar, broadcasts, business tab,
+  # the day stepper), and each now names the instant it means or pins the clock.
+  # TEST_TZ is the zone the launcher (tooling/scripts/checks/test.mjs) reads, TZ
+  # the one node reads.
   auckland:
     name: Node suite, Pacific/Auckland
     if: github.event_name != 'merge_group'
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -16,9 +16,9 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "./_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 export const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 export const PLATFORM = "00000000-0000-0000-0000-000000000000";

@@ -14,9 +14,10 @@
  *
  *   supabase start
  *   corepack pnpm gen:db-types                     writes this file too, after the types
- *   node tooling/scripts/gen/unique-keys.mjs --check  exit 1 if the file is stale (database/unique-keys.db.test.mjs)
+ *   node tooling/scripts/gen/unique-keys.mjs --check  exit 1 if the file is stale (database/unique-keys.db.test.mjs runs it)
+ *                                                     --file <path> checks or writes that file instead of the committed one
  *
- * SUPABASE_CLI names the binary when `supabase` is not on PATH; SUPABASE_WORKDIR a stack started elsewhere.
+ * SUPABASE_CLI names the binary when `supabase` is not on PATH; the stack is the one supabase/config.toml names.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -250,7 +251,7 @@ export function keyOf(row) {
   }
 }
 
-function readIndexes(root) {
+export function readIndexes(root) {
   const CLI = process.env.SUPABASE_CLI || "supabase";
   const [cmd, pre] = CLI.endsWith(".js") ? [process.execPath, [CLI]] : [CLI, []];
   let out;
@@ -295,7 +296,9 @@ export function render(rows) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-  const out = path.join(ROOT, OUT);
+  // --file <path> reads or writes another file than the committed one: how the suite proves a stale one is caught.
+  const named = process.argv.indexOf("--file");
+  const out = named > 0 ? path.resolve(process.argv[named + 1]) : path.join(ROOT, OUT);
   const text = render(readIndexes(ROOT));
   if (process.argv.includes("--check")) {
     const committed = fs.existsSync(out) ? fs.readFileSync(out, "utf8").replace(/\r\n/g, "\n") : "";

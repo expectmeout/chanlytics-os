@@ -44,13 +44,19 @@ export const DB_PATHS = [
   "apps/dashboard/src/server/**",
   "apps/dashboard/src/lib/**",
   "apps/dashboard/app/api/**",
-  // what the two --check steps compare with the database
+  // what the two --check steps compare with the database: the closed sets, the types, and the unique keys the tests'
+  // in-memory database refuses a duplicate on (db-types.mjs writes and checks both of the last two)
   "tooling/scripts/gen/schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",
   "tooling/scripts/gen/db-types.mjs",
+  "tooling/scripts/gen/unique-keys.mjs",
+  "tooling/scripts/tests/_unique-keys.generated.json",
+  // the ledger the migrations are held to, which a stack suite (migration-head) loads
+  "tooling/scripts/checks/migration-ledger.mjs",
   // the workflow, this decision, and what the workflow installs
   ".github/workflows/database.yml",
   "tooling/scripts/checks/db-paths-changed.mjs",
+  "tooling/scripts/checks/replay-range.mjs",
   "package.json",
   "pnpm-lock.yaml",
 ];

@@ -35,8 +35,8 @@ export const AREAS = [
 ];
 
 export const FLOORS = "tooling/scripts/tests/baselines/coverage.json";
-/** How far under the last measure a floor sits: coverage moves a little between runs of the same code. */
-export const SLACK = 0.5;
+/** How far under the last measure a floor sits, in points: V8 on another platform or version counts a line differently. */
+export const SLACK = 1;
 
 const slash = (p) => p.split(path.sep).join("/");
 
@@ -58,13 +58,13 @@ export function parseLcov(text, root) {
   return files;
 }
 
-/** A bundle's lines by the module that wrote them: `// src/x.ts` opens a module of the package's own, any other marker ends it. */
+/** A bundle's lines by the module that wrote them: `// src/x.ts` opens a module of the package's own code, any other marker (another package's, or inlined data such as a `.json`) ends it. */
 export function modulesOfBundle(text) {
   const out = new Map();
   let mod = null;
   text.split(/\r?\n/).forEach((l, i) => {
     const m = /^\/\/ (\S+)$/.exec(l);
-    if (m) mod = m[1].startsWith("src/") ? m[1] : null;
+    if (m) mod = /^src\/.+\.tsx?$/.test(m[1]) ? m[1] : null;
     else if (mod) (out.get(mod) ?? out.set(mod, []).get(mod)).push(i + 1);
   });
   return out;
@@ -163,4 +163,29 @@ export function tableOf(summary, floors) {
         `${s.label.padEnd(52)}${`${s.pct.toFixed(1)}%`.padStart(7)}${floors[s.key] != null ? `   floor ${floors[s.key].toFixed(1)}%` : ""}`,
     )
     .join("\n");
+}
+
+/**
+ * What a measured run ends with: the exit status, the lines to print on stderr, and the floors a bank would write. A
+ * run that failed keeps its own status (the table still prints, for whoever is reading why); a run that passed fails on
+ * a floor it is under, or on a report that never came. `bank` is null for a plain run, "1" for `UPDATE_BASELINES=1`
+ * (raises a floor the suite has cleared with room to spare) and "raise" (may lower one, and so does not judge them).
+ */
+export function judge({ lcov, root, floors, status, bank = null }) {
+  if (lcov === null)
+    return { status: status || 1, lines: ["coverage: the run wrote no report (Node's lcov reporter)"], banked: null };
+  const summary = summarize(lcov, root);
+  const under = bank === "raise" ? [] : underFloors(summary, floors);
+  const lines = ["# what the suite ran of the code (line coverage)", ...tableOf(summary, floors).split("\n")];
+  for (const u of under)
+    lines.push(
+      `coverage: ${u.label} is at ${u.pct.toFixed(1)}%, under its floor of ${u.floor.toFixed(1)}%: a test that ran it ` +
+        `was removed, or code came with none. Test it; a floor lowered on purpose is UPDATE_BASELINES=raise pnpm test, ` +
+        `argued under "Rises" in docs/debt.md`,
+    );
+  return {
+    status: status || (under.length ? 1 : 0),
+    lines,
+    banked: bank ? bankedFloors(summary, floors, { lower: bank === "raise" }) : null,
+  };
 }

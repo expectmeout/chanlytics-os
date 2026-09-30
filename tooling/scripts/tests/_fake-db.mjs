@@ -214,9 +214,17 @@ function matches(row, filters) {
  * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
  * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
  * door's read, that refuses the second insert -- and a retry's compare-and-swap beside a live line the same way.
- * Rows a fixture seeded are taken as they are; only what the code under test writes is judged.
+ * Rows a fixture seeded are taken as they are; only what the code under test writes is judged. So is a key only when
+ * the write reaches it: an update that changes no column the key or its predicate reads (`changed`, the columns whose
+ * value the write moved, per candidate or for all) makes no new entry on it, as in Postgres, where a row that satisfied
+ * the key before still does -- a fixture that seeds five live lines in one workspace is not made a refusal by touching
+ * one line's `state_since`, or by saying its state again.
  */
-function uniqueViolation(indexes, table, candidates, others) {
+function uniqueViolation(indexes, table, candidates, others, changed = null) {
+  const touches = (ix, i) => {
+    const cols = Array.isArray(changed) ? changed[i] : changed;
+    return !cols || !ix.reads || ix.reads.some((c) => cols.has(c));
+  };
   for (const ix of indexes.filter((i) => i.table === table)) {
     // An index on expressions (`key`: the row's key, as a string) rather than columns: jobs_reply_read_once is on the
     // payload's message and stage (00222). A key that reads null is a row the index never holds twice: a NULL part,
@@ -228,8 +236,8 @@ function uniqueViolation(indexes, table, candidates, others) {
         .map(keyOf)
         .filter((k) => k != null),
     );
-    for (const row of candidates) {
-      if (!ix.where(row)) continue;
+    for (const [i, row] of candidates.entries()) {
+      if (!touches(ix, i) || !ix.where(row)) continue;
       const k = keyOf(row);
       if (k == null) continue;
       if (held.has(k))
@@ -244,6 +252,10 @@ function uniqueViolation(indexes, table, candidates, others) {
   }
   return null;
 }
+
+/** The columns a write moves on a row: those it names whose value is not the one the row holds. */
+const movedBy = (row, values) =>
+  new Set(Object.keys(values).filter((c) => JSON.stringify(row[c] ?? null) !== JSON.stringify(values[c] ?? null)));
 
 /** The words `to_tsvector('simple', ...)` makes of a text, in order: lower-cased runs of letters and digits. */
 const lexemesOf = (text) =>
@@ -739,6 +751,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           table,
           plan.map((x) => x.row),
           rows().filter((r) => !touched.includes(r)),
+          plan.map((x) => (x.existing ? movedBy(x.existing, x.sent) : null)),
         );
         if (clash) return { data: null, error: clash };
         const out = [];
@@ -762,6 +775,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         table,
         hit.map((r) => ({ ...r, ...values })),
         rows().filter((r) => !hit.includes(r)),
+        hit.map((r) => movedBy(r, values)),
       );
       if (clash) return { data: null, error: clash };
       for (const r of hit) Object.assign(r, written(table, values));

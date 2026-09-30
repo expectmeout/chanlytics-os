@@ -177,7 +177,7 @@ before(async () => {
   jobs = await import(at("packages/jobs/src/index.ts"));
   persist = await import(at("apps/edge/lib/whatsapp/persist.ts"));
   ({ recordStatusByExternalId } = await import("@chanlytics/db"));
-  ({ whatsappWire } = await import("@chanlytics/core"));
+  ({ whatsappWire } = await import(at("packages/core/src/index.ts")));
   stubGraph();
   console.error = (...args) => {
     if (SWALLOWS.test(String(args[0]))) swallowed.push(args);
