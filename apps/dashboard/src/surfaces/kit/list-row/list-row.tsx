@@ -14,9 +14,9 @@
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef, ReactNode } from "react";
-import type { FaceProps } from "./face";
-import { Face } from "./face";
-import { cx } from "./variants";
+import type { FaceProps } from "../face/face";
+import { Face } from "../face/face";
+import { cx } from "../variants";
 
 /** Whether a line or a fact has something to draw: nothing, false and no words draw none. */
 const drawsSomething = (node: ReactNode) => node !== undefined && node !== null && node !== false && node !== "";

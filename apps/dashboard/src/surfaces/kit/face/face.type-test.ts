@@ -10,8 +10,8 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { FaceProps } from "./index";
-import { Face } from "./index";
+import type { FaceProps } from "../index";
+import { Face } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _faceTakes(

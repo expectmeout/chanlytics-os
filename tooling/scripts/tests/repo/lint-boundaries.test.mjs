@@ -42,6 +42,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
@@ -138,11 +139,11 @@ test("a surface is browser code, linted as the dashboard's own: its layer, and t
 
 /** What each raw element's refusal tells a surface to take (eslint.config.mjs, KIT_TAKES), and what else it says. */
 const KIT_TAKES = {
-  button: ["Take the kit's Button,", "a button that opens a page is a link"],
-  input: ["Take the kit's Field,", "the kit's Switch for a checkbox"],
-  select: ["Take the kit's Select,", ""],
-  textarea: ["Take the kit's Field,", ""],
-  dialog: ["Take the kit's Sheet,", "the kit's Confirm for a confirmation"],
+  button: ["Take the kit's Button (kit/button/),", "a button that opens a page is a link"],
+  input: ["Take the kit's Field (kit/field/),", "the kit's Switch (kit/switch/) for a checkbox"],
+  select: ["Take the kit's Select (kit/select/),", "its Combobox (kit/combobox/)"],
+  textarea: ["Take the kit's Field (kit/field/)", "its `rows`"],
+  dialog: ["Take the kit's Sheet (kit/sheet/),", "the kit's Confirm for a confirmation"],
 };
 
 /** A raw element made every way the rule knows, one line each: its JSX, a member's JSX, and from its name. */
@@ -157,6 +158,28 @@ const everyWay = (element) =>
     `export const g = jsxDEV("${element}", {});`,
     "",
   ].join("\n");
+
+test("each raw element's refusal sends a surface to a component the kit has, by its folder", async () => {
+  const named = [];
+  for (const element of Object.keys(KIT_TAKES)) {
+    const [result] = await eslint.lintText(`export const a = <${element} />;\n`, {
+      filePath: path.join(ROOT, SURFACES[0]),
+    });
+    const [refusal] = result.messages.filter((m) => m.severity === 2);
+    for (const [, family] of refusal.message.matchAll(/\bkit\/([a-z-]+)\//g)) named.push(family);
+  }
+  assert.deepEqual(
+    [...new Set(named)].sort(),
+    ["button", "combobox", "field", "select", "sheet", "switch"],
+    "the components the refusals name",
+  );
+  for (const family of named) {
+    assert.ok(
+      fs.existsSync(path.join(ROOT, `apps/dashboard/src/surfaces/kit/${family}/${family}.tsx`)),
+      `a refusal names kit/${family}/, which holds no ${family}.tsx`,
+    );
+  }
+});
 
 test("a surface takes its controls from the kit: a raw one, however it is made, is refused with what to take, and the kit draws them", async () => {
   const [page, kit] = SURFACES;
@@ -288,6 +311,41 @@ test("every file under src/surfaces is TypeScript the lint and the typecheck rea
     [],
     "a .js, .jsx or .mts file there is read by no lint block and no typecheck: write it as .ts or .tsx",
   );
+});
+
+/** Base UI's index or one of its parts, named each way an import names a module. */
+const baseUi = (from) =>
+  [
+    `import { Dialog } from "${from}";`,
+    `import type { Menu } from "${from}";`,
+    `export { Popover } from "${from}";`,
+    `export * from "${from}";`,
+    "export const a = Dialog;",
+    "export type B = Menu;",
+    "",
+  ].join("\n");
+
+test("Base UI's parts are imported one at a time anywhere in the dashboard, and its index never, as a type or a re-export either", async () => {
+  const places = [
+    ...SURFACES,
+    "apps/dashboard/src/legacy-bridge/probe.tsx",
+    "apps/dashboard/src/client/probe.ts",
+    "apps/dashboard/app/probe/page.tsx",
+  ];
+  for (const at of places) {
+    const [result] = await eslint.lintText(baseUi("@base-ui/react"), { filePath: path.join(ROOT, at) });
+    const refused = result.messages.filter((m) => m.severity === 2);
+    assert.deepEqual(
+      refused.map((m) => [m.line, m.ruleId]),
+      [1, 2, 3, 4].map((line) => [line, "no-restricted-imports"]),
+      `${at}: the index, imported, as a type, and re-exported by name and whole`,
+    );
+    for (const { message } of refused) {
+      assert.match(message, /Import the Base UI part you draw \(`@base-ui\/react\/dialog`/, `${at}: ${message}`);
+      assert.match(message, /A surface takes the kit's component instead/, "and a surface is sent to the kit");
+    }
+    assert.deepEqual(await rulesFiredOn(at, baseUi("@base-ui/react/dialog")), [], `${at}: a part passes`);
+  }
 });
 
 test("server code may not import the shell, the bridge or the browser client", async () => {

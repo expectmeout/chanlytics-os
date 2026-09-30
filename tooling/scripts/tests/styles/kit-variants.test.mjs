@@ -1,11 +1,13 @@
 /**
  * The kit's class helpers, run (apps/dashboard/src/surfaces/kit/variants.ts;
  * docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): `cx` joins a component's classes and `variants`
- * maps its props to them. Imported through the kit's index, as a surface imports them.
+ * maps its props to them. Imported from their own module: the kit's index names its Base UI components too, whose
+ * modules make React contexts as they load, which React has not under the react-server condition this suite runs
+ * with (kit-components.test.mjs says more). The type tests import them through the index, as a surface does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cx, variants } from "../../../../apps/dashboard/src/surfaces/kit/index.ts";
+import { cx, variants } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 test("cx joins the class names it is given, in order, and leaves out false, null, undefined and the empty one", () => {
   assert.equal(cx("btn", "btn-primary"), "btn btn-primary");

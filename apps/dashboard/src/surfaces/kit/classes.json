@@ -83,6 +83,7 @@
     "pill-info",
     "pill-ok",
     "pill-warn",
+    "pop-place",
     "pp-toast",
     "pp-toast-cta",
     "pp-toast-danger",
@@ -111,6 +112,7 @@
     "rec-combo-list",
     "rec-combo-meta",
     "rec-combo-opt",
+    "rec-combo-pop",
     "rec-field",
     "rec-field-label",
     "rec-fold",
@@ -160,6 +162,7 @@
     "rec-seg",
     "rec-seg-btn",
     "rec-seg-hint",
+    "rec-select",
     "rec-sheet",
     "rec-sheet-backdrop",
     "rec-sheet-body",
@@ -183,6 +186,7 @@
     "tally",
     "tally-icon",
     "tally-warn",
+    "tip-place",
     "ui-tip"
   ],
   "modifiers": ["active", "align-left", "align-right", "danger", "dot", "escape", "icon", "kbd", "placed", "show", "up"]

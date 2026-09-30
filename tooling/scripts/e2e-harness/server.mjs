@@ -8,7 +8,8 @@
  *   - the standalone mockup (apps/dashboard/src/legacy), read from disk on every request through serve-legacy.mjs's
  *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
  *     mutation run possible; for the `kit` record, the kit's gallery in its place (kit-gallery.mjs), on the same
- *     stylesheets;
+ *     stylesheets, and at /behaves the page that runs the kit's components with behaviour of their own
+ *     (kit-behaves.tsx), bundled once as the harness starts (kit-behaves.mjs);
  *   - the `/api/v1` reads the spec makes itself, answered from the same record the page was built from, in the
  *     app's own envelope (contracts `ok`/`err`).
  *
@@ -22,7 +23,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dealsAreOn, err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
-import { galleryDocument } from "./kit-gallery.mjs";
+import { buildBehaves } from "./kit-behaves.mjs";
+import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
 
@@ -188,8 +190,10 @@ export const pageOf = (record) => (record.gallery ? galleryDocument() : document
  */
 export async function startHarness({ name = "nightly", port = 0, now = Date.now() } = {}) {
   const record = scenario(name, now);
-  // The gallery runs none of the mockup's scripts, so the kit record builds no fixture.
+  // The gallery runs none of the mockup's scripts, so the kit record builds no fixture; it builds the page that runs
+  // the kit's components instead.
   const fixture = record.gallery ? null : await buildFixture(record);
+  const behaves = record.gallery ? await buildBehaves() : null;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://localhost");
@@ -205,6 +209,14 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/_hx/fixture.js" && fixture) {
         send(res, 200, TYPES[".js"], fixture);
+        return;
+      }
+      if (p === "/_hx/kit-behaves.js" && behaves) {
+        send(res, 200, TYPES[".js"], behaves);
+        return;
+      }
+      if (p === "/behaves" && behaves) {
+        send(res, 200, TYPES[".html"], behavesDocument());
         return;
       }
       if (p === "/_hx/app.css") {

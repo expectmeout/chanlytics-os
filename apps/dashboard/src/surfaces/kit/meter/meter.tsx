@@ -10,7 +10,7 @@
  * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef } from "react";
-import { cx, variants } from "./variants";
+import { cx, variants } from "../variants";
 
 const meterClasses = variants({
   base: "meter",

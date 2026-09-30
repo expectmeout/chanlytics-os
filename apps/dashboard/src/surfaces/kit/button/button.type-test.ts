@@ -12,8 +12,8 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { ButtonProps } from "./index";
-import { Button } from "./index";
+import type { ButtonProps } from "../index";
+import { Button } from "../index";
 
 /** What a page knows only as it runs. */
 type AsItRuns = { flag: boolean; kind: ButtonProps["variant"]; href: string | undefined };

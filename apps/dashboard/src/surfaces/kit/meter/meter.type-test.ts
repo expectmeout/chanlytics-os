@@ -11,8 +11,8 @@
  */
 import type { ComponentProps, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { MeterProps } from "./index";
-import { Meter } from "./index";
+import type { MeterProps } from "../index";
+import { Meter } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boolean; size: MeterProps["size"] }): void {
