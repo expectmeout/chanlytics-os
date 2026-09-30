@@ -68,6 +68,6 @@ test("a run's children see the zone: UTC by default, and TEST_TZ's when it is se
     else env.TEST_TZ = zone;
     const run = spawnSync(process.execPath, [LAUNCHER, PROBE], { env, encoding: "utf8" });
     assert.equal(run.status, 0, `${zone}: ${run.stdout}\n${run.stderr}`);
-    assert.match(run.stderr, new RegExp(`the suite runs in ${zone.replace("/", "\/")}`));
+    assert.ok(run.stderr.includes(`the suite runs in ${zone}`), run.stderr);
   }
 });
