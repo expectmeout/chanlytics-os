@@ -20,7 +20,7 @@ export async function sendPartnerInvite(
   const r = await callEdge(
     "/api/admin/partner-invite",
     { tenant_id: tenantId },
-    { workspace: tenantId, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
+    { workspace: tenantId, user: null, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
   );
   if (!edgeAnswered(r))
     log.error("partner_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });

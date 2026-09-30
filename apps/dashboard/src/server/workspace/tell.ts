@@ -17,7 +17,7 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
   const r = await callEdge(
     "/api/admin/setup-request",
     { tenant_id: tenantId, what, by },
-    { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
+    { workspace: tenantId, user: null, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
     log.error("setup_request_tell_failed", { tenant: tenantId, what, status: r.status, error: r.body?.error });
@@ -34,7 +34,7 @@ export async function tellOwnerLive(tenantId: string): Promise<boolean> {
   const r = await callEdge(
     "/api/admin/you-are-live",
     { tenant_id: tenantId },
-    { workspace: tenantId, timeoutMs: TELL_TIMEOUT_MS },
+    { workspace: tenantId, user: null, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
     log.error("you_are_live_tell_failed", { tenant: tenantId, status: r.status, error: r.body?.error });

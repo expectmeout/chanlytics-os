@@ -25,6 +25,7 @@ export const POST = write({
       {
         op: "checkout",
         tenant_id: member.tenantId,
+        user_id: ctx.userId,
         email: ctx.email ?? null,
         ...(input.return ? { return: input.return } : {}),
       },

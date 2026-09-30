@@ -14,7 +14,7 @@
  * and what the body names.
  */
 import { json, refuse } from "../../lib/http.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { readBody } from "../../lib/admin-door.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -91,7 +91,7 @@ export async function POST(request: Request): Promise<Response> {
         host: str(body.host),
         fromLocal: str(body.from_local),
         fromName: str(body.from_name),
-        by: UUID.test(str(body.user_id)) ? str(body.user_id) : (auth.user ?? null),
+        by: personFor(auth, body.user_id),
       });
       return out.ok ? json(200, out) : json(out.status, out);
     }

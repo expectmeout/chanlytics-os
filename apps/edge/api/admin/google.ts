@@ -26,7 +26,7 @@
  * shape the dashboard wants back.
  */
 import { json, refuse } from "../../lib/http.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { readBody, respond, workspaceOf, workspaceRow, type Refused } from "../../lib/admin-door.js";
 import { emitEvent } from "../../lib/packages/db.js";
 import { UUID } from "../../lib/packages/contracts.js";
@@ -121,6 +121,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
 
   if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });
   if (op === "search") return search(body);

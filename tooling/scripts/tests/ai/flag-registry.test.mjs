@@ -9,11 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { FLAGS, FLAG_MECHANISMS, FeaturesConfigSchema } from "@chanlytics/contracts";
-import { ROOT, readRaw } from "../_source.mjs";
+import { FLAGS, FLAG_MECHANISMS, FeaturesConfigSchema, daysToSunset } from "@chanlytics/contracts";
+import { ROOT, readRaw, importSrc } from "../_source.mjs";
 
 const envSource = readRaw("apps/edge/lib/env.ts");
-const deployment = readRaw("apps/dashboard/src/server/deployment.ts");
+const dashboardEnv = readRaw("apps/dashboard/src/server/env.ts");
+const { LOG_EVENTS } = await importSrc("apps/edge/lib/log-events.ts");
 /** The e2e specs' sources: a switch a spec reads from its own environment is read there. */
 const specs = (function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -59,11 +60,12 @@ test("a listed switch is read where its mechanism says it is", () => {
         `${f.name}: a getter in apps/edge/lib/env.ts`,
       );
     if (f.mechanism === "dashboard_env" || f.mechanism === "deployment")
-      assert.ok(deployment.includes(`process.env.${f.name}`), `${f.name}: read in the dashboard's deployment.ts`);
+      assert.ok(dashboardEnv.includes(`process.env.${f.name}`), `${f.name}: read in the dashboard's env.ts`);
+    if (f.mechanism === "rollout")
+      assert.ok(f.weaker, `${f.name}: a rollout is a compatibility window, so it says what its weaker mode allows`);
     if (f.mechanism === "model_override")
       assert.ok(
-        getters.some((g) => g.name === f.name) ||
-          readRaw("apps/dashboard/src/server/ask/model.ts").includes(`process.env.${f.name}`),
+        getters.some((g) => g.name === f.name) || dashboardEnv.includes(`process.env.${f.name}`),
         `${f.name}: a variable somebody reads`,
       );
     if (f.mechanism === "workspace_feature")
@@ -74,6 +76,46 @@ test("a listed switch is read where its mechanism says it is", () => {
         `${f.name}: a workflow or an e2e spec reads it`,
       );
   }
+});
+
+/**
+ * A security switch is a fallback that kept production working while a stronger credential was put in place. It says
+ * what it allows, the log event whose readings prove it can be closed (an event the edge can write, or the
+ * dashboard's own for the one switch that lives there), and what closes it; and it has a day, never "kept".
+ */
+test("every security switch says what it allows, how it is proven closable, what closes it, and has a day", () => {
+  const security = FLAGS.filter((f) => f.weaker !== undefined);
+  assert.deepEqual(
+    security.map((f) => f.name).sort(),
+    [
+      "DIAG_KEY",
+      "EDGE_TOKEN_UNBOUND",
+      "GOOGLE_OAUTH_STATE_SECRET",
+      "RETELL_DOORS_SIGNED",
+      "RETELL_FN_SECRET",
+      "RETELL_WEBHOOK_KEY",
+    ],
+    "the weaker modes the platform still allows: a new one is listed here, with the change that adds it",
+  );
+  for (const f of security) {
+    assert.ok(f.sunset, `${f.name}: a weaker mode has a day, not "kept"`);
+    assert.ok(f.weaker.allows.length > 30, `${f.name}: what the weaker mode allows`);
+    assert.ok(f.weaker.closes.length > 30, `${f.name}: what closes it`);
+    // The dashboard's own log line is written by the dashboard; every other readiness event is the edge's.
+    if (f.mechanism !== "dashboard_env")
+      assert.ok(
+        LOG_EVENTS.includes(f.weaker.readiness.event),
+        `${f.name}: ${f.weaker.readiness.event} is an edge log event`,
+      );
+  }
+});
+
+test("days to a sunset are whole UTC days, zero on the day, negative after it, and null for a switch kept for good", () => {
+  const day = { sunset: "2026-10-17" };
+  assert.equal(daysToSunset(day, new Date("2026-10-03T23:59:59Z")), 14);
+  assert.equal(daysToSunset(day, new Date("2026-10-17T00:00:00Z")), 0);
+  assert.equal(daysToSunset(day, new Date("2026-10-18T12:00:00Z")), -1);
+  assert.equal(daysToSunset({ sunset: null }, new Date("2026-10-18T12:00:00Z")), null);
 });
 
 /** How long past its day a switch may stand before the build says so: a month to decide it. */

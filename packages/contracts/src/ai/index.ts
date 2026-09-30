@@ -61,5 +61,5 @@ export {
   promptSafeName,
 } from "./fence";
 export type { FenceTag } from "./fence";
-export { FLAGS, FLAG_MECHANISMS } from "./flags";
-export type { Flag, FlagMechanism } from "./flags";
+export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./flags";
+export type { Flag, FlagMechanism, WeakerMode } from "./flags";

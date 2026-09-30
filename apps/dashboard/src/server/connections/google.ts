@@ -119,6 +119,7 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
   return callEdge("/api/admin/google", body, {
     workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    user: typeof body.user_id === "string" ? body.user_id : null,
     timeoutMs,
   });
 }

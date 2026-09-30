@@ -15,12 +15,12 @@ type SyncOutcome =
   | { ok: false; reason: EdgeReason; detail?: string };
 
 /** Every template of the workspace's WhatsApp account, upserted; a row Meta does not return is left as it was. */
-export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
+export async function syncTemplates(tenantId: string, userId: string): Promise<SyncOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/whatsapp/templates-sync",
     { tenant_id: tenantId },
-    { workspace: tenantId, timeoutMs: SYNC_TIMEOUT_MS },
+    { workspace: tenantId, user: userId, timeoutMs: SYNC_TIMEOUT_MS },
   );
   const j = (r.body ?? {}) as {
     ok?: boolean;
@@ -78,12 +78,16 @@ export async function createTemplate(
 
 type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: EdgeReason; detail?: string };
 
-export async function deleteTemplate(tenantId: string, templateId: string): Promise<TemplateDeleteOutcome> {
+export async function deleteTemplate(
+  tenantId: string,
+  templateId: string,
+  userId: string,
+): Promise<TemplateDeleteOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/whatsapp/templates-delete",
     { tenant_id: tenantId, template_id: templateId },
-    { workspace: tenantId },
+    { workspace: tenantId, user: userId },
   );
   const j = (r.body ?? {}) as { ok?: boolean; at_meta?: boolean; detail?: string };
   if (edgeAnswered(r) && j.ok) return { ok: true, atMeta: !!j.at_meta };

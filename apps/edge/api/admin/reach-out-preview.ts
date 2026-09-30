@@ -13,7 +13,7 @@
  */
 import { json } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { askTokensLast24h, recordAskUsage } from "../../lib/ask-gateway.js";
@@ -107,6 +107,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const input = previewInputOf(body, tenantId);
   if (!input) return json(400, { ok: false, error: "bad_request" });
   const db = pg();

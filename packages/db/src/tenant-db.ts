@@ -59,9 +59,9 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
     Object.defineProperty(builder, verb, {
       value: (...args: unknown[]) => {
         const statement: unknown = Reflect.apply(build, builder, args);
-        const filter: unknown = statement && Reflect.get(statement, "filter");
-        if (typeof filter !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
-        return Reflect.apply(filter, statement, ["tenant_id", "eq", tenantId]);
+        const eq: unknown = statement && Reflect.get(statement, "eq");
+        if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
+        return Reflect.apply(eq, statement, ["tenant_id", tenantId]);
       },
     });
   }

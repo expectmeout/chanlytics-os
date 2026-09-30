@@ -38,7 +38,7 @@ export const POST = write({
   rate: "lines_buy",
   spend: true,
   input: Body,
-  handle: async ({ member, input }) => {
+  handle: async ({ ctx, member, input }) => {
     // Kept as the three digits that were validated. Number() made "000" a zero,
     // which the truthiness check below then dropped -- searching with no area
     // code rather than refusing -- and "012" a 12, a different area code than
@@ -48,6 +48,7 @@ export const POST = write({
       {
         op: "buy",
         tenant_id: member.tenantId,
+        user_id: ctx.userId,
         number: input.number,
         ...(areaCode !== undefined ? { area_code: areaCode } : {}),
       },

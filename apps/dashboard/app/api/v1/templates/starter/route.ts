@@ -104,7 +104,7 @@ export const POST = write({
       if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {
         // The number's account already holds it: bring it here instead of refusing.
         if (!synced) {
-          await syncTemplates(member.tenantId);
+          await syncTemplates(member.tenantId, ctx.userId);
           synced = true;
         }
         const { data: now } = await ctx.supabase

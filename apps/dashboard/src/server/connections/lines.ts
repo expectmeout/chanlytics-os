@@ -82,6 +82,7 @@ export async function edgeLines(body: Record<string, unknown>, timeoutMs = EDGE_
   if (!deployment.providersLive && body.op !== "record") return { status: 503, body: { ok: false, error: "preview" } };
   return callEdge("/api/admin/lines", body, {
     workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    user: typeof body.user_id === "string" ? body.user_id : null,
     timeoutMs,
   });
 }

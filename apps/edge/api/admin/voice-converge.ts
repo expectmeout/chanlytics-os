@@ -14,7 +14,12 @@
  *
  * Dry run by default. Idempotent: a converged agent plans nothing. The
  * response carries each agent as it was before any change, its webhook
- * secret stripped, as the backup. Diagnostic-key only.
+ * secret stripped, as the backup.
+ *
+ * Cross-workspace: a platform door converging every workspace's voice agent; nothing in the dashboard calls it.
+ * Because it acts on any agent by id, it is the platform's alone: a token minted by the platform for this door (the
+ * runbook's knock) that names no workspace, or the platform key on an edge that holds no secret. A token that names
+ * a workspace is a dashboard's, and is refused (`platform_only`), as the pager's door refuses one.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -48,6 +53,8 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
 export async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
+  if (auth.workspace)
+    return refuse(403, "platform_only", "this door converges every workspace's agent: the platform's alone");
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return refuse(503, "no_provider_key");
   const body = await readBody<Body>(request);

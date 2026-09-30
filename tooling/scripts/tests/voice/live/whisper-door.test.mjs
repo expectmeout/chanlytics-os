@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
 import { frameWhisper, whisperText } from "@chanlytics/contracts";
+import { fakeDb } from "../../_fake-db.mjs";
 
 // The door reads both at call time; each test file is its own process.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
@@ -26,11 +27,15 @@ delete process.env.DIAG_KEY;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { POST } = await import(at("apps/edge/api/admin/whisper.ts"));
+const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 
 const AUD = "/api/admin/whisper";
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const CALL = "call_7f3a9c1e2b4d";
 const WORDS = "tell them we have a haircut special this week";
+// The door proves the call is the token's workspace's before it speaks (lib/voice/live-call-door.ts); who else's calls
+// are refused is run in live-call-workspace.test.mjs.
+setPg(fakeDb({ calls: [{ id: "row-1", tenant_id: A, retell_call_id: CALL }] }));
 
 /* ------------------------------- the knock -------------------------------- */
 
@@ -238,11 +243,11 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
     assert.equal(nudge.seen[0].body.call_control.trigger_response, true, "asked to speak now");
     assert.equal((await knock({ call_id: CALL, text: WORDS, trigger: "yes" })).status, 200);
     assert.equal(nudge.seen[1].body.call_control.trigger_response, false, "only a real true nudges");
-    // The door checks no workspace: RLS on the dashboard's route has already proved the call is the operator's.
+    // A token about no workspace (a dashboard from before tokens named one) is let in, and said.
     assert.equal(
       (await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ workspace: null }) })).status,
       200,
-      "a token about no workspace opens it too",
+      "a token about no workspace opens it too, while EDGE_TOKEN_UNBOUND stands",
     );
   } finally {
     nudge.restore();

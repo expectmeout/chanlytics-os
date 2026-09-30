@@ -97,7 +97,9 @@ const knockAt =
 const PROVISION = "/api/admin/voice-provision";
 const CONVERGE = "/api/admin/voice-converge";
 const knock = knockAt(provision, PROVISION);
-const knockConverge = knockAt(converge, CONVERGE);
+// The converger is the platform's door: the token names no workspace (a workspace's token is refused, below).
+const knockConverge = (body, headers = { "x-edge-token": token(CONVERGE, { workspace: null }) }) =>
+  knockAt(converge, CONVERGE)(body, headers);
 /** The provision door with the body sent as it is, not as JSON. */
 const knockRaw = (raw, headers = { "x-edge-token": token(PROVISION) }) =>
   provision.POST(
@@ -863,6 +865,32 @@ test("converge, the door: a token for another door, a forgery and no credential 
     );
   } finally {
     p.restore();
+  }
+});
+
+test("converge, the platform's alone: a token that names a workspace is refused, the agent named or not, and nothing is read or sent", async () => {
+  // The door acts on any agent by id, through the provider's key. A dashboard's token names the workspace it is for,
+  // and would have converged (or, with apply, patched and published) another workspace's agent on main.
+  const { db } = use();
+  const net = unreachable("a refused converge must reach no provider");
+  try {
+    for (const body of [{}, { agent_id: "agent_pub" }, { agent_id: "agent_pub", apply: true, publish: true }]) {
+      assert.deepEqual(
+        await answer(await knockConverge(body, { "x-edge-token": token(CONVERGE) })),
+        [
+          403,
+          {
+            ok: false,
+            error: "platform_only",
+            detail: "this door converges every workspace's agent: the platform's alone",
+          },
+        ],
+        JSON.stringify(body),
+      );
+    }
+    assert.equal(db.seen.length, 0, "no database was read");
+  } finally {
+    net.restore();
   }
 });
 

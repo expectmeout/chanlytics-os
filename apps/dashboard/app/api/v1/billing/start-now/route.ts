@@ -12,8 +12,8 @@ export const POST = write({
   scope: workspace,
   role: "owner",
   rate: "billing",
-  handle: async ({ member }) => {
-    const a = await edgeBilling({ op: "start_now", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeBilling({ op: "start_now", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";

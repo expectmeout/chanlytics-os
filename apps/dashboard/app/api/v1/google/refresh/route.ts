@@ -11,8 +11,8 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "google_refresh",
-  handle: async ({ member }) => {
-    const a = await edgeGoogle({ op: "refresh", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeGoogle({ op: "refresh", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "No listing is linked yet. Find it on Setup first.", 404);
     if (a.status === 503 && b.error === "no_places_key")

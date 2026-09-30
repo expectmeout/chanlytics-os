@@ -18,7 +18,7 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { logger } from "../../lib/log.js";
@@ -41,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body.user_id === "string" ? body.user_id : "";

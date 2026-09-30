@@ -113,19 +113,21 @@ export async function callEdge(
   aud: string,
   body: unknown,
   opts: {
-    workspace?: string | null;
-    user?: string | null;
+    /** The workspace the call is for, or null said out loud for a call about none (a readiness probe, a search). */
+    workspace: string | null;
+    /** The person behind the call, or null said out loud for a call nobody is behind (a webhook's follow-up). */
+    user: string | null;
     timeoutMs?: number;
     method?: "GET" | "POST";
     fetch?: typeof fetch;
-  } = {},
+  },
 ): Promise<EdgeAnswer> {
   const method = opts.method ?? "POST";
   const sent = method === "POST" ? JSON.stringify(body ?? {}) : undefined;
   try {
     const r = await (opts.fetch ?? fetch)(`${edgeUrl()}${aud}`, {
       method,
-      headers: edgeHeaders(aud, { workspace: opts.workspace ?? null, user: opts.user ?? null, body: sent }),
+      headers: edgeHeaders(aud, { workspace: opts.workspace, user: opts.user, body: sent }),
       ...(sent === undefined ? {} : { body: sent }),
       cache: "no-store",
       signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),

@@ -44,7 +44,7 @@ corepack pnpm --filter @chanlytics/dashboard dev
 ```
 
 `.claude/launch.json` starts the same command on port 3100. An unset
-`VERCEL_ENV` is a laptop, never production (`src/server/deployment.ts`): every
+`VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
 

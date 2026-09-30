@@ -17,7 +17,7 @@
  */
 import { json, refuse } from "../../../lib/http.js";
 import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent, recordActivation } from "../../../lib/packages/db.js";
 import type { Json } from "../../../lib/packages/db.js";
@@ -79,6 +79,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const userId = String(body.user_id || "");
   const code = String(body.code || "").trim();

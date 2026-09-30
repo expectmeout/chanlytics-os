@@ -11,7 +11,7 @@
  */
 import { json, refuse } from "../../../lib/http.js";
 import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import {
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
-  const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
+  const userId = personFor(auth, body.user_id);
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";

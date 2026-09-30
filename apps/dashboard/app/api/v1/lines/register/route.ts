@@ -43,9 +43,9 @@ export const POST = write({
   // A refusal here is about registering for texting, not about buying a number.
   spendWords: SPEND_TEXTING,
   input: Body,
-  handle: async ({ member, input }) => {
+  handle: async ({ ctx, member, input }) => {
     const a = await edgeLines(
-      { op: "register", tenant_id: member.tenantId, line_id: input.line_id },
+      { op: "register", tenant_id: member.tenantId, user_id: ctx.userId, line_id: input.line_id },
       EDGE_LINES_TIMEOUT_MS,
     );
     const b = a.body ?? {};

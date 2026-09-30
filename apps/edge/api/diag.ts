@@ -8,6 +8,7 @@ import { json } from "../lib/http.js";
 import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
 import { brainSummary } from "../lib/receptionist/budget.js";
+import { securitySwitchesHere } from "../lib/security-switches.js";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.js";
 import {
@@ -57,6 +58,7 @@ export async function GET(request: Request): Promise<Response> {
 const REPORT: (() => Section | Promise<Section>)[] = [
   memoryBackend,
   envPresence,
+  securitySwitches,
   coldMailRouting,
   sweepHealth,
   pagerMemory,
@@ -98,6 +100,11 @@ function envPresence(): Section {
       unsubscribe: !!env.UNSUBSCRIBE_SECRET,
     },
   };
+}
+
+/** Which weaker modes are open on this deployment, and the day each must be gone (contracts ai/flags.ts). */
+function securitySwitches(): Section {
+  return { securitySwitches: securitySwitchesHere() };
 }
 
 /**

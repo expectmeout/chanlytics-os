@@ -175,7 +175,7 @@ export async function notifyPlatformSignup(tenantId: string, email: string): Pro
   const r = await callEdge(
     "/api/admin/signup-notify",
     { tenant_id: tenantId, email },
-    { workspace: tenantId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
+    { workspace: tenantId, user: null, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
   );
   if (r.status >= 503) log.warn("signup_notify_failed", { tenant: tenantId, error: r.body?.detail });
 }

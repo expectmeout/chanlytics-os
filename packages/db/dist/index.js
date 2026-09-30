@@ -88,31 +88,6 @@ async function recordActivation(db, tenantId, milestone, via) {
   return !w.error;
 }
 
-// src/tenant-db.ts
-function tenantDb(db, tenantId) {
-  if (!tenantId) throw new Error("tenantDb: a workspace is required");
-  return {
-    tenantId,
-    from(table) {
-      const q = db.from(table);
-      return {
-        select(columns, options) {
-          return q.select(columns, options).filter("tenant_id", "eq", tenantId);
-        },
-        update(values) {
-          return q.update(values).filter("tenant_id", "eq", tenantId);
-        },
-        delete() {
-          return q.delete().filter("tenant_id", "eq", tenantId);
-        }
-      };
-    }
-  };
-}
-function platformWide(db) {
-  return db;
-}
-
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -3328,6 +3303,54 @@ function createServiceClient(cfg) {
   });
 }
 
+// src/tenant-db.ts
+function builderOf(db, table) {
+  return db.from(table);
+}
+var FILTERED = ["select", "update", "delete"];
+var STAMPED = ["insert", "upsert"];
+function stamped(row, tenantId) {
+  if (typeof row !== "object" || row === null) return row;
+  const named = Reflect.get(row, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
+  return { ...row, tenant_id: tenantId };
+}
+function scoped(builder, tenantId) {
+  for (const verb of FILTERED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (...args) => {
+        const statement = Reflect.apply(build, builder, args);
+        const eq = statement && Reflect.get(statement, "eq");
+        if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
+        return Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+      }
+    });
+  }
+  for (const verb of STAMPED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (rows, ...rest) => Reflect.apply(build, builder, [
+        Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
+        ...rest
+      ])
+    });
+  }
+  return builder;
+}
+function tenantDb(db, tenantId) {
+  if (!tenantId) throw new Error("tenantDb: a workspace is required");
+  return {
+    tenantId,
+    from: (table) => scoped(builderOf(db, table), tenantId)
+  };
+}
+function platformWide(db) {
+  return db;
+}
+
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
@@ -5975,6 +5998,7 @@ export {
   takeIdempotencyKey,
   takeReplyRead,
   templatesFor,
+  tenantDb,
   tenantZoneOf,
   touchIndex,
   touchSendingDomain,

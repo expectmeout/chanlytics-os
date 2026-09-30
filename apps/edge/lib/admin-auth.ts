@@ -41,6 +41,7 @@
 import crypto from "node:crypto";
 import { json, refuse } from "./http.js";
 import { edgeBodyMatches, requestIdOf, verifyEdgeToken } from "./packages/channels.js";
+import { UUID } from "./packages/contracts.js";
 import { env } from "./env.js";
 import { bindRequestId, logger } from "./log.js";
 
@@ -144,6 +145,17 @@ export function workspaceFor(
     return { ok: false, response: refuse(403, "workspace_mismatch") };
   }
   return { ok: true, tenantId: auth.workspace ?? fromBody };
+}
+
+/**
+ * The person a door acts for: the token's when it names one, else the body's when it is a person's id (a key-authorised
+ * knock, or a token from a dashboard before tokens named their person). A body that names another person than the
+ * token is not believed: the token is what the dashboard signed, and the person is who a row is written down as (a
+ * connection's `connected_by`, a spend's user, a domain's `by`).
+ */
+export function personFor(auth: Admitted, bodyUser: unknown): string | null {
+  const fromBody = typeof bodyUser === "string" && UUID.test(bodyUser.trim()) ? bodyUser.trim() : null;
+  return auth.user ?? fromBody;
 }
 
 /**

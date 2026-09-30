@@ -72,9 +72,11 @@ export const env = {
   get RETELL_API_KEY() {
     return trimmedEnv(process.env.RETELL_API_KEY);
   },
+  /** Switch: the badged key Retell's signature is checked with; unset, RETELL_API_KEY is tried instead (a fallback with a sunset). */
   get RETELL_WEBHOOK_KEY() {
     return trimmedEnv(process.env.RETELL_WEBHOOK_KEY);
   },
+  /** Switch: the shared secret that opens the voice doors beside Retell's signature (?key= on the inbound URL, x-fn-secret on the two tools); unset, it opens nothing (a fallback with a sunset). */
   get RETELL_FN_SECRET() {
     return trimmedEnv(process.env.RETELL_FN_SECRET);
   },
@@ -239,6 +241,7 @@ export const env = {
   },
 
   // Diagnostics and the dashboard's door
+  /** Switch: the platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (platformKey), on an edge without the secret (a preview) every admin door (a fallback with a sunset). */
   get DIAG_KEY() {
     return trimmedEnv(process.env.DIAG_KEY);
   },
