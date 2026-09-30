@@ -33,6 +33,7 @@ import {
   leadPlanLikely,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { keysDrawn } from "../../_keys.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -1147,4 +1148,11 @@ test("holding the band, the strip drops its own ways into each pile -- the band'
     find(held, (n) => n.props?.className === "lf-strip-band"),
     "the band sits in the strip's own row",
   );
+});
+
+test("REGRESSION: the finder draws no key -- Close's tip said (esc), beside the ? sheet that lists it", () => {
+  const { st } = page({ words: "florists in Austin" });
+  const tree = drawFinder(st, { answering: ANSWERING });
+  assert.equal(byTestId(tree, "plan-close").props.title, "Close");
+  assert.deepEqual(keysDrawn(tree), []);
 });

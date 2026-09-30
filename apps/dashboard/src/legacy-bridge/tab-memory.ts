@@ -112,10 +112,7 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
 }
 
 /** The pages' one store, on the window they read it from. */
-export function installTabMemory(
-  win: WindowLike = window as unknown as WindowLike,
-  opts: { now?: () => number } = {},
-): void {
+export function installTabMemory(win: WindowLike = window, opts: { now?: () => number } = {}): void {
   win.__tabMemory = tabMemoryFor(win, opts);
 }
 

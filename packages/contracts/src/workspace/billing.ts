@@ -532,7 +532,7 @@ export const INVOICE_STATUS_WORDS: Record<string, string> = {
 export function invoiceStatusWords(status: string | null | undefined): string {
   if (!status) return "—";
   return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status)
-    ? (INVOICE_STATUS_WORDS[status] as string)
+    ? (INVOICE_STATUS_WORDS[status] ?? status)
     : status;
 }
 

@@ -24,6 +24,17 @@ says `>=22`, and the types are Node 22's, so nothing may call an API only 24 has
 `corepack pnpm --filter "./packages/*" build`. The apps import the built
 `dist`, which is committed; rebuild it whenever a package changes.
 
+**A checkout from before one TypeScript** (main before `b28d3791d`, #1293)
+keeps each project's old compiler and its `node_modules/.bin/tsc` after a
+plain install. Install, delete every project's `node_modules` (the root's
+stays), install again, then build; `typescript-is-installed-once.test.mjs`
+fails until it is done and names what is left.
+
+**pnpm's settings** (the hoisted linker the edge's functions need, the
+overrides, the patched packages) are in `pnpm-workspace.yaml` and nowhere
+else: Dependabot's pnpm 11 reads no other place
+(`tooling/scripts/tests/repo/settings/pnpm-settings.test.mjs`).
+
 **The dashboard.** Copy `apps/dashboard/.env.example` to
 `apps/dashboard/.env.local` and fill in the Supabase URL and keys (a local
 stack's, or a project you own). Then:
@@ -262,11 +273,15 @@ protocol. It checks that every class in `classes.json` is drawn; that every sele
 drawn by an entry, each selector of a list alone and a press's with the presses forced; that every `var()` a kit rule
 reads moves every longhand it feeds when that token is planted on the element, and a longhand a page's rule keeps is
 named; and that a new primitive computes every longhand its source computes, on every element and pseudo-element,
-pressed or not, but those its entry excepts. It fails on faults planted in the page, which is its own proof, and it
-prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, and the twins. What it
-cannot see is in the header of `e2e/kit/kit-checks.ts`. `tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the
-classes in `corepack pnpm test`, where no browser runs: a kit class added without its entry is red there. Against
-production the spec skips, and the nightly's skip ceiling does not count it.
+pressed or not, but those its entry excepts. In both looks and at both widths, a toast raised over an open sheet must
+stand clear of the sheet's foot. Under Glass, at both widths and in both themes, every control an entry draws must show
+the house's ring when a key focuses it, and every word an entry draws must read 4.5:1, a large one 3:1, on the pixels
+drawn under it (a control that cannot be used is not held). It fails on faults planted in the page, which is its own
+proof, and it prints what it saw: the entries, the selectors drawn, the token reads per run, pressed too, the twins,
+the controls it focused and each run's lowest ratio. What it cannot see is in the header of `e2e/kit/kit-checks.ts`.
+`tooling/scripts/tests/styles/kit-gallery.test.mjs` holds the classes in `corepack pnpm test`, where no browser runs:
+a kit class added without its entry is red there. Against production the spec skips, and the nightly's skip ceiling
+does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
 
@@ -325,14 +340,77 @@ What it cannot prove, so a pull request does not claim it:
 It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
 machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
 
+### Add a look
+
+A look is a set of token values (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.1 and §3.2). Classic,
+what members see, is the roles block of `apps/dashboard/src/legacy/styles/tokens.css` itself. Glass, the canvases'
+finish, is drawn, and not yet offered: steps 1 to 4 below were its 5.1 to 5.3 in the plan, and steps 5 and 6 will be
+its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` and `isLookPref` in
+`packages/contracts/src/shell/chrome.ts` (the head's script reads the list), to the list's pins in
+`tooling/scripts/tests/shell/chrome.test.mjs`, to the gallery's `?look=` and `l` key
+(`tooling/scripts/e2e-harness/kit-gallery.mjs`), and to the looks `e2e/kit/kit.spec.ts` runs.
+
+1. **The blocks.** `[data-look="<name>"]` after the roles block, and `[data-look="<name>"][data-theme="dark"]` after
+   that for its dark side, as Glass's are. They set the roles: the surfaces' fills, edges, radii and depths, the
+   controls, the actions. Where the look's colours differ, they also set the theme's own (`--bg*`, `--ink*`, `--line*`,
+   the tones, the accent), which many kit rules read directly. A colour the first block sets is set again in the
+   second: both come after the themes' blocks, so otherwise the first would hold in both themes. They set no scale,
+   and no token a kit rule keeps for itself.
+2. **Classic keeps its values.** A role the look needs that nothing reads yet comes with its reader in
+   `apps/dashboard/src/surfaces/kit/kit.css`, and with Classic's value in the roles block: the one that draws what the
+   rule drew before. For a blur, that is `none`, read through `var()` in both `backdrop-filter` and
+   `-webkit-backdrop-filter`. The build drops `backdrop-filter: none` written beside its prefixed twin (#929), and
+   cannot drop a `var()`. `blur(0)` is not `none`: any value but `none` makes its element a containing block for its
+   fixed children, and a stacking context. A translucent fill falls back to an opaque one under
+   `@supports not (backdrop-filter: blur(1px))` and under `prefers-reduced-transparency: reduce`.
+3. **It moves nothing in Classic.** The recorder draws every page in Classic, the look the harness's documents stamp
+   (`TWEAK_DEFAULTS` in `apps/dashboard/src/legacy/Chanlytics.html`, and the gallery without `?look=`), in both
+   themes. A recording from before the change and one after it are equal ("Prove a style change", above), backdrop
+   filters included.
+4. **It draws.** The gallery shows it in both themes, at a desk and on a phone: `?theme=light&look=<name>`, or `l` on
+   the page ("See the kit", above). `e2e/kit/kit.spec.ts` runs every width, theme and look, and holds each entry to
+   the tokens it reads there. It compares a twin with its source under Classic alone, since a source reads the theme's
+   colours where the kit reads the look's roles. The pull request shows the gallery in the four pairings, at both
+   widths.
+
+   Two readers of the tokens stand outside the gallery. The mascot reads the document's `--bg`, `--ink`, `--accent`
+   and `--accent-fg`, and reads them again only when `data-theme` changes
+   (`apps/dashboard/src/legacy-bridge/mascot/driver.ts`). The charts' palette was validated against the surfaces it
+   sits on (`apps/dashboard/src/legacy/styles/charts.css`, whose header says how). A look that changes those is
+   looked at on them, and the palette's validator runs again.
+
+   To see the look on the app itself before it is offered, set `look` to its name in the object this device keeps
+   under `chanlytics-os-prefs` in local storage, and reload: the head's script stamps it before first paint.
+
+5. **Offered.** `LOOK_OFFERED` in `chrome.ts` turns true, and the account menu draws Look under Theme. The flag's pins
+   change with it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`, which expects no Look while it is off), and
+   the packages' `dist` is rebuilt and committed. Ruben walks it on production.
+6. **The default.** `DEFAULT_LOOK_PREF` becomes the look: every device that never chose one draws it from its next
+   load, since a device keeps a look only once it is chosen (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and
+   a member who chose Classic keeps it. `chrome.test.mjs` and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin
+   the default, and `apps/dashboard/app/layout.tsx` stamps it on the document the server sends.
+
 ## What CI proves
 
-| Workflow                          | On                                                    | Proves                                                                                                                                                                                                                                                                             |
-| --------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`, Secret scan             | every pull request and push to main                   | No secret in what the pull request adds                                                                                                                                                                                                                                            |
-| `ci.yml`, Typecheck               | same                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
-| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                                                                                                |
-| `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                                                                                                |
+| Workflow                                   | On                                                                                                | Proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`, Secret scan                      | every pull request and push to main                                                               | No secret in what the pull request adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `ci.yml`, Typecheck                        | same, and a merge queue's commit                                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); no production dependency with a high or critical advisory (`pnpm audit --prod`) or under a licence we may not ship (`tooling/scripts/checks/licences.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; dead exports (knip); the formatting check; the node suite; the dashboard builds the way Vercel builds it; the workspace route's bundle budget    |
+| `ci.yml`, Mobile                           | every pull request, push to main and merge queue's commit                                         | The phone app's types, lint, Expo's doctor (the SDK's patch drift warns) and a Metro bundle for each platform                                                                                                                                                                                                                                                                                                                                                                                               |
+| `ci.yml`, Node suite, Pacific/Auckland     | every pull request and push to main                                                               | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; red until the tests lane and the defects lane land their fixes, so its failure does not fail the run (`continue-on-error`)                                                                                                                                                                                                                            |
+| `ci.yml`, What landed keeps the title rule | every push to main                                                                                | Each commit the push landed: its subject keeps the title rule and carries its `(#N)`, and it is not a merge commit. A break opens an issue, since what landed cannot be undone                                                                                                                                                                                                                                                                                                                              |
+| `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's: every entry main recorded, unchanged |
+| `nightly-e2e.yml`                          | 09:00 UTC; by hand, the credential-free specs alone (against an address that needs no bypass too) | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace; Ask's day against its lines. One rolling issue each, closed by the first green run; the second red run in a row pages                                                                                                                                                                                                                                                                  |
+| `release.yml`                              | every push to main                                                                                | A tag `vYYYY.MM.DD-<sha>` and a release whose note lists the pull requests merged since the tag before it                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                   | Production has applied every migration main carries, and nothing main does not; a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                          |
+| `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+Every run on main finishes: a pull request's newer run cancels its older one,
+and each main commit runs in a concurrency group of its own, so no merge goes
+unverified (before 29 Sep 2026, 44% of main's CI runs were cancelled).
+
+`release.yml` runs one at a time and never cancels one in flight; a merge that queues behind a running release and is
+replaced by a newer merge gets no tag of its own, and its pull requests are in the newer merge's note.
 
 Branch protection requires three checks by name: `Secret scan`, `Typecheck`
 and `Migrations replay, SQL rules hold`. The replay is required because the
@@ -341,16 +419,58 @@ it reports on every pull request: whether a database path changed is a step
 inside the job, not a filter on the workflow. Renaming either job would leave
 every pull request waiting for a check that never reports.
 
+**The settings only Ruben changes** (Settings, Branches, `main`; Settings,
+General), which the workflows are ready for:
+
+- `Require branches to be up to date before merging` (`strict: true`), or a
+  merge queue (both workflows answer `merge_group`): two green pull requests
+  can no longer land a red main together, as they did three times on 28 Sep.
+- `Do not allow bypassing the above settings` (`enforce_admins: true`).
+- `Mobile (typecheck, lint, doctor, bundle)` among the required checks.
+- `Require review from Code Owners` once reviews are posted as GitHub reviews
+  (`.github/CODEOWNERS`).
+- Squash only: `allow_merge_commit: false` and `allow_rebase_merge: false`,
+  with the squash commit's title from the pull request's title
+  (`squash_merge_commit_title: PR_TITLE`), so the subject is the checked title.
+
+**The secrets only Ruben sets** (Settings, Secrets and variables, Actions),
+each off until set:
+
+- `PAGER_URL` (the edge's origin, `https://chanlytics-messaging.vercel.app`)
+  and `PAGER_KEY` (the edge's `DIAG_KEY`): the nightly and the ledger compare
+  page the platform through `POST /api/admin/page`. Unset, their issues are
+  the only word.
+- `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the
+  migration ledger and nothing else ("Apply a migration", below). A GitHub-hosted
+  runner has no IPv6 and Supabase's direct database host is IPv6 only, so it is
+  the project's session-mode pooler string (Connect, Session pooler), with the
+  role written `ledger_reader.<project-ref>`.
+- The variable `PREVIEW_SMOKE=1` and the secret
+  `VERCEL_AUTOMATION_BYPASS_SECRET` (the dashboard project's Protection Bypass
+  for Automation): a preview answers 302 to Vercel's sign-in without it.
+
+**Branches no pull request holds.** A lane folded into another pull request
+leaves its branch on the remote.
+`git fetch --prune origin && node tooling/scripts/ops/stale-branches.mjs --days 7`
+lists them; deleting one is Ruben's call.
+
 ## Deploy
 
-1. Merge to `main`. Both Vercel projects build and deploy production on their own.
+1. Merge to `main` with Squash and merge, the pull request's title as the
+   subject. Both Vercel projects build and deploy production on their own,
+   and `release.yml` tags the merge `vYYYY.MM.DD-<sha>` with its note.
 2. A change both apps must agree on ships in a shape that works whichever
    lands first. Neither deploy waits for the other.
 3. A Vercel environment variable reaches a running deployment only after a
    redeploy. Set it, then redeploy the project from its Deployments page.
-4. Confirm: `GET /api/health` on the edge answers 200 when the platform's
-   clocks are healthy and due work is draining; `GET /api/diag` (keyed) says
-   what the deployment holds. The dashboard's `/api/version` names its build.
+4. Confirm: `GET /api/version` on each project names the merge's commit
+   (`curl -s https://chanlytics-messaging.vercel.app/api/version`, and the
+   dashboard's `https://app.chanlytics.com/api/version`); `GET /api/health` on
+   the edge answers 200 when the platform's clocks are healthy and due work is
+   draining; `GET /api/diag` (keyed) says what the deployment holds, its
+   `migrations.head` production's newest applied migration.
+5. A merge that carried a migration: compare production's ledger with main's,
+   "Apply a migration" step 6. Nothing may be missing.
 
 Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
@@ -359,7 +479,8 @@ only; the dashboard holds none.
 `EDGE_CALL_SECRET` is held by both projects or by neither: a dashboard that
 holds it signs every edge call and sends no key, and an edge without it
 refuses those calls. On an edge that holds it, `DIAG_KEY` opens only
-`GET /api/diag` and the sending-domains lift of a domain held twice
+`GET /api/diag`, the pager's door `POST /api/admin/page` (the two conditions
+only a workflow sees) and the sending-domains lift of a domain held twice
 (`op: resume`, `by: platform`); `admin_door_key_only` in the edge log names
 every door the key alone still knocks on, and whether it came in. The eval
 harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
@@ -723,35 +844,95 @@ bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap 
 
 ## Apply a migration
 
-1. Write it: the next free number, named for the schema change, re-runnable
-   statements, a header of a few lines. Never edit or rename an applied one.
-2. Replay it locally: `supabase db reset`. Then regenerate what the schema
-   drives: `corepack pnpm gen:schema-sets` and `corepack pnpm gen:db-types`,
-   and rebuild `dist` if a package changed. Commit the generated files.
-3. Let CI replay it from zero and run the database suites against it.
-4. Merge, and let both apps deploy.
-5. Apply to production from a laptop linked to the project:
+The practice every lane follows, since migrations began to reach production from branches before they merged
+(28 Sep 2026): production applies a migration once, in number order, and its ledger must end where main's does.
+The CLI keys an applied migration by its version and never reads the file again, so a file numbered below
+production's head applies after the ones above it (an order no replay runs), and an edited or renamed one replays
+differently on the next fresh database than it ran in production.
 
-```bash
-supabase db push --linked
-```
+1. **Write it** at the number free when it lands: above main's head and above production's
+   (`supabase migration list --linked` shows production's). Named for the schema change, re-runnable statements, a
+   header of a few lines, `lock_timeout` set. Record it in the ledger:
 
-Apply after the apps have deployed whenever the migration tightens something
-the old code still writes (a CHECK, a dropped column, a renamed function);
-apply before them when the new code reads something only the migration
-provides. The migration's header should say which. Most migrations are safe in
-either order, and say so by being additive.
+   ```bash
+   node tooling/scripts/checks/migration-ledger.mjs --record
+   ```
+
+   `supabase/migrations-ledger.json` holds every migration main carries with the checksum of its text, and
+   `database/migrations.test.mjs` fails a file not recorded, a file at or below the ledger's head, a gap below the
+   head the ledger does not argue, and any edit, rename or deletion of a recorded file. `database.yml` also holds each
+   pull request's ledger to main's (`migration-ledger.mjs --base origin/main`): an entry main recorded may not change,
+   which a folder and a ledger edited together would hide from the test. A number renumbered before it
+   lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
+
+2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
+   touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
+   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files.
+3. **Let CI replay it** from zero and run the database suites against it.
+4. **Apply it to production** just before the merge, from the pull request's branch with `origin/main` merged into
+   it, so the checkout holds every migration main has:
+
+   ```bash
+   supabase db push --linked --dry-run   # lists this pull request's migrations and nothing else; anything more, stop
+   supabase db push --linked --yes
+   ```
+
+   Never `--include-all`: it applies a file below production's head, after the ones above it. If the dry run
+   lists a file below the head, renumber it above, record it again and push again. A migration the new code needs is
+   applied before the merge; one that tightens something the old code still writes (a CHECK, a dropped column, a
+   renamed function) is applied after both apps have deployed. The migration's header says which.
+
+5. **Merge**, and let both apps deploy.
+6. **Compare** production's ledger with main's:
+
+   ```bash
+   supabase migration list --linked | node tooling/scripts/checks/migration-ledger.mjs --compare -
+   ```
+
+   It exits 0 when production holds every migration main carries and nothing main does not. Keyed `/api/diag`
+   answers `migrations.head`, which must be main's head. `.github/workflows/migration-ledger.yml` runs the same
+   compare every Monday and pages when main has been ahead of production for a day, once Ruben sets
+   `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the ledger and nothing else, made once in
+   production's SQL editor (the password generated, never written down anywhere but the secret). The string is the
+   project's session-mode pooler one, the role written `ledger_reader.<project-ref>`: a runner cannot reach the direct
+   host, which has no IPv4 address.
+
+   ```sql
+   create role ledger_reader login password '<generated>';
+   grant usage on schema supabase_migrations to ledger_reader;
+   grant select on supabase_migrations.schema_migrations to ledger_reader;
+   ```
 
 ## Roll back
 
-**An app.** Vercel keeps every deployment. Promote the previous production
-deployment from the project's Deployments page; it is live in seconds and the
-code on `main` is unchanged. Then fix forward with a pull request.
+**An app.** Vercel keeps every deployment. Promote the previous production deployment from the project's
+Deployments page (or `vercel promote <deployment-url> --scope expectmeouts-projects`); it is live in seconds, no
+build runs, and the code on `main` is unchanged. Then fix forward with a pull request. Each deploy's tag
+(`gh release list`) names the commit to go back to.
 
-**A migration.** Migrations are forward-only. Write a new migration that
-undoes the change, replay it locally, and push it the same way. Never delete
-or edit the applied file: the CLI keys applied migrations by version, and a
+**A migration.** Migrations are forward-only. Write a new migration that undoes the change, replay it locally, and
+apply it the same way. Never delete or edit the applied file: the CLI keys applied migrations by version, and a
 rewritten file replays differently on the next fresh database.
+
+**What a rolled-back build meets.** The schema stays where it is, so an older build runs against a newer database;
+that is why a migration is additive and a shape both apps agree on works whichever deploys first. Two things to know
+while an older build is live:
+
+- An older edge reads a config section with a field it does not know and keeps its brain
+  (`tenant-config-forward-compat.test.mjs`).
+- An older dashboard's settings save writes back only what it knows, so it drops a newer section or field (the
+  scorecard's defect 19). While the dashboard runs an older build, nobody saves Settings.
+
+**Rehearse it**, once a quarter and after any change to how the apps build, and write down when:
+
+1. `gh release list --limit 2`: the release before the current one, its tag and commit.
+2. On each Vercel project's Deployments page, the production deployment built from that commit: Promote to
+   Production. The edge first, then the dashboard; either order works, and the edge is the one customers reach.
+3. Confirm: `/api/version` on each project answers the older commit, `/api/health` on the edge 200, and keyed
+   `/api/diag` the same `migrations.head` as before (nothing in the database moved).
+4. Promote the current release's deployments back, and confirm `/api/version` answers its commit again.
+
+Rehearsed: never yet (29 Sep 2026). The first rehearsal is Ruben's, with a deploy that carried no migration.
 
 **A workspace, not the platform.** The levers in `docs/system-prd.md` S-23:
 silence one receptionist (`tenant_channels.status = 'disabled'`), hold one

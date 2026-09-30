@@ -60,12 +60,14 @@ export const SENDING_DOMAINS_MAX = 5;
 /** What we recommend when a domain has no DMARC: accepted by Gmail and Yahoo, and harmless to other mail it sends. */
 export const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
 
+type RampStep = { days: number; perDay: number };
+
 /**
  * The ramp (decision 8): per domain, by the days it has actually sent since it was clean (D15, counted by the database's
  * sending_domain_capacity over the last 90), never the calendar's: a domain verified a month ago that has sent on two
- * days is two days into its warm-up, not thirty.
+ * days is two days into its warm-up, not thirty. It starts somewhere, so its first step is always there to read.
  */
-export const DOMAIN_RAMP: ReadonlyArray<{ days: number; perDay: number }> = [
+export const DOMAIN_RAMP: readonly [RampStep, ...RampStep[]] = [
   { days: 0, perDay: 30 },
   { days: 14, perDay: 100 },
   { days: 30, perDay: 200 },

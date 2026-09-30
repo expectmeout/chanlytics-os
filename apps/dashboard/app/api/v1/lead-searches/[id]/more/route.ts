@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
+import { LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -28,7 +28,7 @@ export const POST = write({
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
     // A list of your own (00242) is never searched again: a finder's plan never lands on it (J9).
     refuseList(search);
-    const plan = input.plan as LeadSearchPlan;
+    const plan = input.plan;
     const { data, error } = await ctx.supabase.rpc("lead_search_more", {
       p_search_id: search.id,
       p_purpose: input.purpose,

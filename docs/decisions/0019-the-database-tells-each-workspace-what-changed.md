@@ -1,6 +1,8 @@
 # 0019 · The database tells each workspace what changed
 
-**Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give; decided, not built. Written against commit `0c8225d5` (main, 28 September 2026, after
+**Status:** Accepted by Ruben, 28 Sep 2026, with the answers its open questions give. Steps 1 and 2 built (00265),
+in one pull request, where they differ from this note as Built says; step 3 comes a day after step 2 is deployed.
+Written against commit `0c8225d5` (main, 28 September 2026, after
 #1242 merged), and every file and line below was read at it. What Realtime does is quoted from Supabase's own guides
 (Postgres Changes, Broadcast, Subscribing to Database Changes, Realtime Authorization, Realtime Concepts, Benchmarks),
 read the same day, and the SQL in Shape was run on PGlite (Postgres 18) with stand-ins for the `realtime` and `auth`
@@ -263,3 +265,39 @@ Part 5's PR 7, which watches `reach_out_replies`, is the one planned.
 2. **Addressed notes on the workspace's topic?** This note says yes (Risks). A topic per member would add a second
    channel to every tab.
 3. **Public access off after step 3?** Nothing will need a public channel; this note says off.
+
+## Built (29 September 2026): steps 1 and 2
+
+Built in one pull request against `1388f2cc`: the migration `supabase/migrations/00265_the_database_tells_each_workspace_what_changed.sql`
+and the tab's side in `packages/db/src/realtime.ts`. Where it differs from Shape:
+
+- **The names follow `docs/naming.md`.** The function is `workspace_tell_changes()`, not `tell_the_workspace()`, and
+  its triggers are `workspace_tell_insert`, `workspace_tell_update` and `workspace_tell_delete` on each table, as 00259
+  names one trigger per event.
+- **Once per transaction, not once per statement.** The lead finder writes a row a statement in a loop:
+  `lead_collect_commit`, `lead_check_commit`, `lead_round_rejudge` and `lead_search_import` (up to 500 rows) among
+  others. Every notice of a transaction becomes visible at its commit, together, so a second notice of a workspace's
+  table and event tells a tab nothing the first did not, and each costs a subtransaction (`realtime.send` catches its
+  own error) and a row. The function remembers what its transaction told in `chanlytics.workspace_told`, as
+  `chanlytics.link_lead` is kept (00184), and tells each workspace's table and event once; a call's notice again when
+  its statuses differ. A savepoint rolled back takes its notices and that memory back with it.
+- **The policy admits a notice only on the topic asked for** (`topic = realtime.topic()`). Realtime's probe at a join
+  passes either way; without it, a caller able to read `realtime.messages` directly could read another workspace's
+  notices by naming a topic of their own.
+- **The replayed stack has the `realtime` schema before our migrations run.** `supabase start` runs Realtime's own
+  migrations while it initialises the schema: on a local replay with CLI 2.116.0 and Realtime v2.129.3,
+  `realtime.messages`, `realtime.send` and `realtime.topic` are older than 00001's tables, with partitions from the day
+  before to three days ahead. So the policy is created as written, with no guard, and the workflow runs nothing more.
+- **The client.** `subscribeWorkspaceChanges` replaces `subscribeMessagesInserts`, whose name said messages for 23
+  tables. `WATCHED` names each table's events (`watchedEvents()`), and the runner no longer names a topic. As Shape
+  says, one channel per topic is kept on each client and counted; a join also waits for the topic's last channel to
+  finish leaving, since realtime-js hands that channel back and it never joins again.
+- **The tests** are `tooling/scripts/tests/database/each-workspace-is-told-what-changed.db.test.mjs` (the tables and
+  events read from `pg_trigger` against `WATCHED`; every trigger fired by a statement that changes no row; real rows on
+  threads, messages, calls, lists and notes; the policy probed as Tests says) and
+  `tooling/scripts/tests/shell/surfaces/realtime-scope.test.mjs`, over a fake client that behaves as realtime-js does.
+- **Measured** on the local replay (Postgres 17): a transaction that inserts one message takes about 1.35 ms with its
+  notice and 1.13 ms without (pgbench, three runs of 3,000); a hundred statements in one transaction tell once; a live
+  call's turn costs about 0.4 ms more. Against the local Realtime, a member's tab joined its workspace's topic, a
+  stranger's join was refused, and every change reached the member's tab as its table, its event and a call's
+  statuses, within half a second.

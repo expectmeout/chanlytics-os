@@ -45,6 +45,10 @@
    own size: one control, two looks (Ruben, 25 Sep). */
 .clients > .stabs-people { grid-column: 1 / -1; }
 .clients:has(> .stabs-people) { grid-template-rows: auto minmax(0, 1fr); }
+/* In the Glass look the strip is a capsule as wide as its tabs, set in from the page's edge where the shell's own
+   strip of views stands (components.css, .main > .stabs): the page's gutter on a desk, the rows' 16px on a phone. */
+:where([data-look="glass"]) .clients > .stabs-people { margin: 0 24px 8px; }
+:where([data-look="glass"]) .pp-top > .stabs-people { margin: 4px 16px 8px; }
 
 .cl-rail-section {
   padding: 14px 12px 8px;

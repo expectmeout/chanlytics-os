@@ -21,6 +21,7 @@ import {
   press,
   atWidth,
 } from "../_legacy-react.mjs";
+import { keysDrawn } from "../_keys.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -2116,14 +2117,16 @@ test("an inline editor is the row's label and its field, what saving writes, and
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
   assert.deepEqual([saved.length, cancelled.length], [1, 1]);
-  // Two small presses where the row's act was, a check and a cross: named by their words for a screen reader, by
-  // their keys on hover, and never a foot of their own under the box (the row keeps its one line).
+  // Two small presses where the row's act was, a check and a cross: named by their words for a screen reader and on
+  // hover, and never a foot of their own under the box (the row keeps its one line). Their keys, Enter and Esc, were
+  // named on the hover until the ? sheet became the one place a key is drawn (Ruben, 23 Sep 2026).
   const save = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website");
   const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
   assert.deepEqual(
     [save.props["aria-label"], save.props.title, cancel.props["aria-label"], cancel.props.title],
-    ["Save", "Save (Enter)", "Cancel", "Cancel (Esc)"],
+    ["Save", "Save", "Cancel", "Cancel"],
   );
+  assert.deepEqual(keysDrawn(tree), [], "REGRESSION: Save (Enter) and Cancel (Esc) on the presses' hover");
   assert.equal(
     find(tree, (n) => classes(n).includes("rec-foot")),
     null,

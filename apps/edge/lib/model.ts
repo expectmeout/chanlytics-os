@@ -57,7 +57,7 @@ export function setModelClient(c: MessagesClient | null): void {
 function anthropic(): MessagesClient {
   if (override) return override;
   // Built on first use: the sweeps that ride with this module must run on a deployment without a key.
-  if (!messagesClient) messagesClient = new Anthropic({ maxRetries: 0 }) as unknown as MessagesClient;
+  if (!messagesClient) messagesClient = new Anthropic({ maxRetries: 0 });
   return messagesClient;
 }
 

@@ -79,10 +79,7 @@ function slugOf(pathname: string): string | null {
   }
 }
 
-export function installAppBridge(
-  win: BridgeWindow = window as unknown as BridgeWindow,
-  doors: DeviceDoors = deviceDoors,
-): () => void {
+export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors = deviceDoors): () => void {
   if (!win.document.documentElement.classList.contains(IN_APP_CLASS) || !win.ReactNativeWebView) return () => {};
   const post = (m: PageMessage) => {
     // Round-tripped through the parser so the page never posts a shape the shell would refuse.
@@ -234,7 +231,7 @@ function answerShell({ win, doors, post, phone, shell, overlays }: Answering, ra
     if (ok) phone.token = m.token;
     return ok;
   });
-  sayDevice(registered, "registered", post);
+  void sayDevice(registered, "registered", post);
 }
 
 /** A dialog or a sheet as the page holds it: enough to tell whether it shows, and to hand it a key. */

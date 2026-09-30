@@ -403,7 +403,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   return {
     broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()),
     recipients: people,
-    reach_out: await reachOutRunOf(ctx, tenantId, row as BroadcastRow),
+    reach_out: await reachOutRunOf(ctx, tenantId, row),
   };
 }
 

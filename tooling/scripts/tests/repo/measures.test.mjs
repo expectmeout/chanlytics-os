@@ -14,7 +14,7 @@ import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
-import { functionsIn, windowUse, unknownCasts, copiesAmong, repoFiles, sourceReads } from "../_ast.mjs";
+import { functionsIn, windowUse, unknownCasts, castsIn, copiesAmong, repoFiles, sourceReads } from "../_ast.mjs";
 import { bankedSourceScan } from "../_measures.mjs";
 import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
@@ -337,6 +337,24 @@ test("a value laundered through unknown is counted however it is written", () =>
   assert.equal(casts("const a = <T><unknown>x;"), 1);
   assert.equal(casts("const a = <T>(<unknown>x);"), 1);
   assert.equal(casts("const a = x as unknown; const b = y as T;"), 0);
+});
+
+// casts.json holds three families per module, each counted once: laundering through unknown, a value told it is never
+// (`as never` on an RPC's arguments turns off the check that their keys exist), and a value told it is not null.
+test("the casts are counted by family: as unknown as, as never and x!, a family at zero left out", () => {
+  const families = (text) => castsIn(source(text));
+  assert.deepEqual(families("const a = x as never; const b = <never>y; const c = (z as never);"), { never: 3 });
+  assert.deepEqual(families("const a = x!; const b = y!.z; f(w!);"), { nonNull: 3 });
+  assert.deepEqual(
+    families("let a!: string; const b = x as T; const c = y satisfies T;"),
+    {},
+    "a definite assignment is not a cast",
+  );
+  assert.deepEqual(
+    families("const a = x as unknown as never; const b = y as unknown as T; const c = z!;"),
+    { unknownAs: 2, nonNull: 1 },
+    "`as unknown as never` is laundering, counted once, and not a second time as never",
+  );
 });
 
 /* ---- The file set ---- */

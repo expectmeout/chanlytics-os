@@ -187,6 +187,42 @@ test("the words: a few days, the windows on each, and the rule that the calendar
   );
 });
 
+test("under a booking hold the same times are offered, and only what follows them changes: a member of the team confirms, and the link is never sent or promised", () => {
+  const now = new Date(localToUtcMs(TZ, 2026, 9, 9, 8, 0));
+  const out = freeWindows({
+    hours,
+    closures: [],
+    tz: TZ,
+    busy: parseIcs(ICS, TZ).busy,
+    rules: { lead_hours: 2, max_days_ahead: 3 },
+    now,
+  });
+  const auto = describeOpenings(out, TZ, { hasBookingLink: true });
+  const held = describeOpenings(out, TZ, { hasBookingLink: true, bookingHeld: true });
+  const times = (text) => text.split("\n").slice(0, -1);
+  assert.ok(times(auto).length > 1, "the world has windows to offer");
+  assert.deepEqual(times(held), times(auto), "the heading and every window, word for word");
+  assert.match(
+    held,
+    /\nOffer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name\./,
+  );
+  const unsaid = (text) => text.replace(/never send or promise the booking link/gi, "");
+  assert.doesNotMatch(unsaid(held), /booking link/i, "the one mention of the link forbids it");
+  assert.equal(
+    describeOpenings(out, TZ, { hasBookingLink: true, bookingHeld: false }),
+    auto,
+    "no hold is auto's words, byte for byte",
+  );
+  const none = describeOpenings([], TZ, { daysAhead: 14, hasBookingLink: true, bookingHeld: true });
+  assert.match(none, /^Open times \(from the calendar\): nothing is open in the next 14 days\./);
+  assert.doesNotMatch(unsaid(none), /booking link/i, "nothing open, and still no link");
+  // A business with no link has nothing to hold back: it is told what it is told without one.
+  assert.equal(
+    describeOpenings(out, TZ, { hasBookingLink: false, bookingHeld: true }),
+    describeOpenings(out, TZ, { hasBookingLink: false }),
+  );
+});
+
 /* --------------------------------- config, composer, runtime, settings -- */
 
 const brain = {

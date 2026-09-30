@@ -40,13 +40,14 @@ test("blank is unset, and whitespace is trimmed", () => {
 test("the module names every variable the manifest declares, and nothing else", () => {
   // The manifest test holds .env.example to what the edge reads; this holds
   // the typed module to the manifest, so a variable cannot be added to one
-  // without the other. VERCEL_ENV is the platform's and is not in the file.
+  // without the other. VERCEL_ENV and VERCEL_GIT_COMMIT_SHA are the platform's and are not in the file.
   const declared = new Set();
   for (const line of fs.readFileSync(path.join(ROOT, "apps/edge/.env.example"), "utf8").split(/\r?\n/)) {
     const m = line.match(/^([A-Z0-9_]+)=/);
     if (m) declared.add(m[1]);
   }
-  const typed = new Set(Object.keys(Object.getOwnPropertyDescriptors(env)).filter((k) => k !== "VERCEL_ENV"));
+  const platforms = new Set(["VERCEL_ENV", "VERCEL_GIT_COMMIT_SHA"]);
+  const typed = new Set(Object.keys(Object.getOwnPropertyDescriptors(env)).filter((k) => !platforms.has(k)));
   assert.deepEqual([...typed].filter((k) => !declared.has(k)).sort(), [], "typed but not in .env.example");
   assert.deepEqual([...declared].filter((k) => !typed.has(k)).sort(), [], "in .env.example but not typed");
 });

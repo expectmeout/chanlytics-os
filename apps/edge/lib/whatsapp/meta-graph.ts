@@ -131,7 +131,7 @@ export function pinMismatch(r: GraphResult<unknown>): boolean {
 export function newPin(): string {
   const n = new Uint32Array(1);
   crypto.getRandomValues(n);
-  return String(100000 + (n[0] % 900000));
+  return String(100000 + ((n[0] ?? 0) % 900000));
 }
 
 /** +15551234567 out of Meta's "+1 555-123-4567". */

@@ -463,6 +463,21 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
   );
 });
 
+test("the peek hands its panes its acts and nothing else: vm, mode, armed, draft, busy, deck and phone stay its own", () => {
+  // Every prop but those seven is an act the panes call by name. In the standalone harness an object rest's excluded
+  // keys are a `var _excluded` every file shares, and settings.jsx's was the one in force: the panes were handed the
+  // peek's own props with the acts (legacy-harness.test.mjs). So the peek takes them with window.propsWithout, and this
+  // holds the list.
+  reset();
+  const { p } = page();
+  const acts = globalThis.LeadPeekActions(p);
+  const deck = { at: 2, of: 5, onPrev() {}, onNext() {} };
+  const tree = globalThis.LeadPeek({ vm: p.vm, mode: "info", armed: null, draft: null, busy: true, deck, ...acts });
+  const pane = find(tree, (n) => n.props?.on);
+  assert.ok(pane, "a pane is handed the acts");
+  assert.deepEqual(Object.keys(pane.props.on).sort(), Object.keys(acts).sort());
+});
+
 test("How you can reach them: the phone with its sources and its copy, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
   reset();
   const { tree, acts } = page().draw();
