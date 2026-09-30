@@ -323,7 +323,10 @@
         "in": {
           "column": "stage"
         },
-        "values": ["proposed", "won"]
+        "values": [
+          "proposed",
+          "won"
+        ]
       }
     },
     {
@@ -551,11 +554,17 @@
       "nullsNotDistinct": false,
       "keys": [
         {
-          "path": ["payload", "mailbox_id"],
+          "path": [
+            "payload",
+            "mailbox_id"
+          ],
           "text": true
         },
         {
-          "path": ["payload", "received_id"],
+          "path": [
+            "payload",
+            "received_id"
+          ],
           "text": true
         }
       ],
@@ -589,11 +598,17 @@
       "nullsNotDistinct": false,
       "keys": [
         {
-          "path": ["payload", "run_id"],
+          "path": [
+            "payload",
+            "run_id"
+          ],
           "text": true
         },
         {
-          "path": ["payload", "seq"],
+          "path": [
+            "payload",
+            "seq"
+          ],
           "text": true
         }
       ],
@@ -639,13 +654,19 @@
       "nullsNotDistinct": false,
       "keys": [
         {
-          "path": ["payload", "message_id"],
+          "path": [
+            "payload",
+            "message_id"
+          ],
           "text": true
         },
         {
           "coalesce": [
             {
-              "path": ["payload", "stage"],
+              "path": [
+                "payload",
+                "stage"
+              ],
               "text": true
             },
             {
@@ -1027,7 +1048,10 @@
         "in": {
           "column": "voice_state"
         },
-        "values": ["provisioning", "answering"]
+        "values": [
+          "provisioning",
+          "answering"
+        ]
       }
     },
     {
