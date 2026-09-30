@@ -179,11 +179,11 @@ const useInboxAddress = (initialThreadId, setPhoneThreadOpen) => {
   const openThread = (id) => {
     if (!ixOnPhone() || !window.appNavigate) return goTo(id);
     ownRouteRef.current = id;
-    phoneEntryRef.current = `#/inbox/${id}`;
+    phoneEntryRef.current = `inbox/${id}`;
     window.appNavigate(`inbox/${id}`);
   };
   const closeThread = () => {
-    if (phoneEntryRef.current === window.location.hash) return window.history.back();
+    if (phoneEntryRef.current === window.CHANLY.address.route()) return window.history.back();
     setPhoneThreadOpen(false);
     goTo(null);
   };

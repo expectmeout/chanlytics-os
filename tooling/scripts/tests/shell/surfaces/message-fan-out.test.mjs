@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { historyOf, legacyAddress } from "../../_address.mjs";
 
 const heard = new Map();
 const win = {
@@ -32,6 +33,7 @@ const win = {
   },
 };
 globalThis.window = win;
+historyOf(win);
 globalThis.document = { visibilityState: "hidden", title: "", addEventListener() {}, removeEventListener() {} };
 globalThis.CustomEvent ??= class CustomEvent {
   constructor(type, init) {
@@ -45,6 +47,9 @@ const settle = async (n = 10) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
 
+// The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
+win.__shell = (await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts")).addressApi(win);
+win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const registry = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -134,7 +139,7 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     r.asked.length = 0;
 
     win.location.hash = "#/inbox";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, [], "nothing was missed");
     await r.message();
@@ -143,18 +148,18 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     r.asked.length = 0;
 
     win.location.hash = "#/reports";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["reports"], "Reports let two messages pass, and is read once as it comes on screen");
     r.asked.length = 0;
     win.location.hash = "#/clients/pipeline";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["people"], "and People, once, on its Pipeline");
     win.location.hash = "#/today";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     win.location.hash = "#/clients";
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(r.asked, ["people"], "read once: nothing passed it since");
   } finally {
@@ -355,7 +360,7 @@ test("the page is a main landmark with a way past the bars to it, and a move to 
   };
   const goTo = (hash) => {
     win.location.hash = hash;
-    win.dispatchEvent({ type: "hashchange" });
+    win.dispatchEvent({ type: "popstate" });
     return draw();
   };
   try {

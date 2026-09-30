@@ -221,11 +221,11 @@ const useCvAddress = (channel, setSelectedId, setPhoneOpen) => {
     setPhoneOpen(true);
     if (!window.appNavigate) return;
     if (!cvOnPhone()) return window.appNavigate(cvAddress(channel, id), { replace: true });
-    phoneEntryRef.current = `#/${cvAddress(channel, id)}`;
+    phoneEntryRef.current = cvAddress(channel, id);
     window.appNavigate(cvAddress(channel, id));
   };
   const closeRow = () => {
-    if (phoneEntryRef.current && phoneEntryRef.current === window.location.hash) return window.history.back();
+    if (phoneEntryRef.current && phoneEntryRef.current === window.CHANLY.address.route()) return window.history.back();
     setPhoneOpen(false);
   };
   return { openRow, closeRow };

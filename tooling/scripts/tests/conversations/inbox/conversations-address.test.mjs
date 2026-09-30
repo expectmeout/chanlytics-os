@@ -15,6 +15,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { legacyAddress } from "../../_address.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -70,6 +71,7 @@ globalThis.window = {
   __chrome: { state: stateOf },
   CHANLY: {
     nav: (to) => went.push(["nav", to]),
+    address: await legacyAddress(),
     R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
   },
   appNavigate: (to, opts) => went.push(["app", to, opts || null]),

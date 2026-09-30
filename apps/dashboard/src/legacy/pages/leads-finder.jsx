@@ -162,7 +162,7 @@ const leadAnswerPlan = async (words, set) => {
   // thread of the owner's own when that one is not theirs.
   // The Leads page as it stands, sent beside the answer (legacy-bridge/ask/context.ts).
   let context = null;
-  try { context = A.context ? A.context({ page: "clients", param: ((window.location.hash || "").replace(/^#\/?clients\/?/, "") || "leads") }) : null; } catch (e) { context = null; }
+  try { context = A.context ? A.context({ page: "clients", param: (window.CHANLY.address.route().replace(/^clients\/?/, "") || "leads") }) : null; } catch (e) { context = null; }
   // No scope: the answer has no opinion of one, so the planning thread keeps its own (a null would clear it: the Phase 5 plan, D9).
   const turn = { text: String(words || "").trim(), threadId: answering.threadId || null, answering: { searchId: answering.searchId }, surface: "leads", ...(context ? { context } : {}) };
   await A.send(turn, (ev) => {

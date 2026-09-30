@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { sealSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
-import { addressApi } from "./workspace";
+import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
 
@@ -47,8 +47,8 @@ export interface ShellApi {
   route(): string;
   /** Where a route is linked to from this page: its path in a workspace, so a long press or a new tab opens it. */
   href(route: string): string;
-  /** Move to a route: a push, or with `replace` a page saying the same place more exactly (no entry). */
-  go(route: string, opts?: { replace?: boolean }): void;
+  /** Move to a route: a push, or with `replace` a redirect or a page saying the same place more exactly (no entry). */
+  go(route: string, opts?: GoOptions): void;
   /** Follow the address: runs when the route changes, by a push, a replace or Back. Returns the stop. */
   hear(fn: () => void): () => void;
 }

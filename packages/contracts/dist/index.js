@@ -15191,11 +15191,13 @@ var PREFETCH_TIMEOUT_MS = 15e3;
 function routePrefetchScript() {
   return [
     "try{",
-    'var p=/^\\/w\\/([^\\/?#]+)/.exec(location.pathname||"");',
+    'var p=/^\\/w\\/([^\\/?#]+)(?:\\/([^?#]*))?/.exec(location.pathname||"");',
     "if(p){",
     "var w=encodeURIComponent(decodeURIComponent(p[1]));",
     'var u=["/api/v1/workspaces?workspace="+w];',
-    'var h=(location.hash||"").replace(/^#\\/?/,"").split("/");',
+    // The route is the path's, else the hash's: an address the frame has not moved yet (address.ts) still opens the person.
+    'var r=p[2]||((location.hash||"").indexOf("#/")===0?location.hash.slice(2):"");',
+    'var h=r.split("/");',
     `if(h[0]==="clients"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[1]||""))u.push("/api/v1/contacts/"+h[1]+"?workspace="+w);`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",
@@ -17002,9 +17004,6 @@ function rowContextOf(i, nowMs) {
     texting,
     lineNum
   };
-}
-function setupRoute(hash) {
-  return (hash || "#/today").replace(/^#\/?/, "");
 }
 function setupLaterOf(view) {
   const later = view && typeof view === "object" ? view.later : null;
@@ -25970,6 +25969,34 @@ function roleGate(role, perm, doing) {
   };
 }
 
+// src/shell/address.ts
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? (m[2] ?? "").replace(/\/+$/, "") : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? hash.slice(2) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${name}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${route}` : ""}`;
+}
+
 // src/shell/vitals.ts
 import { z as z20 } from "zod";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
@@ -31313,6 +31340,7 @@ export {
   moneyWords,
   monthLabelOf,
   monthSpan,
+  movedAddress,
   nameKnownCustomers,
   namesMoney,
   navigateLabel,
@@ -31612,6 +31640,9 @@ export {
   rightNowLine,
   roleAtLeast,
   roleGate,
+  routeOfAddress,
+  routeOfHash,
+  routeOfPath,
   routePrefetchScript,
   ruleFacts,
   ruleLists,
@@ -31662,7 +31693,6 @@ export {
   servicesWords,
   setupCardOf,
   setupLaterOf,
-  setupRoute,
   setupSteps,
   sha256Hex,
   shadowBodies,
@@ -31887,6 +31917,7 @@ export {
   wordsIssueWords,
   wordsNeedOpening,
   workspacePartnerVM,
+  workspacePath,
   writtenChannelOf,
   writtenOutDetail,
   yesWaitWords,

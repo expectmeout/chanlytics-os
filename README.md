@@ -94,9 +94,9 @@ you change a package — CI has a drift guard that will fail otherwise. Never ad
 guard will fail on someone else's machine.
 
 **`apps/dashboard/src/legacy` is the operator UI, and it began as a design
-mockup.** A hash-routed single-page shell of hand-written JSX, imported in a
-fixed order by `src/legacy-bridge/manifest.ts`, talking through `window`
-globals. Surfaces were made real one at a time by _branching inside the
+mockup.** A single-page shell of hand-written JSX, routed by the address after
+the workspace's slug (`/w/acme/inbox`), imported in a fixed order by
+`src/legacy-bridge/manifest.ts`, talking through `window` globals. Surfaces were made real one at a time by _branching inside the
 existing components_ (`XReal`/`XSeed`), never by redesigning them; the seam
 that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The

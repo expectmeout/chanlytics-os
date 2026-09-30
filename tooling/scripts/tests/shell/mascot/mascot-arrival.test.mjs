@@ -70,7 +70,7 @@ const world = (over = {}) => {
     ),
   );
   const w = {
-    route: "#/today",
+    route: "today",
     phone: true,
     askOpen: false,
     waiting: false,
@@ -102,11 +102,11 @@ const held = () => {
 };
 
 test("a page names itself without the walk within it", () => {
-  assert.equal(pageOf("#/today"), "today");
+  assert.equal(pageOf("today"), "today");
   assert.equal(pageOf(""), "today");
-  assert.equal(pageOf("#/inbox/th-1"), "inbox/th-1");
-  assert.equal(pageOf("#/clients/leads:s-1:p-7"), "clients/leads");
-  assert.equal(pageOf("#/clients/pipeline:v-board"), "clients/pipeline");
+  assert.equal(pageOf("inbox/th-1"), "inbox/th-1");
+  assert.equal(pageOf("clients/leads:s-1:p-7"), "clients/leads");
+  assert.equal(pageOf("clients/pipeline:v-board"), "clients/pipeline");
 });
 
 test("a page arriving on a phone is read for READ_MS, then rest; the same page again is not read, another is", async () => {
@@ -119,15 +119,15 @@ test("a page arriving on a phone is read for READ_MS, then rest; the same page a
   assert.deepEqual(w.said, ["lit", "dark"], "then rest");
   w.arrival.arrived();
   assert.deepEqual(w.said, ["lit", "dark"], "the same page again within AGAIN_MS: nothing");
-  w.route = "#/clients/leads:s-1";
+  w.route = "clients/leads:s-1";
   w.arrival.arrived();
   assert.deepEqual(w.said, ["lit", "dark", "lit"], "another page: read");
   await w.c.tick(READ_MS);
-  w.route = "#/clients/leads:s-1:p-3";
+  w.route = "clients/leads:s-1:p-3";
   w.arrival.arrived();
   assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "a walk within the page: the same page");
   await w.c.tick(AGAIN_MS);
-  w.route = "#/today";
+  w.route = "today";
   w.arrival.arrived();
   assert.equal(w.said.at(-1), "lit", "the first page again, AGAIN_MS later: read");
 });
@@ -182,7 +182,7 @@ test("nothing on a desk, nothing while Ask is open or the mood is busy, and a re
   );
   w.askOpen = false;
   w.mood.set("idle");
-  w.route = "#/inbox";
+  w.route = "inbox";
   w.arrival.arrived();
   await w.c.tick(READ_MS);
   assert.deepEqual(w.said.slice(-2), ["lit", "dark"], "and reads again once Ask has closed");

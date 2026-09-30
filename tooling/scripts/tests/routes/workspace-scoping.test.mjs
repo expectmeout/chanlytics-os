@@ -222,7 +222,7 @@ test("the server has the last word on which workspace is active", () => {
   assert.match(surfaceData, /rememberWorkspace\(slug\)/, "the server's word is what the home returns to");
   assert.match(
     surfaceData,
-    /window\.location\.replace\(workspaceHref\(slug, window\.location\.hash\)\)/,
+    /window\.location\.replace\(addressInWorkspace\(slug, window\.location\)\)/,
     "and what the address says",
   );
 });

@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../_address.mjs";
 import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
@@ -838,7 +839,7 @@ globalThis.useHotkey = () => {};
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   AttnRow: () => null,
-  CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}` } },
+  CHANLY: { nav: (to) => went.push(to), address: await legacyAddress(), R: { thread: (id) => `inbox/${id}` } },
   // The chrome bridge's state map (shell.ts): a chip's tone is the pill's, and nothing else.
   __chrome: { state: stateOf },
   __csvCell: csvCell,

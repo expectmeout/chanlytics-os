@@ -247,7 +247,7 @@ const useLeadPeekAddress = ({ leadView, viewRoute, addrPeek, peekId, setPeekId, 
     }
     if (peekId === addrPeek) return;
     const want = window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, peek: peekId });
-    // Said once: a push is answered a task later (hashchange), and every draw until then finds the address as it was.
+    // Said once: the shell follows a push in its next draw, and every draw until then finds the address as it was.
     if (a.asked === want) return;
     a.asked = want;
     if (peekId && !addrPeek && !a.pushed) { a.pushed = true; nav(want); }

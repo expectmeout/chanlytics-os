@@ -50,7 +50,7 @@ export function movedAddress(address: AddressParts): string | null {
   const route = routeOfHash(address.hash);
   if (!m || route === null || m[2]) return null;
   const at = route.indexOf("?");
-  const name = at < 0 ? route : route.slice(0, at);
+  const name = (at < 0 ? route : route.slice(0, at)).replace(/\/+$/, "");
   // `#/` names no route: Today, where the path already stands.
   if (!name) return null;
   const own = at < 0 ? "" : route.slice(at + 1);

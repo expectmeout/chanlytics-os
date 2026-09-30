@@ -1,12 +1,13 @@
 /**
  * The page's side of the bridge to the native shell (legacy-bridge/app-bridge.ts), run against a window of its own:
  * nothing is installed outside the app; inside, the page says its route, that a person is in, and the workspace at
- * install, then every route change, every needs-you count and every workspace change; the shell's navigate sets the
- * hash, its menu and top become the shell's own events, and a message that does not parse does nothing.
+ * install, then every route change, every needs-you count and every workspace change; the shell's navigate moves the
+ * route (a path in a workspace, decision 0015), its menu and top become the shell's own events, and a message that
+ * does not parse does nothing.
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { installAppBridge, hashRoute } from "../../../../apps/dashboard/src/legacy-bridge/app-bridge.ts";
+import { installAppBridge } from "../../../../apps/dashboard/src/legacy-bridge/app-bridge.ts";
 
 globalThis.CustomEvent ??= class CustomEvent extends Event {
   constructor(type, init) {
@@ -26,6 +27,10 @@ function windowOf({
 } = {}) {
   const listeners = new Map();
   const posted = [];
+  const moved = (url) => {
+    if (url.startsWith("#")) win.location.hash = url;
+    else win.location.pathname = url;
+  };
   const win = {
     ...(bell ? { __notifs: bell } : {}),
     document: {
@@ -43,6 +48,11 @@ function windowOf({
         posted.push({ assigned: url });
       },
     },
+    // What the App Router's patched history does to the address, for the route the page pushes.
+    history: {
+      pushState: (_data, _unused, url) => moved(url),
+      replaceState: (_data, _unused, url) => moved(url),
+    },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
     addEventListener: (t, fn) => listeners.set(t, [...(listeners.get(t) ?? []), fn]),
     removeEventListener: (t, fn) =>
@@ -57,13 +67,6 @@ function windowOf({
   };
   return { win, posted, fire: (type, detail) => win.dispatchEvent(new CustomEvent(type, { detail })) };
 }
-
-test("the route is the hash's name, today when there is none", () => {
-  assert.equal(hashRoute("#/inbox"), "inbox");
-  assert.equal(hashRoute("#/clients/abc"), "clients/abc");
-  assert.equal(hashRoute(""), "today");
-  assert.equal(hashRoute("#/"), "today");
-});
 
 test("outside the app, or without the shell's wire, nothing is installed", () => {
   for (const opts of [{ inApp: false }, { native: false }]) {
@@ -85,8 +88,9 @@ test("at install the page says a person is in, its theme, the workspace and the 
     { t: "overlay", open: false },
   ]);
   posted.length = 0;
-  win.location.hash = "#/clients/abc";
-  fire("hashchange");
+  // Back to a page of its own: the address moved, and the browser said so.
+  win.location.pathname = "/w/acme-plumbing/clients/abc";
+  fire("popstate");
   fire("inbox:counts", { needs: 3 });
   fire("inbox:counts", {}); // a detail-less count is not a count
   fire("inbox:counts", { needs: 2.7 });
@@ -99,44 +103,45 @@ test("at install the page says a person is in, its theme, the workspace and the 
     { t: "workspace", slug: "other-shop" },
   ]);
   off();
-  fire("hashchange");
+  win.location.pathname = "/w/acme-plumbing/today";
+  fire("popstate");
   assert.equal(posted.length, 4, "uninstalled: silent");
   assert.equal(win.__appBridge, undefined);
 });
 
-test("the shell's navigate sets the hash; menu and top become the shell's events; a bad message does nothing", () => {
+test("the shell's navigate moves the route, as a path; menu and top become the shell's events; a bad message does nothing", () => {
   const { win, fire } = windowOf();
   installAppBridge(win);
   const heard = [];
   win.addEventListener("shell:menu", () => heard.push("menu"));
   win.addEventListener("shell:top", () => heard.push("top"));
   win.__appBridge.receive('{"t":"navigate","route":"inbox"}');
-  assert.equal(win.location.hash, "/inbox");
+  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox");
   fire("shell:ready");
   win.__appBridge.receive('{"t":"menu"}');
   win.__appBridge.receive('{"t":"top"}');
   win.__appBridge.receive('{"t":"navigate","route":"https://example.com/x"}');
   win.__appBridge.receive("nope");
   assert.deepEqual(heard, ["menu", "top"]);
-  assert.equal(win.location.hash, "/inbox");
+  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox");
 });
 
-test("a tapped push for another workspace opens that workspace's page; one for this workspace moves the hash", () => {
+test("a tapped push for another workspace opens that workspace's page; one for this workspace moves the route", () => {
   const HERE = "11111111-1111-4111-8111-111111111111";
   const THERE = "22222222-2222-4222-8222-222222222222";
   const { win, posted } = windowOf();
   win.__ACTIVE_WORKSPACE = HERE;
   installAppBridge(win);
   win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
-  assert.equal(win.location.hash, "/inbox/th-1");
+  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1");
   assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
   win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
   assert.deepEqual(
     posted.filter((p) => p.assigned),
-    [{ assigned: `/w/${THERE}#/inbox/th-2` }],
+    [{ assigned: `/w/${THERE}/inbox/th-2` }],
     "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
   );
-  assert.equal(win.location.hash, "/inbox/th-1", "and this page's hash is not moved under it");
+  assert.equal(win.location.pathname, "/w/acme-plumbing/inbox/th-1", "and this page's route is not moved under it");
 });
 
 test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {

@@ -77,7 +77,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   };
   const route = () => post({ t: "route", route: routeOnScreen(win) });
   const workspace = () => {
-    const slug = pathWorkspace(win.location.pathname);
+    const slug = pathWorkspace(win.location.pathname ?? "");
     if (slug) post({ t: "workspace", slug });
   };
   const counts = (e: Event) => {

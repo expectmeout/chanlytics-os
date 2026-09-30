@@ -126,7 +126,18 @@ function tab(answer = null) {
       config: { brain: { business_name: "Harbor", profile: { hours: { mon: { open: "09:00", close: "17:00" } } } } },
       version: 3,
     },
-    location: { hash: "" },
+    // A workspace's page: its route is the path (decision 0015), and a move pushes one.
+    location: { hash: "", pathname: "/w/harbor" },
+    history: {
+      pushState: (_data, _unused, url) => {
+        win.location.pathname = url;
+      },
+      replaceState: (_data, _unused, url) => {
+        win.location.pathname = url;
+      },
+    },
+    addEventListener: () => {},
+    removeEventListener: () => {},
     dispatchEvent: (e) => {
       events.push(`event:${e.type}`);
       return true;
@@ -945,7 +956,7 @@ test("the server's refusal is the card's answer, in the server's words", async (
 test("edit in the composer: the thread's route, then the words handed to the composer", () => {
   const t = tab();
   editReply(t.win, card("reply", { conversation_id: C1, text: "On our way." }));
-  assert.equal(t.win.location.hash, `/inbox/th-${C1}`);
+  assert.equal(t.win.location.pathname, `/w/harbor/inbox/th-${C1}`);
   assert.ok(t.events.includes("event:inbox:focus-composer"));
 });
 

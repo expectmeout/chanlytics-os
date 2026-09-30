@@ -14,6 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../../_address.mjs";
 import { installRoleStore } from "../../_legacy-react.mjs";
 import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
@@ -42,6 +43,9 @@ import { planVersionOf } from "../../../../../packages/contracts/src/leads/searc
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { pipelineHelpers } from "../../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
+
+/** What a page reads the address through (data/constants.jsx), for the `CHANLY` this file makes up. */
+const address = await legacyAddress();
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -750,7 +754,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
     usePPToast: () => [null, (t) => flashes.push(t)],
-    CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}` } },
+    CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
     __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM" },
     __csvCell: (s) => String(s ?? ""),
   });

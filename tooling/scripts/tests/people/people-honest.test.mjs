@@ -14,6 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../_address.mjs";
 import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
@@ -380,7 +381,11 @@ globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => flashes.push(t)],
   AttnRow: () => null,
-  CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` } },
+  CHANLY: {
+    nav: (to) => went.push(to),
+    address: await legacyAddress(),
+    R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` },
+  },
   __chrome: { state: stateOf },
   __csvCell: csvCell,
   __ME: { role: "owner" },

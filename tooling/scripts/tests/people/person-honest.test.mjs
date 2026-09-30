@@ -13,6 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../_address.mjs";
 import { installRoleStore } from "../_legacy-react.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
@@ -360,6 +361,7 @@ Object.assign(globalThis.window, {
   AttnRow: () => null,
   CHANLY: {
     nav: (to) => went.push(to),
+    address: await legacyAddress(),
     R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}`, clientSeg: (id) => `clients/seg:${id}` },
   },
   __chrome: { state: stateOf },

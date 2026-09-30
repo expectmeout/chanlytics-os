@@ -1226,7 +1226,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(
-    shell.includes('if (retiredTo) window.location.replace("#/" + retiredTo);'),
+    shell.includes("if (retiredTo) window.CHANLY.address.go(retiredTo, { replace: true });"),
     "a real workspace lands on People",
   );
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
@@ -1519,7 +1519,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
     PEOPLE_PAGE.includes('data-testid="list-action"') && PEOPLE_PAGE.includes("window.CHANLY.nav(listStep.to)"),
   );
   assert.ok(
-    PEOPLE_PAGE.includes('window.history.replaceState(null, "", next)') &&
+    PEOPLE_PAGE.includes("window.CHANLY.address.go(next, { replace: true, quiet: true })") &&
       PEOPLE_PAGE.includes('`seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}`'),
     "linkable",
   );

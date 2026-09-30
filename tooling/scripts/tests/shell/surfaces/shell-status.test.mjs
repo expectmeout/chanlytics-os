@@ -13,7 +13,7 @@
  * Now the tab is named from the crumbs the shell draws, most particular first,
  * with what needs you counted in front; one line under the top bar says the one
  * thing that is wrong, on every screen size, with the one press that helps; and
- * the page's hash rides to /login and back. Run without a browser: the words
+ * the page's route rides to /login and back. Run without a browser: the words
  * from contracts, the bridge over a window that keeps its listeners, the shell
  * and the line mounted on a stub React.
  */
@@ -32,6 +32,7 @@ import {
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
+import { historyOf, legacyAddress } from "../../_address.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -166,6 +167,11 @@ const win = {
 /** What the browser would fire. */
 const fire = (type) => win.dispatchEvent({ type });
 globalThis.window = win;
+/** The address moves as the App Router's History leaves it: a push or a replace writes the path and fires nothing. */
+const history = historyOf(win);
+/** What a page reads the address through (data/constants.jsx), and what these tests' own `CHANLY` keeps of it. */
+const address = await legacyAddress();
+win.CHANLY = { nav() {}, address };
 globalThis.document = {
   title: "Chanlytics OS",
   visibilityState: "hidden",
@@ -319,10 +325,11 @@ test("the status is published whenever any part of it changes, and only then", (
   );
 });
 
-test("a session that ends mid-page signs in again to the same page: the hash rides to /login and back", async () => {
-  assert.equal(workspace.signInHref("#/inbox/th-1"), "/login#/inbox/th-1");
+test("a session that ends mid-page signs in again to the same page: the route rides to /login and back", async () => {
+  assert.equal(workspace.signInHref({ hash: "#/inbox/th-1" }), "/login#/inbox/th-1");
+  assert.equal(workspace.signInHref({ pathname: "/w/acme/inbox/th-1", hash: "" }), "/login#/inbox/th-1", "from a path");
   for (const none of ["", "#", undefined, null, "#access_token=abc"])
-    assert.equal(workspace.signInHref(none), "/login", `${none} is not a page`);
+    assert.equal(workspace.signInHref({ pathname: "/w/acme", hash: none }), "/login", `${none} is not a page`);
 
   // The client's 401, on any read or write.
   const page = {
@@ -529,7 +536,7 @@ test("the line under the top bar: a live region that is always there, the words,
   win.__BILLING_ACCOUNT = { dto, fetchedAt: Date.now() };
   win.__billing = { vm: (d, nowMs) => toBillingVM(d, nowMs) };
   const went = [];
-  win.CHANLY = { nav: (to) => went.push(to) };
+  win.CHANLY = { nav: (to) => went.push(to), address };
   win.__SHELL_STATUS = { stale: true, degraded: [] };
   tree = bar();
   assert.match(textOf(tree), /Your receptionist is paused/, "and outranks a newer build");
@@ -561,12 +568,18 @@ for (const name of [
 ])
   globalThis[name] = name;
 
-/** The shell at `hash`, freshly mounted: its tree and the tab's name it left. */
+/** The window at an address (`#/inbox`, as the pages name one), placed at its path, where the frame leaves a route. */
+const placeAt = (hash) => {
+  win.location.pathname = `/w/acme/${hash.replace(/^#\//, "")}`;
+  win.location.hash = "";
+};
+
+/** The shell at an address, freshly mounted at its path: its tree and the tab's name it left. */
 const mount = (hash) => {
   deep = false;
   cells = [];
   frames.begin();
-  win.location.hash = hash;
+  placeAt(hash);
   globalThis.document.title = "Chanlytics OS";
   globalThis.ShellStatusBar = win.ShellStatusBar;
   const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
@@ -899,27 +912,20 @@ test("every view of Leads is one mount: a search, a list, a class or an open lea
   assert.notEqual(at("#/clients/seg:opted_in").key, at("#/clients").key, "People's own views keep the rule they had");
 });
 
-test("a page can say the same place more exactly: a replaced address makes no entry, and the shell follows it at once, with no hashchange to wait for", () => {
+test("a page can say the same place more exactly: a replaced address makes no entry, and the shell follows it at once, with nothing to wait for", () => {
   shell.installShell(win);
   const LEAD = "1ead0000-0000-4000-8000-000000000001";
-  const keepHistory = win.history;
-  const replaced = [];
-  // The browser's own rule: replaceState moves the address and fires nothing.
-  win.history = {
-    replaceState: (_state, _title, url) => {
-      replaced.push(url);
-      win.location.hash = url;
-    },
-  };
+  const before = { pushed: history.pushed.length, replaced: history.replaced.length };
   try {
     const { tree } = mount("#/clients/leads");
     const page = (t) => find(t, (n) => n.type === "ClientsA");
     page(tree).props.onNavigate(`clients/leads:p-${LEAD}`, { replace: true });
     assert.deepEqual(
-      replaced,
-      [`#/clients/leads:p-${LEAD}`],
+      history.replaced.slice(before.replaced),
+      [`/w/acme/clients/leads:p-${LEAD}`],
       "replaced, not pushed: Back must not replay every lead the peek walked through",
     );
+    assert.equal(history.pushed.length, before.pushed, "no entry");
     // Drawn again with the state it kept, as React would after the shell's own setRoute.
     deep = false;
     frames.begin();
@@ -937,10 +943,11 @@ test("a page can say the same place more exactly: a replaced address makes no en
       "the page is handed the address it asked for without waiting for an event that never comes",
     );
     page(again).props.onNavigate("clients/leads");
-    assert.equal(win.location.hash, "/clients/leads", "and a plain navigation is still the hash's, pushed");
-    assert.equal(replaced.length, 1);
+    assert.equal(win.location.pathname, "/w/acme/clients/leads", "and a plain navigation is still pushed");
+    assert.equal(history.pushed.at(-1), "/w/acme/clients/leads");
+    assert.equal(history.replaced.length, before.replaced + 1);
   } finally {
-    win.history = keepHistory;
+    win.location.pathname = "/w/acme";
   }
 });
 
@@ -955,12 +962,12 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
       h.backs += 1;
     },
   };
-  win.history = h;
+  win.history = { ...keepHistory, back: () => h.back() };
   win.__PEOPLE = { rows: [{ id: "p-1", name: "Rosa Díaz" }] };
-  // The shell drawn again with the state it kept, after the browser moved its address (hashchange), as React would.
+  // The shell drawn again with the state it kept, after the browser moved its address (popstate), as React would.
   const arrive = (hash) => {
-    win.location.hash = hash;
-    fire("hashchange");
+    win.location.pathname = `/w/acme/${hash.replace(/^#\//, "")}`;
+    fire("popstate");
     deep = false;
     frames.begin();
     const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
@@ -970,28 +977,28 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   const profileBack = (tree) => find(tree, (n) => n.type === "ClientProfile").props.onBack();
   try {
     find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
-    assert.equal(win.location.hash, "/clients/p-1", "the profile is a new entry");
+    assert.equal(win.location.pathname, "/w/acme/clients/p-1", "the profile is a new entry");
     profileBack(arrive("#/clients/p-1"));
-    assert.equal(h.backs, 1, "REGRESSION: Back pushed #/clients, a second entry, and the list they came from was gone");
-    assert.equal(win.location.hash, "#/clients/p-1", "nothing pushed: the browser's Back is what returns");
+    assert.equal(h.backs, 1, "REGRESSION: Back pushed /clients, a second entry, and the list they came from was gone");
+    assert.equal(win.location.pathname, "/w/acme/clients/p-1", "nothing pushed: the browser's Back is what returns");
 
     // Reached by a link or a reload: People itself, pushed.
     h.backs = 0;
     profileBack(mount("#/clients/p-1").tree);
-    assert.deepEqual([h.backs, win.location.hash], [0, "/clients"], "by a link: People");
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/clients"], "by a link: People");
     // Opened from another page's door: People, never a Back out to the Inbox.
     mount("#/inbox/th-1");
     win.appNavigate("clients/p-1");
     profileBack(arrive("#/clients/p-1"));
-    assert.deepEqual([h.backs, win.location.hash], [0, "/clients"], "from the Inbox: People");
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/clients"], "from the Inbox: People");
     // Back to the profile from somewhere else: the entry before it is not known to be the list, so People.
     find(mount("#/clients/list:L1").tree, (n) => n.type === "ClientsA").props.onOpenProfile("p-1");
     arrive("#/clients/p-1");
     win.appNavigate("calendar");
     profileBack(arrive("#/clients/p-1"));
     assert.deepEqual(
-      [h.backs, win.location.hash],
-      [0, "/clients"],
+      [h.backs, win.location.pathname],
+      [0, "/w/acme/clients"],
       "Back from the Calendar, then Back to People: People",
     );
   } finally {
@@ -1073,11 +1080,8 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
 test("REGRESSION (N16): an address under soon/ opens a page that has shipped, and a name nothing answers to is not found -- #/soon/calendar said the Calendar was not in this release", async () => {
   shell.installShell(win);
   const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  const replaced = [];
-  const keepReplace = win.location.replace;
-  win.location.replace = (to) => {
-    replaced.push(to);
-  };
+  const from = history.replaced.length;
+  const replaced = () => history.replaced.slice(from);
   win.__surfaceState = reg.surfaceStateFor;
   const shows = (tree, name) =>
     find(tree, (n) => n.type === name || (typeof n.type === "function" && n.type.name === name)) !== undefined;
@@ -1088,8 +1092,8 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       "REGRESSION: a shipped page answered that it was not in this release",
     );
     assert.deepEqual(
-      replaced,
-      ["#/calendar"],
+      replaced(),
+      ["/w/acme/calendar"],
       "and the address becomes the page's own, in place, so Back does not land on it again",
     );
     assert.ok(shows(mount("#/soon/fleet").tree, "ComingSoon"), "a page kept for the demo still says so");
@@ -1098,14 +1102,13 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
       shows(tree, "NotFound") && !shows(tree, "ComingSoon"),
       "a name nothing answers to is not found, rather than promised",
     );
-    replaced.length = 0;
+    const now = history.replaced.length;
     delete win.__surfaceState;
     assert.ok(
-      shows(mount("#/soon/calendar").tree, "ComingSoon") && replaced.length === 0,
+      shows(mount("#/soon/calendar").tree, "ComingSoon") && history.replaced.length === now,
       "the standalone mockup, with no registry, keeps its landings",
     );
   } finally {
-    win.location.replace = keepReplace;
     for (const k of ["__surfaceState", "__DEMO_MODE"]) delete win[k];
   }
 });
@@ -1147,7 +1150,7 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
     deep = false;
     cells = [];
     frames.begin();
-    win.location.hash = "#/today";
+    placeAt("#/today");
     globalThis.ShellStatusBar = win.ShellStatusBar;
     const shellTree = win.ChanlyticsApp({
       theme: "dark",
@@ -1200,7 +1203,7 @@ test("the look travels as the theme does: stamped beside it on every root the sh
     deep = false;
     cells = [];
     frames.begin();
-    win.location.hash = hash;
+    placeAt(hash);
     globalThis.ShellStatusBar = win.ShellStatusBar;
     const theme = { theme: "light", themePref: "light", onTheme() {} };
     return win.ChanlyticsApp({ ...theme, look: "glass", onLook, sidebar: "open", onSidebar() {} });
@@ -1256,7 +1259,7 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   try {
     deep = false;
     cells = [];
-    win.location.hash = "#/start/phone";
+    placeAt("#/start/phone");
     // The shell's own keys, as this draw installs them (an earlier draw's handlers are its own).
     const before = new Set(heard.get("keydown") ?? []);
     let tree = draw();
@@ -1296,7 +1299,7 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
     );
     // Everywhere else the chrome draws it once, as it always has.
     cells = [];
-    win.location.hash = "#/today";
+    placeAt("#/today");
     assert.equal(bars(draw()).length, 1, "Today: the one palette, in the chrome");
   } finally {
     deep = true;
@@ -1407,7 +1410,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   assert.equal(clocks, 1, "a call up: the clock runs");
   assert.match(textOf(bar), /On the phone now · Rosa/);
   const went = [];
-  win.CHANLY = { nav: (to) => went.push(to) };
+  win.CHANLY = { nav: (to) => went.push(to), address };
   bar.props.onClick();
   assert.deepEqual(went, ["live/c-live"], "REGRESSION: it opened the list, so a second call would be a guess");
 
@@ -1501,19 +1504,19 @@ test("a list's own route lands on People with that list picked, and the address 
   };
   win.__listRoute = (id) =>
     id === "s1" ? "clients/list:s1" : id === "needs_you" ? "clients/seg:needs_you" : "clients";
-  const replaced = [];
-  win.location.replace = (hash) => replaced.push(hash);
+  const from = history.replaced.length;
+  const replaced = history.replaced;
   try {
     const kept = mount("#/segments/s1");
     const page = find(kept.tree, (n) => n.type === "ClientsA");
     assert.ok(page, "People is what draws");
     assert.deepEqual([page.props.initialSaved, page.props.initialSegment], ["s1", null], "with the kept list picked");
     assert.equal(kept.title, "Regulars · People · Chanlytics", "named for the list, under People");
-    assert.deepEqual(replaced, ["#/clients/list:s1"], "the address says where it landed");
+    assert.deepEqual(replaced.slice(from), ["/w/acme/clients/list:s1"], "the address says where it landed");
     const smart = mount("#/segments/needs_you");
     assert.deepEqual(
       [find(smart.tree, (n) => n.type === "ClientsA").props.initialSegment, replaced.at(-1)],
-      ["needs_you", "#/clients/seg:needs_you"],
+      ["needs_you", "/w/acme/clients/seg:needs_you"],
       "a smart list too",
     );
     const gone = mount("#/segments/nope");
@@ -1522,12 +1525,11 @@ test("a list's own route lands on People with that list picked, and the address 
       null,
       "a list that is not here is People itself",
     );
-    assert.equal(replaced.at(-1), "#/clients");
+    assert.equal(replaced.at(-1), "/w/acme/clients");
     assert.ok(!find(gone.tree, (n) => n.type === "SegmentsPage"), "never the seeded Segments page on a real workspace");
   } finally {
     delete win.__PEOPLE;
     delete win.__listRoute;
-    delete win.location.replace;
   }
 });
 
@@ -1536,8 +1538,8 @@ test("the old route on a cold load: the People surface is still on its way, so t
   // surface had landed, found no window.__PEOPLE, returned, and had no reason to run again.
   win.__listRoute = (id) => (id === "s1" && win.__PEOPLE ? "clients/list:s1" : "clients");
   win.__surfaceState = () => "real";
-  const replaced = [];
-  win.location.replace = (hash) => replaced.push(hash);
+  const from = history.replaced.length;
+  const replaced = () => history.replaced.slice(from);
   try {
     const cold = mount("#/segments/s1");
     assert.ok(
@@ -1548,22 +1550,25 @@ test("the old route on a cold load: the People surface is still on its way, so t
       !find(cold.tree, (n) => n.type === "SegmentsPage"),
       "never the seeded Segments page while the surface is on its way",
     );
-    assert.deepEqual(replaced, [], "nothing to land on yet: which list s1 names is the surface's to say");
+    assert.deepEqual(replaced(), [], "nothing to land on yet: which list s1 names is the surface's to say");
     win.__PEOPLE = { rows: [], lists: [], saved: [{ id: "s1", name: "Regulars", ids: [] }] };
     fire("surface:clients");
-    assert.deepEqual(replaced, ["#/clients/list:s1"], "the moment the surface lands, the address says where it landed");
+    assert.deepEqual(
+      replaced(),
+      ["/w/acme/clients/list:s1"],
+      "the moment the surface lands, the address says where it landed",
+    );
     fire("surface:clients");
     fire("surface:people");
     assert.deepEqual(
-      replaced,
-      ["#/clients/list:s1"],
+      replaced(),
+      ["/w/acme/clients/list:s1"],
       "once: a later page of People, or its refresh, does not replace the address again",
     );
   } finally {
     delete win.__PEOPLE;
     delete win.__listRoute;
     delete win.__surfaceState;
-    delete win.location.replace;
   }
 });
 
@@ -1731,8 +1736,8 @@ test("a move that stays on the page -- People to Leads and back -- draws without
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
   const go = (hash) => {
-    win.location.hash = hash;
-    fire("hashchange");
+    placeAt(hash);
+    fire("popstate");
     deep = false;
     frames.begin();
     const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
@@ -1768,8 +1773,8 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
   const go = (hash) => {
-    win.location.hash = hash;
-    fire("hashchange");
+    placeAt(hash);
+    fire("popstate");
     deep = false;
     frames.begin();
     const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
@@ -1785,7 +1790,7 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
     assert.deepEqual([page(tree).props.scope, page(tree).props.key], ["pipeline", "pipeline"]);
     assert.deepEqual(crumbs(tree), [{ label: "People", to: "clients" }, "Pipeline"]);
     page(tree).props.onOpenProfile("p-1");
-    assert.equal(win.location.hash, "/clients/p-1", "a row opens its person");
+    assert.equal(win.location.pathname, "/w/acme/clients/p-1", "a row opens its person");
     const people = mount("#/clients");
     assert.notEqual(mountKey(tree), mountKey(people.tree), "the Pipeline and People are two mounts, as Leads is");
     // One page, three scopes: moving between them draws at once, as People and Leads do.

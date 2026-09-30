@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { movedAddress, routeOfAddress } from "@chanlytics/contracts";
 import { api } from "./api";
 import { homeHref, lastWorkspace } from "./workspace";
@@ -92,6 +92,32 @@ function useLoaded(): boolean {
 }
 
 /**
+ * A hash address moved to its path: `/w/acme#/inbox`, which an email's link, the phone app's and a bookmark say, is
+ * `/w/acme/inbox` before the frame draws, and keeps working for ever (contracts movedAddress). Through the router:
+ * the fragment is the browser's and never reaches the server, so the move is the client's, and it is done when the
+ * path says the route. An address that needs no move is placed at once. Mounted only until then, so the frame does not
+ * follow the path through this hook afterwards: it follows the address itself (workspace.ts hearAddress).
+ */
+function MovedOnLoad({ onPlaced }: { onPlaced: () => void }): null {
+  const router = useRouter();
+  const pathname = usePathname();
+  useEffect(() => {
+    const to = movedAddress({ pathname, search: window.location.search, hash: window.location.hash });
+    if (to) router.replace(to);
+    else onPlaced();
+  }, [pathname, router, onPlaced]);
+  return null;
+}
+
+/**
+ * The frame, drawn once: the layout's children change with every route, and the frame does not draw again for a
+ * route it follows itself.
+ */
+const Frame = memo(function Frame() {
+  return <LegacyApp />;
+});
+
+/**
  * The frame's host, or the home that sends a tab to its workspace's address.
  *
  * On /w/<slug> the layout mounts the frame once and keeps it mounted across every navigation (decision 0015: the
@@ -99,23 +125,12 @@ function useLoaded(): boolean {
  * home, the tab goes to the last workspace this browser used, else to the one the server calls active, with the
  * query and the route riding along; only an account with no workspace stays here, where the app shows the create
  * screen.
- *
- * A hash address (`/w/acme#/inbox`: an email's link, the phone app's, a bookmark) is moved to its path before the
- * frame draws, and keeps working for ever (contracts movedAddress). Through the router: the fragment is the browser's
- * and never reaches the server, so the move is the client's, and it waits for the path to say the route.
  */
 export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
   const loaded = useLoaded();
-  const router = useRouter();
-  const pathname = usePathname();
   const [placed, setPlaced] = useState(home);
-  useEffect(() => {
-    if (home) return;
-    const to = movedAddress({ pathname, search: window.location.search, hash: window.location.hash });
-    if (to) router.replace(to);
-    else setPlaced(true);
-  }, [home, pathname, router]);
+  const place = useCallback(() => setPlaced(true), []);
   useEffect(() => {
     let unhook: (() => void) | null = null;
     let gone = false;
@@ -143,7 +158,14 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       cancelled = true;
     };
   }, [home]);
-  if (!stay || !placed) return <Loading />;
+  if (!stay) return <Loading />;
+  if (!placed)
+    return (
+      <>
+        <Loading />
+        <MovedOnLoad onPlaced={place} />
+      </>
+    );
   // The home's own load is the redirect's, so only a workspace's address reports its timings.
   return (
     <>
@@ -152,7 +174,7 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
           <FieldDataReporter landedOn={landedOn} />
         </Suspense>
       )}
-      <LegacyApp />
+      <Frame />
       {children}
     </>
   );

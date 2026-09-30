@@ -1129,7 +1129,7 @@ const PL_DEFAULT_GROUPS = [{ id: "attention", label: "Attention" }, { id: "journ
 // People surface's dealsOn, contracts dealsAreOn, 0008) -- a workspace whose customers book is never offered one.
 const PL_SCOPES = [{ id: "people", label: "People" }, { id: "leads", label: "Leads" }, { id: "pipeline", label: "Pipeline" }];
 const plScopes = (dealsOn) => (dealsOn ? PL_SCOPES : PL_SCOPES.slice(0, 2));
-// Where the switch goes: each scope is an address of People's (app-shell.jsx). `#/pipeline` is the retired demo board's
+// Where the switch goes: each scope is an address of People's (app-shell.jsx). `/pipeline` is the retired demo board's
 // address, which still lands on People; the Pipeline scope is `clients/pipeline`.
 const plScopeRoute = (to) => (to === "leads" ? "clients/leads" : to === "pipeline" ? "clients/pipeline" : "clients");
 
@@ -2652,15 +2652,15 @@ const peopleListDoors = ({ plFlash, setListId, setSavedId, setMadeId, setListsOp
 // The Pipeline's address draws People where deals are off (app-shell.jsx), and People's own address takes its place.
 const usePeopleAddress = (listId, savedId, tab) => {
   React.useEffect(() => {
-    const cur = (window.location.hash || "").replace(/^#\/?/, "");
+    const cur = window.CHANLY.address.route();
     if (!cur.startsWith("clients")) return;
     // The New list door's address stands while the box is what it opened; once a list is made (or any view picked),
     // the address is that view's, so a reload opens the list and not the box again.
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
     if (cur === "clients/new-list" && !want) return;
     if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
-    const next = want ? `#/clients/${want}` : "#/clients";
-    if (window.location.hash !== next) window.history.replaceState(null, "", next);
+    const next = want ? `clients/${want}` : "clients";
+    if (cur !== next) window.CHANLY.address.go(next, { replace: true, quiet: true });
   }, [listId, savedId, tab]);
 };
 // When the page does not hold everyone (past the fifty pages the surface

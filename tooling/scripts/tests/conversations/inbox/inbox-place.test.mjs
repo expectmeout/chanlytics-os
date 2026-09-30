@@ -15,6 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../../_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 
@@ -81,7 +82,7 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
+  CHANLY: { nav() {}, R: {}, address: await legacyAddress(), IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
   addEventListener: (type, fn) => {

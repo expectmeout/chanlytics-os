@@ -343,7 +343,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
     }
     if (peekId === addrPeek) return;
     const want = P.route({ view, peek: peekId });
-    // Said once: a push is answered a task later (hashchange), and every draw until then finds the address as it was.
+    // Said once: the shell follows a push in its next draw, and every draw until then finds the address as it was.
     if (a.asked === want) return;
     a.asked = want;
     if (peekId && !addrPeek && !a.pushed) { a.pushed = true; nav(want); }

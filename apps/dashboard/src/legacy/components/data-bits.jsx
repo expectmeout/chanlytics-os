@@ -884,7 +884,7 @@ const routeDoor = (to, go = null) => {
   const person = RD_PERSON.exec(to);
   const warm = person ? () => { if (window.__warmPerson) window.__warmPerson(person[1]); } : null;
   return {
-    href: `#/${to}`,
+    href: window.CHANLY && window.CHANLY.address ? window.CHANLY.address.href(to) : `#/${to}`,
     onClick: (e) => {
       if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
       if (e && e.preventDefault) e.preventDefault();

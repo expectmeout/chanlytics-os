@@ -163,8 +163,14 @@ export function hearAddress(fn: () => void, win: AddressWindow = window): () => 
 }
 
 export interface GoOptions {
-  /** A page saying the same place more exactly: no entry in the history, and the shell follows at once. */
+  /** A page saying the same place more exactly, or a redirect: no entry in the history. Listeners are told. */
   replace?: boolean;
+  /**
+   * With `replace`: the page is saying where it stands, not arriving (a lead the peek walked on to), so no listener
+   * is told. The shell that asked follows at once, in its own hand. A hash replaced by `history.replaceState` fired no
+   * `hashchange` either.
+   */
+  quiet?: boolean;
 }
 
 /**
@@ -179,7 +185,7 @@ export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindo
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
   if (opts.replace) win.history.replaceState(null, "", to);
   else if (here !== to) win.history.pushState(null, "", to);
-  notifyAddress();
+  if (!(opts.replace && opts.quiet)) notifyAddress();
 }
 
 /** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */

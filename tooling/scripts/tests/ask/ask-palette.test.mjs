@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { legacyAddress } from "../_address.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -201,7 +202,10 @@ await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = globalThis.window.Confirm;
 /** What the palette flashed, in order. */
 const flashed = [];
-Object.assign(globalThis.window, { usePPToast: () => [null, (m) => flashed.push(m)], CHANLY: { nav() {}, R: {} } });
+Object.assign(globalThis.window, {
+  usePPToast: () => [null, (m) => flashed.push(m)],
+  CHANLY: { nav() {}, R: {}, address: await legacyAddress() },
+});
 await import("../../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-home.jsx");
