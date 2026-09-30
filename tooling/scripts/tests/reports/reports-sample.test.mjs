@@ -1,12 +1,11 @@
 /**
- * The demo's Reports, EXECUTED: a sample business through the contracts functions a real workspace's numbers go
- * through. The same day gives the same numbers, and every total agrees with its parts, because a demo that adds up
+ * The demo's Reports (surfaces/reports/sample.ts, which the page imports and draws in a demo session), EXECUTED: a
+ * sample business through the contracts functions a real workspace's numbers go through. The same day gives the same numbers, and every total agrees with its parts, because a demo that adds up
  * wrong teaches the viewer to distrust the real page.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import vm from "node:vm";
-import { reportsSample } from "../../../../apps/dashboard/src/legacy-bridge/reports-sample.ts";
+import { reportsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 const TODAY = "2026-09-18";
 
@@ -76,14 +75,4 @@ test("it is a report worth showing: traffic, a period before to compare with, ca
     assert.ok(s.campaigns && !s.campaigns.empty && s.campaigns.totals.sent > 0, `${days}: something went out`);
     assert.ok(s.facts.length >= 1 && s.facts.length <= 3, `${days}: Worth knowing has something to say`);
   }
-});
-
-test("the mockup's bundle publishes the same sample, so the demo draws the page a workspace draws", async () => {
-  // serve-legacy.mjs builds data/reports-sample.js from the same file, with contracts from its dist.
-  const { reportsSampleBundle } = await import("../../serve-legacy.mjs");
-  const win = {};
-  vm.runInNewContext(await reportsSampleBundle(), { window: win, console });
-  const plain = (x) => JSON.parse(JSON.stringify(x));
-  for (const days of [7, 30, 90])
-    assert.deepEqual(plain(win.__reportsSample(days, TODAY)), plain(reportsSample(days, TODAY)), `${days} days`);
 });

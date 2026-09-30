@@ -1,4 +1,4 @@
-/* global React, Icon, Inbox, ClientsA, ClientProfile, SettingsPage, ReportsPage, CalendarPage, LiveMonitorPage, ConversationsPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
+/* global React, Icon, Inbox, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, ConversationsPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -282,13 +282,6 @@ const drawTasks = () => ({
   content: demoPage("TasksPage"),
 });
 
-const drawReports = () => ({
-  activeNav: "reports",
-  crumbs: ["Reports"],
-  pane: true,
-  content: <ReportsPage />,
-});
-
 const drawCalendar = ({ param, openAsk }) => {
   // The demo names its seeded appointment; a real calendar is never named from the seeds.
   const apptWho = !window.__CALENDAR && param && param.startsWith("a-") && (((window.CALENDAR_DATA || {}).CAL_WEEK || []).flatMap(d => d.appts).find(a => a.id === param) || {}).who;
@@ -528,7 +521,6 @@ const SHELL_ROUTES = [
   { page: "start", mount: "start", draw: drawStart },
   { page: "admin", mount: "admin", draw: drawSettings },
   { page: "tasks", draw: drawTasks },
-  { page: "reports", draw: drawReports },
   { page: "calendar", draw: drawCalendar },
   { page: "live", mount: "live", draw: drawLive },
   { page: "conversations", mount: "conversations", draw: drawConversations },
@@ -554,7 +546,11 @@ const SHELL_ROUTES = [
  */
 const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
-  const drawn = { pane: false, primaryAction: null, ...(row ? row.draw(r) : drawNotFound(r)), mountKey: (row && row.mount) || r.routeKey };
+  // A route that has left the shell (an App Router page, src/surfaces/routes.ts) has no row: the frame draws its chrome
+  // around the page the layout gave it (`routePage`), by what the registry says of the route.
+  const surface = !row && !r.param && r.surfaceRoutes ? r.surfaceRoutes[r.page] : null;
+  const answer = surface ? { ...surface, content: r.routePage } : row ? row.draw(r) : drawNotFound(r);
+  const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || r.routeKey };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 

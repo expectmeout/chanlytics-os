@@ -63,7 +63,7 @@ const REAL = [
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
   (await importSrc(`${S}/people.ts`)).peopleOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/leads.ts")).leadsOverride,
-  (await importSrc(`${S}/reports.ts`)).reportsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
   (await importSrc(`${S}/live.ts`)).liveOverride,
   (await importSrc(`${S}/broadcasts.ts`)).broadcastsOverride,
   (await importSrc(`${S}/playbooks.ts`)).playbooksOverride,

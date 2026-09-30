@@ -440,18 +440,47 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
   assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
 });
 
-test("the mockup draws Reports and Today from their samples, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
-  // Plain scripts, outside the .jsx lists above: the bridge never loads them, because a workspace draws its own numbers.
+test("the mockup takes the kit's components and Today's sample from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
+  // Plain scripts, outside the .jsx lists above: the bridge never loads them (the app publishes the kit's components from
+  // seed-globals, and a workspace draws its own numbers).
   const tags = [...html.matchAll(/<script[^>]*\bsrc="([^"?]+)[^"]*"/g)].map((m) => m[1]);
   assert.equal(
     tags[tags.indexOf(STUBS) + 1],
-    "data/reports-sample.js",
-    "the demo's Reports reads window.__reportsSample",
+    "data/kit-globals.js",
+    "the pages here read Icon, EmptyState, FailedRead and SegmentBar by name, which the kit has drawn since decision 0015",
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 2],
     "data/today-sample.js",
     "the demo's Today reads what installTodaySample published",
+  );
+});
+
+test("the kit's bundle publishes the kit's own components on the page's React, under the names the pages read", async () => {
+  const { kitGlobalsBundle } = await import("../../serve-legacy.mjs");
+  // The page's React, as the harness loads it: the bundle takes its hooks and its elements from this and brings none.
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (v) => [v, () => {}],
+    useRef: (v) => ({ current: v }),
+    useLayoutEffect() {},
+    useEffect() {},
+  };
+  const win = { React };
+  // In the browser `window` is the global scope, so the bundle's bare `React` is the page's.
+  vm.runInNewContext(await kitGlobalsBundle(), { window: win, React, console });
+  for (const name of ["Icon", "EmptyState", "FailedRead", "SegmentBar"])
+    assert.equal(typeof win[name], "function", `${name} is published`);
+  assert.equal(
+    win.Icon({ name: "check", size: 12 }).type,
+    "svg",
+    "a glyph is an <svg> from the page's own createElement",
+  );
+  assert.equal(win.Icon({ name: "no-such-glyph" }).children.length, 1, "an unknown name is the circle");
+  assert.equal(
+    win.SegmentBar({ title: "T", rows: [{ key: "a", value: 0 }], config: {} }),
+    null,
+    "a bar of nothing is nothing",
   );
 });
 

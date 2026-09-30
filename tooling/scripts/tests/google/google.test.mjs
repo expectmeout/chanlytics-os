@@ -858,12 +858,11 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT"]]);
   // The finder is the first run's Find (first-run-page.test.mjs runs it); Setup's row opens it.
-  const reports = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
+  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
+  // The page draws the section under the period (executed: reports-page.test.mjs, Google's reviews under the period).
   assert.ok(
-    reports.includes("<GoogleSection days={R.days} />") &&
-      reports.includes(
-        "if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing) || !window.__google) return null;",
-      ),
+    reports.includes('useSurface("google")') &&
+      reports.includes("if (!G || (!G.dto.ready.places && !G.dto.ready.profile && !G.dto.listing)) return null;"),
   );
   assert.ok(
     reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),

@@ -18,11 +18,15 @@
  */
 
 import { clearReadCaches } from "./read-cache";
+import { restoreSurfaceValue, surfaceValue } from "../surfaces/surface-values";
+import type { SurfaceKey } from "../surfaces/surface-values";
 import { clearTabMemory } from "./tab-memory";
 import { publicEnv } from "@/lib/public-env";
 
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
 const CACHE_NAME = "chanlytics.surfaces.v1";
+/** Where a surface's typed value (surface-values.ts) sits in its snapshot, beside the window globals it also owns. */
+const VALUE_SLOT = "$value";
 const BUILD = publicEnv.NEXT_PUBLIC_BUILD_SHA;
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
@@ -150,7 +154,10 @@ export function hydrateSurfaceCache(): Set<string> {
   const w = window as unknown as Record<string, unknown>;
   for (const [key, globals] of Object.entries(blob.surfaces)) {
     try {
-      for (const [name, value] of Object.entries(globals)) w[name] = value;
+      for (const [name, value] of Object.entries(globals)) {
+        if (name === VALUE_SLOT) restoreSurfaceValue(key, value);
+        else w[name] = value;
+      }
       restored.add(key);
     } catch {
       /* one bad surface must not stop the others */
@@ -170,18 +177,22 @@ function globalsNow(globals: string[]): Record<string, unknown> {
 }
 
 /**
- * Persist the globals a surface owns, after its apply succeeded. `trim` is the surface's own say over what the cache
- * holds of it (Leads: its first hundred rows, which is all an instant paint needs); the window's globals are untouched.
+ * Persist the globals a surface owns, and its typed value where it has one (`value`, the key it is published under),
+ * after its apply succeeded. `trim` is the surface's own say over what the cache holds of it (Leads: its first hundred
+ * rows, which is all an instant paint needs); the window's globals are untouched.
  */
 export function snapshotSurface(
   key: string,
   globals: string[],
   tenant: string | null,
   trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
+  value?: SurfaceKey,
 ): void {
-  if (!globals.length || sealed) return;
+  if ((!globals.length && !value) || sealed) return;
   const was = current();
   const snap = globalsNow(globals);
+  const typed = value ? surfaceValue(value) : undefined;
+  if (typed !== undefined) snap[VALUE_SLOT] = typed;
   // A new object over the one kept, never the kept one changed: what was written stays what it says.
   keep({
     build: BUILD,

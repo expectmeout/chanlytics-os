@@ -18,6 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -325,8 +326,7 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
-globalThis.EmptyState = globalThis.window.EmptyState;
-globalThis.FailedRead = globalThis.window.FailedRead;
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 globalThis.PolicyChip = globalThis.window.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);

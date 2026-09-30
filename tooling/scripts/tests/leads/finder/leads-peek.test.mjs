@@ -99,9 +99,11 @@ globalThis.window = {
   // The one colour vocabulary, as the app publishes it: the verdict's pill takes its tone from here.
   __chrome: { state: stateOf },
 };
-await import("../../../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Icon = globalThis.window.Icon;
+// The real glyphs, the kit's now (surfaces/kit/icon): a page's icon draws as it did.
+globalThis.Icon = globalThis.window.Icon = (
+  await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")
+).Icon;
 globalThis.StatePill = globalThis.window.StatePill;
 // Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
 globalThis.MoreMenu = globalThis.window.MoreMenu;

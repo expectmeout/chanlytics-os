@@ -6,8 +6,8 @@
  * a whole-page reload on Team, red text on Activity, silence on Conversations,
  * Today, Broadcasts and Playbooks -- and on Reports one failed read of two
  * failed the whole surface, so the page's own "could not be read" line could
- * never render (the audit's D9). Two primitives now (data-bits.jsx EmptyState
- * and FailedRead), a Retry that re-reads one surface through the runner, and
+ * never render (the audit's D9). Two primitives now (the kit's EmptyState
+ * and FailedRead, surfaces/kit/empty), a Retry that re-reads one surface through the runner, and
  * per-read catches in the overrides. Run here: the primitives mounted, the
  * view models' read flags, the Reports override executed against a fake wire
  * with its campaigns read failing, and two pages drawn with a failed part.
@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM, reportFacts } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -121,6 +122,8 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
+Object.assign(globalThis.window, kitPages);
 const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;
 Object.assign(globalThis, { EmptyState, FailedRead, MoreMenu, StatePill });
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
@@ -155,7 +158,7 @@ const byClass = (tree, cls) => {
 const byType = (tree, type) => {
   let hit = null;
   walk(tree, (n) => {
-    if (!hit && n.type === type) hit = n;
+    if (!hit && (n.type === type || n.type?.name === type)) hit = n;
   });
   return hit;
 };
@@ -373,7 +376,7 @@ const realConsoleError = console.error;
 console.error = (...a) => {
   errors.push(a.map(String).join(" "));
 };
-const { reportsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/reports.ts");
+const { reportsOverride } = await import("../../../../apps/dashboard/src/surfaces/reports/surface.ts");
 console.error = realConsoleError;
 
 test("REGRESSION (D9): a campaigns read that fails leaves the report standing with campaigns null -- it used to fail the whole surface, and the page went blank", async () => {
@@ -498,7 +501,7 @@ test("a period the page has read paints at once when picked again and is read ag
   // The loading standard's held views on Reports: the page held one period, so going back to one it had shown was a
   // read of its own, and the old period stayed dimmed under the new tab until it landed.
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  const { setReportRange } = await import("../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const { setReportRange } = await import("../../../../apps/dashboard/src/surfaces/reports/period.ts");
   const parked = [];
   const asked = [];
   globalThis.window.fetch = async (url) => {

@@ -293,8 +293,7 @@ test("the two glyphs the tones need exist, and are not the fallback circle", asy
     type,
     props: { ...(p || {}), children: kids.flat(Infinity) },
   });
-  await import("../../../../apps/dashboard/src/legacy/components/icons.jsx");
-  const Icon = globalThis.window.Icon;
+  const { Icon } = await import("../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
   const draw = (name) => JSON.stringify(Icon({ name }));
   const fallback = draw("no-such-glyph");
   for (const name of ["info", "error", "check", "alert"]) {

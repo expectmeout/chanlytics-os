@@ -1205,10 +1205,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   // The assistant answers who booked and who never did: people.search runs over a feed in ask-turn.test.mjs, its
   // Booked and Asked, never booked lists judged over the People page's own rows.
-  const sd = [
-    "apps/dashboard/src/legacy-bridge/surfaces/people.ts",
-    "apps/dashboard/src/legacy-bridge/surfaces/reports.ts",
-  ]
+  const sd = ["apps/dashboard/src/legacy-bridge/surfaces/people.ts", "apps/dashboard/src/surfaces/reports/surface.ts"]
     .map((p) => readCode(p))
     .join("\n");
   assert.ok(
@@ -1236,7 +1233,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "the column and the tips",
   );
   assert.ok(!PEOPLE_PAGE.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports-sections.jsx").includes('testid="chart-booking"'));
+  assert.ok(readCode("apps/dashboard/src/surfaces/reports/sections.tsx").includes('testid="chart-booking"'));
 });
 
 test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", async () => {

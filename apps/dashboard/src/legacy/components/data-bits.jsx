@@ -1110,87 +1110,7 @@ const Confirm = ({ question, detail = null, yes = "Yes", no = "No", onYes, onNo,
     </span>
   );
 };
-// ---- EmptyState — the one way "nothing here" is said ------------------------
-// Thirteen classes said it before, each with its own glyph, size and colour,
-// and one of them offered a next step. One shape: a glyph, a title, a line
-// of body, and the next thing to do -- given whenever the reader can do
-// something about it. `kind`: "page" centres it in a whole pane, "card" sits
-// in a card or a rail, "line" is one sentence in a table or a list (with
-// className="empty-center" to centre it in a table cell).
-//   <EmptyState kind="page" glyph="inbox" title="Inbox zero" body="…"
-//               action={{ label: "See what it handled", to: "conversations" }} />
-// `action.to` navigates (window.CHANLY.nav), `action.onClick` runs, and
-// `action.gate` carries the honesty gate's props; `also` is a quieter second;
-// `tone="ok"` is the green check of a day with nothing left to do.
-const EmptyState = ({ kind = "card", glyph = null, title = null, body = null, action = null, also = null, tone = null, className = "", testid = null, children = null }) => {
-  const go = (a) => () => { if (a.onClick) a.onClick(); else if (a.to && window.CHANLY) window.CHANLY.nav(a.to); };
-  const size = kind === "page" ? 24 : kind === "card" ? 16 : 13;
-  const act = (a, primary) => (
-    <button
-      type="button"
-      className={kind === "line" ? "cl-bucket-link" : primary ? (kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm") : "btn btn-ghost btn-sm"}
-      onClick={go(a)}
-      data-testid={a.testid || undefined}
-      // An act that opens a record fold carries the fold's id, where the fold gives focus back as it closes
-      // (record-fold.jsx data-rec-act): the Business tab's "Set up the receptionist".
-      data-rec-act={a.recAct || undefined}
-      {...(a.gate || {})}
-    >
-      {a.label}{kind === "line" && <Icon name="arrow-right" size={10} />}
-    </button>
-  );
-  return (
-    <div className={`empty empty-${kind}${tone ? ` empty-${tone}` : ""}${className ? ` ${className}` : ""}`} data-testid={testid || undefined}>
-      {glyph && <div className="empty-glyph"><Icon name={glyph} size={size} /></div>}
-      <div className="empty-words">
-        {title && <div className="empty-title">{title}</div>}
-        {body && <div className="empty-body">{body}</div>}
-        {children}
-      </div>
-      {(action || also) && (
-        <div className="empty-acts">
-          {action && act(action, true)}
-          {also && act(also, false)}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---- FailedRead — the one way "couldn't read" is said ------------------------
-// Never as "nothing there". A read that failed is its own state -- the
-// audit's D9: Reports went blank when one of its two reads failed; Today,
-// Conversations, Broadcasts and Playbooks kept silent; Team reloaded the
-// whole page. The same three kinds as EmptyState, the alert glyph, a Retry
-// that re-reads the surface, and the sentence that the rest is current.
-//   <FailedRead kind="card" what="your team" surface="settings" />
-//   <FailedRead kind="line" what="the calls" onRetry={fn} busy={busy} />
-// `surface` retries through window.__refreshSurface(key); `onRetry` runs
-// instead; neither, and there is nothing to press (a state support repairs).
-const FailedRead = ({ kind = "card", what = "this", why = null, title = null, body = null, surface = null, onRetry = null, busy = false, also = null, className = "", testid = null, retryTestid = null, children = null }) => {
-  const retry = onRetry || (surface && window.__refreshSurface ? () => window.__refreshSurface(surface) : null);
-  const reason = why ? `${String(why).replace(/\.?\s*$/, "")}. ` : "";
-  return (
-    <div className={`empty empty-${kind} empty-failed${className ? ` ${className}` : ""}`} role="status" data-testid={testid || undefined}>
-      <div className="empty-glyph"><Icon name="alert" size={kind === "page" ? 24 : kind === "card" ? 16 : 13} /></div>
-      <div className="empty-words">
-        <div className="empty-title">{title || `Couldn't read ${what}`}</div>
-        <div className="empty-body">{body ? <>{reason}{body}</> : <>{reason}Everything else here is current, and the receptionist keeps working.</>}</div>
-        {children}
-      </div>
-      {(retry || also) && (
-        <div className="empty-acts">
-          {retry && (
-            <button type="button" className={kind === "line" ? "cl-bucket-link" : kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm"} disabled={busy} onClick={retry} data-testid={retryTestid || (testid ? `${testid}-retry` : undefined)}>
-              <Icon name="refresh" size={11} /> {busy ? "Retrying…" : "Retry"}
-            </button>
-          )}
-          {also && <button type="button" className={kind === "line" ? "cl-bucket-link" : "btn btn-ghost btn-sm"} onClick={also.onClick} data-testid={also.testid || undefined}>{also.label}</button>}
-        </div>
-      )}
-    </div>
-  );
-};
+// EmptyState and FailedRead are the kit's now (surfaces/kit/empty), which seed-globals publishes under these names.
 // ---- FieldError — the one way a field says what is wrong with it -------------
 // Six forms coloured their own hint red inline, one had a class of its own, and
 // none was announced. One sentence under the box it belongs to, read out as it
@@ -1218,7 +1138,7 @@ const refusalToast = (r, what = null) => {
   const why = (r && r.message) || "That didn't go through.";
   return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast, trapFocus, dialogRef, keyPress });
+Object.assign(window, { PolicyChip, StatePill, Confirm, FieldError, refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
-import { installRoleStore } from "../../_legacy-react.mjs";
+import { installRoleStore, kitPages } from "../../_legacy-react.mjs";
 import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
@@ -431,6 +431,7 @@ const { installTabMemory, clearTabMemory } =
   await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
 installTabMemory(globalThis.window);
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
 installRoleStore();

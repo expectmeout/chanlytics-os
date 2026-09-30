@@ -133,9 +133,9 @@ fails when this block and the baselines disagree.
 ```text
 functions over the limit            174   of which over 200 lines: 43
 files over 800 lines                 13
-directories over 20 modules           5
-window globals                      200   names
-window publishers                   443   sites in 164 files
+directories over 20 modules           4
+window globals                      197   names
+window publishers                   427   sites in 151 files
 copies                               52   of 14 names
 as unknown as                       184
 as never                             13
@@ -148,7 +148,7 @@ doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes
-inline style props                  274   in 47 files
+inline style props                  274   in 48 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     300
 source-text reads in tests          837

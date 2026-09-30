@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 const { toCampaignReportVM, stateOf } = contracts;
 const TID = "t-studio";
@@ -235,6 +236,7 @@ await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx"
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
   globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {

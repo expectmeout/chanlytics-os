@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -243,6 +244,7 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of [
   "StatePill",
   "MoreMenu",

@@ -2,8 +2,8 @@
  * The chart kit, EXECUTED on a stub React: clean axes, a curve that never overshoots its data, gaps where a day has
  * nothing, arcs that close, one rule for the x labels, and the parts every chart shares: the card that owns its series
  * (colours, legend, table twin, a CSV spelled by contracts' csvCell), a tooltip that stays inside the card at any
- * width, one keyboard stop per chart, and each chart drawn and read back. Run against the kit's classic scripts as
- * the app loads them.
+ * width, one keyboard stop per chart, and each chart drawn and read back. Run against the kit's own modules
+ * (surfaces/kit/charts), which the app imports.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,9 +11,8 @@ import { reportHourWords } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../_legacy-react.mjs";
 
 installLegacyReact();
-for (const f of ["core", "bar", "line", "pie", "radar", "radial", "heat"])
-  await import(`../../../../apps/dashboard/src/legacy/components/chart-${f}.jsx`);
-// The kit's classic scripts publish on window, which is globalThis here, as the app's next script reads them.
+// The kit's charts are TSX (surfaces/kit/charts, decision 0015): imported, and drawn on the same stub React.
+const K = "../../../../apps/dashboard/src/surfaces/kit/charts";
 const {
   ckNice,
   ckNiceSeconds,
@@ -26,19 +25,15 @@ const {
   ckTip,
   ckDescribe,
   ckTipSide,
-  CkXLabels,
-  ChartCard,
-  ChartLegend,
-  ChartTooltip,
-  BarChart,
-  BarList,
-  LineChart,
-  PieChart,
-  RadarChart,
-  RadialChart,
-  HeatStrip,
-  SegmentBar,
-} = globalThis;
+} = await import(`${K}/geometry.ts`);
+const { CkXLabels, ChartLegend, ChartTooltip } = await import(`${K}/parts.tsx`);
+const { ChartCard, SegmentBar } = await import(`${K}/card.tsx`);
+const { BarChart, BarList } = await import(`${K}/bar.tsx`);
+const { LineChart } = await import(`${K}/line.tsx`);
+const { PieChart } = await import(`${K}/pie.tsx`);
+const { RadarChart } = await import(`${K}/radar.tsx`);
+const { RadialChart } = await import(`${K}/radial.tsx`);
+const { HeatStrip } = await import(`${K}/heat.tsx`);
 
 const ANSWERED = {
   ai: { label: "Receptionist", color: "var(--chart-1)" },
@@ -131,10 +126,13 @@ test("a day with nothing is a gap in the line, never a dive to zero", () => {
 });
 
 test("an arc closes, and a full turn is drawn as two halves", () => {
-  const half = ckArc(50, 50, 30, 40, 0, Math.PI);
+  const half = ckArc(50, 50, [30, 40], [0, Math.PI]);
   assert.ok(half.startsWith("M") && half.endsWith("Z"));
-  assert.equal((ckArc(50, 50, 30, 40, 0, Math.PI * 2).match(/Z/g) || []).length, 2);
-  assert.ok(ckArc(50, 50, 30, 40, 0, Math.PI * 1.5).includes(" 0 1 1 "), "past a half turn the large-arc flag is set");
+  assert.equal((ckArc(50, 50, [30, 40], [0, Math.PI * 2]).match(/Z/g) || []).length, 2);
+  assert.ok(
+    ckArc(50, 50, [30, 40], [0, Math.PI * 1.5]).includes(" 0 1 1 "),
+    "past a half turn the large-arc flag is set",
+  );
 });
 
 test("one rule for the x labels: every so many days, always the newest, never one crowding it, whole dates at the ends", () => {
@@ -186,7 +184,7 @@ test("the card owns the series: it publishes each colour on its section and draw
     ["var(--color-ai)", "var(--color-you)", "var(--color-none)"],
   );
   assert.ok(
-    find(legend, (n) => n.type === "Icon" && n.props.name === "alert"),
+    find(legend, (n) => n.type?.name === "Icon" && n.props.name === "alert"),
     "a status series carries its icon",
   );
   fresh();

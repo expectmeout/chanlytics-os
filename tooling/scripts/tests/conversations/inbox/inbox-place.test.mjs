@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -194,6 +195,7 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
 };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of [
   "StatePill",
   "MoreMenu",

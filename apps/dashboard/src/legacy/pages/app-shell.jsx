@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, ReportsPage, FailedRead, useSurface */
+/* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, FailedRead, useSurface */
 // Chanlytics — App Shell
 // The live product frame: routing by the address, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -517,7 +517,9 @@ const useViewFade = ({ page, param }, mountKey, routeLoading) => {
 // normal chrome with the ComingSoon pane the interception chose,
 // instead of "Serenity Spa — Reports · expires in 7 days" over invented
 // numbers, ungated, in production.
-const sharedViewer = ({ theme, look, navigate }) => (
+// The report it shows is the frame's `sharedPage`, drawn by the bridge (LegacyApp): Reports has left the shell, and a page
+// of the shell does not name it. The standalone mockup has no bridge, so there the viewer is its banner alone.
+const sharedViewer = ({ theme, look, navigate, sharedPage }) => (
   <div className="shared-root" data-theme={theme} data-look={look}>
     <div className="shared-banner">
       <span className="sidebar-brand-mark">C</span>
@@ -531,7 +533,7 @@ const sharedViewer = ({ theme, look, navigate }) => (
       </button>
     </div>
     <div className="shared-body">
-      <ReportsPage />
+      {sharedPage}
     </div>
   </div>
 );
@@ -633,7 +635,9 @@ const appChrome = (s) => {
 // The hooks below are called in the order the shell always called them, so its effects run in the order they always did.
 // The look is stamped beside the theme on every root that carries the theme (the interface kit's §3.2), so a rule that
 // asks for both -- a look's dark side is [data-look][data-theme="dark"] -- matches wherever the theme's own rules do.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
+// `routePage` is the page of a route that has left the shell (an App Router page, drawn by the layout's children) and
+// `surfaceRoutes` says how the frame wraps it (src/surfaces/routes.ts); `sharedPage` is the shared viewer's report.
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null }) => {
   const [route, setRoute] = useShellState(parseRoute());
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
@@ -659,7 +663,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   const { navOpen, setNavOpen } = useNavDrawer();
 
   // The route table's answer (app-routes.jsx, published on window as every shell file's names are), the honesty gate applied.
-  const drawn = window.drawRoute({ ...at, demoGated, navigate, openAsk, backToPeople, inboxDensity, showInboxAgentRail });
+  const drawn = window.drawRoute({ ...at, demoGated, navigate, openAsk, backToPeople, inboxDensity, showInboxAgentRail, routePage, surfaceRoutes });
 
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
@@ -673,7 +677,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   useShellEffect(() => { window.dispatchEvent(new CustomEvent("shell:ready")); }, []);
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
-  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate });
+  if (page === "shared" && !demoGated) return sharedViewer({ theme, look, navigate, sharedPage });
   if (page === "start" && !demoGated && window.FirstRun) return firstRunScreen({ theme, look, param, navigate, askOpen, setAskOpen });
 
   return appChrome({

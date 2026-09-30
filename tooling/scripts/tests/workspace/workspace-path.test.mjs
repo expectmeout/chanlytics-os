@@ -22,6 +22,8 @@ const {
   hearAddress,
   goToRoute,
   addressApi,
+  notifyAddress,
+  setAppRouter,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 
 test("a path names its workspace under /w/, by slug or id, decoded; anything else names none", () => {
@@ -178,6 +180,39 @@ test("in the standalone mockup a route is moved as its hash", () => {
   goToRoute("inbox", {}, w.win);
   assert.deepEqual(w.pushed, ["#/inbox"]);
   assert.equal(routeOnScreen(w.win), "inbox");
+});
+
+test("a route with a page of its own goes through the App Router and is heard when the router lands; the shell's own routes are pushed as they always were", () => {
+  const w = windowAt({ pathname: "/w/acme/today" });
+  const asked = [];
+  setAppRouter({ push: (href) => asked.push(["push", href]), replace: (href) => asked.push(["replace", href]) });
+  try {
+    const heard = [];
+    const stop = hearAddress(() => heard.push(routeOnScreen(w.win)), w.win);
+    goToRoute("reports", {}, w.win);
+    assert.deepEqual(asked, [["push", "/w/acme/reports"]], "the router draws the page, so the router is asked");
+    assert.deepEqual(w.pushed, [], "the history is the router's: nothing pushed under it");
+    assert.deepEqual(heard, [], "the address has not moved yet, so nobody is told");
+    // The router landed: the path says the route, and the frame's follower says so (LegacyHost's AddressFollower).
+    w.win.location.pathname = "/w/acme/reports";
+    notifyAddress();
+    assert.deepEqual(heard, ["reports"], "heard once the address says it");
+    goToRoute("reports", {}, w.win);
+    assert.equal(asked.length, 1, "the address it is at: no second push");
+    goToRoute("reports", { replace: true }, w.win);
+    assert.deepEqual(asked.at(-1), ["replace", "/w/acme/reports"], "a replace is the router's too");
+    goToRoute("inbox", {}, w.win);
+    assert.deepEqual(w.pushed, ["/w/acme/inbox"], "a route the frame's table draws is pushed, as always");
+    assert.equal(asked.length, 2, "and never asks the router for a page that draws nothing");
+    stop();
+    // With no router (a test's window, the standalone mockup) a route with a page is moved like any other.
+    setAppRouter(null);
+    const m = windowAt({ pathname: "/", hash: "#/today" });
+    goToRoute("reports", {}, m.win);
+    assert.deepEqual(m.pushed, ["#/reports"]);
+  } finally {
+    setAppRouter(null);
+  }
 });
 
 test("the four verbs on window.__shell are these, over the window they were made for", () => {

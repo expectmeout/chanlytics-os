@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -212,6 +213,7 @@ globalThis.window = {
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};

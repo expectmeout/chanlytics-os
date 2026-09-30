@@ -112,6 +112,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { setupDtoFor } from "../../../../apps/dashboard/src/server/workspace/setup.ts";
 import { platformWaitlist, platformWaitlistInvited } from "../../../../apps/dashboard/src/server/platform/platform.ts";
+import { kitPages } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -1070,6 +1071,8 @@ globalThis.document ??= {
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = globalThis.window.Confirm;
+Object.assign(globalThis.window, kitPages);
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, () => {}];
 await import("../../../../apps/dashboard/src/legacy/pages/platform.jsx");

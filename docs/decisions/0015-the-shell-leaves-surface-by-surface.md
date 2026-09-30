@@ -294,3 +294,35 @@ and about 34 of them would stay over it after the frame's step. So condition 1 o
 bridge modules the surface owned, and condition 5 banks the bridge folder's fall with the other numbers. Since this
 note was written, #1278 split the seam's overrides out of `surface-data.ts` into
 `apps/dashboard/src/legacy-bridge/surfaces/`, one module per surface; that module is the first each step takes.
+
+## Built: the pilot (30 September 2026, branch `kit/k1-address-reports-inbox-today`)
+
+Reports left the shell as step 3 of the steps above (step 2 of the order). What the pilot settled, for the surfaces after it:
+
+- **The seam is a typed store, mirrored.** `apps/dashboard/src/surfaces/surface-values.ts` holds one value for each key of
+  `SurfaceValues` (`reports`, `google`), written by the override that owns the surface (`setSurfaceValue`), and mirrored
+  under the window name the pages that have not moved still read (`declareSurfaceValue("reports", "__REPORTS")`: one line,
+  deleted with its last reader). `useSurface(key)` (`src/surfaces/use-surface.ts`) is React's `useSyncExternalStore` over
+  the surface's own signal. The cache keeps the value beside the globals a surface owns, under the reserved name
+  `$value`, and gives it back before React draws (`SurfaceOverride.value` names the key).
+- **The frame draws the page as `children`, through a prop.** `LegacyHost` passes the layout's children to the frame only
+  while the address is a route with a page (`src/surfaces/routes.ts` `SURFACE_ROUTES`: the sidebar item, the crumbs and
+  whether it draws in a pane, which the row said), so a move between the shell's own routes changes no prop and draws
+  the frame no more than it did. `drawRoute` (`app-routes.jsx`) wraps the page it is given. A route with a page moves
+  through the App Router (`goToRoute` asks the router `LegacyHost` registered), and the frame is told when the address
+  says it landed (`AddressFollower`).
+- **What a page still asks of the shell is one module of verbs** (`src/surfaces/legacy-verbs.ts`: navigate, the role gate,
+  holdStill, askAbout, the People list door, the toast, a failed read's Retry). Each calls the window's own and is a line
+  to delete when its owner moves. A surface imports it and reads nothing off `window`.
+- **What is shared moved once**: `Icon`, `EmptyState`, `FailedRead`, `SegmentBar` and the chart kit are the kit's TSX
+  (`src/surfaces/kit`); seed-globals publishes the four the pages still read; the standalone mockup gets them from a
+  bundle its server builds (`data/kit-globals.js`), and has no Reports, which only the app draws.
+- **The amendment's bridge modules** (the override, the sample, the period's verb) are in `src/surfaces/reports/`.
+- **Proof.** A throwaway recorder drew the JSX page and the TSX module over the page's own worlds (37), every handler
+  with every event it takes and 15 scripted sequences, and the shared components over 738 property sets: 11,918 steps,
+  no difference, and 18 planted faults, every one caught (`docs/plans/` holds nothing of it: it is never committed).
+- **Two things the pilot could not do.** Base UI's parts (the kit's Field, Segmented, toast) cannot be imported on the
+  stub React the page tests use, so Reports' period tabs, its reply box and its toast stay as the JSX drew them until the
+  page tests can draw a Base UI part (the next step of the plan's Phase 4); Reports is listed in `KIT_PENDING` for that.
+  And a route's page is not drawn for an address under it (`reports/anything`): it is not found, where the table drew
+  Reports for any param.

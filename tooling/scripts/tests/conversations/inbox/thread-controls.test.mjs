@@ -24,6 +24,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -126,6 +127,7 @@ globalThis.useSurface = (names) => {
   return 0;
 };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of [
   "StatePill",
   "MoreMenu",

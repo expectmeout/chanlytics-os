@@ -151,6 +151,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
   // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
   const seam = [
     "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    "apps/dashboard/src/surfaces/reports/surface.ts",
     ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
   ]
     .map((p) => readCode(p))

@@ -17,7 +17,6 @@
  */
 import "./seed-globals";
 
-import "@/legacy/components/icons.jsx";
 import "@/legacy/components/surface-tabs.jsx";
 import "@/legacy/components/sidebar.jsx";
 import "@/legacy/components/shortcuts.jsx";
@@ -37,13 +36,6 @@ import "@/legacy/components/step-sheet.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
 import "@/legacy/components/campaign-bits.jsx";
-import "@/legacy/components/chart-core.jsx";
-import "@/legacy/components/chart-bar.jsx";
-import "@/legacy/components/chart-line.jsx";
-import "@/legacy/components/chart-pie.jsx";
-import "@/legacy/components/chart-radar.jsx";
-import "@/legacy/components/chart-radial.jsx";
-import "@/legacy/components/chart-heat.jsx";
 import "@/legacy/data/constants.jsx";
 import "@/legacy/data/inbox-data.jsx";
 import "@/legacy/data/clients-data.jsx";
@@ -121,10 +113,6 @@ import "@/legacy/pages/broadcasts.jsx";
 import "@/legacy/pages/conversations.jsx";
 import "@/legacy/pages/live-monitor.jsx";
 import "@/legacy/pages/calendar.jsx";
-import "@/legacy/pages/reports-sections.jsx";
-// Reports › Reach-outs (Reach out Part 6): the section the page draws after Campaigns.
-import "@/legacy/pages/reach-out/reach-out-report.jsx";
-import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/first-run.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the

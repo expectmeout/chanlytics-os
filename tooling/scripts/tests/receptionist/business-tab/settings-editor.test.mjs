@@ -28,6 +28,7 @@ import {
   formatPhoneDisplay,
 } from "@chanlytics/contracts";
 import * as C from "@chanlytics/contracts";
+import { kitPages } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
 
@@ -174,6 +175,7 @@ await import("../../../../../apps/dashboard/src/legacy/components/record-row.jsx
 // The record kit's folds answer the rail's question too, and the kit loads before any page, as it does in the app.
 await import("../../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 const kitUnsaved = globalThis.window.__settingsUnsaved;
+Object.assign(globalThis.window, kitPages);
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],

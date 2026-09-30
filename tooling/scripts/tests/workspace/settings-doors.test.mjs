@@ -20,6 +20,7 @@ import {
   connectionRows,
   CONNECTION_GROUP_WORDS,
 } from "@chanlytics/contracts";
+import { kitPages } from "../_legacy-react.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -154,6 +155,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
+Object.assign(globalThis.window, kitPages);
 for (const k of ["EmptyState", "FailedRead", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],

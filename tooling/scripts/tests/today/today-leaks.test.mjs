@@ -28,7 +28,7 @@ import {
   pipelineOf,
 } from "@chanlytics/contracts";
 // The mockup's sample is a real ReportsSurface (reportDto through toReportVM): the round trip the period line is tested on.
-import { reportsSample } from "../../../../apps/dashboard/src/legacy-bridge/reports-sample.ts";
+import { reportsSample } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 // v2 returns { rows, more } and takes who is waiting before the cap; the rules pinned below are about the rows, so
 // they read them through this and stay as written.

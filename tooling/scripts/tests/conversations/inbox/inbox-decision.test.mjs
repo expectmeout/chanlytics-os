@@ -17,6 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -209,6 +210,7 @@ globalThis.window = {
   clearInterval() {},
 };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of [
   "StatePill",
   "MoreMenu",

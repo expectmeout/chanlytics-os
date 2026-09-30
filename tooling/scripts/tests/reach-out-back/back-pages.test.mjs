@@ -18,9 +18,8 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome:
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-for (const f of ["core", "bar"]) await import(`${L}/components/chart-${f}.jsx`);
-await import(`${L}/pages/reports-sections.jsx`);
-await import(`${L}/pages/reach-out/reach-out-report.jsx`);
+// Reports' Reach-outs section is TSX (decision 0015): the surface's own module, on the same stub.
+const { RptReachOuts } = await import("../../../../apps/dashboard/src/surfaces/reports/reach-outs.tsx");
 await import(`${L}/pages/leads-finder.jsx`);
 await import(`${L}/pages/people-table.jsx`);
 await import(`${L}/pages/leads-cells.jsx`);
@@ -98,7 +97,7 @@ const reportDto = (over = {}) => ({
 });
 const section = (reachOuts) => {
   fresh();
-  return again(() => W.React.createElement(W.RptReachOuts, { R: { reachOuts } }));
+  return again(() => W.React.createElement(RptReachOuts, { R: { reachOuts } }));
 };
 
 test("Reports draws the reach-outs' section: the funnel, the angles, the domains, the days, and each step on its line", () => {

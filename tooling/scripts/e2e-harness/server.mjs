@@ -26,7 +26,7 @@ import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
 import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
-import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
+import { kitGlobalsBundle, mascotBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
@@ -227,8 +227,8 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".js"], BUSINESS_TAB_SCRIPT);
         return;
       }
-      if (p === "/data/reports-sample.js") {
-        send(res, 200, TYPES[".js"], await reportsSampleBundle());
+      if (p === "/data/kit-globals.js") {
+        send(res, 200, TYPES[".js"], await kitGlobalsBundle());
         return;
       }
       if (p === "/data/today-sample.js") {

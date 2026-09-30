@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { installRoleStore } from "../_legacy-react.mjs";
+import { installRoleStore, kitPages } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   DEAL_ACT_WORDS,
@@ -828,6 +828,7 @@ await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 // The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
 await import("../../../../apps/dashboard/src/legacy/components/record-field.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
 installRoleStore();

@@ -23,6 +23,7 @@ import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHre
 import type { RealtimeChange } from "./surface-realtime";
 import type { MembershipRole, PendingWorkspace } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "./surfaces/people";
+import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
 
 export interface SurfaceOverride {
@@ -35,6 +36,11 @@ export interface SurfaceOverride {
    * hardcoding a list in the cache) keeps flipping a surface a one-file change.
    */
   globals?: string[];
+  /**
+   * The key its typed value is published under (surface-values.ts), for a surface a TSX page reads through
+   * `useSurface`: the cache keeps that value with the surface's snapshot and gives it back before React draws.
+   */
+  value?: SurfaceKey;
   /** What of its globals the cache holds, when not all of them: given the snapshot, answers the one to keep. */
   trimSnapshot?: (snap: Record<string, unknown>) => Record<string, unknown>;
   /** Fetch real data and write it into the surface's window globals. */

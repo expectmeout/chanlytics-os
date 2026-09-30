@@ -1,10 +1,11 @@
 /**
  * The Reports override: the range the page shows (kept in this browser) and the
- * report over it. Part of the SurfaceData seam (../surface-data.ts).
+ * report over it. Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the
+ * page reads what it publishes through `useSurface("reports")`.
  */
 
-import { read } from "../api";
-import { heldViews } from "../held-views";
+import { read } from "@/legacy-bridge/api";
+import { heldViews } from "@/legacy-bridge/held-views";
 import {
   toReportVM,
   reportFacts,
@@ -20,9 +21,13 @@ import {
   toReachOutReportVM,
   type ReachOutReportVM,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "../surface-data";
-import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
-import { onlyOnItsPage } from "../surface-registry";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
+import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+
+// Today and Ask, which have not moved, still read this under its old name.
+declareSurfaceValue("reports", "__REPORTS");
 
 /* ------------------------------- Reports --------------------------------- */
 
@@ -85,14 +90,14 @@ const reportsHeld = heldViews<ReportsSurface>(4);
 export function paintHeldReports(): boolean {
   const have = reportsHeld.get(String(reportDays));
   if (!have) return false;
-  (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = have;
+  setSurfaceValue("reports", have);
   window.dispatchEvent(new CustomEvent("surface:reports"));
   return true;
 }
 
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
-  globals: ["__REPORTS"],
+  value: "reports",
   events: ["surface:reports"],
   refreshOnMessageInserts: true,
   // A message moves the period's numbers: read again only while its page is on screen, and once when it comes back
@@ -131,6 +136,6 @@ export const reportsOverride: SurfaceOverride = {
     // Worth knowing is derived here, once, from the same two view models the page draws: never in the page.
     const whole: ReportsSurface = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
     reportsHeld.hold(String(days), whole);
-    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = whole;
+    setSurfaceValue("reports", whole);
   },
 };

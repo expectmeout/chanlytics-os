@@ -97,13 +97,13 @@ test("the share tile compares in points: a share that fell is never a green delt
 });
 
 test("Reports: the chart's hit targets are not keyboard stops; the zone is a tooltip; a failed period says so", () => {
-  const page = readRaw("apps/dashboard/src/legacy/pages/reports.jsx");
+  const page = readRaw("apps/dashboard/src/surfaces/reports/reports-page.tsx");
   assert.ok(!page.includes('className="rp2-hit" tabIndex={0}'), "up to 270 unnamed stops at 90 days");
   assert.ok(page.includes("title={`Days follow ${vm.timezone}`}"));
   assert.ok(!page.includes("{vm.until} · {vm.timezone}</div>"), "no raw IANA id in the subtitle");
   // "every message was answered without you" only when true: executed in reports-page.test.mjs.
   assert.ok(page.includes("Couldn't load"), "a failed period switch says so");
-  const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const verbs = readCode("apps/dashboard/src/surfaces/reports/period.ts");
   assert.ok(verbs.includes("export async function setReportRange(days: number): Promise<boolean>"));
   assert.ok(verbs.includes("setReportDays(prev);"), "the preferred period goes back on failure");
 });

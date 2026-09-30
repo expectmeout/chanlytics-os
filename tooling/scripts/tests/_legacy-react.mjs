@@ -13,12 +13,50 @@
  * the next script reads bare. The bridge's CSV rule (contracts' csvCell, window.__csvCell) is seeded from contracts,
  * as seed-globals.ts publishes it in the app.
  *
+ * A surface that has left the shell is TSX (apps/dashboard/src/surfaces), and imports its hooks from "react", which under
+ * this runner's react-server condition has none: the same stub is set on that module object, so its own calls reach the
+ * stub the legacy pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
+ *
+ * The kit's components the shell's pages still draw by name (EmptyState, FailedRead, SegmentBar: surfaces/kit/kit-globals.ts,
+ * which the app publishes from seed-globals) are the kit's own here too. `Icon` stays the host element every test reads
+ * by its name and its props: a page's icon is a leaf here, as it was, and the kit's own components draw the real one.
+ *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { csvCell } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { KIT_GLOBALS } from "../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
 import { hearSurfaces, surfaceHook, surfaceMoved } from "../../../apps/dashboard/src/legacy-bridge/surface-status.ts";
 import { installRoles } from "../../../apps/dashboard/src/legacy-bridge/identity.ts";
+
+/**
+ * The kit's components the pages still draw by name, for a page test that builds its own window: what seed-globals
+ * publishes in the app (surfaces/kit/kit-globals.ts), less `Icon`, which is the host element "Icon" in these trees.
+ * `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place.
+ */
+export const kitPages = {
+  EmptyState: KIT_GLOBALS.EmptyState,
+  FailedRead: KIT_GLOBALS.FailedRead,
+  SegmentBar: KIT_GLOBALS.SegmentBar,
+};
+
+const HOOKS = [
+  "useState",
+  "useReducer",
+  "useRef",
+  "useMemo",
+  "useCallback",
+  "useId",
+  "useEffect",
+  "useLayoutEffect",
+  "useSyncExternalStore",
+];
+const reactModule = createRequire(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
+)("react");
 
 const listeners = {};
 const storage = () => {
@@ -85,6 +123,7 @@ export function installLegacyReact(extra = {}) {
     },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     Icon: "Icon",
+    ...kitPages,
     __csvCell: csvCell,
     ...extra,
   });
@@ -180,6 +219,7 @@ export function installLegacyReact(extra = {}) {
       return snapshot();
     },
   };
+  for (const hook of HOOKS) reactModule[hook] = globalThis.React[hook];
   globalThis.ReactDOM = { createPortal: (node) => node };
   // The bridge's one hook (legacy-bridge/surface-status.ts), made over this React as LegacyApp makes it over the
   // app's: a page redraws when a surface it draws moves.

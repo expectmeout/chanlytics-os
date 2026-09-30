@@ -9,7 +9,17 @@
  * SurfaceData runner; the pill reports live/degraded per surface, carries
  * sign-out, and flags stale deployments (version heartbeat).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 import { subscribeWorkspaceChanges } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
@@ -27,7 +37,8 @@ import { inboxOverride } from "./surfaces/inbox";
 import { todayOverride } from "./surfaces/today";
 import { settingsOverride } from "./surfaces/settings";
 import { peopleOverride } from "./surfaces/people";
-import { reportsOverride } from "./surfaces/reports";
+import { reportsOverride } from "@/surfaces/reports/surface";
+import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "./surfaces/live";
 import { broadcastsOverride } from "./surfaces/broadcasts";
 import { playbooksOverride } from "./surfaces/playbooks";
@@ -302,7 +313,19 @@ type ChanlyticsAppComponent = React.ComponentType<{
   onSidebar: (v: string) => void;
   inboxDensity: string;
   showInboxAgentRail: boolean;
+  /** The page of a route that has left the shell, which the layout drew (src/surfaces/routes.ts). */
+  routePage: ReactNode;
+  surfaceRoutes: typeof SURFACE_ROUTES;
+  /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
+  sharedPage: ReactNode;
 }>;
+
+const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
+const SHARED_PAGE = (
+  <Suspense fallback={null}>
+    <SharedReports />
+  </Suspense>
+);
 
 /** The workspaces this account may open, as the workspace's read last said. */
 const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
@@ -313,7 +336,13 @@ const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES
  * on its own surfaces (surface-status.ts), and the shell on the route's (app-shell.jsx). It was drawn again, with three
  * new callbacks, on every surface's read.
  */
-function useShellApp(prefs: Prefs, theme: Theme, look: LookPref, choose: (key: ChosenPref, v: string) => void) {
+function useShellApp(
+  prefs: Prefs,
+  theme: Theme,
+  look: LookPref,
+  choose: (key: ChosenPref, v: string) => void,
+  routePage: ReactNode,
+) {
   const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
   const onLook = useCallback((v: string) => choose("look", v), [choose]);
   const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);
@@ -332,13 +361,33 @@ function useShellApp(prefs: Prefs, theme: Theme, look: LookPref, choose: (key: C
           onSidebar={onSidebar}
           inboxDensity={inboxDensity}
           showInboxAgentRail={showInboxAgentRail}
+          routePage={routePage}
+          surfaceRoutes={SURFACE_ROUTES}
+          sharedPage={SHARED_PAGE}
         />
       ) : null,
-    [ChanlyticsApp, theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, showInboxAgentRail],
+    [
+      ChanlyticsApp,
+      theme,
+      themePref,
+      onTheme,
+      look,
+      onLook,
+      sidebar,
+      onSidebar,
+      inboxDensity,
+      showInboxAgentRail,
+      routePage,
+    ],
   );
 }
 
-export default function LegacyApp() {
+/**
+ * `routePage`: the page of the route on screen, when that route has one of its own (src/surfaces/routes.ts): the layout's
+ * children, which LegacyHost hands over only while the address is such a route, so a move between the shell's own routes
+ * draws this frame no more than it did.
+ */
+export default function LegacyApp({ routePage }: { routePage?: ReactNode }) {
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
   const [creating, setCreating] = useState(false);
@@ -371,7 +420,7 @@ export default function LegacyApp() {
     (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
     [],
   );
-  const shellApp = useShellApp(prefs, theme, look, choose);
+  const shellApp = useShellApp(prefs, theme, look, choose, routePage);
 
   useDocumentStamps(theme, look);
   // Viewport scoping, exactly what the inline boot script did.

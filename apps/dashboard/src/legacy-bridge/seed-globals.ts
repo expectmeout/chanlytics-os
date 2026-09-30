@@ -31,6 +31,7 @@ import {
   importCounts,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
+import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
@@ -137,7 +138,16 @@ declare global {
 if (typeof window !== "undefined") {
   // React, and the one hook a page redraws on when a surface it draws moves (surface-status.ts): a key, a list, or a
   // route's, as the registry names them. Over this React, before any page loads.
-  Object.assign(window, { React, ReactDOM, useSurface: surfaceHook(React, routeSurfaces) });
+  // And the kit's components the pages that have not moved still draw, under the names they read (kit-globals.ts).
+  Object.assign(window, {
+    React,
+    ReactDOM,
+    useSurface: surfaceHook(React, routeSurfaces),
+    Icon: KIT_GLOBALS.Icon,
+    EmptyState: KIT_GLOBALS.EmptyState,
+    FailedRead: KIT_GLOBALS.FailedRead,
+    SegmentBar: KIT_GLOBALS.SegmentBar,
+  });
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;

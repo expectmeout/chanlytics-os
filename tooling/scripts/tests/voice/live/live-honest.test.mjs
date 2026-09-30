@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, toLiveCallVM, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -189,6 +190,7 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+Object.assign(globalThis.window, kitPages);
 for (const k of ["Confirm", "EmptyState", "FailedRead"]) globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 await import("../../../../../apps/dashboard/src/legacy/pages/live-monitor.jsx");

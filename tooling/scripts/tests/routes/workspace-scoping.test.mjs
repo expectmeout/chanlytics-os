@@ -38,6 +38,7 @@ const withRoute = read("apps/dashboard/src/server/with-route.ts");
 // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
 const surfaceData = [
   "apps/dashboard/src/legacy-bridge/surface-data.ts",
+  "apps/dashboard/src/surfaces/reports/surface.ts",
   ...fs
     .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
     .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),

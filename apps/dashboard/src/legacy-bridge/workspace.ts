@@ -18,6 +18,7 @@
  */
 import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
+import { routeHasPage } from "../surfaces/routes";
 
 const LAST_KEY = "chanlytics.workspace";
 
@@ -173,17 +174,36 @@ export interface GoOptions {
   quiet?: boolean;
 }
 
+/** The App Router's own navigation, which the frame registers (LegacyHost) for the routes that have a page of their own. */
+export interface AppRouter {
+  push(href: string): void;
+  replace(href: string): void;
+}
+
+let appRouter: AppRouter | null = null;
+
+/** The frame hands over the App Router as it mounts, and takes it back as it goes. */
+export function setAppRouter(router: AppRouter | null): void {
+  appRouter = router;
+}
+
 /**
  * Move to a route: a path pushed (or, for a page saying the same place more exactly, replaced) through the history
- * the App Router patches, which follows it for usePathname and keeps its Back. Not router.push: every route here is
+ * the App Router patches, which follows it for usePathname and keeps its Back. Not router.push: every legacy route is
  * drawn by the same catch-all page, so that would ask the server for a page that draws nothing on every press, and a
- * tab that is offline, or open across a deploy, would reload the whole app for it. A route with a page of its own
- * asks the router when the first surface moves there (decision 0015, step 2).
+ * tab that is offline, or open across a deploy, would reload the whole app for it.
+ *
+ * A route with a page of its own (src/surfaces/routes.ts) asks the router: its page is another segment, which the
+ * router draws, and the patched history would only change the address over the segment already there. The address
+ * then moves when the router lands, not before, and the frame is told as it does (LegacyHost's AddressFollower).
  */
 export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
-  if (opts.replace) win.history.replaceState(null, "", to);
+  if (appRouter && routeHasPage(route) && !to.startsWith("#")) {
+    if (opts.replace) appRouter.replace(to);
+    else if (here !== to) appRouter.push(to);
+  } else if (opts.replace) win.history.replaceState(null, "", to);
   else if (here !== to) win.history.pushState(null, "", to);
   if (!(opts.replace && opts.quiet)) notifyAddress();
 }

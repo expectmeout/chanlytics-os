@@ -25,7 +25,7 @@ import { liveOverride } from "./surfaces/live";
 import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "./surfaces/people";
 import { playbooksOverride } from "./surfaces/playbooks";
-import { reportsOverride } from "./surfaces/reports";
+import { reportsOverride } from "@/surfaces/reports/surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "./surfaces/today";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";

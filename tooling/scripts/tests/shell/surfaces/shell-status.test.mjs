@@ -1213,7 +1213,6 @@ test("the look travels as the theme does: stamped beside it on every root the sh
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
   win.FirstRun = "FirstRun";
-  globalThis.ReportsPage = "ReportsPage";
   try {
     for (const [hash, root] of [
       ["#/today", "app-root"],
@@ -1234,7 +1233,6 @@ test("the look travels as the theme does: stamped beside it on every root the sh
   } finally {
     deep = true;
     delete win.FirstRun;
-    delete globalThis.ReportsPage;
     if (keptState !== undefined) win.__surfaceState = keptState;
   }
 });

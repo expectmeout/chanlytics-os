@@ -2,10 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
-import { movedAddress, routeOfAddress } from "@chanlytics/contracts";
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { movedAddress, routeOfAddress, routeOfPath } from "@chanlytics/contracts";
+import { routeHasPage } from "@/surfaces/routes";
 import { api } from "./api";
-import { homeHref, lastWorkspace } from "./workspace";
+import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
 
 /**
  * Client-only mount for the legacy tree: module-scope code in the mockup
@@ -110,27 +111,49 @@ function MovedOnLoad({ onPlaced }: { onPlaced: () => void }): null {
 }
 
 /**
- * The frame, drawn once: the layout's children change with every route, and the frame does not draw again for a
- * route it follows itself.
+ * The address moved through the App Router (a route with a page of its own, or a Back onto one): the frame is told, as
+ * it is for every other move of the address (workspace.ts hearAddress), once the router has landed and the address
+ * says the route. Before paint, so the frame never draws the route it left with the page it is arriving at.
  */
-const Frame = memo(function Frame() {
-  return <LegacyApp />;
+function AddressFollower(): null {
+  const pathname = usePathname();
+  useLayoutEffect(() => {
+    notifyAddress();
+  }, [pathname]);
+  return null;
+}
+
+/**
+ * The frame, drawn once: the layout's children change with every route, and the frame does not draw again for a
+ * route it follows itself. `page` is the children while the address is a route with a page of its own, and nothing
+ * otherwise, so a move between the shell's own routes changes no prop of the frame.
+ */
+const Frame = memo(function Frame({ page }: { page: ReactNode }) {
+  return <LegacyApp routePage={page} />;
 });
 
 /**
  * The frame's host, or the home that sends a tab to its workspace's address.
  *
  * On /w/<slug> the layout mounts the frame once and keeps it mounted across every navigation (decision 0015: the
- * address is a path, and a route's page is `children`, drawn by a catch-all that draws nothing of its own). On the
+ * address is a path, and a route's page is `children`: a catch-all that draws nothing for a route the frame's table
+ * draws, and a page of its own, which the frame draws inside its chrome, for a route that has left the shell). On the
  * home, the tab goes to the last workspace this browser used, else to the one the server calls active, with the
  * query and the route riding along; only an account with no workspace stays here, where the app shows the create
  * screen.
  */
 export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
+  const router = useRouter();
+  const pathname = usePathname();
   const loaded = useLoaded();
   const [placed, setPlaced] = useState(home);
   const place = useCallback(() => setPlaced(true), []);
+  // The frame moves to a route with a page of its own through the router (workspace.ts goToRoute).
+  useEffect(() => {
+    setAppRouter(router);
+    return () => setAppRouter(null);
+  }, [router]);
   useEffect(() => {
     let unhook: (() => void) | null = null;
     let gone = false;
@@ -174,8 +197,8 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
           <FieldDataReporter landedOn={landedOn} />
         </Suspense>
       )}
-      <Frame />
-      {children}
+      {!home && <AddressFollower />}
+      <Frame page={!home && routeHasPage(routeOfPath(pathname) ?? "") ? children : null} />
     </>
   );
 }

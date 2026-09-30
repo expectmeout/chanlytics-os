@@ -11,7 +11,7 @@
  * Everything the sample publishes besides `TODAY_DATA` and `__today` lives under one namespaced `__TODAY_SAMPLE`,
  * never under the bridge's own global names, so the mockup's other pages keep drawing their own seeds.
  *
- * It imports contracts, reports-sample and the bridge's today.ts, and nothing that imports ./api: this is a browser
+ * It imports contracts, the Reports sample and the bridge's today.ts, and nothing that imports ./api: this is a browser
  * bundle with no session behind it.
  */
 import {
@@ -28,9 +28,9 @@ import {
   type TodayVM,
   type PlaybookCardLike,
 } from "@chanlytics/contracts";
-import { reportsSample } from "./reports-sample";
+import { reportsSample } from "../surfaces/reports/sample";
 import { TODAY_HELPERS } from "./today";
-import type { ReportsSurface } from "./surfaces/reports";
+import type { ReportsSurface } from "../surfaces/reports/surface";
 // The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
 // own `./api` import never reaches this browser-only bundle.
 import type { BellRow } from "./notifications";

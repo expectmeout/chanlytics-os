@@ -19,7 +19,7 @@
  * together). Its acts are the house's buttons and links by their classes, as the kit's Button and LinkButton write them.
  */
 import type { ReactNode } from "react";
-import { canRefreshSurfaces, navigate, refreshSurface } from "@/legacy-bridge/legacy-verbs";
+import { canRefreshSurfaces, navigate, refreshSurface } from "../../legacy-verbs";
 import { Icon } from "../icon/icon";
 
 type Kind = "page" | "card" | "line" | "block";

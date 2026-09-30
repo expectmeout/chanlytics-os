@@ -40,6 +40,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { keysDrawn } from "../_keys.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -217,6 +218,7 @@ globalThis.window.trapFocus = (box) => {
   trapped.push(box);
   return realTrapFocus(box ?? dialogBox);
 };
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
 // One appointment on a list, the row Today's day and the agenda both wear.

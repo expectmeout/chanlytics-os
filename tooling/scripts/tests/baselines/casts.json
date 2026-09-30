@@ -89,7 +89,7 @@
     "unknownAs": 3
   },
   "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": {
-    "unknownAs": 3
+    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/leads.ts": {
     "unknownAs": 3,
@@ -162,9 +162,6 @@
   },
   "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": {
     "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surfaces/reports.ts": {
-    "unknownAs": 2
   },
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": {
     "unknownAs": 1

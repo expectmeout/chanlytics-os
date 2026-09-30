@@ -7,7 +7,7 @@
 import { useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { csvCell } from "@chanlytics/contracts";
-import { holdStill } from "@/legacy-bridge/legacy-verbs";
+import { holdStill } from "../../legacy-verbs";
 import { Icon } from "../icon/icon";
 import { ckVars } from "./geometry";
 import type { ChartConfig } from "./geometry";
@@ -29,6 +29,8 @@ export interface ChartTwin {
 // A CSV of the table, each cell spelled by contracts' csvCell (quoted where it must be, and a cell a spreadsheet would
 // run as a formula made text), one rule for every file the product writes.
 const CK_BOM = String.fromCharCode(0xfeff);
+/** The browser has started the save by then: the address made for it is let go. */
+const REVOKE_AFTER_MS = 1000;
 export function ckSaveCsv(title: string, table: ChartTableData): void {
   const body = [table.columns, ...table.rows].map((r) => r.map((v) => csvCell(v)).join(",")).join("\r\n");
   const name = `${String(title)
@@ -50,7 +52,7 @@ export function ckSaveCsv(title: string, table: ChartTableData): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }
 
 // A number sits right, in tabular figures; a missing value is the tree's own dash, and an empty cell in the CSV.

@@ -10,7 +10,6 @@ import { liveOverride } from "./surfaces/live";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "./surfaces/today";
 import type { SurfaceOverride } from "./surface-data";
-import { reportsOverride, setReportDays, paintHeldReports } from "./surfaces/reports";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
@@ -364,7 +363,6 @@ export async function refreshSettings(): Promise<void> {
 
 declare global {
   interface Window {
-    __setReportDays?: (days: number) => Promise<boolean>;
     __setPolicy?: (cls: string, mode: string | undefined, limits?: PolicyDials) => Promise<VerbResult>;
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
@@ -446,31 +444,6 @@ export async function setPolicy(cls: string, mode: string | undefined, limits: P
   return r;
 }
 
-/** Reports: change the period and re-read through the runner, so the cache
- *  and the pill agree with what is on screen. */
-export async function setReportRange(days: number): Promise<boolean> {
-  const reports = (window as unknown as { __REPORTS?: { days?: number } }).__REPORTS;
-  const prev = reports?.days ?? days;
-  setReportDays(days);
-  // A period this tab has read paints at once; the read behind it keeps it current (the loading standard's held
-  // views). Only a period never read waits for its read.
-  if (paintHeldReports()) {
-    void refreshSurfaces([reportsOverride]);
-    return true;
-  }
-  await refreshSurfaces([reportsOverride]);
-  // The override writes the period it fetched. Anything else means the
-  // fetch failed and the page is still showing the old period — so the
-  // preferred period goes back too, or the next background refresh would
-  // load the new one silently.
-  const got = (window as unknown as { __REPORTS?: { days?: number } }).__REPORTS?.days;
-  if (got !== days) {
-    setReportDays(prev);
-    return false;
-  }
-  return true;
-}
-
 /**
  * A link the browser follows rather than a request it makes: a download, a photo. A download of ONE view names
  * it in the query (Leads' export of a search), which is typed as that route's own input.
@@ -484,7 +457,6 @@ export function installInboxVerbs(): void {
   // A download is a plain link to a route, and the route needs the workspace
   // named like every other request; the page builds the href with this.
   window.__href = href;
-  window.__setReportDays = setReportRange;
   window.__setPolicy = setPolicy;
   window.__refreshSettings = refreshSettings;
   window.__refreshLive = refreshLive;

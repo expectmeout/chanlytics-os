@@ -230,7 +230,7 @@ function signOutOnUnauthorized(run: SurfaceRun): void {
 }
 
 function persistSurface(o: SurfaceOverride): void {
-  if (o.globals?.length) snapshotSurface(o.key, o.globals, viewedWorkspace(), o.trimSnapshot);
+  if (o.globals?.length || o.value) snapshotSurface(o.key, o.globals ?? [], viewedWorkspace(), o.trimSnapshot, o.value);
 }
 
 async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot" | "refresh"): Promise<void> {

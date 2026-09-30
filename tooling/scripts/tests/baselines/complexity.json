@@ -59,16 +59,6 @@
     "branches": 57,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/components/chart-line.jsx::LineChart#1": {
-    "lines": 77,
-    "branches": 43,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/components/data-bits.jsx::FailedRead#1": {
-    "lines": 24,
-    "branches": 35,
-    "depth": 0
-  },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
     "lines": 51,
     "branches": 53,
@@ -87,11 +77,6 @@
   "apps/dashboard/src/legacy/components/deal-sheet.jsx::DealSheetHost#1": {
     "lines": 162,
     "branches": 45,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/components/icons.jsx::Icon#1": {
-    "lines": 100,
-    "branches": 81,
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/record-fold.jsx::RecordFold#1": {
@@ -512,11 +497,6 @@
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx::PlaybookComposer#1": {
     "lines": 400,
     "branches": 165,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/reports-sections.jsx::ReportsSections#1": {
-    "lines": 206,
-    "branches": 39,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::PaneAutonomyReal#1": {

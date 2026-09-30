@@ -1,12 +1,5 @@
 {
   "apps/dashboard/src/legacy/components/campaign-bits.jsx": 4,
-  "apps/dashboard/src/legacy/components/chart-bar.jsx": 4,
-  "apps/dashboard/src/legacy/components/chart-core.jsx": 6,
-  "apps/dashboard/src/legacy/components/chart-heat.jsx": 1,
-  "apps/dashboard/src/legacy/components/chart-line.jsx": 1,
-  "apps/dashboard/src/legacy/components/chart-pie.jsx": 3,
-  "apps/dashboard/src/legacy/components/chart-radar.jsx": 1,
-  "apps/dashboard/src/legacy/components/chart-radial.jsx": 2,
   "apps/dashboard/src/legacy/components/data-bits.jsx": 2,
   "apps/dashboard/src/legacy/components/sidebar.jsx": 10,
   "apps/dashboard/src/legacy/components/surface-tabs.jsx": 1,
@@ -45,5 +38,13 @@
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-sheet.jsx": 2,
   "apps/dashboard/src/legacy/pages/settings.jsx": 9,
   "apps/dashboard/src/legacy/pages/templates-real.jsx": 1,
+  "apps/dashboard/src/surfaces/kit/charts/bar.tsx": 4,
+  "apps/dashboard/src/surfaces/kit/charts/card.tsx": 3,
+  "apps/dashboard/src/surfaces/kit/charts/heat.tsx": 1,
+  "apps/dashboard/src/surfaces/kit/charts/line.tsx": 1,
+  "apps/dashboard/src/surfaces/kit/charts/parts.tsx": 3,
+  "apps/dashboard/src/surfaces/kit/charts/pie.tsx": 3,
+  "apps/dashboard/src/surfaces/kit/charts/radar.tsx": 1,
+  "apps/dashboard/src/surfaces/kit/charts/radial.tsx": 2,
   "apps/dashboard/src/surfaces/kit/meter/meter.tsx": 1
 }

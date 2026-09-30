@@ -224,9 +224,9 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "the chip opens a menu, not Settings",
   );
 
-  const icons = readCode("apps/dashboard/src/legacy/components/icons.jsx");
+  const icons = readCode("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
   for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"])
-    assert.ok(icons.includes(`case "${name}":`), name);
+    assert.ok(new RegExp(`\\b${name}: \\(p\\) =>`).test(icons), name);
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/components/shortcuts.jsx";'),
   );

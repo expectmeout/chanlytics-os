@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setupSteps, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const blank = {
@@ -106,7 +107,7 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.FailedRead = globalThis.window.FailedRead;
+globalThis.FailedRead = kitPages.FailedRead;
 globalThis.StatePill = globalThis.window.StatePill;
 // data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
