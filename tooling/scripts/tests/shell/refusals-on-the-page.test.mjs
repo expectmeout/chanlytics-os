@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages, installLegacyReact, fresh as freshTree, again as againTree } from "../_legacy-react.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -94,8 +94,6 @@ globalThis.window = {
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 Object.assign(globalThis.window, kitPages);
 kitHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
@@ -193,31 +191,6 @@ test("a refusal as a toast: the danger tone, the page's words for what did not h
 });
 
 /* ------------------------------- forms ------------------------------- */
-
-await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-
-test("REGRESSION: a template the route refuses says why under the form as a field error -- it was inline red text", async () => {
-  Object.assign(globalThis.window, {
-    __ME: { role: "owner" },
-    __starters: undefined,
-    __templates: { create: async () => refused("A template called spring_offer already exists in English.") },
-  });
-  cells = [];
-  const render = () => {
-    frames.begin();
-    return globalThis.window.TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" });
-  };
-  byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
-  byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
-  await byTestId(render(), "tpl-submit").props.onClick();
-  const tree = render();
-  const err = byTestId(tree, "tpl-error");
-  assert.ok(err, "the refusal is on the form");
-  assert.equal(err.props.className, "field-error");
-  assert.equal(err.props.role, "alert", "announced as it appears");
-  assert.ok(say(err).includes("already exists"), say(err));
-  assert.equal(inlineDanger(tree), 0, "REGRESSION: style={{ color: 'var(--danger)' }}");
-});
 
 await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");
 
@@ -686,4 +659,48 @@ test("REGRESSION: a refused question says why -- a gateway's page read 'Ask fail
     }),
     [{ t: "error", text: "Network error — nothing was asked." }],
   );
+});
+
+/* --------------------------- Templates: the composer (a TSX page) --------------------------- */
+
+// The composer is TSX since decision 0015: drawn on the stub React that patches `react` itself (so it comes last, after
+// the pages above that draw on this file's own), over the shell's doors this file's window already has; the verb it
+// presses is imported, so the refusal is what `templates.create` answers.
+test("REGRESSION: a template the route refuses says why under the form as a field error -- it was inline red text", async () => {
+  const doors = {};
+  for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
+    doors[k] = globalThis.window[k];
+  installLegacyReact({
+    __DEMO_MODE: false,
+    __surfaceState: () => "live",
+    __ME: { role: "owner" },
+    ...doors,
+    usePPToast: () => [null, () => {}],
+    CHANLY: { nav() {}, R: {} },
+    appNavigate() {},
+    useHotkey: () => {},
+  });
+  Object.assign(globalThis.window, kitPages);
+  const SRC = "../../../../apps/dashboard/src";
+  const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
+  const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
+  const create = templates.create;
+  templates.create = async () => refused("A template called spring_offer already exists in English.");
+  try {
+    freshTree();
+    const render = () =>
+      againTree(() => TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Marisa's Beauty Salon" }));
+    byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
+    byTestId(render(), "tpl-body").props.onChange({ target: { value: "Twenty percent off this week." } });
+    await byTestId(render(), "tpl-submit").props.onClick();
+    const tree = render();
+    const err = byTestId(tree, "tpl-error");
+    assert.ok(err, "the refusal is on the form");
+    assert.equal(err.props.className, "field-error");
+    assert.equal(err.props.role, "alert", "announced as it appears");
+    assert.ok(say(err).includes("already exists"), say(err));
+    assert.equal(inlineDanger(tree), 0, "REGRESSION: style={{ color: 'var(--danger)' }}");
+  } finally {
+    templates.create = create;
+  }
 });

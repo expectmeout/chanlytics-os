@@ -18,7 +18,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import {
+  kitHooks,
+  kitPages,
+  installLegacyReact,
+  fresh as freshTree,
+  again as againTree,
+} from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -284,11 +290,24 @@ globalThis.window = {
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 // The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
 Object.assign(globalThis.window, kitPages);
+// The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
+const shellDoors = {};
+for (const k of [
+  "gate",
+  "canDo",
+  "gateTitle",
+  "mayAtLeast",
+  "gatedProps",
+  "ST_STORE",
+  "__roleGate",
+  "Confirm",
+  "StatePill",
+  "PolicyChip",
+  "FieldError",
+])
+  shellDoors[k] = globalThis.window[k];
 globalThis.StatePill = kitPages.StatePill;
 const { OutcomePill } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
 
@@ -634,71 +653,10 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 // The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-card.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/playbook-composer.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/outbound.jsx");
-
-test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
-  assert.equal(typeof globalThis.window.bcWhenWords, "function", "one sentence for when a send really goes");
-  const moved = globalThis.window.bcWhenWords({
-    scheduled_for: "2026-09-15T13:00:00Z",
-    moved_from: "2026-09-15T02:00:00Z",
-  });
-  assert.ok(moved.startsWith("scheduled for "), moved);
-  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
-  assert.equal(
-    globalThis.window.bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }),
-    "sending now",
-  );
-
-  const toasts = [];
-  globalThis.window.__playbooks = {
-    approveRun: async () => ({
-      ok: true,
-      data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
-    }),
-  };
-  const p = {
-    id: "pb-1",
-    name: "Win-back",
-    state: "running",
-    trigger: "winback",
-    triggerLabel: "Quiet 30 days",
-    triggerHint: "",
-    schedule: "daily at 10:00",
-    next: "tomorrow 10:00",
-    policy_class: "marketing",
-    template_name: "winback_offer",
-    template_language: "en_US",
-    candidates: 3,
-    last_run_for: null,
-    totals: {
-      waiting: { id: "b-w", recipient_count: 3 },
-      runs: 1,
-      sent: 0,
-      delivered: 0,
-      replied: 0,
-      held: 0,
-      history: [],
-    },
-  };
-  cells = [];
-  frames.begin();
-  const tree = globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
-  let approve = null;
-  walk(tree, (n) => {
-    if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
-  });
-  assert.ok(approve, "a waiting run offers Approve");
-  await approve.props.onClick();
-  const said = textOf(toasts.at(-1).msg);
-  assert.ok(!said.includes("sending now"), said);
-  assert.ok(said.includes("scheduled for"), said);
-});
+const SRC = "../../../../apps/dashboard/src";
+// The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015).
+const { BcWhenBox, bcWhenNote, bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
 
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
 const inTokyo = (nowIso, fn) => {
@@ -731,7 +689,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     let picked;
     cells = [];
     frames.begin();
-    const box = globalThis.window.BcWhenBox({
+    const box = BcWhenBox({
       at: null,
       maxDays: 30,
       onChange: (v) => {
@@ -742,27 +700,20 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     assert.equal(box.props.max, "2027-01-14T12:00", "and within thirty days");
     box.props.onChange({ target: { value: "2026-12-15T22:30" } });
     assert.equal(picked, Date.parse("2026-12-15T13:30:00Z"), "REGRESSION: 10:30 PM was read on the device's clock");
-    const late = globalThis.window.bcWhenNote(picked, 30);
+    const late = bcWhenNote(picked, 30);
     assert.deepEqual(
       [late.ok, late.words],
       [true, "Goes out tomorrow 9:00 AM, Tokyo time — sends wait for 9:00–20:59"],
     );
+    assert.equal(bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words, "Goes out today 2:00 PM, Tokyo time");
     assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words,
-      "Goes out today 2:00 PM, Tokyo time",
-    );
-    assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2026-12-15T02:00:00Z"), 30).ok,
+      bcWhenNote(Date.parse("2026-12-15T02:00:00Z"), 30).ok,
       false,
       "a time that has passed is not scheduled",
     );
-    assert.equal(
-      globalThis.window.bcWhenNote(Date.parse("2027-02-01T02:00:00Z"), 30).ok,
-      false,
-      "nor one past thirty days",
-    );
-    assert.equal(globalThis.window.bcWhenNote(null, 30).words, "By Tokyo time · within 30 days");
-    const receipt = globalThis.window.bcWhenWords({
+    assert.equal(bcWhenNote(Date.parse("2027-02-01T02:00:00Z"), 30).ok, false, "nor one past thirty days");
+    assert.equal(bcWhenNote(null, 30).words, "By Tokyo time · within 30 days");
+    const receipt = bcWhenWords({
       scheduled_for: "2026-12-16T00:00:00Z",
       moved_from: "2026-12-15T13:30:00Z",
     });
@@ -802,156 +753,11 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
   });
 });
 
-/* ------ Messages: an unread number, and the business the preview names ------ */
-
-await import("../../../../apps/dashboard/src/legacy/pages/messages.jsx");
-
-const mountMessages = (over) => {
-  Object.assign(
-    globalThis.window,
-    {
-      __TEMPLATES_ALL: [],
-      __CHANNELS: [],
-      __ME: { role: "owner" },
-      __starters: undefined,
-      __SETTINGS: {
-        config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
-      },
-    },
-    over,
-  );
-  cells = [];
-  frames.begin();
-  return globalThis.window.MessagesPage();
-};
-const byId = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-/**
- * Messages with ONE named message open: a row carries a line of the words, and
- * the whole message -- its slots filled with this business's own -- is inside it.
- * Named, because eight starters are rows on the same page and opening whichever
- * is first passes a preview assertion with another message's words.
- */
-const mountMessagesOpen = (over, name) => {
-  const tree = mountMessages(over);
-  let row = null;
-  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
-  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
-  walk(tree, (n) => {
-    if (
-      !row &&
-      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
-      n.props?.["data-template"] === name
-    )
-      row = n;
-  });
-  assert.ok(row, `no row for ${name}`);
-  byId(row, "template-open").props.onClick();
-  frames.begin();
-  return globalThis.window.MessagesPage();
-};
-
-test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", () => {
-  const failed = mountMessages({ __CHANNELS: null });
-  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
-  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
-  const none = mountMessages({ __CHANNELS: [] });
-  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
-});
-
-test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
-  // The page reads the starter library the bridge installs, not a stand-in.
-  const { installTemplates } = await import("../../../../apps/dashboard/src/legacy-bridge/templates.ts");
-  installTemplates();
-  const starters = globalThis.window.__starters;
-  // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,
-  // the example filed with Meta -- and no kind. The first fix read a `kind` no real row carries, so the
-  // salon's five approved starters still said "Luna Studio" on 14 September.
-  const filed = [
-    { label: "Value 1", example: "Dani", position: 1 },
-    { label: "Value 2", example: "Luna Studio", position: 2 },
-    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
-  ];
-  const row = (over) => ({
-    id: "t1",
-    channel: "whatsapp",
-    name: "save_our_number",
-    language: "en_US",
-    meta_status: "approved",
-    category: "marketing",
-    source: "chanlytics",
-    hidden_at: null,
-    title: null,
-    quality: null,
-    rejected_reason: null,
-    synced_at: null,
-    body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.",
-    variables: filed,
-    ...over,
-  });
-  for (const language of ["en_US", "es"]) {
-    const said = textOf(
-      byId(
-        mountMessagesOpen(
-          { __CHANNELS: [{ kind: "whatsapp" }], __starters: starters, __TEMPLATES_ALL: [row({ language })] },
-          "save_our_number",
-        ),
-        "template-open-body",
-      ),
-    );
-    assert.ok(said.includes("Marisa's Beauty Salon"), `${language}: ${said}`);
-    assert.ok(said.includes("https://book.example.com/marisa"), `${language}: ${said}`);
-    assert.ok(
-      !said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"),
-      `REGRESSION (${language}): another business's name and link in this business's message`,
-    );
-    assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
-  }
-  // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
-  const theirs = textOf(
-    byId(
-      mountMessagesOpen(
-        {
-          __CHANNELS: [{ kind: "whatsapp" }],
-          __starters: starters,
-          __TEMPLATES_ALL: [
-            row({
-              id: "t2",
-              name: "front_desk_note",
-              source: "meta",
-              body_preview: "A note from {{1}}.",
-              variables: [{ label: "Value 1", example: "the front desk", position: 1 }],
-            }),
-          ],
-        },
-        "front_desk_note",
-      ),
-      "template-open-body",
-    ),
-  );
-  assert.ok(theirs.includes("A note from the front desk."), theirs);
-});
-
 /* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
 
 test("REGRESSION (D12): past fifty broadcasts the header says its numbers are the latest fifty -- they read as everything", () => {
-  assert.equal(
-    typeof globalThis.window.BcHistoryStats,
-    "function",
-    "the history's numbers are one piece that can be drawn",
-  );
-  const cellWords = (p) => ({
-    type: "stat",
-    props: { children: [String(p.label), " ", String(p.value), " ", String(p.meta || "")] },
-  });
-  const keep = globalThis.StatCell;
-  globalThis.StatCell = cellWords;
-  try {
+  assert.equal(typeof BcHistoryStats, "function", "the history's numbers are one piece that can be drawn");
+  {
     const row = (i) => ({
       id: `b${i}`,
       open: false,
@@ -960,15 +766,13 @@ test("REGRESSION (D12): past fifty broadcasts the header says its numbers are th
     });
     cells = [];
     frames.begin();
-    const capped = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: true }));
+    const capped = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: true }));
     assert.ok(capped.includes("latest 50"), capped);
     cells = [];
     frames.begin();
-    const whole = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: false }));
+    const whole = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: false }));
     assert.ok(!whole.includes("latest 50"), whole);
     assert.ok(whole.includes("4 messages"), whole);
-  } finally {
-    globalThis.StatCell = keep;
   }
 });
 
@@ -1176,4 +980,234 @@ test("REGRESSION: the Terms name the password among the ways to sign in -- they 
   const signIn = lines.find((s) => s.startsWith("Sign-in is"));
   assert.ok(signIn, `the sign-in sentence among ${lines.length} lines`);
   assert.ok(signIn.includes("password"), signIn);
+});
+
+/* ------------- Campaigns, drawn as TSX (decision 0015): the pages that hold state ------------- */
+
+// The stub React that patches `react` itself (_legacy-react.mjs) replaces this file's own, so these come last: the pages
+// above were drawn on this file's stub. A TSX page reads its data through the seam and imports its verbs, so a test hands the
+// seam a value (setSurfaceValue) and holds a verb where the page presses it.
+let campaigns = null;
+const campaignsWorld = async () => {
+  if (campaigns) return campaigns;
+  const toasts = [];
+  installLegacyReact({
+    __DEMO_MODE: false,
+    __surfaceState: () => "live",
+    __ME: { role: "owner" },
+    ...shellDoors,
+    // The policy store the chip on a card reads (the shell publishes it; policy-store.ts).
+    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
+    location: {
+      pathname: "/w/studio",
+      hash: "#/outbound",
+      origin: "https://app.chanlytics.com",
+      assign() {},
+      replace() {},
+      reload() {},
+    },
+    __WORKSPACES: [
+      { id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
+    ],
+    __ACTIVE_WORKSPACE: "t-studio",
+    usePPToast: () => [null, (t) => toasts.push(t)],
+    CHANLY: { nav() {}, R: {} },
+    appNavigate() {},
+    useHotkey: () => {},
+    setInterval: () => 1,
+    clearInterval() {},
+  });
+  Object.assign(globalThis.window, kitPages);
+  const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
+  const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
+  const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+  const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  campaigns = { toasts, PlaybookCard, playbooks, TemplatesPage, setSurfaceValue };
+  return campaigns;
+};
+
+test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
+  const { toasts, PlaybookCard, playbooks } = await campaignsWorld();
+  assert.equal(typeof bcWhenWords, "function", "one sentence for when a send really goes");
+  const moved = bcWhenWords({
+    scheduled_for: "2026-09-15T13:00:00Z",
+    moved_from: "2026-09-15T02:00:00Z",
+  });
+  assert.ok(moved.startsWith("scheduled for "), moved);
+  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
+  assert.equal(
+    bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }),
+    "sending now",
+  );
+
+  const approveRun = playbooks.approveRun;
+  playbooks.approveRun = async () => ({
+    ok: true,
+    data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
+  });
+  try {
+    const p = {
+      id: "pb-1",
+      name: "Win-back",
+      state: "running",
+      trigger: "winback",
+      triggerLabel: "Quiet 30 days",
+      triggerHint: "",
+      schedule: "daily at 10:00",
+      next: "tomorrow 10:00",
+      policy_class: "marketing",
+      template_name: "winback_offer",
+      template_language: "en_US",
+      candidates: 3,
+      last_run_for: null,
+      totals: {
+        waiting: { id: "b-w", recipient_count: 3 },
+        runs: 1,
+        sent: 0,
+        delivered: 0,
+        replied: 0,
+        held: 0,
+        history: [],
+      },
+    };
+    freshTree();
+    const tree = PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    let approve = null;
+    walk(tree, (n) => {
+      if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
+    });
+    assert.ok(approve, "a waiting run offers Approve");
+    await approve.props.onClick();
+    const said = textOf(toasts.at(-1).msg);
+    assert.ok(!said.includes("sending now"), said);
+    assert.ok(said.includes("scheduled for"), said);
+  } finally {
+    playbooks.approveRun = approveRun;
+  }
+});
+
+/* ------ Messages: an unread number, and the business the preview names ------ */
+
+const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
+  const { TemplatesPage, setSurfaceValue } = await campaignsWorld();
+  setSurfaceValue("settings", {
+    settings: {
+      config: { brain: { business_name: "Marisa's Beauty Salon", booking_link: "https://book.example.com/marisa" } },
+    },
+    facts: null,
+    channels,
+    templatesAll,
+    templateUse: null,
+    templateSent: null,
+  });
+  // A template's title is looked up among the workspace's rows by its name (verbs.ts titleOf), as the app publishes them.
+  globalThis.__TEMPLATES_ALL = templatesAll;
+  freshTree();
+  return TemplatesPage();
+};
+const byId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
+/**
+ * Templates with ONE named message open: a row carries a line of the words, and
+ * the whole message -- its slots filled with this business's own -- is inside it.
+ * Named, because eight starters are rows on the same page and opening whichever
+ * is first passes a preview assertion with another message's words.
+ */
+const mountMessagesOpen = async (over, name) => {
+  const tree = await mountMessages(over);
+  let row = null;
+  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
+  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
+  walk(tree, (n) => {
+    if (
+      !row &&
+      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
+      n.props?.["data-template"] === name
+    )
+      row = n;
+  });
+  assert.ok(row, `no row for ${name}`);
+  byId(row, "template-open").props.onClick();
+  return againTree(() => campaigns.TemplatesPage());
+};
+
+test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", async () => {
+  const failed = await mountMessages({ channels: null });
+  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
+  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
+  const none = await mountMessages({ channels: [] });
+  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
+});
+
+test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
+  // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,
+  // the example filed with Meta -- and no kind. The first fix read a `kind` no real row carries, so the
+  // salon's five approved starters still said "Luna Studio" on 14 September.
+  const filed = [
+    { label: "Value 1", example: "Dani", position: 1 },
+    { label: "Value 2", example: "Luna Studio", position: 2 },
+    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
+  ];
+  const row = (over) => ({
+    id: "t1",
+    channel: "whatsapp",
+    name: "save_our_number",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    source: "chanlytics",
+    hidden_at: null,
+    title: null,
+    quality: null,
+    rejected_reason: null,
+    synced_at: null,
+    body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.",
+    variables: filed,
+    ...over,
+  });
+  for (const language of ["en_US", "es"]) {
+    const said = textOf(
+      byId(
+        await mountMessagesOpen(
+          { channels: [{ kind: "whatsapp" }], templatesAll: [row({ language })] },
+          "save_our_number",
+        ),
+        "template-open-body",
+      ),
+    );
+    assert.ok(said.includes("Marisa's Beauty Salon"), `${language}: ${said}`);
+    assert.ok(said.includes("https://book.example.com/marisa"), `${language}: ${said}`);
+    assert.ok(
+      !said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"),
+      `REGRESSION (${language}): another business's name and link in this business's message`,
+    );
+    assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+  }
+  // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
+  const theirs = textOf(
+    byId(
+      await mountMessagesOpen(
+        {
+          channels: [{ kind: "whatsapp" }],
+          templatesAll: [
+            row({
+              id: "t2",
+              name: "front_desk_note",
+              source: "meta",
+              body_preview: "A note from {{1}}.",
+              variables: [{ label: "Value 1", example: "the front desk", position: 1 }],
+            }),
+          ],
+        },
+        "front_desk_note",
+      ),
+      "template-open-body",
+    ),
+  );
+  assert.ok(theirs.includes("A note from the front desk."), theirs);
 });

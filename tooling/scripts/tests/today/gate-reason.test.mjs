@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId } from "../_legacy-react.mjs";
+import { installLegacyReact, kitPages, fresh, again, find, byTestId } from "../_legacy-react.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -80,9 +80,6 @@ installLegacyReact({
 });
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
@@ -341,28 +338,50 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
 
 /* ----------------------------------- Messages ----------------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/messages.jsx");
+// Templates is a TSX page (decision 0015): drawn on the stub React that patches `react` itself, over the settings surface the seam
+// holds, with the shell's doors (the role gate, the toast) this file's window already has.
+const shellDoors = {};
+for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
+  shellDoors[k] = globalThis.window[k];
+const SRC = "../../../../apps/dashboard/src";
 
-test("REGRESSION (C17, C21): a viewer on Messages finds New message where it always is, gated with the reason -- it was hidden with no word -- and nothing listens for an event nobody sends", () => {
+test("REGRESSION (C17, C21): a viewer on Templates finds New message where it always is, gated with the reason -- it was hidden with no word -- and nothing listens for an event nobody sends", async () => {
   asRole("viewer");
   const listening = [];
-  const add = globalThis.window.addEventListener;
-  fresh();
-  Object.assign(globalThis.window, {
+  installLegacyReact({
+    __DEMO_MODE: false,
+    __surfaceState: () => "live",
     __ME: { role: "viewer" },
-    __TEMPLATES_ALL: [],
-    __CHANNELS: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
-    __starters: undefined,
-    __SETTINGS: { config: { brain: { business_name: "Marisa's Beauty Salon" } } },
-    addEventListener: (name) => listening.push(name),
+    ...shellDoors,
+    usePPToast: () => [null, () => {}],
+    CHANLY: { nav() {}, R: {} },
+    appNavigate() {},
+    useHotkey: () => {},
   });
+  Object.assign(globalThis.window, kitPages);
+  const add = globalThis.addEventListener;
+  globalThis.addEventListener = (name, ...rest) => {
+    listening.push(name);
+    return add(name, ...rest);
+  };
   try {
-    const tree = again(() => globalThis.window.MessagesPage());
+    const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+    const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+    setSurfaceValue("settings", {
+      settings: { config: { brain: { business_name: "Marisa's Beauty Salon" } } },
+      facts: null,
+      channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
+      templatesAll: [],
+      templateUse: null,
+      templateSent: null,
+    });
+    fresh();
+    const tree = TemplatesPage();
     const write = byTestId(tree, "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");
     assert.equal(write.props["data-tip"], "Only an owner or operator can write a template.");
     assert.ok(!listening.includes("messages:new"), "REGRESSION: a listener for an event nothing dispatches");
   } finally {
-    globalThis.window.addEventListener = add;
+    globalThis.addEventListener = add;
   }
 });

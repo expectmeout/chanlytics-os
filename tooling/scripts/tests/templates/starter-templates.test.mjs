@@ -329,34 +329,34 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     .join(" ");
   assert.ok(b.includes('data-testid="bc-add-starters"'));
   assert.ok(
-    b.includes(
-      "const srcOf = (i) => { const c = choices[i] || BC_TEXT; const s = (sources[tplId] || BC_NONE)[i]; return c.includes(s) ? s : c[0]; };",
-    ),
+    b.includes("const c = choices[i] || BC_TEXT;") &&
+      b.includes("const s = (sources[tplId] || BC_NONE)[i];") &&
+      b.includes("return c.includes(s) ? s : c[0];"),
     "a starter's slots come filled in, each with what it may take",
   );
   assert.ok(
-    b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'),
+    b.includes("<MessagePreview") && b.includes('data-testid="bc-preview"'),
     "the preview is the message as the customer sees it",
   );
-  assert.ok(
-    b.includes("<window.PreviewStepper"),
-    "and it walks the real people the count is a length of, not an example",
-  );
+  assert.ok(b.includes("<PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
-  // The composer is playbook-composer.jsx (moved whole from outbound-real.jsx, Reach out Part 2.5).
-  const p = readCode("apps/dashboard/src/legacy/pages/playbook-composer.jsx");
+  // The composer (moved from playbook-composer.jsx, decision 0015): its sections and its model, read as one.
+  const p = ["composer-sections.tsx", "composer-model.ts"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/playbooks/${f}`))
+    .join(" ");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
   assert.ok(
-    p.includes("window.__starters.forTrigger(trigger)") &&
-      p.includes("const tpl = picked ? usable.find((t) => t.id === tplId) || null : rowIn(starterGroup, null);"),
+    p.includes("starters.forTrigger(f.trigger)") &&
+      p.includes("const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);"),
     "the trigger's starter is picked for you",
   );
-  assert.ok(p.includes("<window.CmPicker") && p.includes("<window.MessagePreview"));
-  const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
+  assert.ok(p.includes("<CmPicker") && p.includes("<MessagePreview"));
+  // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.
+  const t = ["composer-forms.tsx", "composer.tsx"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))
+    .join(" ");
   assert.ok(
-    t.includes('data-testid="tpl-start-from"') &&
-      t.includes("window.starterWords = starterWords;") &&
-      !t.includes("WaBubble"),
+    t.includes('data-testid="tpl-start-from"') && t.includes("export const starterWords = ") && !t.includes("WaBubble"),
   );
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");
   assert.ok(css.includes(".mp-bubble {") && css.includes(".tpl-starter-row {"));
@@ -437,9 +437,11 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   );
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
-  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  const s = ["page-parts", "message-row-parts"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
+    .join(" ");
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
-  const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
+  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
   const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
   assert.ok(
@@ -473,12 +475,12 @@ test("a template's title: the workspace's own words, set through its door, shown
     "empty is no title — the door clears it",
   );
   assert.ok(one.includes('"Say what changes: whether it is hidden, or its title."'));
-  const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
+  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(
     b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"),
     "a name is looked up among the workspace's rows",
   );
-  const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   for (const id of ["template-rename", "template-title", "template-title-save"])
     assert.ok(s.includes(`data-testid="${id}"`), id);
   // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
