@@ -83,6 +83,20 @@ test("a failed row is final; run again it is a fresh row of the same kind and pa
   assert.deepEqual(again.payload, { email_id: "e-requeue-1" });
   assert.equal((await row(id)).state, "failed");
   assert.equal((await row(id)).last_error, "the key was restricted", "the record of what went wrong is kept");
+
+  // Once: a second press finds the copy the first left, by the database's own equality of the two payloads.
+  const twice = await requeueFailedJob(db, T, id, async (kind) => void recorded.push(kind));
+  assert.deepEqual(twice, { outcome: "already_scheduled" });
+  assert.equal((await rowsOf("email_ingest")).length, 2, "no second copy");
+  assert.equal(recorded.length, 1, "and nothing recorded for an act that did not happen");
+
+  // Another payload of the same kind is other work; and a copy that failed itself leaves the letter open again.
+  const other = await job("email_ingest", { email_id: "e-requeue-1b" }, "scheduled");
+  assert.ok(other);
+  await db.from("jobs").update({ state: "fired", attempts: 1, lease_until: far() }).eq("id", again.id);
+  await db.from("jobs").update({ state: "failed" }).eq("id", again.id);
+  const third = await requeueFailedJob(db, T, id, async () => {});
+  assert.deepEqual(third, { outcome: "requeued", kind: "email_ingest" });
 });
 
 test("work the ledger holds once per subject: the database's own refusal is 'already on the ledger', and no second row", async (t) => {

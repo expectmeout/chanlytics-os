@@ -4,7 +4,7 @@
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client.
  */
-import { readJobToRequeue, type Json } from "@chanlytics/db";
+import { hasNewerCopy, readJobToRequeue, type Json } from "@chanlytics/db";
 import { JOB_KINDS, type JobKind } from "@chanlytics/contracts";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
 
@@ -90,7 +90,8 @@ export type Requeued =
  * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
  * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
  * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
- * A kind the ledger holds once per subject answers `already_scheduled` when the subject is on the ledger again.
+ * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
+ * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
  */
 export async function requeueFailedJob(
   db: Db,
@@ -102,6 +103,8 @@ export async function requeueFailedJob(
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
   if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  // Run again once: a second press, or a second person, finds the copy the first left and does not make another.
+  if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   // A kind a newer deploy wrote and this one does not know (failed after a day unknown) waits for the deploy that does.
   const kind = JOB_KINDS.find((k) => k === row.kind);
   if (!kind) return { outcome: "unknown_kind", kind: row.kind };

@@ -16,6 +16,7 @@
  */
 
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { localHour, runDueNow } from "@chanlytics/contracts";
 
 /**
@@ -98,10 +99,25 @@ function asJsonb(value) {
 }
 
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
+/**
+ * `eq`: a column equals a value. A json column asked with the value's JSON text (`.filter("payload", "eq", JSON.stringify(x))`,
+ * how PostgREST is asked for jsonb equality) is equal when it holds the same JSON, whatever the order of its keys.
+ */
+function equalsCell(have, val) {
+  if (have !== null && typeof have === "object" && typeof val === "string") {
+    try {
+      return isDeepStrictEqual(have, JSON.parse(val));
+    } catch {
+      return false;
+    }
+  }
+  return have === val;
+}
+
 function matches(row, filters) {
   return filters.every(([op, col, val]) =>
     op === "eq"
-      ? cell(row, col) === val
+      ? equalsCell(cell(row, col), val)
       : op === "lt"
         ? cell(row, col) != null && cell(row, col) < val
         : // PostgREST's `.is(col, null)`: the only way to ask for NULL, and what

@@ -41,6 +41,7 @@ function ledger(job = {}, { faults = {}, unique = [] } = {}) {
         state: "failed",
         payload: { email_id: "e-1" },
         due_at: "2026-09-29T10:00:00.000Z",
+        created_at: "2026-09-29T09:00:00.000Z",
         last_error: "the key was restricted",
         ...job,
       },
@@ -172,6 +173,38 @@ test("work the ledger holds once per subject answers that it is on the ledger ag
     (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
   );
   assert.equal(l.tables.jobs.length, 2, "no second row for the same subject");
+});
+
+test("a dead letter is run again once: a second press, or a second person, finds the copy the first left and makes no other", async () => {
+  const l = ledger();
+  await platformJobRequeue(l.office, ctx, A, J);
+  for (let again = 0; again < 2; again += 1)
+    await assert.rejects(
+      platformJobRequeue(l.office, ctx, A, J),
+      (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
+    );
+  assert.equal(l.tables.jobs.length, 2, "one failed row and one copy, however many times it was pressed");
+
+  // A copy that itself failed does not count: the work can be run again, and the second copy is a fresh row.
+  const copy = l.tables.jobs.find((j) => j.id !== J);
+  copy.state = "failed";
+  const third = await platformJobRequeue(l.office, ctx, A, J);
+  assert.deepEqual(third, { ok: true, job_id: J, kind: "email_ingest" });
+  assert.equal(l.tables.jobs.length, 3);
+
+  // Another payload of the same kind is another piece of work, not a copy.
+  const other = ledger();
+  other.tables.jobs.push({
+    id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    tenant_id: A,
+    kind: "email_ingest",
+    state: "scheduled",
+    payload: { email_id: "e-2" },
+    due_at: "2026-09-29T11:00:00.000Z",
+    created_at: "2026-09-29T10:30:00.000Z",
+  });
+  await platformJobRequeue(other.office, ctx, A, J);
+  assert.equal(other.tables.jobs.length, 3);
 });
 
 test("the verb hands back what it did as data, and calls record only for a row it will make", async () => {
