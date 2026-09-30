@@ -166,7 +166,10 @@ test("the partner hears it in the letter, and brought counts it now", { skip }, 
       .update({ written_through: new Date(Date.now() - 3_600_000).toISOString() })
       .eq("id", partner.id),
   );
-  const due = ok(await db.rpc("partner_letters_due", { p_now: new Date().toISOString() }));
+  // No instant: the function's own default, the database's now(). The runner's clock and the database's differ by
+  // milliseconds, and a share written at the database's now() is after a runner's new Date() taken a moment later
+  // whenever the database's is ahead.
+  const due = ok(await db.rpc("partner_letters_due"));
   const mine = due.find((d) => d.partner_id === partner.id);
   assert.ok(mine, "a letter is due");
   assert.deepEqual(mine.news.accepted, ["Luna Studio"]);
