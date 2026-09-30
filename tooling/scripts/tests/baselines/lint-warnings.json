@@ -56,9 +56,6 @@
   "apps/dashboard/app/api/v1/leads/[id]/put-back/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "apps/dashboard/app/api/v1/playbooks/[id]/route.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 3
-  },
   "apps/dashboard/app/api/v1/playbooks/route.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
@@ -68,24 +65,11 @@
   "apps/dashboard/app/api/v1/reach-outs/reach/route.ts": {
     "@typescript-eslint/no-deprecated": 1
   },
-  "apps/dashboard/app/api/v1/segments/[id]/route.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
-  "apps/dashboard/app/api/v1/segments/route.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
   "apps/dashboard/app/api/v1/signup/route.ts": {
     "@typescript-eslint/require-await": 1
   },
   "apps/dashboard/app/api/v1/templates/draft/route.ts": {
     "@typescript-eslint/no-deprecated": 1
-  },
-  "apps/dashboard/app/api/v1/templates/route.ts": {
-    "@typescript-eslint/no-base-to-string": 3,
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
-  "apps/dashboard/app/api/v1/templates/starter/route.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "apps/dashboard/app/login/page.tsx": {
     "@typescript-eslint/no-deprecated": 4
@@ -246,8 +230,18 @@
   "apps/dashboard/src/server/ask/tools/registry.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 2
   },
+  "apps/dashboard/src/server/campaigns/playbook-row.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 3
+  },
   "apps/dashboard/src/server/campaigns/reach-outs.ts": {
     "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/dashboard/src/server/campaigns/starter-templates.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/dashboard/src/server/campaigns/template-submit.ts": {
+    "@typescript-eslint/no-base-to-string": 3,
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "apps/dashboard/src/server/campaigns/templates.ts": {
     "@typescript-eslint/no-base-to-string": 2
@@ -260,6 +254,9 @@
   },
   "apps/dashboard/src/server/metrics/activity.ts": {
     "@typescript-eslint/no-deprecated": 1
+  },
+  "apps/dashboard/src/server/people/list-write.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 2
   },
   "apps/dashboard/src/server/ports/core-ports.ts": {
     "@typescript-eslint/unbound-method": 6
@@ -314,35 +311,6 @@
     "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/interactive-supports-focus": 1
   },
-  "apps/edge/api/admin/playbooks-run.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
-  "apps/edge/api/admin/voice-converge.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 3,
-    "@typescript-eslint/restrict-template-expressions": 1
-  },
-  "apps/edge/api/admin/voice-provision.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
-  "apps/edge/api/admin/whatsapp/templates-create.ts": {
-    "@typescript-eslint/no-base-to-string": 1
-  },
-  "apps/edge/api/cron/leads.ts": {
-    "@typescript-eslint/no-base-to-string": 1,
-    "@typescript-eslint/unbound-method": 1
-  },
-  "apps/edge/api/retell-availability.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/retell-fn.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/retell-inbound.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/retell-webhook.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "apps/edge/api/whatsapp.ts": {
     "@typescript-eslint/require-await": 1
   },
@@ -356,13 +324,42 @@
   "apps/edge/lib/leads/lead-wires.ts": {
     "@typescript-eslint/require-await": 1
   },
+  "apps/edge/lib/leads/leads-sweep.ts": {
+    "@typescript-eslint/no-base-to-string": 1,
+    "@typescript-eslint/unbound-method": 1
+  },
   "apps/edge/lib/reach-out/check.ts": {
     "@typescript-eslint/no-base-to-string": 2
   },
   "apps/edge/lib/reach-out/clock.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
+  "apps/edge/lib/reach-out/run-now.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
   "apps/edge/lib/receptionist/unfinished.ts": {
+    "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/edge/lib/voice/availability-tool.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/lib/voice/call-booking-link.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/lib/voice/call-webhook.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/lib/voice/inbound-call.ts": {
+    "@typescript-eslint/no-unsafe-assignment": 1
+  },
+  "apps/edge/lib/voice/voice-converge.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 3,
+    "@typescript-eslint/restrict-template-expressions": 1
+  },
+  "apps/edge/lib/voice/voice-provision.ts": {
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
+  },
+  "apps/edge/lib/whatsapp/template-admin.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },
   "apps/edge/lib/whatsapp/waba-events.ts": {
