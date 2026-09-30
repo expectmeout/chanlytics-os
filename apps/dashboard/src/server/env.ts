@@ -27,7 +27,7 @@ import { publicEnv } from "../lib/public-env";
 /** Blank is unset: Vercel stores an emptied variable as "", and whitespace around a pasted value is never meant. */
 const blankAsUnset = (value: unknown): unknown => (typeof value === "string" ? value.trim() || undefined : value);
 
-const text = z.preprocess(blankAsUnset, z.string().optional());
+const optionalText = z.preprocess(blankAsUnset, z.string().optional());
 
 /** An origin: a scheme and a host, no path; a trailing slash is the same origin. */
 const origin = z.preprocess(
@@ -56,38 +56,38 @@ const oneOf = <const T extends readonly [string, ...string[]]>(values: T) =>
 const SCHEMA = {
   // Supabase: the browser half, read through public-env.ts, and the server's own key.
   NEXT_PUBLIC_SUPABASE_URL: url,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: text,
-  NEXT_PUBLIC_LEAD_MAP_BASE: text,
-  SUPABASE_SERVICE_ROLE_KEY: text,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalText,
+  NEXT_PUBLIC_LEAD_MAP_BASE: optionalText,
+  SUPABASE_SERVICE_ROLE_KEY: optionalText,
 
   // The edge: where it is, and the credentials a call to it carries.
-  DIAG_KEY: text,
+  DIAG_KEY: optionalText,
   EDGE_URL: origin,
-  EDGE_CALL_SECRET: text,
+  EDGE_CALL_SECRET: optionalText,
 
   // Reach out's unsubscribe links, and the email channel's domain.
-  UNSUBSCRIBE_SECRET: text,
-  UNSUBSCRIBE_SECRET_PREVIOUS: text,
-  UNSUBSCRIBE_ORIGIN: text,
-  EMAIL_DOMAIN: text,
+  UNSUBSCRIBE_SECRET: optionalText,
+  UNSUBSCRIBE_SECRET_PREVIOUS: optionalText,
+  UNSUBSCRIBE_ORIGIN: optionalText,
+  EMAIL_DOMAIN: optionalText,
 
   // Google's OAuth state, the providers switch, Ask's model.
-  GOOGLE_OAUTH_STATE_SECRET: text,
+  GOOGLE_OAUTH_STATE_SECRET: optionalText,
   EDGE_PROVIDERS: oneOf(["live"]),
-  ASK_MODEL: text,
+  ASK_MODEL: optionalText,
 
   // The product's one address.
   CANONICAL_HOST: host,
 
   // Sign-up, the phone app's links and the oldest app spoken to.
-  SIGNUP_CODE: text,
-  APP_LINKS_APPLE: text,
-  APP_LINKS_ANDROID: text,
-  MIN_APP_VERSION: text,
+  SIGNUP_CODE: optionalText,
+  APP_LINKS_APPLE: optionalText,
+  APP_LINKS_ANDROID: optionalText,
+  MIN_APP_VERSION: optionalText,
 
   // Set by the platform, not by an operator.
   VERCEL_ENV: oneOf(["production", "preview", "development"]),
-  VERCEL_GIT_COMMIT_SHA: text,
+  VERCEL_GIT_COMMIT_SHA: optionalText,
   NEXT_RUNTIME: oneOf(["nodejs", "edge"]),
 } as const;
 

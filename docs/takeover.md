@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            175   of which over 200 lines: 43
+functions over the limit            174   of which over 200 lines: 43
 files over 800 lines                 13
 directories over 20 modules           5
 window globals                      200   names
@@ -45,7 +45,7 @@ as never                             13
 non-null assertions, x!             128
 index reads the compiler lets pass  450   in 113 files
 table names outside packages/db     521
-edge statements naming no workspace    0   in 0 files
+edge statements naming no workspace   29   in 17 files
 unnamed durations                    69   in 36 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes

@@ -599,11 +599,6 @@
     "branches": 45,
     "depth": 1
   },
-  "apps/edge/api/admin/voice-converge.ts::POST#1": {
-    "lines": 91,
-    "branches": 33,
-    "depth": 4
-  },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
     "lines": 181,
     "branches": 47,
