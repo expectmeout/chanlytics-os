@@ -867,7 +867,10 @@ differently on the next fresh database than it ran in production.
 
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
-   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files.
+   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files. With the stack
+   still up, `corepack pnpm gen:schema-snapshot` writes `supabase/schema.sql` (the schema it built); then
+   `corepack pnpm gen:data-model` writes `docs/data-model.md` from that file, with no stack. Commit both: the suite fails
+   a stale copy of either.
 3. **Let CI replay it** from zero and run the database suites against it.
 4. **Apply it to production** just before the merge, from the pull request's branch with `origin/main` merged into
    it, so the checkout holds every migration main has:
