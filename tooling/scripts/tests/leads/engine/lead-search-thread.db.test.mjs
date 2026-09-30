@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -94,6 +95,14 @@ const create = async (who, thread) =>
 const threadOfSearch = async (id) =>
   ok(await db.from("lead_searches").select("thread_id").eq("id", id).single()).thread_id;
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
+before(async () => {
+  if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
+});
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
@@ -194,3 +203,7 @@ test(
     );
   },
 );
+
+after(async () => {
+  await releaseList?.();
+});

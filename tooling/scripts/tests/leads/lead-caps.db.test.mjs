@@ -11,6 +11,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import {
   LEAD_DAY_CAP_USD,
   LEAD_LIST_MAX,
@@ -42,6 +43,14 @@ const ok = (res, what = "") => {
   return res.data;
 };
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
+before(async () => {
+  if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
+});
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
@@ -136,4 +145,8 @@ test("the list door refuses and words each cap by the one place", { skip }, asyn
   const full = ok(await importing({}), "the month's refusal");
   assert.equal(full.error, "month_leads_used");
   assert.match(full.sentence, new RegExp(`^This month's ${LEAD_MONTHLY_ALLOWANCE} leads are used`));
+});
+
+after(async () => {
+  await releaseList?.();
 });

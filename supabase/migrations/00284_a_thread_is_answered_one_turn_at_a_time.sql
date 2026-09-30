@@ -33,10 +33,13 @@
 set local lock_timeout = '3s';
 
 create table if not exists public.reply_turns (
-  conversation_id uuid primary key references public.conversations (id) on delete cascade,
+  conversation_id uuid primary key,
   tenant_id       uuid not null references public.tenants (id) on delete cascade,
   message_id      uuid not null,
-  claimed_at      timestamptz not null default now()
+  claimed_at      timestamptz not null default now(),
+  -- The thread is the workspace's own: a row names its parent by workspace and id, as 00279 makes every such key.
+  constraint reply_turns_conversation_id_same_workspace
+    foreign key (tenant_id, conversation_id) references public.conversations (tenant_id, id) on delete cascade
 );
 comment on table public.reply_turns is
   'Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).';

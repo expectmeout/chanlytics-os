@@ -25,7 +25,7 @@ what the script writes.
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/touches.ts` | on, 2 policies |
 | [`broadcasts`](#broadcasts) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
-| [`calls`](#calls) | `packages/db/src/repositories/calls.ts` | on, 1 policy |
+| [`calls`](#calls) | `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
@@ -41,7 +41,7 @@ what the script writes.
 | [`google_reviews`](#google_reviews) | none | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | none | on, 1 policy |
-| [`jobs`](#jobs) | `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
+| [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
 | [`lead_niche_priors`](#lead_niche_priors) | none | on, no policy, so only the service role reaches it |
@@ -56,10 +56,10 @@ what the script writes.
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
-| [`lines`](#lines) | none | on, 1 policy |
+| [`lines`](#lines) | `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/notifications.ts` | on, 2 policies |
-| [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 3 policies |
+| [`messages`](#messages) | `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -74,6 +74,7 @@ what the script writes.
 | [`person_moments`](#person_moments) | none | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
+| [`platform_metrics`](#platform_metrics) | none | on, no policy, so only the service role reaches it |
 | [`playbooks`](#playbooks) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
@@ -82,6 +83,7 @@ what the script writes.
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/repositories/lists.ts` | on, 4 policies |
 | [`sending_domains`](#sending_domains) | `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
@@ -89,7 +91,7 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/routing.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -158,7 +160,7 @@ Foreign keys:
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `thread_id` → [`ask_threads`](#ask_threads) (`id`), on delete cascade
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete cascade not valid
 - `user_id` → `auth.users` (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -286,9 +288,9 @@ Foreign keys:
 
 Foreign keys:
 
-- `broadcast_id` → [`broadcasts`](#broadcasts) (`id`), on delete cascade
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
-- `message_id` → [`messages`](#messages) (`id`), on delete set null
+- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -327,8 +329,8 @@ Foreign keys:
 Foreign keys:
 
 - `created_by` → `auth.users` (`id`), on delete set null
-- `playbook_id` → [`playbooks`](#playbooks) (`id`), on delete set null
-- `template_id` → [`templates`](#templates) (`id`)
+- `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -381,7 +383,7 @@ Foreign keys:
 
 ### calls
 
-- Owned by: `packages/db/src/repositories/calls.ts`
+- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -429,10 +431,10 @@ Foreign keys:
 
 Foreign keys:
 
-- `channel_id` → [`tenant_channels`](#tenant_channels) (`id`)
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete set null
-- `conversation_id` → [`conversations`](#conversations) (`id`), on delete set null
-- `message_id` → [`messages`](#messages) (`id`), on delete set null
+- `tenant_id`, `channel_id` → [`tenant_channels`](#tenant_channels) (`tenant_id`, `id`)
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -484,7 +486,7 @@ Foreign keys:
 
 Foreign keys:
 
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -531,7 +533,7 @@ Foreign keys:
 
 Foreign keys:
 
-- `merged_into_contact_id` → [`contacts`](#contacts) (`id`)
+- `tenant_id`, `merged_into_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -567,7 +569,7 @@ Foreign keys:
 Foreign keys:
 
 - `assignee_user_id` → `auth.users` (`id`), on delete set null
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
 - `control_by` → `auth.users` (`id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -611,9 +613,9 @@ One engagement a person is deciding on or has taken (0004): proposed (a proposal
 
 Foreign keys:
 
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
 - `created_by` → `auth.users` (`id`), on delete set null
-- `lead_id` → [`leads`](#leads) (`id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -643,7 +645,7 @@ Foreign keys:
 
 - `actor_user_id` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `undo_of` → [`decisions`](#decisions) (`id`)
+- `tenant_id`, `undo_of` → [`decisions`](#decisions) (`tenant_id`, `id`)
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -685,7 +687,7 @@ When the stored erasure digests were re-keyed (00263 erasure_rekey): null until 
 
 Foreign keys:
 
-- `conversation_id` → [`conversations`](#conversations) (`id`), on delete cascade
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
 - `resolved_by_user_id` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -712,6 +714,7 @@ Foreign keys:
 | `data` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `version` | smallint | no | `1` | The version of this kind's data (packages/db events.ts, 00264): raised when a kind's shape changes, so a reader can tell an old row from a new one. 1 for every kind to date. |
+| `request_id` | text | yes | `public.request_id_of_caller()` | The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -897,7 +900,7 @@ Foreign keys:
 
 ### jobs
 
-- Owned by: `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/jobs.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -915,6 +918,7 @@ Foreign keys:
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
+| `lane` | smallint | yes | `generated: CASE WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0 WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1 WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2 ELSE NULL::integer END` | Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead's reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK. |
 
 Foreign keys:
 
@@ -965,7 +969,7 @@ The judge's answer for one batch, kept by operation id (sha256 of run:offset:bat
 
 Foreign keys:
 
-- `round_id` → [`lead_rounds`](#lead_rounds) (`id`), on delete cascade
+- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### lead_niche_priors
@@ -1008,7 +1012,7 @@ Every undo-able act: what it changed, from what, by whom, when. lead_undo takes 
 
 Foreign keys:
 
-- `search_id` → [`lead_searches`](#lead_searches) (`id`), on delete cascade
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1035,7 +1039,7 @@ A duplicate listing (the same name, address and phone) folded into the lead alre
 
 Foreign keys:
 
-- `lead_id` → [`leads`](#leads) (`id`), on delete cascade
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1081,7 +1085,7 @@ Learned exclusions, scoped to the kind of business (P5). Release C draws them; A
 
 Foreign keys:
 
-- `from_lead_id` → [`leads`](#leads) (`id`), on delete set null
+- `tenant_id`, `from_lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1128,7 +1132,7 @@ The unit of execution and of money: the probe (seq 1), each top-up and each Find
 
 Foreign keys:
 
-- `search_id` → [`lead_searches`](#lead_searches) (`id`), on delete cascade
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1170,7 +1174,7 @@ One provider execution: a discover run per term, a check run per batch of addres
 
 Foreign keys:
 
-- `round_id` → [`lead_rounds`](#lead_rounds) (`id`), on delete cascade
+- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1208,9 +1212,9 @@ One lead in one search, with that search's judgment ({answer, reasons, shares}),
 
 Foreign keys:
 
-- `lead_id` → [`leads`](#leads) (`id`), on delete cascade
-- `round_id` → [`lead_rounds`](#lead_rounds) (`id`), on delete set null
-- `search_id` → [`lead_searches`](#lead_searches) (`id`), on delete cascade
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `round_id` → [`lead_rounds`](#lead_rounds) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1243,7 +1247,7 @@ Foreign keys:
 
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `thread_id` → [`ask_threads`](#ask_threads) (`id`), on delete set null
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -1364,7 +1368,7 @@ A place: one physical location, outside contacts. Unique by place id in the work
 
 Foreign keys:
 
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete set null
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1375,7 +1379,7 @@ Foreign keys:
 
 The number as an ASSET: one row per number Chanlytics bought or forwards, and the state of getting it working -- subaccount, trunk, receptionist, messaging service, carrier registration, porting, forwarding. Routing lives in tenant_channels, which this table is the source for (tenant_channels.config.line_id points back here). A number provisioned elsewhere -- inside Retell, or a WhatsApp number through Meta -- has a channel row and no row here.
 
-- Owned by: none
+- Owned by: `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1479,7 +1483,7 @@ Foreign keys:
 
 ### messages
 
-- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 3 policies
 
@@ -1509,8 +1513,8 @@ Foreign keys:
 
 Foreign keys:
 
-- `contact_id` → [`contacts`](#contacts) (`id`)
-- `conversation_id` → [`conversations`](#conversations) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`)
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
 - `sent_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -1685,7 +1689,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `partner_invitations_read` | select | authenticated | `(is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id FROM partners p WHERE (p.user_id = auth.uid()))))` |  |
+| `partner_invitations_read` | select | authenticated | `(is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id FROM partners p WHERE ((p.user_id = auth.uid()) AND session_shows_second_factor()))))` |  |
 
 ### partner_payouts
 
@@ -1838,7 +1842,7 @@ Each person's moments, kept as their messages and calls are written (0021): when
 
 Foreign keys:
 
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -1879,8 +1883,8 @@ A person's notes (0007), one row each: the words, who wrote them (a member, or t
 Foreign keys:
 
 - `author_user_id` → `auth.users` (`id`), on delete set null
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
-- `deal_id` → [`deals`](#deals) (`id`), on delete set null
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `deal_id` → [`deals`](#deals) (`tenant_id`, `id`), on delete set null
 - `done_by` → `auth.users` (`id`), on delete set null
 - `for_user_id` → `auth.users` (`id`), on delete set null
 - `kept_by` → `auth.users` (`id`), on delete set null
@@ -1904,6 +1908,34 @@ Foreign keys:
 Foreign keys:
 
 - `user_id` → `auth.users` (`id`), on delete cascade
+
+### platform_metrics
+
+One UTC day of one workspace, counted (00277): messages in and out by channel, customers' messages (asks) and how many got an answer from anyone, the receptionist's replies answered, held and handed off, its 95th-percentile latency, sends that failed by outcome, and model tokens. Rolled up nightly (platform_metrics_roll); service role only, read by the back office.
+
+- Owned by: none
+- Primary key: `tenant_id`, `day`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `messages_in` | jsonb | no | `'{}'::jsonb` |  |
+| `messages_out` | jsonb | no | `'{}'::jsonb` |  |
+| `asks` | integer | no | `0` |  |
+| `answered` | integer | no | `0` |  |
+| `replies_answered` | integer | no | `0` |  |
+| `replies_held` | integer | no | `0` |  |
+| `replies_handed_off` | integer | no | `0` |  |
+| `brain_p95_ms` | integer | yes |  |  |
+| `provider_failures` | jsonb | no | `'{}'::jsonb` |  |
+| `tokens` | bigint | no | `0` |  |
+| `rolled_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### playbooks
 
@@ -1948,9 +1980,9 @@ Foreign keys:
 
 - `tenant_id`, `after_playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
 - `created_by` → `auth.users` (`id`), on delete set null
-- `list_id` → [`segments`](#segments) (`id`)
+- `tenant_id`, `list_id` → [`segments`](#segments) (`tenant_id`, `id`)
 - `tenant_id`, `lead_search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete restrict
-- `template_id` → [`templates`](#templates) (`id`)
+- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -2108,13 +2140,13 @@ Reach out Part 5: one reading of one reply to a reach-out, keyed by the message 
 
 Foreign keys:
 
-- `answered_message_id` → [`messages`](#messages) (`id`), on delete set null
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete set null
-- `conversation_id` → [`conversations`](#conversations) (`id`), on delete cascade
-- `lead_contact_id` → [`contacts`](#contacts) (`id`), on delete set null
-- `lead_id` → [`leads`](#leads) (`id`), on delete set null
-- `message_id` → [`messages`](#messages) (`id`), on delete cascade
-- `send_id` → [`reach_out_sends`](#reach_out_sends) (`id`), on delete set null
+- `tenant_id`, `answered_message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `lead_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `send_id` → [`reach_out_sends`](#reach_out_sends) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `undone_by` → `auth.users` (`id`), on delete set null
 
@@ -2164,18 +2196,38 @@ Reach out: one lead in one step's run. Planned (a time and a domain), claimed un
 
 Foreign keys:
 
-- `broadcast_id` → [`broadcasts`](#broadcasts) (`id`), on delete cascade
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete set null
-- `domain_id` → [`sending_domains`](#sending_domains) (`id`), on delete set null
-- `lead_id` → [`leads`](#leads) (`id`), on delete cascade
-- `message_id` → [`messages`](#messages) (`id`), on delete set null
-- `playbook_id` → [`playbooks`](#playbooks) (`id`), on delete set null
-- `root_id` → [`playbooks`](#playbooks) (`id`), on delete cascade
+- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `reach_out_sends_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### reply_turns
+
+Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).
+
+- Owned by: none
+- Primary key: `conversation_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `conversation_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `message_id` | uuid | no |  |  |
+| `claimed_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### segment_members
 
@@ -2194,8 +2246,8 @@ Foreign keys:
 Foreign keys:
 
 - `added_by` → `auth.users` (`id`), on delete set null
-- `contact_id` → [`contacts`](#contacts) (`id`), on delete cascade
-- `segment_id` → [`segments`](#segments) (`id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade not valid
+- `tenant_id`, `segment_id` → [`segments`](#segments) (`tenant_id`, `id`), on delete cascade not valid
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -2393,7 +2445,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

@@ -190,6 +190,61 @@ COMMENT ON FUNCTION public.ask_tokens_day(p_tenant uuid) IS 'The workspace''s As
 
 
 --
+-- Name: assemble_broadcast(uuid, jsonb, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+  v_asked int := jsonb_array_length(coalesce(p_recipients, '[]'::jsonb));
+  v_enrolled int;
+begin
+  if (p_run->>'template_id') is not null and not exists (
+       select 1 from public.templates t where t.id = (p_run->>'template_id')::uuid and t.tenant_id = p_tenant) then
+    raise exception 'assemble_broadcast: the template is not workspace %''s', p_tenant using errcode = '42501';
+  end if;
+  if (p_run->>'playbook_id') is not null and not exists (
+       select 1 from public.playbooks b where b.id = (p_run->>'playbook_id')::uuid and b.tenant_id = p_tenant) then
+    raise exception 'assemble_broadcast: the playbook is not workspace %''s', p_tenant using errcode = '42501';
+  end if;
+  insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, params, audience,
+                                 state, scheduled_for, recipient_count, created_by, playbook_id, run_for)
+  values (p_tenant, p_run->>'name', (p_run->>'template_id')::uuid, p_run->>'template_name',
+          p_run->>'template_language', coalesce(p_run->'params', '[]'::jsonb), coalesce(p_run->'audience', '{}'::jsonb),
+          p_run->>'state', (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int,
+          (p_run->>'created_by')::uuid, (p_run->>'playbook_id')::uuid, (p_run->>'run_for')::date)
+  returning id into v_id;
+
+  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, facts)
+  select v_id, x.contact_id, p_tenant, x.facts
+    from jsonb_to_recordset(coalesce(p_recipients, '[]'::jsonb)) as x(contact_id uuid, facts jsonb)
+   where exists (select 1 from public.contacts c
+                  where c.id = x.contact_id and c.tenant_id = p_tenant and c.erased_at is null);
+  get diagnostics v_enrolled = row_count;
+  if v_enrolled <> v_asked then
+    raise exception 'assemble_broadcast: % of the % people are not this workspace''s to send to', v_asked - v_enrolled,
+      v_asked using errcode = '42501';
+  end if;
+
+  if p_send_at is not null then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant, 'broadcast_send', p_send_at, jsonb_build_object('broadcast_id', v_id));
+  end if;
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone) IS 'A broadcast''s run, its people and its send job (when p_send_at is set) in one transaction (core assembleRun): all or none. The service role''s alone: the route''s role check and the sweep are the doors. Every person must be the workspace''s and not erased, and so must its template and its playbook. Returns the run''s id.';
+
+
+--
 -- Name: billing_card_mark(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -217,8 +272,10 @@ begin
     if OLD.state = 'failed' and OLD.reason = 'outcome_unknown' and NEW.state in ('sent', 'skipped') then
       return NEW;
     end if;
-    -- Or released, when WhatsApp refused the send as too many, too fast: nothing was taken, and the release says so.
-    if OLD.state = 'failed' and OLD.reason = 'outcome_unknown' and NEW.state = 'queued' and NEW.reason = 'throttled' then
+    -- Or released, when WhatsApp did not take the send -- too many, too fast, or never reached at all: nothing was
+    -- taken, and the release says which.
+    if OLD.state = 'failed' and OLD.reason = 'outcome_unknown' and NEW.state = 'queued'
+       and NEW.reason in ('throttled', 'not_taken') then
       return NEW;
     end if;
     if OLD.state in ('sent', 'skipped', 'failed') then
@@ -234,7 +291,7 @@ end $$;
 -- Name: FUNCTION broadcast_recipients_guard(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled when WhatsApp said not now; sent, skipped and other failures are final. A same-state update is not a move.';
+COMMENT ON FUNCTION public.broadcast_recipients_guard() IS 'queued -> sent|skipped|failed, once; a claim (failed, outcome_unknown) -> sent|skipped, or back to queued as throttled or not_taken when WhatsApp did not take it; sent, skipped and other failures are final. A same-state update is not a move.';
 
 
 --
@@ -577,6 +634,13 @@ CREATE TABLE public.jobs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     lease_until timestamp with time zone,
+    lane smallint GENERATED ALWAYS AS (
+CASE
+    WHEN ((kind = ANY (ARRAY['outbound_send'::text, 'email_ingest'::text, 'push_send'::text])) AND (COALESCE((payload ->> 'purpose'::text), ''::text) <> 'outreach'::text)) THEN 0
+    WHEN (kind = ANY (ARRAY['line_provision'::text, 'reply_read'::text])) THEN 1
+    WHEN (kind = ANY (ARRAY['broadcast_send'::text, 'outbound_send'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_receipts'::text])) THEN 2
+    ELSE NULL::integer
+END) STORED,
     CONSTRAINT jobs_kind_check CHECK ((kind = ANY (ARRAY['outbound_send'::text, 'broadcast_send'::text, 'line_provision'::text, 'email_ingest'::text, 'lead_round_start'::text, 'lead_collect'::text, 'lead_check'::text, 'push_send'::text, 'push_receipts'::text, 'reply_read'::text]))),
     CONSTRAINT jobs_state_check CHECK ((state = ANY (ARRAY['scheduled'::text, 'fired'::text, 'done'::text, 'canceled'::text, 'failed'::text])))
 );
@@ -590,6 +654,13 @@ COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds t
 
 
 --
+-- Name: COLUMN jobs.lane; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.jobs.lane IS 'Which work a claim takes first (decision 0018): 0 a reply, 1 someone waiting who is not a customer (a line bought, a lead''s reply read), 2 bulk. Generated from kind and payload; null for a kind it does not name, which is claimed last. A new kind names its lane with its handler, its caller and the jobs.kind CHECK.';
+
+
+--
 -- Name: claim_due_jobs(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -598,13 +669,22 @@ CREATE FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) 
     SET search_path TO 'public'
     AS $$
   with due as (
-    select id
-      from public.jobs
-     where (state = 'scheduled' and due_at <= now())
-        or (state = 'fired' and lease_until < now())
-     order by due_at
+    select c.id
+      from public.jobs c
+     where (c.state = 'scheduled' and c.due_at <= now())
+        or (c.state = 'fired' and c.lease_until < now())
+     order by c.lane nulls last,
+              -- false before true: a workspace with no bulk work running first. Read once and hashed, not per row.
+              c.lane = 2 and c.tenant_id in (
+                select r.tenant_id
+                  from public.jobs r
+                 where r.state = 'fired'
+                   and r.lane = 2
+                   and r.fired_at > now() - make_interval(secs => p_lease_seconds)
+                   and r.lease_until >= now()),
+              c.due_at
      limit p_limit
-     for update skip locked
+     for update of c skip locked
   )
   update public.jobs j
      set state       = 'fired',
@@ -621,7 +701,66 @@ $$;
 -- Name: FUNCTION claim_due_jobs(p_limit integer, p_lease_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take disjoint rows (SKIP LOCKED). attempts counts claims: 1 is the first run; more means a lease ran out before a run reported back.';
+COMMENT ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) IS 'The only way a job becomes fired. Concurrent ticks take disjoint rows (SKIP LOCKED): the lowest lane first; within bulk, a workspace with no bulk job running before one with one (running: claimed within p_lease_seconds and still held); then the earliest due (decision 0018). attempts counts claims: 1 is the first run; more means a lease ran out before a run reported back.';
+
+
+--
+-- Name: claim_reply_turn(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_mine timestamptz;
+  v_before uuid;
+  v_held uuid;
+begin
+  select m.created_at into v_mine
+    from public.messages m
+   where m.id = p_message and m.conversation_id = p_conversation and m.tenant_id = p_tenant;
+  if v_mine is null then
+    raise exception 'claim_reply_turn: message % is not in thread % of workspace %', p_message, p_conversation, p_tenant;
+  end if;
+  -- The thread's row, locked: two claims at once are taken one after the other.
+  insert into public.reply_turns (conversation_id, tenant_id, message_id)
+  values (p_conversation, p_tenant, p_message)
+  on conflict (conversation_id) do nothing;
+  select t.message_id into v_before from public.reply_turns t where t.conversation_id = p_conversation for update;
+  if v_before = p_message then
+    return true;
+  end if;
+  update public.reply_turns t
+     set message_id = p_message, claimed_at = now()
+   where t.conversation_id = p_conversation
+     and not exists (
+       select 1 from public.messages h
+        where h.id = t.message_id
+          and (h.created_at, h.id) > (v_mine, p_message)
+     )
+  returning t.message_id into v_held;
+  if v_held is null then
+    return false;
+  end if;
+  -- The older turn's replies still waiting to go are superseded by this one.
+  update public.messages d
+     set status = 'canceled', error = jsonb_build_object('reason', 'superseded_by_newer_message', 'by', p_message)
+   where d.conversation_id = p_conversation
+     and d.tenant_id = p_tenant
+     and d.direction = 'outbound'
+     and d.sender = 'ai'
+     and d.status = 'queued'
+     and d.meta->>'source' in ('veto_window', 'low_confidence');
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) IS 'The thread''s reply turn for this message, unless a newer message of the thread (by created_at, then id) holds it; moving the turn withdraws the receptionist''s drafts an older turn left queued. True when held.';
 
 
 --
@@ -2392,6 +2531,33 @@ $$;
 --
 
 COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s.';
+
+
+--
+-- Name: holds_reply_turn(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select not exists (
+    select 1
+      from public.reply_turns t
+      join public.messages h on h.id = t.message_id
+      join public.messages m on m.id = p_message
+     where t.conversation_id = p_conversation
+       and t.message_id <> p_message
+       and (h.created_at, h.id) > (m.created_at, m.id)
+  )
+$$;
+
+
+--
+-- Name: FUNCTION holds_reply_turn(p_conversation uuid, p_message uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid) IS 'Whether this message may still send: false only when a newer message of the thread (by created_at, then id) has taken the turn from it. A thread with no row, or one an older message names, is this message''s: the claim''s own rule, so a claim that failed open is not turned into a dropped reply.';
 
 
 --
@@ -7777,6 +7943,7 @@ CREATE FUNCTION public.partner_invitations_mine() RETURNS TABLE(tenant_id uuid, 
     join public.tenants t on t.id = i.tenant_id
    where p.user_id = auth.uid()
      and p.status = 'active'
+     and public.session_shows_second_factor()
      and i.declined_at is null
      and i.expires_at > now()
      and not exists (select 1 from public.partner_tenants pt where pt.tenant_id = i.tenant_id)
@@ -7976,6 +8143,11 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
+  -- A partner's seat needs a session that showed its second factor (0013, 00218); answering an invitation does too.
+  if not public.session_shows_second_factor() then
+    raise exception 'Enter the code from your authenticator app first: a partner signs in with two steps.'
+      using errcode = '42501';
+  end if;
   select i.* into v_row
     from public.partner_invitations i join public.partners p on p.id = i.partner_id
    where i.tenant_id = p_tenant and p.user_id = v_user
@@ -7990,7 +8162,8 @@ begin
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant, 'partner.invite_declined', 'workspace', 'tenant', p_tenant,
           jsonb_build_object('partner_id', v_row.partner_id, 'by', v_user));
-end $$;
+end
+$$;
 
 
 --
@@ -9859,6 +10032,173 @@ COMMENT ON FUNCTION public.platform_admin_add(p_email text) IS 'Adds a Chanlytic
 
 
 --
+-- Name: platform_answer_silence(date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_answer_silence(p_day date DEFAULT (((now() AT TIME ZONE 'utc'::text))::date - 1)) RETURNS TABLE(tenant_id uuid, name text, asks integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select pm.tenant_id, t.name, pm.asks
+    from public.platform_metrics pm
+    join public.tenants t on t.id = pm.tenant_id
+   where pm.day = p_day and pm.asks > 0 and pm.answered = 0 and t.status = 'active'
+   order by pm.asks desc, t.name
+$$;
+
+
+--
+-- Name: FUNCTION platform_answer_silence(p_day date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active workspaces whose answer rate was zero on the day (00277): customers wrote, and nobody answered. The health sweep pages the platform with them.';
+
+
+--
+-- Name: platform_metrics_read(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_metrics_read(p_days integer DEFAULT 7) RETURNS TABLE(tenant_id uuid, name text, day date, messages_in jsonb, messages_out jsonb, asks integer, answered integer, replies_answered integer, replies_held integer, replies_handed_off integer, brain_p95_ms integer, provider_failures jsonb, tokens bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select pm.tenant_id, t.name, pm.day, pm.messages_in, pm.messages_out, pm.asks, pm.answered, pm.replies_answered,
+         pm.replies_held, pm.replies_handed_off, pm.brain_p95_ms, pm.provider_failures, pm.tokens
+    from public.platform_metrics pm
+    join public.tenants t on t.id = pm.tenant_id
+   where pm.day > (now() at time zone 'utc')::date - greatest(least(coalesce(p_days, 7), 90), 1) - 1
+   order by pm.day desc, pm.asks desc, t.name
+$$;
+
+
+--
+-- Name: FUNCTION platform_metrics_read(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_metrics_read(p_days integer) IS 'The back office''s read of platform_metrics (00277): the last p_days rolled days (at most 90), each workspace''s row with its name, newest day first.';
+
+
+--
+-- Name: platform_metrics_roll(date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_metrics_roll(p_day date DEFAULT (((now() AT TIME ZONE 'utc'::text))::date - 1)) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_t0 timestamptz := p_day::timestamp at time zone 'utc';
+  v_t1 timestamptz := (p_day + 1)::timestamp at time zone 'utc';
+  v_n  integer;
+begin
+  with
+  -- Workspace by workspace, so each read is its (tenant_id, created_at) index's day (00016), never the whole table.
+  msg_counts as (
+    select t.id as tenant_id, m.channel,
+           count(*) filter (where m.direction = 'inbound' and m.sender = 'customer') as n_in,
+           count(*) filter (where m.direction = 'outbound' and m.status in ('sent', 'delivered', 'read')) as n_out
+      from public.tenants t
+      join public.messages m on m.tenant_id = t.id and m.created_at >= v_t0 and m.created_at < v_t1
+     where coalesce(m.meta->>'backfill', 'false') <> 'true'
+     group by t.id, m.channel
+  ),
+  msg as (
+    select c.tenant_id,
+           coalesce(jsonb_object_agg(c.channel, c.n_in) filter (where c.n_in > 0), '{}'::jsonb) as messages_in,
+           coalesce(jsonb_object_agg(c.channel, c.n_out) filter (where c.n_out > 0), '{}'::jsonb) as messages_out
+      from msg_counts c
+     group by c.tenant_id
+  ),
+  -- The receptionist's own record of each reply (usage.llm_tokens with its quality signal): handed off, held for the
+  -- veto window or low confidence, or answered at once. A reach-out reply's draft carries no `held` and is not one.
+  replies as (
+    select e.tenant_id,
+           count(*) filter (where e.data->>'escalate' = 'true') as handed_off,
+           count(*) filter (where coalesce(e.data->>'escalate', 'false') <> 'true' and e.data->>'held' is not null)
+             as held,
+           count(*) filter (where coalesce(e.data->>'escalate', 'false') <> 'true' and e.data->>'held' is null)
+             as answered,
+           percentile_cont(0.95) within group (
+             order by case when e.data->>'latency_ms' ~ '^[0-9]+(\.[0-9]+)?$' then (e.data->>'latency_ms')::numeric end
+           ) as p95
+      from public.events e
+     where e.kind = 'usage.llm_tokens' and e.created_at >= v_t0 and e.created_at < v_t1 and e.data ? 'held'
+     group by e.tenant_id
+  ),
+  tokens as (
+    select e.tenant_id,
+           sum(case when e.data->>'input_tokens' ~ '^[0-9]+$' then (e.data->>'input_tokens')::bigint else 0 end
+             + case when e.data->>'output_tokens' ~ '^[0-9]+$' then (e.data->>'output_tokens')::bigint else 0 end)
+             as tokens
+      from public.events e
+     where e.kind in ('usage.llm_tokens', 'usage.ask_tokens') and e.created_at >= v_t0 and e.created_at < v_t1
+     group by e.tenant_id
+  ),
+  -- A send that failed, by what it came to (channels providerFetch's outcomes): `unknown` is said on the row; of the
+  -- rest, the provider's "not now" (408, 429) and no answer at all are calls that left nothing, any other 4xx a refusal.
+  failure_rows as (
+    select e.tenant_id,
+           coalesce(e.data->>'outcome',
+                    case when e.data->>'http_status' in ('408', '429') then 'retryable'
+                         when e.data->>'http_status' ~ '^4[0-9][0-9]$' then 'refused'
+                         when coalesce(e.data->>'http_status', '0') = '0' then 'retryable'
+                         else 'unknown' end) as outcome
+      from public.events e
+     where e.kind = 'message.send_failed' and e.created_at >= v_t0 and e.created_at < v_t1
+  ),
+  failures as (
+    select f.tenant_id, jsonb_object_agg(f.outcome, f.n) as provider_failures
+      from (select tenant_id, outcome, count(*) as n from failure_rows group by tenant_id, outcome) f
+     group by f.tenant_id
+  ),
+  active as (
+    select tenant_id from msg union select tenant_id from replies
+    union select tenant_id from tokens union select tenant_id from failures
+  ),
+  -- Customers' messages that day and whether anyone answered them (first_replies, the reports' one definition).
+  asked as (
+    select a.tenant_id, count(r.asked_at) as asks, count(r.asked_at) filter (where r.who in ('ai', 'you')) as answered
+      from active a
+      left join lateral public.first_replies(a.tenant_id, v_t0) r on r.asked_at < v_t1
+     group by a.tenant_id
+  ),
+  written as (
+    insert into public.platform_metrics as pm (
+      tenant_id, day, messages_in, messages_out, asks, answered, replies_answered, replies_held, replies_handed_off,
+      brain_p95_ms, provider_failures, tokens, rolled_at)
+    select a.tenant_id, p_day,
+           coalesce(m.messages_in, '{}'::jsonb), coalesce(m.messages_out, '{}'::jsonb),
+           coalesce(q.asks, 0), coalesce(q.answered, 0),
+           coalesce(r.answered, 0), coalesce(r.held, 0), coalesce(r.handed_off, 0),
+           round(r.p95)::integer, coalesce(f.provider_failures, '{}'::jsonb), coalesce(t.tokens, 0), now()
+      from active a
+      left join msg m on m.tenant_id = a.tenant_id
+      left join replies r on r.tenant_id = a.tenant_id
+      left join tokens t on t.tenant_id = a.tenant_id
+      left join failures f on f.tenant_id = a.tenant_id
+      left join asked q on q.tenant_id = a.tenant_id
+     where exists (select 1 from public.tenants x where x.id = a.tenant_id)
+    on conflict (tenant_id, day) do update
+       set messages_in = excluded.messages_in, messages_out = excluded.messages_out, asks = excluded.asks,
+           answered = excluded.answered, replies_answered = excluded.replies_answered,
+           replies_held = excluded.replies_held, replies_handed_off = excluded.replies_handed_off,
+           brain_p95_ms = excluded.brain_p95_ms, provider_failures = excluded.provider_failures,
+           tokens = excluded.tokens, rolled_at = excluded.rolled_at
+    returning 1
+  )
+  select count(*)::integer into v_n from written;
+  return v_n;
+end $_$;
+
+
+--
+-- Name: FUNCTION platform_metrics_roll(p_day date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC day (yesterday by default) for every workspace that did anything in it into platform_metrics, replacing the day''s rows (00277). Answers how many rows it wrote. The nightly clock''s, and the service role''s to re-run a day.';
+
+
+--
 -- Name: platform_overview(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11232,8 +11572,10 @@ declare
   v_lead public.leads%rowtype;
   v_root uuid;
 begin
+  -- A partner's seat counts for the calling session only once it showed its second factor (0013, 00261).
   if auth.uid() is null or not exists (
-       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()) then
+       select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
+          and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
   select * into v_lead from public.leads l
@@ -12984,6 +13326,55 @@ COMMENT ON FUNCTION public.record_workspace_created() IS 'Writes the workspace.c
 
 
 --
+-- Name: recording_opened(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.recording_opened(p_call_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_actor is null then
+    raise exception 'recording_opened: no session' using errcode = '42501';
+  end if;
+  select c.tenant_id into v_tenant
+    from public.calls c
+   where c.id = p_call_id
+     and exists (
+       select 1 from public.memberships m
+        where m.tenant_id = c.tenant_id and m.user_id = v_actor
+          and (m.role <> 'partner' or public.session_shows_second_factor()));
+  if v_tenant is null then
+    raise exception 'recording_opened: no such call for this member' using errcode = 'P0002';
+  end if;
+  -- The player asks twice at once (its length, and a seek): the second waits for the first's row and reads it, so the
+  -- hour holds one row and not two.
+  perform pg_advisory_xact_lock(hashtextextended('recording_opened:' || v_actor::text || ':' || p_call_id::text, 0));
+  if exists (
+    select 1 from public.decisions d
+     where d.tenant_id = v_tenant and d.subject_type = 'call' and d.subject_id = p_call_id
+       and d.verb = 'open_recording' and d.actor_user_id = v_actor
+       and d.created_at > now() - interval '1 hour'
+  ) then
+    return false;
+  end if;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (v_tenant, 'call', p_call_id, 'open_recording', 'user', v_actor, '{}'::jsonb);
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION recording_opened(p_call_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.recording_opened(p_call_id uuid) IS 'A member opened a call''s recording (00277): one open_recording decision per member per call per hour, as the member. Refuses a call the caller is not a member of. Answers whether a row was written.';
+
+
+--
 -- Name: release_conversation_control(uuid, uuid, text, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13236,6 +13627,31 @@ begin
 
   return v_result;
 end $$;
+
+
+--
+-- Name: request_id_of_caller(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.request_id_of_caller() RETURNS text
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_id text;
+begin
+  v_id := nullif(current_setting('request.headers', true), '')::json ->> 'x-chanlytics-request-id';
+  return case when v_id ~ '^[A-Za-z0-9._:-]{8,128}$' then v_id end;
+exception when others then
+  return null;
+end $_$;
+
+
+--
+-- Name: FUNCTION request_id_of_caller(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.request_id_of_caller() IS 'The request the calling statement serves (00277): the x-chanlytics-request-id header the database client sent, when it is a request''s name, else null. events.request_id''s default.';
 
 
 --
@@ -13688,6 +14104,18 @@ begin
   end if;
   return new;
 end $$;
+
+
+--
+-- Name: session_has_partner_seat(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.session_has_partner_seat() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (select 1 from public.memberships m where m.user_id = (select auth.uid()) and m.role = 'partner')
+$$;
 
 
 --
@@ -14758,6 +15186,241 @@ COMMENT ON FUNCTION public.take_rate(p_bucket text, p_actor text, p_limit intege
 
 
 --
+-- Name: team_change_role(uuid, uuid, uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_prev   text;
+  v_owners integer;
+  v_audit  jsonb;
+begin
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+  select m.role into v_prev from public.memberships m
+   where m.tenant_id = p_tenant_id and m.id = p_membership_id
+   for update;
+  if v_prev is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  perform public.team_take_turn(p_tenant_id, p_actor);
+  if p_role <> 'owner' and v_prev = 'owner' then
+    select count(*) into v_owners from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner';
+    if v_owners <= 1 then
+      raise exception 'last_owner' using errcode = 'P0001';
+    end if;
+  end if;
+  update public.memberships set role = p_role where tenant_id = p_tenant_id and id = p_membership_id;
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'membership', p_membership_id, 'change_role',
+                                  jsonb_build_object('from', v_prev, 'to', p_role), p_via, p_undo_of);
+  return jsonb_build_object('membership_id', p_membership_id, 'role', p_role) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text, p_undo_of uuid) IS 'An owner changes a member''s role (00277): the change and its change_role decision in one transaction; the last owner stays (last_owner). Service role: the route passes the session''s verified user as p_actor, and this checks it owns the workspace.';
+
+
+--
+-- Name: team_decision(uuid, uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_decision(p_tenant_id uuid, p_actor uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_undo uuid := p_undo_of;
+  v_id   uuid;
+begin
+  if v_undo is not null and not exists (select 1 from public.decisions d where d.id = v_undo) then
+    v_undo := null;
+  end if;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload, undo_of)
+  values (p_tenant_id, p_subject_type, p_subject_id, p_verb, 'user', p_actor,
+          coalesce(p_payload, '{}'::jsonb)
+            || case when p_via is null then '{}'::jsonb else jsonb_build_object('via', p_via) end,
+          v_undo)
+  returning id into v_id;
+  return jsonb_build_object('decision_id', v_id, 'undo_dropped', p_undo_of is not null and v_undo is null);
+end $$;
+
+
+--
+-- Name: team_invite(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_audit jsonb;
+begin
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+  begin
+    insert into public.invitations (tenant_id, email, role, invited_by)
+    values (p_tenant_id, p_email, p_role, p_actor)
+    returning id into v_id;
+  exception when unique_violation then
+    return jsonb_build_object('already_invited', true);
+  end;
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'invitation', v_id, 'invite',
+                                  jsonb_build_object('email', p_email, 'role', p_role), p_via, null);
+  return jsonb_build_object('invitation_id', v_id) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text) IS 'An owner invites an address at a role (00277): the invitation and its invite decision in one transaction, before the mail; already_invited for an open one. team_invite_withdraw takes both back when the mail cannot go.';
+
+
+--
+-- Name: team_invite_withdraw(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  -- Only an invitation still open is taken back, and its row with it: one accepted or revoked in the meantime is
+  -- somebody's, and keeps the decision that says how it began.
+  delete from public.invitations
+   where tenant_id = p_tenant_id and id = p_invitation_id and accepted_at is null and revoked_at is null
+  returning id into v_id;
+  if v_id is not null then
+    delete from public.decisions
+     where tenant_id = p_tenant_id and subject_type = 'invitation' and subject_id = v_id and verb = 'invite';
+  end if;
+end $$;
+
+
+--
+-- Name: FUNCTION team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid) IS 'An invitation whose mail could not go, taken back with its decision (00277), in one transaction.';
+
+
+--
+-- Name: team_join(uuid, uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_audit jsonb;
+begin
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+  insert into public.memberships (tenant_id, user_id, role) values (p_tenant_id, p_user_id, p_role)
+  on conflict do nothing
+  returning id into v_id;
+  if v_id is null then
+    return jsonb_build_object('already_member', true);
+  end if;
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'membership', v_id, 'invite',
+                                  jsonb_build_object('email', p_email, 'role', p_role, 'joined_existing_account', true),
+                                  p_via, null);
+  return jsonb_build_object('added', true, 'membership_id', v_id) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) IS 'An owner adds an existing account at a role (00277): the membership and its invite decision in one transaction; an account already on the team is already_member. Service role: the account''s id is the platform''s lookup''s.';
+
+
+--
+-- Name: team_owner_or_refuse(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_owner_or_refuse(p_tenant_id uuid, p_actor uuid) RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_actor is null or not exists (
+    select 1 from public.memberships m
+     where m.tenant_id = p_tenant_id and m.user_id = p_actor and m.role = 'owner'
+  ) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+end $$;
+
+
+--
+-- Name: team_remove(uuid, uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_invite uuid;
+  v_member public.memberships%rowtype;
+  v_owners integer;
+  v_audit  jsonb;
+begin
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+  update public.invitations set revoked_at = now()
+   where tenant_id = p_tenant_id and id = p_id and accepted_at is null
+  returning id into v_invite;
+  if v_invite is not null then
+    v_audit := public.team_decision(p_tenant_id, p_actor, 'invitation', v_invite, 'revoke_invite', '{}'::jsonb,
+                                    p_via, p_undo_of);
+    return jsonb_build_object('revoked_invite', true) || v_audit;
+  end if;
+  select * into v_member from public.memberships m where m.tenant_id = p_tenant_id and m.id = p_id for update;
+  if v_member.id is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  perform public.team_take_turn(p_tenant_id, p_actor);
+  if v_member.user_id = p_actor then
+    raise exception 'self_remove' using errcode = 'P0001';
+  end if;
+  -- Backstop: an actor who owns the workspace and removes another owner means two exist, so the count below is
+  -- reached only if a turn was skipped. The trigger of 00271 judges the same at the transaction's end.
+  if v_member.role = 'owner' then
+    select count(*) into v_owners from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner';
+    if v_owners <= 1 then
+      raise exception 'last_owner' using errcode = 'P0001';
+    end if;
+  end if;
+  delete from public.memberships where id = v_member.id;
+  -- Carrying the role they held: the membership row is gone, so this is the only surviving record of it.
+  v_audit := public.team_decision(p_tenant_id, p_actor, 'membership', v_member.id, 'remove_member',
+                                  jsonb_build_object('removed_user_id', v_member.user_id, 'had_role', v_member.role),
+                                  p_via, p_undo_of);
+  return jsonb_build_object('removed', true) || v_audit;
+end $$;
+
+
+--
+-- Name: FUNCTION team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text, p_undo_of uuid) IS 'An owner revokes an open invitation or removes a member (00277), and its decision, in one transaction; nobody removes themself (self_remove), the last owner stays (last_owner). Service role, as team_change_role.';
+
+
+--
 -- Name: team_roster(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14794,6 +15457,21 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.team_roster(p_tenant_id uuid) IS 'Members of a workspace with their emails and the names they gave, in one query. Caller must belong to the workspace.';
+
+
+--
+-- Name: team_take_turn(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('memberships_keep_an_owner:' || p_tenant_id::text, 0));
+  -- After the wait, so an actor an earlier change demoted or removed is refused, not served on the state it left.
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+end $$;
 
 
 --
@@ -16075,7 +16753,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text])))
 );
 
 
@@ -16138,7 +16816,8 @@ CREATE TABLE public.events (
     subject_id uuid,
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    version smallint DEFAULT 1 NOT NULL
+    version smallint DEFAULT 1 NOT NULL,
+    request_id text DEFAULT public.request_id_of_caller()
 )
 PARTITION BY RANGE (created_at);
 
@@ -16148,6 +16827,13 @@ PARTITION BY RANGE (created_at);
 --
 
 COMMENT ON COLUMN public.events.version IS 'The version of this kind''s data (packages/db events.ts, 00264): raised when a kind''s shape changes, so a reader can tell an old row from a new one. 1 for every kind to date.';
+
+
+--
+-- Name: COLUMN events.request_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.request_id IS 'The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request.';
 
 
 --
@@ -16163,7 +16849,8 @@ CREATE TABLE public.events_default (
     subject_id uuid,
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    version smallint DEFAULT 1 NOT NULL
+    version smallint DEFAULT 1 NOT NULL,
+    request_id text DEFAULT public.request_id_of_caller()
 );
 
 
@@ -17557,6 +18244,41 @@ CREATE TABLE public.platform_admins (
 
 
 --
+-- Name: platform_metrics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.platform_metrics (
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    messages_in jsonb DEFAULT '{}'::jsonb NOT NULL,
+    messages_out jsonb DEFAULT '{}'::jsonb NOT NULL,
+    asks integer DEFAULT 0 NOT NULL,
+    answered integer DEFAULT 0 NOT NULL,
+    replies_answered integer DEFAULT 0 NOT NULL,
+    replies_held integer DEFAULT 0 NOT NULL,
+    replies_handed_off integer DEFAULT 0 NOT NULL,
+    brain_p95_ms integer,
+    provider_failures jsonb DEFAULT '{}'::jsonb NOT NULL,
+    tokens bigint DEFAULT 0 NOT NULL,
+    rolled_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT platform_metrics_answered_check CHECK ((answered >= 0)),
+    CONSTRAINT platform_metrics_asks_check CHECK ((asks >= 0)),
+    CONSTRAINT platform_metrics_brain_p95_ms_check CHECK ((brain_p95_ms >= 0)),
+    CONSTRAINT platform_metrics_replies_answered_check CHECK ((replies_answered >= 0)),
+    CONSTRAINT platform_metrics_replies_handed_off_check CHECK ((replies_handed_off >= 0)),
+    CONSTRAINT platform_metrics_replies_held_check CHECK ((replies_held >= 0)),
+    CONSTRAINT platform_metrics_tokens_check CHECK ((tokens >= 0))
+);
+
+
+--
+-- Name: TABLE platform_metrics; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.platform_metrics IS 'One UTC day of one workspace, counted (00277): messages in and out by channel, customers'' messages (asks) and how many got an answer from anyone, the receptionist''s replies answered, held and handed off, its 95th-percentile latency, sends that failed by outcome, and model tokens. Rolled up nightly (platform_metrics_roll); service role only, read by the back office.';
+
+
+--
 -- Name: playbooks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -17797,6 +18519,25 @@ CREATE TABLE public.reach_out_replies (
 --
 
 COMMENT ON TABLE public.reach_out_replies IS 'Reach out Part 5: one reading of one reply to a reach-out, keyed by the message (G3). The intent (or other, with why it could not be read), what the reading did (plan, with what it changed for the undo), the notice''s two marks (B2), and the undo. Written by the service role''s doors (reach_out_reply_apply, _draft, _tell_claim, _told) and the member''s undo (reach_out_reply_undo) only.';
+
+
+--
+-- Name: reply_turns; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reply_turns (
+    conversation_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    message_id uuid NOT NULL,
+    claimed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE reply_turns; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.reply_turns IS 'Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).';
 
 
 --
@@ -18277,6 +19018,14 @@ ALTER TABLE ONLY public.ask_threads
 
 
 --
+-- Name: ask_threads ask_threads_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_threads
+    ADD CONSTRAINT ask_threads_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: billing_accounts billing_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18314,6 +19063,14 @@ ALTER TABLE ONLY public.broadcast_recipients
 
 ALTER TABLE ONLY public.broadcasts
     ADD CONSTRAINT broadcasts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: broadcasts broadcasts_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.broadcasts
+    ADD CONSTRAINT broadcasts_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -18373,6 +19130,14 @@ ALTER TABLE ONLY public.contacts
 
 
 --
+-- Name: contacts contacts_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contacts
+    ADD CONSTRAINT contacts_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: conversations conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18389,6 +19154,14 @@ ALTER TABLE ONLY public.conversations
 
 
 --
+-- Name: conversations conversations_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversations
+    ADD CONSTRAINT conversations_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: deals deals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18397,11 +19170,27 @@ ALTER TABLE ONLY public.deals
 
 
 --
+-- Name: deals deals_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.deals
+    ADD CONSTRAINT deals_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: decisions decisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.decisions
     ADD CONSTRAINT decisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: decisions decisions_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.decisions
+    ADD CONSTRAINT decisions_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -18605,6 +19394,14 @@ ALTER TABLE ONLY public.lead_rounds
 
 
 --
+-- Name: lead_rounds lead_rounds_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_rounds
+    ADD CONSTRAINT lead_rounds_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: lead_runs lead_runs_apify_run_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18685,6 +19482,14 @@ ALTER TABLE ONLY public.leads
 
 
 --
+-- Name: leads leads_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.leads
+    ADD CONSTRAINT leads_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: lines lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18722,6 +19527,14 @@ ALTER TABLE ONLY public.memberships
 
 ALTER TABLE ONLY public.messages
     ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messages messages_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messages
+    ADD CONSTRAINT messages_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -18861,6 +19674,14 @@ ALTER TABLE ONLY public.platform_admins
 
 
 --
+-- Name: platform_metrics platform_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_metrics
+    ADD CONSTRAINT platform_metrics_pkey PRIMARY KEY (tenant_id, day);
+
+
+--
 -- Name: playbooks playbooks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18949,6 +19770,22 @@ ALTER TABLE ONLY public.reach_out_sends
 
 
 --
+-- Name: reach_out_sends reach_out_sends_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: reply_turns reply_turns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reply_turns
+    ADD CONSTRAINT reply_turns_pkey PRIMARY KEY (conversation_id);
+
+
+--
 -- Name: segment_members segment_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18965,11 +19802,27 @@ ALTER TABLE ONLY public.segments
 
 
 --
+-- Name: segments segments_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.segments
+    ADD CONSTRAINT segments_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: sending_domains sending_domains_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.sending_domains
     ADD CONSTRAINT sending_domains_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sending_domains sending_domains_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sending_domains
+    ADD CONSTRAINT sending_domains_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -18997,6 +19850,14 @@ ALTER TABLE ONLY public.templates
 
 
 --
+-- Name: templates templates_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.templates
+    ADD CONSTRAINT templates_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: tenant_channels tenant_channels_kind_external_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19010,6 +19871,14 @@ ALTER TABLE ONLY public.tenant_channels
 
 ALTER TABLE ONLY public.tenant_channels
     ADD CONSTRAINT tenant_channels_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenant_channels tenant_channels_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_channels
+    ADD CONSTRAINT tenant_channels_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -19465,6 +20334,13 @@ COMMENT ON INDEX public.jobs_reply_read_once IS 'One live reply_read per message
 
 
 --
+-- Name: jobs_tenant_kind_state; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX jobs_tenant_kind_state ON public.jobs USING btree (tenant_id, kind, state);
+
+
+--
 -- Name: lead_operations_search; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19882,6 +20758,13 @@ CREATE UNIQUE INDEX person_notes_reach_out_once ON public.person_notes USING btr
 --
 
 CREATE INDEX person_notes_steps_open ON public.person_notes USING btree (tenant_id, contact_id, due_on) WHERE ((due_on IS NOT NULL) AND (done_at IS NULL));
+
+
+--
+-- Name: platform_metrics_day; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_metrics_day ON public.platform_metrics USING btree (day);
 
 
 --
@@ -21099,11 +21982,11 @@ ALTER TABLE ONLY public.ask_messages
 
 
 --
--- Name: ask_messages ask_messages_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: ask_messages ask_messages_thread_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ask_messages
-    ADD CONSTRAINT ask_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.ask_threads(id) ON DELETE CASCADE;
+    ADD CONSTRAINT ask_messages_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21155,27 +22038,27 @@ ALTER TABLE ONLY public.billing_events
 
 
 --
--- Name: broadcast_recipients broadcast_recipients_broadcast_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: broadcast_recipients broadcast_recipients_broadcast_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_broadcast_id_fkey FOREIGN KEY (broadcast_id) REFERENCES public.broadcasts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT broadcast_recipients_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: broadcast_recipients broadcast_recipients_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
-
-
---
--- Name: broadcast_recipients broadcast_recipients_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: broadcast_recipients broadcast_recipients_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.broadcast_recipients
-    ADD CONSTRAINT broadcast_recipients_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id) ON DELETE SET NULL;
+    ADD CONSTRAINT broadcast_recipients_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
+
+
+--
+-- Name: broadcast_recipients broadcast_recipients_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.broadcast_recipients
+    ADD CONSTRAINT broadcast_recipients_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
 
 
 --
@@ -21195,19 +22078,19 @@ ALTER TABLE ONLY public.broadcasts
 
 
 --
--- Name: broadcasts broadcasts_playbook_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: broadcasts broadcasts_playbook_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_playbook_id_fkey FOREIGN KEY (playbook_id) REFERENCES public.playbooks(id) ON DELETE SET NULL;
+    ADD CONSTRAINT broadcasts_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
 
 
 --
--- Name: broadcasts broadcasts_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: broadcasts broadcasts_template_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.broadcasts
-    ADD CONSTRAINT broadcasts_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.templates(id);
+    ADD CONSTRAINT broadcasts_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
 
 
 --
@@ -21227,35 +22110,35 @@ ALTER TABLE ONLY public.business_records
 
 
 --
--- Name: calls calls_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: calls calls_channel_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.tenant_channels(id);
+    ADD CONSTRAINT calls_channel_id_same_workspace FOREIGN KEY (tenant_id, channel_id) REFERENCES public.tenant_channels(tenant_id, id) NOT VALID;
 
 
 --
--- Name: calls calls_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
-
-
---
--- Name: calls calls_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: calls calls_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE SET NULL;
+    ADD CONSTRAINT calls_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
 
 
 --
--- Name: calls calls_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: calls calls_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.calls
-    ADD CONSTRAINT calls_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id) ON DELETE SET NULL;
+    ADD CONSTRAINT calls_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id) NOT VALID;
+
+
+--
+-- Name: calls calls_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.calls
+    ADD CONSTRAINT calls_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
 
 
 --
@@ -21283,11 +22166,11 @@ ALTER TABLE ONLY public.capability_activations
 
 
 --
--- Name: contact_identities contact_identities_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contact_identities contact_identities_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contact_identities
-    ADD CONSTRAINT contact_identities_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT contact_identities_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21299,11 +22182,11 @@ ALTER TABLE ONLY public.contact_identities
 
 
 --
--- Name: contacts contacts_merged_into_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: contacts contacts_merged_into_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_merged_into_contact_id_fkey FOREIGN KEY (merged_into_contact_id) REFERENCES public.contacts(id);
+    ADD CONSTRAINT contacts_merged_into_contact_id_same_workspace FOREIGN KEY (tenant_id, merged_into_contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
 
 
 --
@@ -21323,11 +22206,11 @@ ALTER TABLE ONLY public.conversations
 
 
 --
--- Name: conversations conversations_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: conversations conversations_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT conversations_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21347,11 +22230,11 @@ ALTER TABLE ONLY public.conversations
 
 
 --
--- Name: deals deals_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: deals deals_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT deals_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21363,11 +22246,11 @@ ALTER TABLE ONLY public.deals
 
 
 --
--- Name: deals deals_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: deals deals_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+    ADD CONSTRAINT deals_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
 
 
 --
@@ -21395,19 +22278,19 @@ ALTER TABLE ONLY public.decisions
 
 
 --
--- Name: decisions decisions_undo_of_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: decisions decisions_undo_of_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.decisions
-    ADD CONSTRAINT decisions_undo_of_fkey FOREIGN KEY (undo_of) REFERENCES public.decisions(id);
+    ADD CONSTRAINT decisions_undo_of_same_workspace FOREIGN KEY (tenant_id, undo_of) REFERENCES public.decisions(tenant_id, id) NOT VALID;
 
 
 --
--- Name: escalations escalations_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: escalations escalations_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.escalations
-    ADD CONSTRAINT escalations_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+    ADD CONSTRAINT escalations_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21499,11 +22382,11 @@ ALTER TABLE ONLY public.lead_counters
 
 
 --
--- Name: lead_judgments lead_judgments_round_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_judgments lead_judgments_round_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_judgments
-    ADD CONSTRAINT lead_judgments_round_id_fkey FOREIGN KEY (round_id) REFERENCES public.lead_rounds(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_judgments_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21515,11 +22398,11 @@ ALTER TABLE ONLY public.lead_judgments
 
 
 --
--- Name: lead_operations lead_operations_search_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_operations lead_operations_search_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_operations
-    ADD CONSTRAINT lead_operations_search_id_fkey FOREIGN KEY (search_id) REFERENCES public.lead_searches(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_operations_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21531,11 +22414,11 @@ ALTER TABLE ONLY public.lead_operations
 
 
 --
--- Name: lead_places lead_places_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_places lead_places_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_places
-    ADD CONSTRAINT lead_places_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_places_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21547,11 +22430,11 @@ ALTER TABLE ONLY public.lead_places
 
 
 --
--- Name: lead_preferences lead_preferences_from_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_preferences lead_preferences_from_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_preferences
-    ADD CONSTRAINT lead_preferences_from_lead_id_fkey FOREIGN KEY (from_lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+    ADD CONSTRAINT lead_preferences_from_lead_id_same_workspace FOREIGN KEY (tenant_id, from_lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (from_lead_id) NOT VALID;
 
 
 --
@@ -21563,11 +22446,11 @@ ALTER TABLE ONLY public.lead_preferences
 
 
 --
--- Name: lead_rounds lead_rounds_search_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_rounds lead_rounds_search_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_rounds
-    ADD CONSTRAINT lead_rounds_search_id_fkey FOREIGN KEY (search_id) REFERENCES public.lead_searches(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_rounds_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21579,11 +22462,11 @@ ALTER TABLE ONLY public.lead_rounds
 
 
 --
--- Name: lead_runs lead_runs_round_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_runs lead_runs_round_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_runs
-    ADD CONSTRAINT lead_runs_round_id_fkey FOREIGN KEY (round_id) REFERENCES public.lead_rounds(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_runs_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21595,27 +22478,27 @@ ALTER TABLE ONLY public.lead_runs
 
 
 --
--- Name: lead_search_members lead_search_members_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_search_members lead_search_members_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_search_members_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: lead_search_members lead_search_members_round_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_round_id_fkey FOREIGN KEY (round_id) REFERENCES public.lead_rounds(id) ON DELETE SET NULL;
-
-
---
--- Name: lead_search_members lead_search_members_search_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_search_members lead_search_members_round_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_search_members
-    ADD CONSTRAINT lead_search_members_search_id_fkey FOREIGN KEY (search_id) REFERENCES public.lead_searches(id) ON DELETE CASCADE;
+    ADD CONSTRAINT lead_search_members_round_id_same_workspace FOREIGN KEY (tenant_id, round_id) REFERENCES public.lead_rounds(tenant_id, id) ON DELETE SET NULL (round_id) NOT VALID;
+
+
+--
+-- Name: lead_search_members lead_search_members_search_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_search_members
+    ADD CONSTRAINT lead_search_members_search_id_same_workspace FOREIGN KEY (tenant_id, search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21643,11 +22526,11 @@ ALTER TABLE ONLY public.lead_searches
 
 
 --
--- Name: lead_searches lead_searches_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lead_searches lead_searches_thread_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lead_searches
-    ADD CONSTRAINT lead_searches_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.ask_threads(id) ON DELETE SET NULL;
+    ADD CONSTRAINT lead_searches_thread_id_same_workspace FOREIGN KEY (tenant_id, thread_id) REFERENCES public.ask_threads(tenant_id, id) ON DELETE SET NULL (thread_id) NOT VALID;
 
 
 --
@@ -21667,11 +22550,11 @@ ALTER TABLE ONLY public.lead_suppressions
 
 
 --
--- Name: leads leads_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: leads leads_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
+    ADD CONSTRAINT leads_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
 
 
 --
@@ -21715,19 +22598,19 @@ ALTER TABLE ONLY public.memberships
 
 
 --
--- Name: messages messages_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: messages messages_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+    ADD CONSTRAINT messages_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) NOT VALID;
 
 
 --
--- Name: messages messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: messages messages_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+    ADD CONSTRAINT messages_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21907,11 +22790,11 @@ ALTER TABLE ONLY public.partners
 
 
 --
--- Name: person_moments person_moments_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: person_moments person_moments_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.person_moments
-    ADD CONSTRAINT person_moments_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT person_moments_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -21931,19 +22814,19 @@ ALTER TABLE ONLY public.person_notes
 
 
 --
--- Name: person_notes person_notes_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: person_notes person_notes_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT person_notes_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: person_notes person_notes_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: person_notes person_notes_deal_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.person_notes
-    ADD CONSTRAINT person_notes_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES public.deals(id) ON DELETE SET NULL;
+    ADD CONSTRAINT person_notes_deal_id_same_workspace FOREIGN KEY (tenant_id, deal_id) REFERENCES public.deals(tenant_id, id) ON DELETE SET NULL (deal_id) NOT VALID;
 
 
 --
@@ -21987,6 +22870,14 @@ ALTER TABLE ONLY public.platform_admins
 
 
 --
+-- Name: platform_metrics platform_metrics_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_metrics
+    ADD CONSTRAINT platform_metrics_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: playbooks playbooks_after_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -22003,11 +22894,11 @@ ALTER TABLE ONLY public.playbooks
 
 
 --
--- Name: playbooks playbooks_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: playbooks playbooks_list_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_list_id_fkey FOREIGN KEY (list_id) REFERENCES public.segments(id);
+    ADD CONSTRAINT playbooks_list_id_same_workspace FOREIGN KEY (tenant_id, list_id) REFERENCES public.segments(tenant_id, id) NOT VALID;
 
 
 --
@@ -22019,11 +22910,11 @@ ALTER TABLE ONLY public.playbooks
 
 
 --
--- Name: playbooks playbooks_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: playbooks playbooks_template_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.playbooks
-    ADD CONSTRAINT playbooks_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.templates(id);
+    ADD CONSTRAINT playbooks_template_id_same_workspace FOREIGN KEY (tenant_id, template_id) REFERENCES public.templates(tenant_id, id) NOT VALID;
 
 
 --
@@ -22067,59 +22958,59 @@ ALTER TABLE ONLY public.reach_out_check_spend
 
 
 --
--- Name: reach_out_replies reach_out_replies_answered_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_replies reach_out_replies_answered_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_answered_message_id_fkey FOREIGN KEY (answered_message_id) REFERENCES public.messages(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reach_out_replies_answered_message_id_same_workspace FOREIGN KEY (tenant_id, answered_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (answered_message_id) NOT VALID;
 
 
 --
--- Name: reach_out_replies reach_out_replies_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
-
-
---
--- Name: reach_out_replies reach_out_replies_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_replies reach_out_replies_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+    ADD CONSTRAINT reach_out_replies_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
 
 
 --
--- Name: reach_out_replies reach_out_replies_lead_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_contact_id_fkey FOREIGN KEY (lead_contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
-
-
---
--- Name: reach_out_replies reach_out_replies_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_replies reach_out_replies_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reach_out_replies_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: reach_out_replies reach_out_replies_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id) ON DELETE CASCADE;
-
-
---
--- Name: reach_out_replies reach_out_replies_send_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_replies reach_out_replies_lead_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_replies
-    ADD CONSTRAINT reach_out_replies_send_id_fkey FOREIGN KEY (send_id) REFERENCES public.reach_out_sends(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reach_out_replies_lead_contact_id_same_workspace FOREIGN KEY (tenant_id, lead_contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (lead_contact_id) NOT VALID;
+
+
+--
+-- Name: reach_out_replies reach_out_replies_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_replies
+    ADD CONSTRAINT reach_out_replies_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE SET NULL (lead_id) NOT VALID;
+
+
+--
+-- Name: reach_out_replies reach_out_replies_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_replies
+    ADD CONSTRAINT reach_out_replies_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE NOT VALID;
+
+
+--
+-- Name: reach_out_replies reach_out_replies_send_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_replies
+    ADD CONSTRAINT reach_out_replies_send_id_same_workspace FOREIGN KEY (tenant_id, send_id) REFERENCES public.reach_out_sends(tenant_id, id) ON DELETE SET NULL (send_id) NOT VALID;
 
 
 --
@@ -22139,59 +23030,59 @@ ALTER TABLE ONLY public.reach_out_replies
 
 
 --
--- Name: reach_out_sends reach_out_sends_broadcast_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_sends reach_out_sends_broadcast_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_broadcast_id_fkey FOREIGN KEY (broadcast_id) REFERENCES public.broadcasts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT reach_out_sends_broadcast_id_same_workspace FOREIGN KEY (tenant_id, broadcast_id) REFERENCES public.broadcasts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: reach_out_sends reach_out_sends_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL;
-
-
---
--- Name: reach_out_sends reach_out_sends_domain_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_sends reach_out_sends_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_domain_id_fkey FOREIGN KEY (domain_id) REFERENCES public.sending_domains(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reach_out_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE SET NULL (contact_id) NOT VALID;
 
 
 --
--- Name: reach_out_sends reach_out_sends_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
-
-
---
--- Name: reach_out_sends reach_out_sends_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_sends reach_out_sends_domain_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(id) ON DELETE SET NULL;
+    ADD CONSTRAINT reach_out_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id) NOT VALID;
 
 
 --
--- Name: reach_out_sends reach_out_sends_playbook_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_playbook_id_fkey FOREIGN KEY (playbook_id) REFERENCES public.playbooks(id) ON DELETE SET NULL;
-
-
---
--- Name: reach_out_sends reach_out_sends_root_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: reach_out_sends reach_out_sends_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.reach_out_sends
-    ADD CONSTRAINT reach_out_sends_root_id_fkey FOREIGN KEY (root_id) REFERENCES public.playbooks(id) ON DELETE CASCADE;
+    ADD CONSTRAINT reach_out_sends_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE NOT VALID;
+
+
+--
+-- Name: reach_out_sends reach_out_sends_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE SET NULL (message_id) NOT VALID;
+
+
+--
+-- Name: reach_out_sends reach_out_sends_playbook_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_playbook_id_same_workspace FOREIGN KEY (tenant_id, playbook_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE SET NULL (playbook_id) NOT VALID;
+
+
+--
+-- Name: reach_out_sends reach_out_sends_root_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reach_out_sends
+    ADD CONSTRAINT reach_out_sends_root_id_same_workspace FOREIGN KEY (tenant_id, root_id) REFERENCES public.playbooks(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -22203,6 +23094,22 @@ ALTER TABLE ONLY public.reach_out_sends
 
 
 --
+-- Name: reply_turns reply_turns_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reply_turns
+    ADD CONSTRAINT reply_turns_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: reply_turns reply_turns_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reply_turns
+    ADD CONSTRAINT reply_turns_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: segment_members segment_members_added_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -22211,19 +23118,19 @@ ALTER TABLE ONLY public.segment_members
 
 
 --
--- Name: segment_members segment_members_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: segment_members segment_members_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT segment_members_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
--- Name: segment_members segment_members_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: segment_members segment_members_segment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.segment_members
-    ADD CONSTRAINT segment_members_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.segments(id) ON DELETE CASCADE;
+    ADD CONSTRAINT segment_members_segment_id_same_workspace FOREIGN KEY (tenant_id, segment_id) REFERENCES public.segments(tenant_id, id) ON DELETE CASCADE NOT VALID;
 
 
 --
@@ -23123,7 +24030,7 @@ ALTER TABLE public.partner_invitations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY partner_invitations_read ON public.partner_invitations FOR SELECT TO authenticated USING ((public.is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id
    FROM public.partners p
-  WHERE (p.user_id = ( SELECT auth.uid() AS uid))))));
+  WHERE ((p.user_id = ( SELECT auth.uid() AS uid)) AND public.session_shows_second_factor())))));
 
 
 --
@@ -23217,6 +24124,12 @@ CREATE POLICY person_notes_member_select ON public.person_notes FOR SELECT TO au
 --
 
 ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: platform_metrics; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.platform_metrics ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: playbooks; Type: ROW SECURITY; Schema: public; Owner: -
@@ -23385,6 +24298,12 @@ CREATE POLICY reach_out_sends_member_select ON public.reach_out_sends FOR SELECT
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
+
+--
+-- Name: reply_turns; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reply_turns ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: segment_members; Type: ROW SECURITY; Schema: public; Owner: -
@@ -23608,6 +24527,14 @@ GRANT ALL ON FUNCTION public.ask_tokens_day(p_tenant uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_send_at timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION billing_card_mark(p_tenant_id uuid, p_fingerprint text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -23689,6 +24616,14 @@ GRANT ALL ON TABLE public.jobs TO service_role;
 
 REVOKE ALL ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.claim_due_jobs(p_limit integer, p_lease_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.claim_reply_turn(p_tenant uuid, p_conversation uuid, p_message uuid) TO service_role;
 
 
 --
@@ -24050,6 +24985,14 @@ GRANT ALL ON FUNCTION public.handovers_mine() TO service_role;
 
 REVOKE ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) TO service_role;
+
+
+--
+-- Name: FUNCTION holds_reply_turn(p_conversation uuid, p_message uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.holds_reply_turn(p_conversation uuid, p_message uuid) TO service_role;
 
 
 --
@@ -25218,6 +26161,30 @@ GRANT ALL ON FUNCTION public.platform_admin_add(p_email text) TO service_role;
 
 
 --
+-- Name: FUNCTION platform_answer_silence(p_day date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_answer_silence(p_day date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_answer_silence(p_day date) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_metrics_read(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_metrics_read(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_metrics_read(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_metrics_roll(p_day date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_metrics_roll(p_day date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_metrics_roll(p_day date) TO service_role;
+
+
+--
 -- Name: FUNCTION platform_overview(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -25739,6 +26706,15 @@ GRANT ALL ON FUNCTION public.record_workspace_created() TO service_role;
 
 
 --
+-- Name: FUNCTION recording_opened(p_call_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.recording_opened(p_call_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.recording_opened(p_call_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.recording_opened(p_call_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION release_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -25762,6 +26738,15 @@ GRANT ALL ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text)
 REVOKE ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.report_series(p_tenant_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION request_id_of_caller(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.request_id_of_caller() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.request_id_of_caller() TO authenticated;
+GRANT ALL ON FUNCTION public.request_id_of_caller() TO service_role;
 
 
 --
@@ -25853,6 +26838,15 @@ GRANT ALL ON FUNCTION public.sending_domain_counts(p_tenant_id uuid, p_host text
 
 REVOKE ALL ON FUNCTION public.sending_domains_within_limit() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sending_domains_within_limit() TO service_role;
+
+
+--
+-- Name: FUNCTION session_has_partner_seat(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.session_has_partner_seat() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.session_has_partner_seat() TO authenticated;
+GRANT ALL ON FUNCTION public.session_has_partner_seat() TO service_role;
 
 
 --
@@ -26027,12 +27021,76 @@ GRANT ALL ON FUNCTION public.take_rate(p_bucket text, p_actor text, p_limit inte
 
 
 --
+-- Name: FUNCTION team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_change_role(p_tenant_id uuid, p_actor uuid, p_membership_id uuid, p_role text, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION team_decision(p_tenant_id uuid, p_actor uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_decision(p_tenant_id uuid, p_actor uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_decision(p_tenant_id uuid, p_actor uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_invite(p_tenant_id uuid, p_actor uuid, p_email text, p_role text, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_invite_withdraw(p_tenant_id uuid, p_invitation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_join(p_tenant_id uuid, p_actor uuid, p_user_id uuid, p_role text, p_email text, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION team_owner_or_refuse(p_tenant_id uuid, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_owner_or_refuse(p_tenant_id uuid, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_owner_or_refuse(p_tenant_id uuid, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_remove(p_tenant_id uuid, p_actor uuid, p_id uuid, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION team_roster(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.team_roster(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.team_roster(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.team_roster(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION team_take_turn(p_tenant_id uuid, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) TO service_role;
 
 
 --
@@ -26200,37 +27258,79 @@ GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
 -- Name: TABLE ask_messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_messages TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_messages TO authenticated;
 GRANT ALL ON TABLE public.ask_messages TO service_role;
+
+
+--
+-- Name: COLUMN ask_messages.thread_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(thread_id) ON TABLE public.ask_messages TO authenticated;
+
+
+--
+-- Name: COLUMN ask_messages.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_messages TO authenticated;
+
+
+--
+-- Name: COLUMN ask_messages.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_messages TO authenticated;
+
+
+--
+-- Name: COLUMN ask_messages.role; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(role) ON TABLE public.ask_messages TO authenticated;
 
 
 --
 -- Name: COLUMN ask_messages.content; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(content) ON TABLE public.ask_messages TO authenticated;
+GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authenticated;
 
 
 --
 -- Name: TABLE ask_threads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_threads TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.ask_threads TO authenticated;
 GRANT ALL ON TABLE public.ask_threads TO service_role;
+
+
+--
+-- Name: COLUMN ask_threads.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_threads TO authenticated;
+
+
+--
+-- Name: COLUMN ask_threads.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_threads TO authenticated;
 
 
 --
 -- Name: COLUMN ask_threads.title; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(title) ON TABLE public.ask_threads TO authenticated;
+GRANT INSERT(title),UPDATE(title) ON TABLE public.ask_threads TO authenticated;
 
 
 --
 -- Name: COLUMN ask_threads.scope; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(scope) ON TABLE public.ask_threads TO authenticated;
+GRANT INSERT(scope),UPDATE(scope) ON TABLE public.ask_threads TO authenticated;
 
 
 --
@@ -26266,30 +27366,135 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 -- Name: TABLE broadcast_recipients; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.broadcast_recipients TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.broadcast_recipients TO authenticated;
 GRANT ALL ON TABLE public.broadcast_recipients TO service_role;
+
+
+--
+-- Name: COLUMN broadcast_recipients.broadcast_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(broadcast_id) ON TABLE public.broadcast_recipients TO authenticated;
+
+
+--
+-- Name: COLUMN broadcast_recipients.contact_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(contact_id) ON TABLE public.broadcast_recipients TO authenticated;
+
+
+--
+-- Name: COLUMN broadcast_recipients.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.broadcast_recipients TO authenticated;
+
+
+--
+-- Name: COLUMN broadcast_recipients.facts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(facts) ON TABLE public.broadcast_recipients TO authenticated;
 
 
 --
 -- Name: TABLE broadcasts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcasts TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcasts TO authenticated;
 GRANT ALL ON TABLE public.broadcasts TO service_role;
+
+
+--
+-- Name: COLUMN broadcasts.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(name) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.template_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_id) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.template_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_name) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.template_language; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_language) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.params; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(params) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.audience; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(audience) ON TABLE public.broadcasts TO authenticated;
 
 
 --
 -- Name: COLUMN broadcasts.state; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(state) ON TABLE public.broadcasts TO authenticated;
+GRANT INSERT(state),UPDATE(state) ON TABLE public.broadcasts TO authenticated;
 
 
 --
 -- Name: COLUMN broadcasts.scheduled_for; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(scheduled_for) ON TABLE public.broadcasts TO authenticated;
+GRANT INSERT(scheduled_for),UPDATE(scheduled_for) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.recipient_count; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(recipient_count) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.playbook_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(playbook_id) ON TABLE public.broadcasts TO authenticated;
+
+
+--
+-- Name: COLUMN broadcasts.run_for; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(run_for) ON TABLE public.broadcasts TO authenticated;
 
 
 --
@@ -26312,8 +27517,50 @@ GRANT ALL ON TABLE public.calls TO service_role;
 -- Name: TABLE capability_activations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.capability_activations TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.capability_activations TO authenticated;
 GRANT ALL ON TABLE public.capability_activations TO service_role;
+
+
+--
+-- Name: COLUMN capability_activations.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: COLUMN capability_activations.capability; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(capability) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: COLUMN capability_activations.activated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(activated_at) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: COLUMN capability_activations.activated_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(activated_by) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: COLUMN capability_activations.deactivated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(deactivated_at) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: COLUMN capability_activations.note; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
 
 
 --
@@ -26394,8 +27641,64 @@ GRANT ALL ON TABLE public.deals TO service_role;
 -- Name: TABLE decisions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.decisions TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.decisions TO authenticated;
 GRANT ALL ON TABLE public.decisions TO service_role;
+
+
+--
+-- Name: COLUMN decisions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.verb; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(verb) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.actor_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(actor_type) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.actor_user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(actor_user_id) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.payload; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(payload) ON TABLE public.decisions TO authenticated;
+
+
+--
+-- Name: COLUMN decisions.undo_of; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(undo_of) ON TABLE public.decisions TO authenticated;
 
 
 --
@@ -26485,8 +27788,50 @@ GRANT ALL ON TABLE public.google_reviews TO service_role;
 -- Name: TABLE idempotency_keys; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.idempotency_keys TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.idempotency_keys TO authenticated;
 GRANT ALL ON TABLE public.idempotency_keys TO service_role;
+
+
+--
+-- Name: COLUMN idempotency_keys.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: COLUMN idempotency_keys.key; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(key) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: COLUMN idempotency_keys.route; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(route) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: COLUMN idempotency_keys.request_hash; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(request_hash) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: COLUMN idempotency_keys.response; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(response) ON TABLE public.idempotency_keys TO authenticated;
+
+
+--
+-- Name: COLUMN idempotency_keys.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
 
 
 --
@@ -26634,15 +27979,106 @@ GRANT ALL ON TABLE public.memberships TO service_role;
 -- Name: TABLE messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.messages TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.messages TO authenticated;
 GRANT ALL ON TABLE public.messages TO service_role;
+
+
+--
+-- Name: COLUMN messages.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(id) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.conversation_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(conversation_id) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.contact_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(contact_id) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.channel; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(channel) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.direction; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(direction) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.sender; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(sender) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.sent_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(sent_by) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(type) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.body; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(body) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.template_name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_name) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.template_vars; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(template_vars) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.content_hash; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(content_hash) ON TABLE public.messages TO authenticated;
 
 
 --
 -- Name: COLUMN messages.status; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(status) ON TABLE public.messages TO authenticated;
+GRANT INSERT(status),UPDATE(status) ON TABLE public.messages TO authenticated;
 
 
 --
@@ -26650,6 +28086,13 @@ GRANT UPDATE(status) ON TABLE public.messages TO authenticated;
 --
 
 GRANT UPDATE(error) ON TABLE public.messages TO authenticated;
+
+
+--
+-- Name: COLUMN messages.meta; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(meta) ON TABLE public.messages TO authenticated;
 
 
 --
@@ -26761,117 +28204,180 @@ GRANT ALL ON TABLE public.platform_admins TO service_role;
 
 
 --
+-- Name: TABLE platform_metrics; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.platform_metrics TO service_role;
+
+
+--
 -- Name: TABLE playbooks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.playbooks TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.playbooks TO authenticated;
 GRANT ALL ON TABLE public.playbooks TO service_role;
+
+
+--
+-- Name: COLUMN playbooks.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.name; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(name) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(name),UPDATE(name) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.trigger; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(trigger) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(trigger),UPDATE(trigger) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.template_id; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(template_id) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(template_id),UPDATE(template_id) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.template_name; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(template_name) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(template_name),UPDATE(template_name) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.template_language; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(template_language) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(template_language),UPDATE(template_language) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.params; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(params) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(params),UPDATE(params) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.policy_class; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(policy_class) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(policy_class),UPDATE(policy_class) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.state; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(state) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(state),UPDATE(state) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.run_hour; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(run_hour) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(run_hour),UPDATE(run_hour) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.cap_per_run; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(cap_per_run) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(cap_per_run),UPDATE(cap_per_run) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.gap_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(gap_days) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(gap_days),UPDATE(gap_days) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.cadence_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(cadence_days) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(cadence_days),UPDATE(cadence_days) ON TABLE public.playbooks TO authenticated;
+
+
+--
+-- Name: COLUMN playbooks.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.list_id; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(list_id) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(list_id),UPDATE(list_id) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: COLUMN playbooks.list_key; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(list_key) ON TABLE public.playbooks TO authenticated;
+GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.playbooks TO authenticated;
 
 
 --
 -- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.policies TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.policies TO authenticated;
 GRANT ALL ON TABLE public.policies TO service_role;
+
+
+--
+-- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(class) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 
 
 --
@@ -26913,33 +28419,82 @@ GRANT SELECT ON TABLE public.reach_out_replies TO authenticated;
 
 
 --
+-- Name: TABLE reply_turns; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.reply_turns TO service_role;
+
+
+--
 -- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT ALL ON TABLE public.segment_members TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.segment_members TO authenticated;
 GRANT ALL ON TABLE public.segment_members TO service_role;
+
+
+--
+-- Name: COLUMN segment_members.segment_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(segment_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.contact_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(contact_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.added_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(added_by) ON TABLE public.segment_members TO authenticated;
 
 
 --
 -- Name: TABLE segments; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.segments TO authenticated;
+GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.segments TO authenticated;
 GRANT ALL ON TABLE public.segments TO service_role;
+
+
+--
+-- Name: COLUMN segments.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.segments TO authenticated;
 
 
 --
 -- Name: COLUMN segments.name; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(name) ON TABLE public.segments TO authenticated;
+GRANT INSERT(name),UPDATE(name) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: COLUMN segments.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.segments TO authenticated;
 
 
 --
 -- Name: COLUMN segments.rule; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT UPDATE(rule) ON TABLE public.segments TO authenticated;
+GRANT INSERT(rule),UPDATE(rule) ON TABLE public.segments TO authenticated;
 
 
 --

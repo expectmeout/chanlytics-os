@@ -19,6 +19,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 import { ROLE_PERMS, leadMonth, legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { at } from "../../_cron-doors-world.mjs";
 import { sha256, webhookToken } from "../../_lead-world.mjs";
@@ -259,6 +260,14 @@ function a2World(base) {
   };
 }
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
+before(async () => {
+  if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
+});
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
@@ -3270,3 +3279,7 @@ test(
     );
   },
 );
+
+after(async () => {
+  await releaseList?.();
+});

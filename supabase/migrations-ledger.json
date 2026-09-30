@@ -286,6 +286,6 @@
     "00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "45e9a8fefeb76be5da1d9546815d86dfbf844d44dc850d198cc02ca5f6eb2966",
     "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
     "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
-    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "7c6984d484ebc5576581c25bd8b855cb059a7a68dec78ec55918add42fbce87f"
+    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8"
   }
 }

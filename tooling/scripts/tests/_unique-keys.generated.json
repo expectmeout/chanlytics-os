@@ -38,6 +38,21 @@
       "where": null
     },
     {
+      "table": "ask_threads",
+      "name": "ask_threads_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "billing_accounts",
       "name": "billing_accounts_customer_idx",
       "primary": false,
@@ -134,6 +149,21 @@
           "column": "playbook_id"
         }
       }
+    },
+    {
+      "table": "broadcasts",
+      "name": "broadcasts_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "business_records",
@@ -252,6 +282,21 @@
     },
     {
       "table": "contacts",
+      "name": "contacts_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "contacts",
       "name": "contacts_tenant_phone_uq",
       "primary": false,
       "nullsNotDistinct": false,
@@ -292,6 +337,21 @@
         },
         {
           "column": "contact_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "conversations",
+      "name": "conversations_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
         }
       ],
       "where": null
@@ -342,11 +402,41 @@
       "where": null
     },
     {
+      "table": "deals",
+      "name": "deals_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "decisions",
       "name": "decisions_pkey",
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "decisions",
+      "name": "decisions_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
         {
           "column": "id"
         }
@@ -855,6 +945,21 @@
       "where": null
     },
     {
+      "table": "lead_rounds",
+      "name": "lead_rounds_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "lead_runs",
       "name": "lead_runs_apify_run_id_key",
       "primary": false,
@@ -980,6 +1085,21 @@
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "leads",
+      "name": "leads_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
         {
           "column": "id"
         }
@@ -1187,6 +1307,21 @@
           "column": "external_id"
         }
       }
+    },
+    {
+      "table": "messages",
+      "name": "messages_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "notification_marks",
@@ -1442,6 +1577,21 @@
       "where": null
     },
     {
+      "table": "platform_metrics",
+      "name": "platform_metrics_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "playbooks",
       "name": "playbooks_one_chain_per_search",
       "primary": false,
@@ -1660,6 +1810,33 @@
       "where": null
     },
     {
+      "table": "reach_out_sends",
+      "name": "reach_out_sends_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "reply_turns",
+      "name": "reply_turns_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "conversation_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "segment_members",
       "name": "segment_members_pkey",
       "primary": true,
@@ -1708,6 +1885,21 @@
       "where": null
     },
     {
+      "table": "segments",
+      "name": "segments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "sending_domains",
       "name": "sending_domains_host_uq",
       "primary": false,
@@ -1746,6 +1938,21 @@
           "column": "provider_domain_id"
         }
       }
+    },
+    {
+      "table": "sending_domains",
+      "name": "sending_domains_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
     },
     {
       "table": "sweep_status",
@@ -1793,6 +2000,21 @@
       "where": null
     },
     {
+      "table": "templates",
+      "name": "templates_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "tenant_channels",
       "name": "tenant_channels_kind_external_id_key",
       "primary": false,
@@ -1813,6 +2035,21 @@
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_channels",
+      "name": "tenant_channels_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
         {
           "column": "id"
         }

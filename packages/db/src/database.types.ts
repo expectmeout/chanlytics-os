@@ -4706,11 +4706,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reply_turns_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: true
+            foreignKeyName: "reply_turns_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "reply_turns_tenant_id_fkey"

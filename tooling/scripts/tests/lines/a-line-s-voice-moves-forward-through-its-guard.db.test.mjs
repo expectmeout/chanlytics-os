@@ -119,7 +119,7 @@ async function runProvision(jobId) {
     db,
     wire: {},
     alert: async () => undefined,
-    provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
+    provisionLine: (lineId, by, until) => provisionLineJob(db, row.tenant_id, lineId, by, undefined, until),
     schedule: async (kind, dueAt, payload) => {
       await jobs.scheduleJob(db, { tenantId: row.tenant_id, kind, dueAt, payload });
     },
