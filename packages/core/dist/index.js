@@ -14248,11 +14248,11 @@ async function mayGoNow(ports, b, cmd) {
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
-    await stall(ports, b, cmd, "credentials");
+    const stopped = await stall(ports, b, cmd, "credentials") === "stopped";
     await ports.page?.(
       `wire_unavailable:${BROADCAST_CHANNEL}`,
       `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
-      `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`
+      `Broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`
     )?.catch(() => void 0);
     return false;
   }
@@ -14438,7 +14438,7 @@ async function stall(ports, b, cmd, what) {
   if (stalls <= BROADCAST_STALLS_MAX) {
     const at = new Date(ports.now() + jittered2(BROADCAST_STALL_RETRY_MS, ports.random));
     await ports.scheduleNext(b.id, at, { ...cmd.waits ? { waits: cmd.waits } : {}, stalls });
-    return;
+    return "waits";
   }
   const sent = await ports.tally(b.id).then(
     (t) => t.sent,
@@ -14456,6 +14456,7 @@ async function stall(ports, b, cmd, what) {
       "Nothing is wrong with the number; send it again later."
     ].filter(Boolean).join(" ")
   });
+  return "stopped";
 }
 async function stopAfterHours(ports, b) {
   const sent = await ports.tally(b.id).then(
@@ -50553,10 +50554,10 @@ async function sendNow(at, turn, hold, bodyText) {
 }
 
 // src/inbound/turn.ts
-async function claimTheTurn(at) {
+async function claimTheTurn(at, photo) {
   const { ports, db, tenantId, ing, L: L4, sink } = at;
   const turn = ports.persist.turn;
-  if (!turn || !db || !tenantId || !ing) return GO;
+  if (!turn || photo || !db || !tenantId || !ing) return GO;
   const held = await turn.claim(db, tenantId, ing.conversation_id, ing.message_id).catch((e) => {
     L4.warn("wa_turn_unreadable", { error: errField(e) });
     return true;
@@ -50566,10 +50567,10 @@ async function claimTheTurn(at) {
   await sink.processed();
   return void 0;
 }
-async function stillOurs(at, t) {
+async function stillOurs(at, t, photo) {
   const { ports, db, ing, L: L4, sink } = at;
   const turn = ports.persist.turn;
-  if (!turn || !db || !ing) return GO;
+  if (!turn || photo || !db || !ing) return GO;
   const held = await turn.holds(db, ing.conversation_id, ing.message_id).catch((e) => {
     L4.warn("wa_turn_unreadable", { error: errField(e) });
     return true;
@@ -50595,9 +50596,9 @@ async function answerInbound(input, ports) {
   if (await heldForThePerson(at, bodyText) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;
-  if (await claimTheTurn(at) !== GO) return;
+  if (await claimTheTurn(at, shown.photo) !== GO) return;
   const turn = await modelTurn(at, bodyText, shown.photo);
-  if (await stillOurs(at, turn) !== GO) return;
+  if (await stillOurs(at, turn, shown.photo) !== GO) return;
   const hold = await planTheHold(at, turn);
   if (await heldOrKept(at, turn, hold, bodyText) !== GO) return;
   await sendNow(at, turn, hold, bodyText);

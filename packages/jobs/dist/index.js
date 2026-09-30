@@ -3420,9 +3420,14 @@ async function markReplyTold(db, p) {
 }
 var POS_TTL_MS = 5 * MIN_MS;
 async function readJobToRequeue(db, tenantId, jobId) {
-  const { data, error } = await db.from("jobs").select("id, kind, state, payload").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
+}
+async function hasNewerCopy(db, tenantId, job) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", job.kind).filter("payload", "eq", JSON.stringify(job.payload)).neq("state", "failed").gt("created_at", job.created_at).limit(1);
+  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  return (data?.length ?? 0) > 0;
 }
 var CALL_CONTROL_S = 15 * 60;
 
@@ -18093,11 +18098,11 @@ async function mayGoNow(ports, b, cmd) {
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
-    await stall(ports, b, cmd, "credentials");
+    const stopped = await stall(ports, b, cmd, "credentials") === "stopped";
     await ports.page?.(
       `wire_unavailable:${BROADCAST_CHANNEL}`,
       `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
-      `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`
+      `Broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`
     )?.catch(() => void 0);
     return false;
   }
@@ -18283,7 +18288,7 @@ async function stall(ports, b, cmd, what) {
   if (stalls <= BROADCAST_STALLS_MAX) {
     const at = new Date(ports.now() + jittered2(BROADCAST_STALL_RETRY_MS, ports.random));
     await ports.scheduleNext(b.id, at, { ...cmd.waits ? { waits: cmd.waits } : {}, stalls });
-    return;
+    return "waits";
   }
   const sent = await ports.tally(b.id).then(
     (t2) => t2.sent,
@@ -18301,6 +18306,7 @@ async function stall(ports, b, cmd, what) {
       "Nothing is wrong with the number; send it again later."
     ].filter(Boolean).join(" ")
   });
+  return "stopped";
 }
 async function stopAfterHours(ports, b) {
   const sent = await ports.tally(b.id).then(
@@ -18476,6 +18482,7 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
   if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   const kind = JOB_KINDS.find((k) => k === row.kind);
   if (!kind) return { outcome: "unknown_kind", kind: row.kind };
   await record(kind);
@@ -26724,7 +26731,8 @@ function nextBatch(id, carry) {
     ...carry?.stalls ? { stalls: carry.stalls } : {}
   };
 }
-function carriedBy(p) {
+function carriedBy(payload) {
+  const p = payload !== null && typeof payload === "object" ? payload : {};
   const count = (n2) => typeof n2 === "number" && Number.isInteger(n2) && n2 > 0 ? n2 : 0;
   return { waits: count(p.waits), stalls: count(p.stalls) };
 }
@@ -27189,7 +27197,9 @@ async function settleJob(db, job, certain) {
         tenantId: job.tenant_id,
         kind: "broadcast_send",
         dueAt: /* @__PURE__ */ new Date(),
-        payload: { broadcast_id: broadcastId, resumes: resumes + 1 }
+        // What the run had waited through goes with it, so a resumed run still looks at the day's sending hours
+        // and still counts its stalls toward the cap.
+        payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 }
       });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e2) {
@@ -27247,21 +27257,29 @@ async function runTick(ports, opts) {
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));
   const running = [];
   const halt = { stopped: false, error: null };
+  const stop = (e2) => {
+    if (!halt.stopped) Object.assign(halt, { stopped: true, error: e2 });
+  };
   const slot = async () => {
     for (let now = ports.now(); now - started < opts.claimForMs && !halt.stopped; now = ports.now()) {
       let job;
       try {
         job = await ports.claim(opts.leaseSeconds);
       } catch (e2) {
-        if (!halt.stopped) Object.assign(halt, { stopped: true, error: e2 });
+        stop(e2);
         return;
       }
       if (!job) return;
-      c2.claimed += 1;
-      noteLate(c2, job, now);
-      const run = runOne(ports, job, deadlineFor(job.kind), c2);
-      if (running.length < slots) running.push(slot());
-      await run;
+      try {
+        c2.claimed += 1;
+        noteLate(c2, job, now);
+        const run = runOne(ports, job, deadlineFor(job.kind), c2);
+        if (running.length < slots) running.push(slot());
+        await run;
+      } catch (e2) {
+        stop(e2);
+        return;
+      }
     }
   };
   running.push(slot());

@@ -235,7 +235,8 @@ type Requeued = {
  * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
  * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
  * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
- * A kind the ledger holds once per subject answers `already_scheduled` when the subject is on the ledger again.
+ * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
+ * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
  */
 declare function requeueFailedJob(db: Db, tenantId: string, jobId: string, record: (kind: string) => Promise<void>): Promise<Requeued>;
 

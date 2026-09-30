@@ -4955,9 +4955,14 @@ async function keepIdempotencyReceipt(db, p) {
 
 // src/jobs.ts
 async function readJobToRequeue(db, tenantId, jobId) {
-  const { data, error } = await db.from("jobs").select("id, kind, state, payload").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`read_job: ${error.message}`);
   return data;
+}
+async function hasNewerCopy(db, tenantId, job) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", job.kind).filter("payload", "eq", JSON.stringify(job.payload)).neq("state", "failed").gt("created_at", job.created_at).limit(1);
+  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  return (data?.length ?? 0) > 0;
 }
 
 // src/repositories/control.ts
@@ -5846,6 +5851,7 @@ export {
   getTenantConfig,
   getWorkspacePartner,
   handRun,
+  hasNewerCopy,
   heldNoticeDue,
   heldStale,
   ingestCall,
