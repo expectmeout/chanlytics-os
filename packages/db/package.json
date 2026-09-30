@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
-    "@supabase/postgrest-js": "^2.116.0",
-    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/postgrest-js": "^2.117.2",
+    "@supabase/supabase-js": "^2.117.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {

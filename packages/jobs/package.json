@@ -21,7 +21,7 @@
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
-    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/supabase-js": "^2.117.2",
     "html-to-text": "^9.0.5",
     "zod": "^4.6.5"
   },
