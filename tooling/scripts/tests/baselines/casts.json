@@ -233,22 +233,6 @@
   "apps/edge/api/admin/whatsapp/templates-sync.ts": {
     "unknownAs": 4
   },
-  "apps/edge/api/cron/deadman.ts": {
-    "unknownAs": 1,
-    "nonNull": 1
-  },
-  "apps/edge/api/cron/health.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/leads.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/partners.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/api/cron/playbooks.ts": {
-    "unknownAs": 2
-  },
   "apps/edge/api/diag.ts": {
     "unknownAs": 2
   },
@@ -279,10 +263,19 @@
   "apps/edge/lib/leads/lead-db.ts": {
     "unknownAs": 3
   },
+  "apps/edge/lib/leads/leads-sweep.ts": {
+    "unknownAs": 1
+  },
   "apps/edge/lib/lines/line-release.ts": {
     "unknownAs": 2
   },
   "apps/edge/lib/lines/lines.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/ops/health-sweep.ts": {
+    "unknownAs": 1
+  },
+  "apps/edge/lib/partners/partners-sweep.ts": {
     "unknownAs": 1
   },
   "apps/edge/lib/pg.ts": {
@@ -294,6 +287,9 @@
   "apps/edge/lib/reach-out/clock.ts": {
     "nonNull": 1
   },
+  "apps/edge/lib/reach-out/playbooks-sweep.ts": {
+    "unknownAs": 2
+  },
   "apps/edge/lib/reach-out/replan.ts": {
     "nonNull": 1
   },
@@ -302,6 +298,10 @@
   },
   "apps/edge/lib/reach-out/sender.ts": {
     "unknownAs": 1
+  },
+  "apps/edge/lib/receptionist/deadman-sweep.ts": {
+    "unknownAs": 1,
+    "nonNull": 1
   },
   "apps/edge/lib/receptionist/unfinished.ts": {
     "unknownAs": 3,

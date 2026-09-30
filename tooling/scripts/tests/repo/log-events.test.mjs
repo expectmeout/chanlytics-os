@@ -43,6 +43,7 @@ const FORWARDED = {
   "apps/edge/api/inbound-sms.ts": ["verdict.log", "verdict.log"], // planSmsIngress
   "apps/edge/api/resend-webhook.ts": ["verdict.log", "verdict.log"], // planResendEvent
   "apps/edge/api/retell-webhook.ts": ["s.event"], // planCallEvent's log step (call-event.ts)
+  "apps/edge/lib/ops/sweep-door.ts": ["noDbEvent"], // sweepDoor: the line a sweep says when it has no database
   "apps/edge/lib/reach-out/check.ts": ["event"], // the check sweep's error(...)
   "apps/edge/lib/reach-out/sender.ts": ["event"], // the claim's failed(...)
   // The one computed name: pgSafe's step is a PgStep, so the family is a union tsc checks against the set.

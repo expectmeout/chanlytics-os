@@ -169,7 +169,12 @@ test("every route pg_cron calls stands behind the one door", () => {
   assert.ok(routes.length >= 9, `found ${routes.length} scheduled routes`);
   for (const r of routes) {
     const src = readCode(r);
-    assert.ok(src.includes("await authorizeCron(request, db, L)"), `${r} stands behind authorizeCron`);
+    // A sweep's route is sweepDoor (lib/ops/sweep-door.ts, which cron-auth.test.mjs runs: the sweep is reached only with
+    // the key); the jobs tick, which is no sweep, asks for the key itself.
+    assert.ok(
+      src.includes("sweepDoor(") || src.includes("await authorizeCron(request, db, L)"),
+      `${r} stands behind authorizeCron`,
+    );
     assert.ok(
       !src.includes("timingSafeEqual") && !src.includes('rpc("get_cron_sweep_key")'),
       `${r} keeps no door of its own`,
