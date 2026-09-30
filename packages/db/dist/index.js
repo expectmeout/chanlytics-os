@@ -3490,10 +3490,26 @@ async function migrationHead(db) {
 
 // src/service-client.ts
 import { createClient } from "@supabase/supabase-js";
+var SERVICE_FETCH_TIMEOUT_MS = 4e4;
+function boundedFetch(ms, base) {
+  return async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes("/rest/v1/")) return base(input, init);
+    const bound = AbortSignal.timeout(ms);
+    try {
+      return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
+    } catch (e) {
+      if (!bound.aborted || init?.signal?.aborted) throw e;
+      const said = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
+      said.name = "AbortError";
+      throw said;
+    }
+  };
+}
 function createServiceClient(cfg) {
   return createClient(cfg.url, cfg.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: namedFetch() }
+    global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) }
   });
 }
 
@@ -3764,6 +3780,20 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, o
       error: wErr.message
     });
   return true;
+}
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
 }
 
 // src/repositories/email.ts
@@ -5209,6 +5239,28 @@ async function keepIdempotencyReceipt(db, p) {
   return (kept.data ?? []).length > 0;
 }
 
+// src/jobs.ts
+async function readJobToRequeue(db, tenantId, jobId) {
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`read_job: ${error.message}`);
+  return data;
+}
+async function hasNewerCopy(db, tenantId, job) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", job.kind).filter("payload", "eq", JSON.stringify(job.payload)).neq("state", "failed").gt("created_at", job.created_at).limit(1);
+  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function assembleBroadcast(db, args) {
+  const { data, error } = await db.rpc("assemble_broadcast", {
+    p_tenant: args.tenantId,
+    p_run: args.run,
+    p_recipients: args.recipients,
+    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}
+  });
+  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
+  return data;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -6049,6 +6101,7 @@ export {
   applyDomainCheck,
   applyReplyReading,
   archiveList,
+  assembleBroadcast,
   assembleHistory,
   becomePartner,
   callerNameOf,
@@ -6058,6 +6111,7 @@ export {
   claimControl,
   claimIdempotencyKey,
   claimReplyTell,
+  claimReplyTurn,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -6104,8 +6158,10 @@ export {
   getTenantConfig,
   getWorkspacePartner,
   handRun,
+  hasNewerCopy,
   heldNoticeDue,
   heldStale,
+  holdsReplyTurn,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -6164,6 +6220,7 @@ export {
   readAllRows,
   readAllRowsByKey,
   readDealForPhone,
+  readJobToRequeue,
   readLeadContext,
   readLeadOne,
   readThreadState,

@@ -25,7 +25,7 @@ import { readLeadContext, personReplyMode, describeLead } from "../packages/db.j
 import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
-import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
+import { pgThread, pgIngest, pgSink, queueReply, replyTurn } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
 import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
@@ -41,7 +41,14 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   calendar: { openings: typeof openingsFor; visits: typeof visitsFor };
   budget: { tokensLast24h: typeof tokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
-  persist: { thread: typeof pgThread; ingest: typeof pgIngest; sink: typeof pgSink; queueReply: typeof queueReply };
+  persist: {
+    thread: typeof pgThread;
+    ingest: typeof pgIngest;
+    sink: typeof pgSink;
+    queueReply: typeof queueReply;
+    /** The thread's reply turn (00284); a test's world may leave it out, and every message then holds its turn. */
+    turn?: typeof replyTurn;
+  };
   alertStaff: typeof alertStaff;
   page: typeof pageOperator;
   sender: typeof whatsappSender;
@@ -83,7 +90,7 @@ export function realPorts(): InboundPorts {
     leads: { read: readLeadContext, personReplyMode },
     calendar: { openings: openingsFor, visits: visitsFor },
     budget: { tokensLast24h },
-    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply },
+    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn },
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,

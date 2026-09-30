@@ -249,7 +249,7 @@ function ledger({ faults = {}, claim } = {}) {
     }
     let n = 0;
     /** One reply in the outbox and its job: due now, or (`died`) claimed once by a run that never reported back. */
-    ws.queue = ({ channel = "whatsapp", to, body = "See you at 3", died = false } = {}) => {
+    ws.queue = ({ channel = "whatsapp", to, body = "See you at 3", died = false, lateMs = 30_000 } = {}) => {
       const id = `${i}-${++n}`;
       const conversation = {
         id: `conv-${id}`,
@@ -279,7 +279,9 @@ function ledger({ faults = {}, claim } = {}) {
           to_phone: to ?? `+1347555${pad(i * 10 + n, 4)}`,
           body,
         },
-        due_at: iso(Date.now() - 30_000 + due++),
+        due_at: iso(Date.now() - lateMs + due++),
+        // The reply lane, which the database derives from the kind and the payload (jobs.lane, 00281).
+        lane: 0,
         ...(died
           ? { state: "fired", attempts: 1, lease_until: iso(Date.now() - 1_000) }
           : { state: "scheduled", attempts: 0, lease_until: null }),
@@ -724,8 +726,8 @@ test("an email intake that throws is claimed again five minutes later, then thir
       );
       const wait = Date.parse(intake.lease_until) - t0;
       assert.ok(
-        wait >= minutes * 60_000 && wait < minutes * 60_000 + 5_000,
-        `try ${attempt}: claimed again in ${minutes} minutes, not ${wait} ms`,
+        wait >= minutes * 60_000 && wait < minutes * 1.2 * 60_000 + 5_000,
+        `try ${attempt}: claimed again in ${minutes} minutes, drawn up to a fifth longer, not ${wait} ms`,
       );
       assert.deepEqual(
         [intake.state, intake.attempts, intake.last_error],
@@ -853,6 +855,39 @@ test("the heartbeat's line says how late each kind's first claim came, and its a
       tick.late_ms_outbound_send >= 29_000 && tick.late_ms_outbound_send < 60_000,
       `the reply waited about thirty seconds past its due time, not ${tick.late_ms_outbound_send} ms`,
     );
+    assert.equal(tick.reply_late_ms, tick.late_ms_outbound_send, "and it is the reply lane's worst, its own field");
     assert.equal(tick.lateMs, undefined, "the line is flat: one field per kind, not an object");
+    assert.equal(tick.replyLateMs, undefined, "and the answer's counts keep neither");
+  });
+  assert.deepEqual(L.tables.operator_pages, [], "thirty seconds is a heartbeat's wait, not the platform's condition");
+});
+
+test("a reply the ledger claimed more than a minute late pages the operator once per window, with how long it waited and where to look", async () => {
+  const L = ledger();
+  const ws = L.workspace();
+  const pages = () => L.left().mail.filter((m) => m.subject.startsWith("[Chanlytics]"));
+
+  await listening(async () => {
+    ws.queue({ lateMs: 5 * 60_000 });
+    const [status, body] = await answer(await knock());
+    assert.deepEqual([status, body], [200, { ok: true, claimed: 1, done: 1, failed: 0, gaveUp: 0, deferred: 0 }]);
+    assert.equal(pages().length, 1);
+    const [page] = pages();
+    assert.equal(page.subject, "[Chanlytics] A reply waited more than a minute for the ledger");
+    assert.match(page.text, /A reply was claimed (29|30)\d s after it was due/);
+    assert.match(page.text, /late_ms_<kind>.*reply_late_ms/s, "where to look first");
+    assert.deepEqual(
+      L.tables.operator_pages.map((p) => [p.key, p.count]),
+      [["jobs_replies_late", 1]],
+    );
+
+    ws.queue({ lateMs: 5 * 60_000 });
+    await answer(await knock());
+    assert.equal(pages().length, 1, "one page a window while it lasts");
+    assert.deepEqual(
+      L.tables.operator_pages.map((p) => [p.key, p.count]),
+      [["jobs_replies_late", 2]],
+      "and the second firing is counted",
+    );
   });
 });

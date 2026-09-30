@@ -6,7 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
-const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS } = await importSrc("packages/core/src/messages/broadcast.ts");
+const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } = await importSrc(
+  "packages/core/src/messages/broadcast.ts",
+);
 const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN } =
   await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
@@ -41,7 +43,8 @@ function fakes(over = {}) {
     broadcast: broadcast(),
     workspacePaused: false,
     template: approved,
-    facts: { businessName: "Marisa's", bookingLink: "https://book.example/m" },
+    // UTC, where noon is inside the day's sending hours on any machine the suite runs on.
+    facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "UTC" },
     batch: [
       { contact_id: "k1", facts: null },
       { contact_id: "k2", facts: null },
@@ -54,6 +57,8 @@ function fakes(over = {}) {
     tally: { sent: 2, held: 0 },
     wireUnavailable: null,
     now: () => NOW,
+    // No jitter unless a case asks for it: a wait reads as the table's own.
+    random: () => 0,
     fail: undefined,
     startSending: true,
     mark: undefined,
@@ -66,7 +71,7 @@ function fakes(over = {}) {
   };
   const ports = {};
   for (const [name, answer] of Object.entries(answers)) {
-    if (name === "now") {
+    if (name === "now" || name === "random") {
       ports[name] = answer;
       continue;
     }
@@ -136,6 +141,7 @@ test("each person goes through the door with the template's purpose, proactive, 
     body: "Hi Ada, a spring offer from Marisa's.",
     template: { name: "month_offer", language: "en_US", params: ["Ada", "Marisa's"] },
     meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer" },
+    holdIfNotTaken: true,
   });
   assert.equal(
     sends[1].body,
@@ -245,7 +251,7 @@ test("a batch whose people could not be read leaves them all queued and waits be
   });
   await sendBroadcastBatch(ports, cmd());
   assert.ok(!log.some((l) => l[0] === "mark" || l[0] === "deliver"), "nobody is guessed about");
-  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS), { stalls: 1 }]);
 });
 
 test("a batch whose prior sends could not be read is left queued as well: 'could not check' is not 'never sent'", async () => {
@@ -256,7 +262,7 @@ test("a batch whose prior sends could not be read is left queued as well: 'could
     remaining: 2,
   });
   await sendBroadcastBatch(ports, cmd());
-  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS), { stalls: 1 }]);
 });
 
 test("a wire that could not be BOUND claims nobody: the batch waits whole, still queued, and nobody is told to reconnect a number that may well be connected", async () => {
@@ -274,7 +280,7 @@ test("a wire that could not be BOUND claims nobody: the batch waits whole, still
     });
     await sendBroadcastBatch(ports, cmd());
     assert.deepEqual(ops(), ["scheduleNext"], `${state}: nobody claimed, nothing failed, nobody told`);
-    assert.deepEqual(log[0], ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+    assert.deepEqual(log[0], ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS), { stalls: 1 }]);
   }
   // A number that IS absent is the door's to answer, as it always was (the test below).
   const absent = fakes({
@@ -403,7 +409,8 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   assert.equal(news.subject, "Broadcast “Spring offer” sent");
   assert.match(
     news.body,
-    /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish\)\. Replies land in the Inbox\.$/,
+    /^1 of 2 people got it; 1 held back \(no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish\)\. Replies land in the Inbox\.$/,
+    "as many as it reached, of how many",
   );
   assert.equal(BROADCAST_CHUNK, 25);
 });
@@ -547,14 +554,14 @@ test('WhatsApp\'s "not now" gives the person back to the queue, reaches nobody a
     "claimed before the wire, then released: nothing was taken",
   );
   assert.equal(ops().filter((o) => o === "deliver").length, 1, "the person after them is not sent into the same limit");
-  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), 1]);
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), { waits: 1 }]);
   assert.ok(!ops().includes("fail") && !ops().includes("finish"), "the run is neither failed nor finished");
 });
 
 test("each wait follows the last, a clean batch starts the count again, and past the last wait the run stops and says why", async () => {
   const mid = fakes({ facts: facts("UTC"), deliver: throttled });
   await sendBroadcastBatch(mid.ports, cmd({ waits: 2 }));
-  assert.deepEqual(call(mid.log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[2]), 3]);
+  assert.deepEqual(call(mid.log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[2]), { waits: 3 }]);
 
   const clean = fakes({ facts: facts("UTC"), remaining: 5 });
   await sendBroadcastBatch(clean.ports, cmd({ waits: 3 }));
@@ -596,7 +603,7 @@ test("a release the database refuses (no 00216 yet) still stops the batch and wa
   });
   await sendBroadcastBatch(ports, cmd());
   assert.equal(ops().filter((o) => o === "deliver").length, 1);
-  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), 1]);
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), { waits: 1 }]);
 });
 
 test("a failure that is not a throttle keeps its claim as a failed send and the batch goes on, as before", async () => {
@@ -617,4 +624,144 @@ test("a failure that is not a throttle keeps its claim as a failed send and the 
     ["k2", "failed", OUTCOME_UNKNOWN],
     ["k2", "failed", "send_failed"],
   ]);
+});
+
+/* --------------------------------------- WhatsApp never reached, and runs that stall (E:0, E:1, 29 Sep) -- */
+
+/** What the door throws when the provider provably did not take the send (core NotTakenError): 0 is no answer at all. */
+const notTaken = (status) => () => {
+  throw Object.assign(new Error(`deliver: the whatsapp provider did not take it (${status || "no answer"})`), {
+    name: "NotTakenError",
+    status,
+  });
+};
+
+test("a send that never reached WhatsApp gives the person back and the run waits, instead of burning the list; the platform is paged", async () => {
+  // Before (the scorecard's E:0): every person was marked failed/send_failed and the run finished as "sent".
+  const { ports, log, ops, marks } = fakes({
+    facts: facts("UTC"),
+    deliver: notTaken(0),
+    remaining: 2,
+    page: undefined,
+  });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(
+    marks(),
+    [
+      ["k1", "failed", OUTCOME_UNKNOWN],
+      ["k1", "queued", "not_taken"],
+    ],
+    "claimed before the wire, then given back: nothing left",
+  );
+  assert.equal(
+    ops().filter((o) => o === "deliver").length,
+    1,
+    "the person after them is not sent into the same outage",
+  );
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), { waits: 1 }]);
+  assert.ok(!ops().includes("fail") && !ops().includes("finish") && !ops().includes("alert"), "not failed, not sent");
+  const pages = [];
+  const paged = fakes({ facts: facts("UTC"), deliver: notTaken(0), remaining: 2 });
+  paged.ports.page = async (key, subject) => pages.push([key, subject]);
+  await sendBroadcastBatch(paged.ports, cmd());
+  assert.deepEqual(pages, [["unreachable:whatsapp", "whatsapp: a broadcast could not reach the provider"]]);
+});
+
+test("the door's 429 is WhatsApp's \"not now\": the person goes back as throttled and the run waits as for any throttle", async () => {
+  const { ports, log, marks } = fakes({ facts: facts("UTC"), deliver: notTaken(429) });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(marks().at(-1), ["k1", "queued", "throttled"]);
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), { waits: 1 }]);
+});
+
+test("a WhatsApp that stays unreachable past the last wait stops the run and says so, with how many it reached", async () => {
+  const { ports, log, ops } = fakes({ facts: facts("UTC"), deliver: notTaken(0), tally: { sent: 4, held: 0 } });
+  await sendBroadcastBatch(ports, cmd({ waits: WAITS.length }));
+  assert.ok(!ops().includes("scheduleNext"));
+  assert.deepEqual(call(log, "fail").slice(1), ["b1", "wire_unavailable"]);
+  assert.match(
+    call(log, "alert")[1].body,
+    /^WhatsApp could not be reached for about an hour, so the rest was not sent\. 4 people got it\. Nothing is wrong with the number; send it again later\.$/,
+  );
+});
+
+test("a run that reached nobody is not said to be sent: the finish says none of them got it", async () => {
+  const { ports, log } = fakes({ remaining: 0, tally: { sent: 0, held: 3 } });
+  await sendBroadcastBatch(ports, cmd());
+  const news = log.at(-1)[1];
+  assert.equal(news.subject, "Broadcast “Spring offer” reached nobody");
+  assert.match(news.body, /^None of the 3 people on it got it: each was held back/);
+});
+
+test("a run that keeps stalling carries the count, and past the cap it stops and tells the owner instead of waiting for ever", async () => {
+  // Before (E:1): a vault out from 7:50 PM to 11 PM re-queued the run every minute, a hundred and ninety times.
+  const pages = [];
+  const next = fakes({ wireUnavailable: "vault unavailable", remaining: 2 });
+  next.ports.page = async (_key, _subject, body) => pages.push(body);
+  await sendBroadcastBatch(next.ports, cmd({ stalls: 7, waits: 2 }));
+  assert.deepEqual(
+    next.log[0],
+    ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS), { waits: 2, stalls: 8 }],
+    "the eighth stall in a row, and the waits it had, carried",
+  );
+
+  const cap = fakes({ wireUnavailable: "vault unavailable", remaining: 2, tally: { sent: 5, held: 0 } });
+  cap.ports.page = async (_key, _subject, body) => pages.push(body);
+  await sendBroadcastBatch(cap.ports, cmd({ stalls: BROADCAST_STALLS_MAX }));
+  assert.match(pages[0], /^Broadcast b1 waits, everyone still queued/, "a run that will try again says it waits");
+  assert.match(
+    pages[1],
+    /^Broadcast b1 stopped after waiting the most it may, everyone still queued/,
+    "and one that will not says so",
+  );
+  assert.deepEqual(cap.ops(), ["fail", "alert"], "nothing more is scheduled");
+  assert.deepEqual(call(cap.log, "fail").slice(1), ["b1", "stalled"]);
+  const alert = call(cap.log, "alert")[1];
+  assert.equal(alert.kind, "broadcast_stopped");
+  assert.match(
+    alert.body,
+    /^This workspace's WhatsApp credentials could not be read for about half an hour, so the rest was not sent\. 5 people got it\. /,
+  );
+
+  // The people's read failing past the cap says so too, and a tally that cannot be read still leaves the owner told.
+  const people = fakes({
+    contacts: () => {
+      throw new Error("PostgREST down");
+    },
+    remaining: 2,
+    tally: new Error("PostgREST down"),
+  });
+  await sendBroadcastBatch(people.ports, cmd({ stalls: BROADCAST_STALLS_MAX }));
+  assert.deepEqual(call(people.log, "fail").slice(1), ["b1", "stalled"]);
+  assert.match(
+    call(people.log, "alert")[1].body,
+    /^The people on it could not be read for about half an hour, so the rest was not sent\. Nothing is wrong/,
+  );
+});
+
+test("a run that waited and wakes outside the day's sending hours stops there, rather than send tonight what was written for today", async () => {
+  // 12:00Z is 21:00 in Tokyo. A stall or a wait brought the run here; nobody is sent to.
+  for (const carry of [{ waits: 1 }, { stalls: 3 }]) {
+    const { ports, log, ops } = fakes({ facts: facts("Asia/Tokyo"), tally: { sent: 2, held: 0 } });
+    await sendBroadcastBatch(ports, cmd(carry));
+    assert.ok(!ops().includes("deliver") && !ops().includes("scheduleNext"), JSON.stringify(carry));
+    assert.deepEqual(call(log, "fail").slice(1), ["b1", "after_hours"]);
+    assert.match(
+      call(log, "alert")[1].body,
+      /day's sending hours ran out.*2 people got it\. Send it again tomorrow\.$/,
+    );
+  }
+  // A run that never waited goes on as it always did: the hours are the approval's to keep.
+  const fresh = fakes({ facts: facts("Asia/Tokyo"), remaining: 0 });
+  await sendBroadcastBatch(fresh.ports, cmd());
+  assert.ok(fresh.ops().includes("deliver"));
+});
+
+test("a wait is drawn a little longer at random, so the runs one outage held do not all wake in the same heartbeat", async () => {
+  const { ports, log } = fakes({ facts: facts("UTC"), deliver: throttled, random: () => 1 });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0] * 1.2), { waits: 1 }]);
+  const stalled = fakes({ wireUnavailable: "vault", remaining: 1, random: () => 0.5 });
+  await sendBroadcastBatch(stalled.ports, cmd());
+  assert.deepEqual(stalled.log[0][2], new Date(NOW + BROADCAST_STALL_RETRY_MS * 1.1));
 });

@@ -240,6 +240,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
   "DELETE team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
   // The back office reads its own lists on demand (platform.ts): no surface holds them.
+  "POST platform/jobs/requeue":
+    "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
   "POST platform/lines/release": "the back office's lines, read again by its pane",
   "POST platform/lines/replace": "the back office's lines, read again by its pane",

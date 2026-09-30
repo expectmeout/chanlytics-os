@@ -25,6 +25,8 @@ export {
   recordStatusByExternalId,
   recordEchoAndPause,
   pauseConversation,
+  claimReplyTurn,
+  holdsReplyTurn,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
@@ -202,6 +204,8 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
+export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export { templatesFor } from "./repositories/templates";

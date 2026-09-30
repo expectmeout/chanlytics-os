@@ -180,7 +180,7 @@ const playbook = (tenant, id, over = {}) => ({
   ...over,
 });
 
-function world({ people = {}, faults = {} } = {}) {
+function world({ people = {}, faults = {}, rpcs = {} } = {}) {
   const tables = {
     tenants: [],
     tenant_config: [],
@@ -195,7 +195,7 @@ function world({ people = {}, faults = {} } = {}) {
     events: [],
     notifications: [],
   };
-  const db = fakeDb(tables, faults, { people_list: (a) => people[a.p_tenant_id] ?? [] });
+  const db = fakeDb(tables, faults, { people_list: (a) => people[a.p_tenant_id] ?? [], ...rpcs });
   setPg(db);
   return { db, tables, peopleRead: () => db.seen.filter((s) => s.rpc === "people_list").map((s) => s.args) };
 }
@@ -557,7 +557,15 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   ]);
   assert.deepEqual(w.peopleRead(), [], "a playbook that cannot be read is answered before the workspace is");
 
-  w = world({ people: { [A]: [person("c1")] }, faults: { "broadcasts.insert": { message: "connection reset" } } });
+  w = world({
+    people: { [A]: [person("c1")] },
+    // The run, its people and its job are one write (00282): the door refuses it whole.
+    rpcs: {
+      assemble_broadcast: () => {
+        throw new Error("connection reset");
+      },
+    },
+  });
   workspace(w.tables, A, "auto");
   w.tables.playbooks.push(playbook(A, P));
   assert.deepEqual(

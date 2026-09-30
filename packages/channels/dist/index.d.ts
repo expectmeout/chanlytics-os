@@ -50,6 +50,8 @@ interface ProviderDeps {
     fetch?: typeof fetch;
     now?: () => number;
     sleep?: (ms: number) => Promise<void>;
+    /** The draw a backoff is lengthened by (contracts jittered); Math.random when absent. */
+    random?: () => number;
 }
 /** A provider's breaker as it stands: what a report of the platform's health, or a test, reads. */
 declare function breakerOf(provider: Provider, now?: number): {

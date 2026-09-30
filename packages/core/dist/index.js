@@ -1,11 +1,5 @@
 // ../channels/dist/index.js
 import { AsyncLocalStorage } from "async_hooks";
-import dns from "dns";
-import http from "http";
-import https from "https";
-import net from "net";
-import { pipeline, Readable, Transform } from "stream";
-import zlib from "zlib";
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
@@ -33,6 +27,12 @@ import { z as z24 } from "zod";
 import { z as z25 } from "zod";
 import { z as z26 } from "zod";
 import { z as z27 } from "zod";
+import dns from "dns";
+import http from "http";
+import https from "https";
+import net from "net";
+import { pipeline, Readable, Transform } from "stream";
+import zlib from "zlib";
 import crypto2 from "crypto";
 import { randomInt } from "crypto";
 import { convert } from "html-to-text";
@@ -191,162 +191,6 @@ function logger(base = {}) {
 function errField(e) {
   return e instanceof Error ? errText(e) : String(e);
 }
-var BREAKER_FAILURES = 5;
-var BREAKER_OPEN_MS = 3e4;
-var RETRY_BASE_MS = 250;
-var RETRY_WAIT_CAP_MS = 2e3;
-var BREAKER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.provider-breakers");
-var breakerHolder = globalThis;
-var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
-var breakerMap = breakers.held;
-var breakerLog = logger();
-var NEVER_LEFT = /* @__PURE__ */ new Set([
-  "ECONNREFUSED",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "ENETUNREACH",
-  "EHOSTUNREACH",
-  "UND_ERR_CONNECT_TIMEOUT"
-]);
-function outcomeOfStatus(status) {
-  if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429) return "retryable";
-  if (status >= 500) return "unknown";
-  return "refused";
-}
-function outcomeOfThrow(e) {
-  const err = e instanceof Error ? e : new Error(String(e));
-  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
-  const cause = err.cause;
-  const code = typeof cause?.code === "string" ? cause.code : err.code;
-  const words22 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
-  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words22 };
-}
-function retryAfterOf(header, now = Date.now()) {
-  if (!header) return null;
-  const secs = Number(header);
-  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
-  const at = Date.parse(header);
-  return Number.isFinite(at) ? Math.max(0, at - now) : null;
-}
-var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
-function note(provider, a, now) {
-  if (a.error === "breaker_open") return;
-  const b = breakerMap.get(provider);
-  if (!isFault(a)) {
-    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
-    breakerMap.delete(provider);
-    return;
-  }
-  const next = b ?? { failures: 0, openUntil: 0 };
-  const wasOpen = next.openUntil > now;
-  next.failures += 1;
-  if (next.failures >= BREAKER_FAILURES) {
-    next.openUntil = now + BREAKER_OPEN_MS;
-    if (!wasOpen) {
-      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
-      breakerLog.warn("breaker_open", {
-        provider,
-        failures: next.failures,
-        status: a.status,
-        error: a.error,
-        open_ms: BREAKER_OPEN_MS
-      });
-    }
-  }
-  breakerMap.set(provider, next);
-}
-async function once(provider, url, call2, deps, tries) {
-  const now = deps.now();
-  const b = breakerMap.get(provider);
-  if (b && b.openUntil > now && call2.breaker !== "count") {
-    const held = {
-      outcome: "retryable",
-      status: 0,
-      text: "",
-      json: null,
-      body: null,
-      headers: null,
-      retryAfterMs: b.openUntil - now,
-      error: "breaker_open",
-      tries: tries - 1
-    };
-    return held;
-  }
-  const init = {
-    method: call2.method,
-    headers: call2.headers,
-    body: call2.body,
-    cache: call2.cache,
-    redirect: call2.redirect
-  };
-  let a;
-  const bound = AbortSignal.timeout(call2.timeoutMs);
-  try {
-    const r22 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
-    if (call2.stream && r22.ok && r22.body) {
-      a = {
-        outcome: "ok",
-        status: r22.status,
-        text: "",
-        json: null,
-        body: r22.body,
-        headers: r22.headers,
-        retryAfterMs: null,
-        error: null,
-        tries
-      };
-      note(provider, a, deps.now());
-      return a;
-    }
-    const text = await r22.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    a = {
-      outcome: outcomeOfStatus(r22.status),
-      status: r22.status,
-      text,
-      json,
-      body: null,
-      headers: r22.headers,
-      retryAfterMs: retryAfterOf(r22.headers.get("retry-after"), deps.now()),
-      error: null,
-      tries
-    };
-  } catch (e) {
-    const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
-  }
-  note(provider, a, deps.now());
-  return a;
-}
-async function providerFetch(provider, url, call2, deps = {}) {
-  const d = {
-    fetch: deps.fetch ?? globalThis.fetch,
-    now: deps.now ?? Date.now,
-    sleep: deps.sleep ?? ((ms2) => new Promise((resolve) => setTimeout(resolve, ms2)))
-  };
-  const started = d.now();
-  const max = Math.max(1, Math.floor(call2.tries ?? 1));
-  for (let n = 1; ; n++) {
-    const a = await once(provider, url, call2, d, n);
-    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
-    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
-    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
-    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
-    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
-    if (wait + call2.timeoutMs > left) return a;
-    await d.sleep(wait);
-  }
-}
-function answerObject(a) {
-  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
-}
-var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -428,6 +272,10 @@ var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -3409,6 +3257,163 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+var BREAKER_FAILURES = 5;
+var BREAKER_OPEN_MS = 3e4;
+var RETRY_BASE_MS = 250;
+var RETRY_WAIT_CAP_MS = 2e3;
+var BREAKER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.provider-breakers");
+var breakerHolder = globalThis;
+var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
+var breakerMap = breakers.held;
+var breakerLog = logger();
+var NEVER_LEFT = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function outcomeOfStatus(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 408 || status === 429) return "retryable";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+function outcomeOfThrow(e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
+  const cause = err.cause;
+  const code = typeof cause?.code === "string" ? cause.code : err.code;
+  const words22 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
+  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words22 };
+}
+function retryAfterOf(header, now = Date.now()) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
+function note(provider, a, now) {
+  if (a.error === "breaker_open") return;
+  const b = breakerMap.get(provider);
+  if (!isFault(a)) {
+    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
+    breakerMap.delete(provider);
+    return;
+  }
+  const next = b ?? { failures: 0, openUntil: 0 };
+  const wasOpen = next.openUntil > now;
+  next.failures += 1;
+  if (next.failures >= BREAKER_FAILURES) {
+    next.openUntil = now + BREAKER_OPEN_MS;
+    if (!wasOpen) {
+      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
+      breakerLog.warn("breaker_open", {
+        provider,
+        failures: next.failures,
+        status: a.status,
+        error: a.error,
+        open_ms: BREAKER_OPEN_MS
+      });
+    }
+  }
+  breakerMap.set(provider, next);
+}
+async function once(provider, url, call2, deps, tries) {
+  const now = deps.now();
+  const b = breakerMap.get(provider);
+  if (b && b.openUntil > now && call2.breaker !== "count") {
+    const held = {
+      outcome: "retryable",
+      status: 0,
+      text: "",
+      json: null,
+      body: null,
+      headers: null,
+      retryAfterMs: b.openUntil - now,
+      error: "breaker_open",
+      tries: tries - 1
+    };
+    return held;
+  }
+  const init = {
+    method: call2.method,
+    headers: call2.headers,
+    body: call2.body,
+    cache: call2.cache,
+    redirect: call2.redirect
+  };
+  let a;
+  const bound = AbortSignal.timeout(call2.timeoutMs);
+  try {
+    const r22 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
+    if (call2.stream && r22.ok && r22.body) {
+      a = {
+        outcome: "ok",
+        status: r22.status,
+        text: "",
+        json: null,
+        body: r22.body,
+        headers: r22.headers,
+        retryAfterMs: null,
+        error: null,
+        tries
+      };
+      note(provider, a, deps.now());
+      return a;
+    }
+    const text = await r22.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    a = {
+      outcome: outcomeOfStatus(r22.status),
+      status: r22.status,
+      text,
+      json,
+      body: null,
+      headers: r22.headers,
+      retryAfterMs: retryAfterOf(r22.headers.get("retry-after"), deps.now()),
+      error: null,
+      tries
+    };
+  } catch (e) {
+    const { outcome, error } = outcomeOfThrow(e);
+    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
+  }
+  note(provider, a, deps.now());
+  return a;
+}
+async function providerFetch(provider, url, call2, deps = {}) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms2) => new Promise((resolve) => setTimeout(resolve, ms2))),
+    random: deps.random ?? Math.random
+  };
+  const started = d.now();
+  const max = Math.max(1, Math.floor(call2.tries ?? 1));
+  for (let n = 1; ; n++) {
+    const a = await once(provider, url, call2, d, n);
+    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
+    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    const wait = a.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (n - 1), d.random);
+    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
+    if (wait + call2.timeoutMs > left) return a;
+    await d.sleep(wait);
+  }
+}
+function answerObject(a) {
+  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
+}
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3784,6 +3789,10 @@ var MIN_MS2 = 6e4;
 var HOUR_MS2 = 36e5;
 var DAY_MS2 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS2;
+var JITTER_SPREAD2 = 0.2;
+function jittered2(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD2 * Math.min(1, Math.max(0, random()))));
+}
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SWEEP_TICK_MS2 = 5 * MIN_MS2;
 var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -6906,13 +6915,13 @@ function mayReceive(r22, purpose) {
 }
 function whyNotReceive(r22, purpose) {
   if (!r22.phone) return "no_number";
-  const said2 = mayMessageFor(
+  const said = mayMessageFor(
     { consent: r22.consent.state, dnc: r22.consent.dnc, marketing_consent: r22.consent.marketing },
     purpose,
     { proactive: true }
   );
-  if (said2.ok) return null;
-  return said2.reason === "opted_out" ? "stopped" : "no_yes";
+  if (said.ok) return null;
+  return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
 function saidYesTo(r22, purpose) {
   return mayMessageFor(
@@ -8930,8 +8939,8 @@ function weekHoursOf(hours) {
   for (const e of hours) {
     const day = e && typeof e === "object" ? dayNameOf(e.day) : null;
     if (!day) return { week: DEFAULT_WEEK, read: false };
-    const said2 = e.hours;
-    const windows = typeof said2 === "string" ? dayOf(said2) : null;
+    const said = e.hours;
+    const windows = typeof said === "string" ? dayOf(said) : null;
     week[day] = windows ?? DEFAULT_WEEK[day];
     if (windows !== null) readAny = true;
   }
@@ -13010,7 +13019,7 @@ async function deliver(ports, d) {
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  const refuse = async (why, now = {}, said2 = {}) => {
+  const refuse = async (why, now = {}, said = {}) => {
     if (d.messageId) {
       const contact2 = { ...facts.contact, ...now };
       await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
@@ -13022,7 +13031,7 @@ async function deliver(ports, d) {
         marketing_consent: contact2.marketing_consent,
         ...d.purpose === "outreach" ? { email_marketing: contact2.email_marketing } : {},
         ...overtakenBy ? { after: overtakenBy } : {},
-        ...said2
+        ...said
       });
     }
     return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
@@ -13493,13 +13502,14 @@ function resumesOf(p) {
 async function resendLater(ports, cmd, channel, e) {
   const p = cmd.payload;
   const resumes = resumesOf(p);
-  const wait = SEND_RETRY_WAITS_MS[resumes];
+  const table = SEND_RETRY_WAITS_MS[resumes];
   const unbound = isWireUnavailableError(e);
-  if (wait === void 0)
+  if (table === void 0)
     throw new Error(
       `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${e.message})`,
       { cause: e }
     );
+  const wait = jittered2(table, ports.random);
   await ports.retry(new Date((ports.now ?? Date.now)() + wait), { ...p, resumes: resumes + 1 });
   if (!unbound) return;
   await ports.page?.(
@@ -13793,6 +13803,7 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 var BROADCAST_STALL_RETRY_MS = 6e4;
+var BROADCAST_STALLS_MAX = 30;
 var BROADCAST_CHANNEL = "whatsapp";
 var broadcastLog = logger();
 function wireIsDown(out) {
@@ -13804,7 +13815,7 @@ var ThrownAtTheDoor = class {
     this.error = error;
   }
 };
-async function mayGoNow(ports, b) {
+async function mayGoNow(ports, b, cmd) {
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
     await ports.alert({
@@ -13819,11 +13830,11 @@ async function mayGoNow(ports, b) {
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, reason: unbound });
-    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    const stopped = await stall(ports, b, cmd, "credentials") === "stopped";
     await ports.page?.(
       `wire_unavailable:${BROADCAST_CHANNEL}`,
       `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
-      `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`
+      `Broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`
     )?.catch(() => void 0);
     return false;
   }
@@ -13834,7 +13845,7 @@ async function sendBroadcastBatch(ports, cmd) {
   if (!b) return;
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (isReachOutRun(b.audience)) return;
-  if (!await mayGoNow(ports, b)) return;
+  if (!await mayGoNow(ports, b, cmd)) return;
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
@@ -13851,6 +13862,7 @@ async function sendBroadcastBatch(ports, cmd) {
   const purpose = purposeOfTemplate(tpl.category);
   const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink, timezone } = await ports.facts();
+  if (await ranIntoTheNight(ports, b, cmd, timezone)) return;
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   const ids = batch.map((r4) => r4.contact_id);
   let people = /* @__PURE__ */ new Map();
@@ -13919,6 +13931,9 @@ async function sendBroadcastBatch(ports, cmd) {
       proactive: true,
       body: words4,
       template: { name: b.template_name, language: b.template_language, params },
+      // A send WhatsApp provably did not take (a connection that never opened, its "not now") is handed back rather
+      // than written as failed: this person waits in the queue, and the run waits with them (00282).
+      holdIfNotTaken: true,
       // A run's message names its playbook, so a thread reads "by the Win-back playbook".
       meta: {
         source: "broadcast",
@@ -13930,8 +13945,10 @@ async function sendBroadcastBatch(ports, cmd) {
         } : {}
       }
     }).catch((e) => {
+      if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
       throw new ThrownAtTheDoor(e);
     });
+    if (out.outcome === "not_taken") return giveBack(ports, b.id, r4.contact_id, out.status !== 0);
     if (out.outcome === "sent") {
       await mark(r4.contact_id, { state: "sent", reason: null, message_id: out.messageId });
       return "go on";
@@ -13940,10 +13957,7 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r4.contact_id, out.reason);
       return "go on";
     }
-    if (out.throttled) {
-      await releaseThrottled(ports, b.id, r4.contact_id);
-      return "wait";
-    }
+    if (out.throttled) return giveBack(ports, b.id, r4.contact_id, true);
     await mark(r4.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
     await stopForTheWire(ports, b, out);
@@ -13962,25 +13976,86 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     if (verdict === "stop") return;
-    if (verdict === "wait") return backOff(ports, b, cmd, timezone);
+    if (verdict === "throttled" || verdict === "unreachable") return backOff(ports, b, cmd, timezone, verdict);
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && marked === 0)
-      await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0) await stall(ports, b, cmd, "people");
     else await ports.scheduleNext(b.id);
     return;
   }
   const { sent, held } = await ports.tally(b.id);
   await ports.finish(b.id, { sent, held });
-  await ports.alert({
+  await ports.alert(finishedNews(b, sent, held));
+}
+function finishedNews(b, sent, held) {
+  const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
+  const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
+  return {
     kind: "broadcast_sent",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D sent`,
-    body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
+    subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
+    body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
+  };
+}
+async function ranIntoTheNight(ports, b, cmd, timezone) {
+  const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
+  if (!waited || !nextOpenMoment(timezone, new Date(ports.now())).moved) return false;
+  await stopAfterHours(ports, b);
+  return true;
+}
+async function giveBack(ports, broadcastId, contactId, reached) {
+  await release(ports, broadcastId, contactId, reached ? "throttled" : "not_taken");
+  return reached ? "throttled" : "unreachable";
+}
+function gotIt(sent) {
+  if (sent === null) return "";
+  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
+}
+async function stall(ports, b, cmd, what) {
+  const stalls = (cmd.stalls ?? 0) + 1;
+  if (stalls <= BROADCAST_STALLS_MAX) {
+    const at = new Date(ports.now() + jittered2(BROADCAST_STALL_RETRY_MS, ports.random));
+    await ports.scheduleNext(b.id, at, { ...cmd.waits ? { waits: cmd.waits } : {}, stalls });
+    return "waits";
+  }
+  const sent = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null
+  );
+  await ports.fail(b.id, "stalled");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: [
+      `${what === "credentials" ? "This workspace's WhatsApp credentials" : "The people on it"} could not be read for about half an hour, so the rest was not sent.`,
+      gotIt(sent),
+      "Nothing is wrong with the number; send it again later."
+    ].filter(Boolean).join(" ")
+  });
+  return "stopped";
+}
+async function stopAfterHours(ports, b) {
+  const sent = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null
+  );
+  await ports.fail(b.id, "after_hours");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: [
+      "It was waiting to go on when the day's sending hours ran out, so the rest was not sent.",
+      gotIt(sent),
+      "Send it again tomorrow."
+    ].filter(Boolean).join(" ")
   });
 }
 async function stopForTheWire(ports, b, out) {
@@ -13994,8 +14069,8 @@ async function stopForTheWire(ports, b, out) {
     body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
   });
 }
-async function releaseThrottled(ports, broadcastId, contactId) {
-  await ports.mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null }).catch((e) => {
+async function release(ports, broadcastId, contactId, reason) {
+  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e) => {
     broadcastLog.error("broadcast_release_refused", {
       broadcast_id: broadcastId,
       contact_id: contactId,
@@ -14003,50 +14078,40 @@ async function releaseThrottled(ports, broadcastId, contactId) {
     });
   });
 }
-async function backOff(ports, b, cmd, timezone) {
+async function backOff(ports, b, cmd, timezone, why) {
   const waited = cmd.waits ?? 0;
   const wait = BROADCAST_THROTTLE_WAITS_MS2[waited];
-  const at = wait === void 0 ? null : new Date(ports.now() + wait);
+  const at = wait === void 0 ? null : new Date(ports.now() + jittered2(wait, ports.random));
+  if (why === "unreachable")
+    await ports.page?.(
+      `unreachable:${BROADCAST_CHANNEL}`,
+      `${BROADCAST_CHANNEL}: a broadcast could not reach the provider`,
+      `Broadcast ${b.id} could not open a connection to WhatsApp; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`
+    )?.catch(() => void 0);
   if (at && !nextOpenMoment(timezone, at).moved) {
-    await ports.scheduleNext(b.id, at, waited + 1);
+    await ports.scheduleNext(b.id, at, { waits: waited + 1 });
     return;
   }
   const { sent } = await ports.tally(b.id);
-  await ports.fail(b.id, "throttled");
+  await ports.fail(b.id, why === "throttled" ? "throttled" : "wire_unavailable");
+  const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
-    body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`
+    body: why === "throttled" ? `WhatsApp kept limiting how fast this number may send ${until}, so the rest was not sent. ${gotIt(sent)} WhatsApp lifts these limits on its own; send it again later.` : `WhatsApp could not be reached ${until}, so the rest was not sent. ${gotIt(sent)} Nothing is wrong with the number; send it again later.`
   });
 }
 
 // src/campaigns/assemble.ts
 async function assembleRun(ports, cmd) {
-  let id;
   try {
-    id = await ports.create(cmd.broadcast);
+    return { ok: true, id: await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt) };
   } catch (e) {
-    return { ok: false, failure: "run_not_created", error: said(e) };
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  try {
-    await ports.enrol(id, cmd.recipients);
-  } catch (e) {
-    await ports.fail(id, "recipients_write_failed");
-    return { ok: false, failure: "recipients_write_failed", error: said(e) };
-  }
-  if (cmd.sendAt) {
-    try {
-      await ports.schedule(id, cmd.sendAt);
-    } catch (e) {
-      await ports.fail(id, "schedule_failed");
-      return { ok: false, failure: "schedule_failed", error: said(e) };
-    }
-  }
-  return { ok: true, id };
 }
-var said = (e) => e instanceof Error ? e.message : String(e);
 
 // src/campaigns/run-playbook.ts
 async function runPlaybook(ports, cmd) {
@@ -14320,21 +14385,8 @@ async function createBroadcast(ports, cmd) {
     recipients: eligible.map((p) => ({ contact_id: p.id, facts: null })),
     sendAt: when
   });
-  if (!made.ok) {
-    if (made.failure === "schedule_failed")
-      throw new AppError(
-        "upstream_meta",
-        "The send could not be scheduled. Nothing was sent; try again.",
-        502,
-        made.error
-      );
-    throw new AppError(
-      "internal",
-      made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.",
-      500,
-      made.error
-    );
-  }
+  if (!made.ok)
+    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500, made.error);
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
     template: `${tpl.name}/${tpl.language}`,
@@ -14425,8 +14477,8 @@ async function approveReachOut(ports, b, now) {
 async function cancelBroadcast(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {
-    const said2 = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
-    throw new AppError("conflict", `This broadcast has ${said2}.`, 409);
+    const said = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
+    throw new AppError("conflict", `This broadcast has ${said}.`, 409);
   }
   if (!await ports.cancel(b.id, b.state))
     throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
@@ -48367,9 +48419,9 @@ function leadMarksFrom(html, origin) {
   if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return [];
   const head = headOf(html);
   const out = [];
-  const said2 = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
-  if (said2) {
-    const url = absolute(said2[1].replace(/\\\//g, "/"), origin);
+  const said = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
+  if (said) {
+    const url = absolute(said[1].replace(/\\\//g, "/"), origin);
     if (url) out.push(url);
   }
   const linked = [];
@@ -49362,9 +49414,9 @@ function isVisionMime(mime) {
   return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
 }
 function photoUserText(caption) {
-  const said2 = (caption ?? "").trim();
+  const said = (caption ?? "").trim();
   return [
-    said2 ? `The customer sent this photo with the message: "${said2}"` : "The customer sent this photo, with no words.",
+    said ? `The customer sent this photo with the message: "${said}"` : "The customer sent this photo, with no words.",
     "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly."
   ].join("\n\n");
 }
@@ -50083,6 +50135,35 @@ async function sendNow(at, turn, hold, bodyText) {
   });
 }
 
+// src/inbound/turn.ts
+async function claimTheTurn(at, photo) {
+  const { ports, db, tenantId, ing, L: L4, sink } = at;
+  const turn = ports.persist.turn;
+  if (!turn || photo || !db || !tenantId || !ing) return GO;
+  const held = await turn.claim(db, tenantId, ing.conversation_id, ing.message_id).catch((e) => {
+    L4.warn("wa_turn_unreadable", { error: errField(e) });
+    return true;
+  });
+  if (held) return GO;
+  L4.info("wa_superseded", { at: "claim", conversation_id: ing.conversation_id });
+  await sink.processed();
+  return void 0;
+}
+async function stillOurs(at, t, photo) {
+  const { ports, db, ing, L: L4, sink } = at;
+  const turn = ports.persist.turn;
+  if (!turn || photo || !db || !ing) return GO;
+  const held = await turn.holds(db, ing.conversation_id, ing.message_id).catch((e) => {
+    L4.warn("wa_turn_unreadable", { error: errField(e) });
+    return true;
+  });
+  if (held) return GO;
+  L4.info("wa_superseded", { at: "wire", conversation_id: ing.conversation_id });
+  if (t.usage) await sink.usage({ ...t.usage, held: "superseded" });
+  await sink.processed();
+  return void 0;
+}
+
 // src/inbound/answer.ts
 async function answerInbound(input, ports) {
   const cx = await openInbound(input, ports);
@@ -50097,7 +50178,9 @@ async function answerInbound(input, ports) {
   if (await heldForThePerson(at, bodyText) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;
+  if (await claimTheTurn(at, shown.photo) !== GO) return;
   const turn = await modelTurn(at, bodyText, shown.photo);
+  if (await stillOurs(at, turn, shown.photo) !== GO) return;
   const hold = await planTheHold(at, turn);
   if (await heldOrKept(at, turn, hold, bodyText) !== GO) return;
   await sendNow(at, turn, hold, bodyText);
@@ -50138,6 +50221,7 @@ function bookingPageLinkedFrom(html, pageUrl) {
   }
 }
 export {
+  BROADCAST_STALLS_MAX,
   BROADCAST_STALL_RETRY_MS,
   CARDS,
   CHECKER_FIELDS,

@@ -1,12 +1,12 @@
 # 0018 · A reply goes first, and each workspace takes its turn
 
-**Status:** Accepted by Ruben, 28 Sep 2026. Decided, and step 1 built with the note; steps 2 and 3 follow, and step 4 only if step 1's numbers ask for
-it. Written against commit `d1ae74ff` (main, 27 September 2026, after #1175 merged), and every file and line below was
-read at it. Ruben left the three open questions to be settled by analysis; the answers close the note, and the third
-turned Decision 4 from an exclusion into an order. Where this note and the code disagree, the code wins. It is the
-design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for before any code (§2, 36 ·
-Scalability: "Lanes and fairness … A design note first: it is the ledger every send goes through"). The next free
-number was 0017, which #1197 took for a lead's reply, so this note takes 0018.
+**Status:** Accepted by Ruben, 28 Sep 2026. Built: step 1 with the note, steps 2 and 3 in one migration (00281), and
+step 4 on the road to ten's order (three jobs side by side) before step 1's numbers were in. Written against commit `d1ae74ff` (main, 27 September 2026, after #1175 merged),
+and every file and line below was read at it. Ruben left the three open questions to be settled by analysis; the answers
+close the note, and the third turned Decision 4 from an exclusion into an order. Where this note and the code disagree,
+the code wins. It is the design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for before any code
+(§2, 36 · Scalability: "Lanes and fairness … A design note first: it is the ledger every send goes through"). The next
+free number was 0017, which #1197 took for a lead's reply, so this note takes 0018.
 
 ## Context
 
@@ -219,3 +219,56 @@ Ruben left the note's open questions to be settled by analysis. They are:
    (Decision 4), it is no harder to write or to test: a workspace's second bulk job sorts after every other
    workspace's first, and still runs when nothing else is due, so the rule never leaves a runner idle. The proposal's
    exclusion did, and its risk that one busy workspace's broadcast and lead round would alternate is gone with it.
+
+## Built (29 September 2026): steps 2 and 3
+
+Built in one pull request against `9025895a`, as one migration,
+`supabase/migrations/00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql`: both steps are SQL alone, correct
+in either order, and one pull request is one run of the checks. Where it differs from Shape:
+
+- **`reply_read` is lane 1.** The kind came after this note (Reach out Part 5, 00222): a lead who wrote back to a
+  reach-out, whose reply is read so a member hears of it. The lead is waiting, but not on the receptionist, and each
+  read is a call to the model. With the replies, a run of them could hold up a customer's answer; with bulk, a
+  broadcast could hold up a member's news of a warm lead for minutes. So lane 1 is someone waiting who is not a
+  customer: an owner on a line, a lead on its reading.
+- **The claim asks once which workspaces have bulk work running**, from the last lease of `jobs_fired_at_idx`
+  (00078), and hashes the answer, where Shape's `exists` asks for each due bulk row. On Postgres 17 over a ledger of
+  100,000 finished rows, a backlog of 3,000 due rows is claimed in 2.2 ms (1.0 before the lanes, 8 with a look per
+  row), and one of 30,000 in 31 ms (22 and 95).
+- **Neither index is built.** The claim sorts its due rows either way, since the scheduled and the lapsed come from
+  two partial indexes, so `(lane, due_at)` would never be read. The running work is one short range of
+  `jobs_fired_at_idx`, so `(tenant_id, fired_at)` would cost every claim a write and save nothing.
+- **Running is also still held** (`lease_until >= now()`, beside `fired_at` within the lease). A row whose lease ran
+  out is one the claim takes back, never running work, and with it the two sets cannot meet, so the look-up needs no
+  `r.id <> c.id`. Under the runner's one lease they are the rows Shape names.
+- **The tests** are `tooling/scripts/tests/jobs/jobs-lanes.db.test.mjs`: every case Tests names, in four. Each runs
+  in a transaction that never commits and has the ledger to itself. It takes `jobs` in a mode every writer waits on and
+  moves everyone else's due work out of reach, so no other suite's claim takes its rows, and its claims take none of
+  theirs. Against broken claims: 00098's order fails three of the four; lanes without the bulk order, or a running reply
+  counted as bulk, fail two; running without the lease's window fails one; `reply_read` without a lane fails the first
+  two. `jobs-outbox.db.test.mjs`'s two claims at once take replies, the first lane, so no other suite's due work comes
+  first. The contract holds as Tests says: the window is the `p_lease_seconds` the runner passes.
+- **Applied a day after step 1 deployed**, so `late_ms_<kind>` has a day of numbers from before the order changed, and
+  off-peak, since the column rewrites `jobs`.
+
+## Built (29 September 2026): step 4, and the measure's alarm
+
+Taken on the road-to-ten plan (`docs/plans/2026-09-29-s10-jobs.md`), in the branch that builds on the lanes. Decision 5
+above kept the runner at one job at a time "only if step 1's numbers show replies still waiting once they go first".
+Those numbers were not in when this was built (the lanes apply on 30 September at the earliest), so this is a
+precaution taken ahead of them, not an answer to them, and it is one line to undo.
+
+- **Step 4: several jobs per runner.** `runTick` runs up to `CLAIM_SLOTS` (`packages/jobs/src/ledger.ts`, 3) jobs side by
+  side. Each slot is a runner of its own: it claims one job just before it runs it, runs it, and claims the next, so
+  "claimed" still means "started" (`verdictFor` stands on it), slot by slot. A second slot opens only once a claim found
+  work, so a quiet ledger is asked once. The lease (90 s), the claim window (20 s) and each handler's yield are the job's,
+  not the tick's, so none moves. A claim that throws stops every slot claiming, the jobs already running finish and are
+  recorded, and the tick throws so the route answers 503 as before. Fairness (Decision 4) holds across slots, since each
+  claim reads what is running. `CLAIM_SLOTS = 1` is the runner as this note found it. Whether three is the right number
+  is for `late_ms_<kind>` and `reply_late_ms` to say, once the lanes are in and a week of them is read.
+- **The alarm step 1 lacked.** `outbound_send` is both a reply and a cold email, so a kind's `late_ms` cannot page: a cold
+  email is allowed to wait. The heartbeat reads the lane from the row it claimed (`jobs.lane`, 00281), never from the
+  kind, so the lane stays SQL's alone, and keeps the reply lane's worst wait as `reply_late_ms` on its line. A reply
+  claimed more than a minute late (`REPLY_LATE_PAGE_MS`; a reply is due 15 s after Send and the heartbeat asks every ten)
+  pages the platform through the same door as the mass-failure page (`jobs_replies_late`, once per window). Against a
+  database that has not applied the lanes the row carries no lane and nothing pages.

@@ -11,6 +11,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { pg } from "../pg.js";
 import { fetchMediaBytes, type NormalizedInbound } from "../packages/channels.js";
 import {
+  claimReplyTurn,
+  holdsReplyTurn,
   ingestInbound,
   markProcessed,
   pauseConversation,
@@ -133,6 +135,12 @@ export async function queueReply(
  * their 503 go on importing it from the module that throws it.
  */
 export { IngestFailed };
+
+/**
+ * The thread's reply turn (00284; the verb's rule is core inbound/turn.ts), through its two SQL doors. A call that
+ * failed throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
+ */
+export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
 
 /**
  * Persist first. Null when there is no database or no tenant to record for,

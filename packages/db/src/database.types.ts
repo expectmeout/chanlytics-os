@@ -2154,6 +2154,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
@@ -2168,6 +2169,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -2182,6 +2184,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind?: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -4682,6 +4685,42 @@ export type Database = {
           },
         ]
       }
+      reply_turns: {
+        Row: {
+          claimed_at: string
+          conversation_id: string
+          message_id: string
+          tenant_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          conversation_id: string
+          message_id: string
+          tenant_id: string
+        }
+        Update: {
+          claimed_at?: string
+          conversation_id?: string
+          message_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reply_turns_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reply_turns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       segment_members: {
         Row: {
           added_at: string
@@ -5247,6 +5286,15 @@ export type Database = {
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
+      assemble_broadcast: {
+        Args: {
+          p_recipients: Json
+          p_run: Json
+          p_send_at?: string
+          p_tenant: string
+        }
+        Returns: string
+      }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -5289,6 +5337,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
@@ -5302,6 +5351,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_reply_turn: {
+        Args: { p_conversation: string; p_message: string; p_tenant: string }
+        Returns: boolean
       }
       cold_receipts_owed: {
         Args: { p_from: string; p_to: string }
@@ -5477,6 +5530,10 @@ export type Database = {
       }
       has_permission: {
         Args: { p_permission: string; p_tenant_id: string; p_user: string }
+        Returns: boolean
+      }
+      holds_reply_turn: {
+        Args: { p_conversation: string; p_message: string }
         Returns: boolean
       }
       import_person: {

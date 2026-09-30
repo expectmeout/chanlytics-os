@@ -32,6 +32,7 @@
  */
 
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { localHour, runDueNow } from "@chanlytics/contracts";
 import {
   schemaOf,
@@ -105,30 +106,50 @@ function asJsonb(value) {
 }
 
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
-function matches(row, filters) {
+/**
+ * `eq`: a column equals a value. A json column asked with the value's JSON text (`.filter("payload", "eq", JSON.stringify(x))`,
+ * how PostgREST is asked for jsonb equality) is equal when it holds the same JSON, whatever the order of its keys.
+ */
+function equalsCell(have, val) {
+  if (have !== null && typeof have === "object" && typeof val === "string") {
+    try {
+      return isDeepStrictEqual(have, JSON.parse(val));
+    } catch {
+      return false;
+    }
+  }
+  return have === val;
+}
+
+function matches(row, filters, defaults = {}) {
+  // A column a row leaves out has its default in the database (jobs.state is 'scheduled'), and a filter reads that.
+  const read = (r, col) => {
+    const v = cell(r, col);
+    return v === undefined ? defaults[col] : v;
+  };
   return filters.every(([op, col, val]) =>
     op === "eq"
-      ? cell(row, col) === val
+      ? equalsCell(read(row, col), val)
       : op === "lt"
-        ? cell(row, col) != null && cell(row, col) < val
+        ? read(row, col) != null && read(row, col) < val
         : // PostgREST's `.is(col, null)`: the only way to ask for NULL, and what
           // every "not erased", "not accepted", "not revoked" read in this codebase
           // is written with. `eq` would not do -- SQL NULL is not equal to anything.
           op === "is"
           ? val === null
-            ? cell(row, col) == null
-            : cell(row, col) === val
+            ? read(row, col) == null
+            : read(row, col) === val
           : op === "gt"
-            ? cell(row, col) != null && cell(row, col) > val
+            ? read(row, col) != null && read(row, col) > val
             : op === "gte"
-              ? cell(row, col) != null && cell(row, col) >= val
+              ? read(row, col) != null && read(row, col) >= val
               : op === "lte"
-                ? cell(row, col) != null && cell(row, col) <= val
+                ? read(row, col) != null && read(row, col) <= val
                 : // SQL's <>: a NULL is not unequal to anything, so a row whose cell is NULL is not selected.
                   op === "neq"
-                  ? cell(row, col) != null && cell(row, col) !== val
+                  ? read(row, col) != null && read(row, col) !== val
                   : op === "in"
-                    ? val.includes(cell(row, col))
+                    ? val.includes(read(row, col))
                     : // PostgREST's `.contains(col, value)`, jsonb's @> for a flat object: every
                       // key the value names holds that value in the column. Modelled for the voice
                       // booking link's daily cap, which counts the sends whose meta carries its
@@ -137,7 +158,7 @@ function matches(row, filters) {
                       // modelled, and says so.
                       op === "contains"
                       ? (() => {
-                          const have = cell(row, col);
+                          const have = read(row, col);
                           // jsonb's @> for an array of flat objects, as `.contains(col, '[{...}]')` sends it: each
                           // element named is in the column, key for key. Modelled for the proposal follow-ups' runs
                           // (packages/db followUpTouchesSince), whose values carry a proposal's link.
@@ -167,18 +188,18 @@ function matches(row, filters) {
                         op === "not"
                         ? (() => {
                             const [o, v] = val;
-                            if (o === "is") return v === null ? cell(row, col) != null : cell(row, col) !== v;
-                            if (o === "eq") return cell(row, col) != null && cell(row, col) !== v;
+                            if (o === "is") return v === null ? read(row, col) != null : read(row, col) !== v;
+                            if (o === "eq") return read(row, col) != null && read(row, col) !== v;
                             // PostgREST's `.not(col, "like", "usage.%")`: modelled for the activity
                             // log, which leaves the evidence families out unless asked by name.
                             if (o === "like")
                               return (
-                                cell(row, col) != null &&
+                                read(row, col) != null &&
                                 !new RegExp(
                                   `^${String(v)
                                     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
                                     .replace(/%/g, ".*")}$`,
-                                ).test(String(cell(row, col)))
+                                ).test(String(read(row, col)))
                               );
                             throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
                           })()
@@ -482,6 +503,38 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,
+    // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
+    // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
+    // in broadcasts/assemble-broadcast.db.test.mjs.
+    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+      const at = stampOf(tables);
+      const id = crypto.randomUUID();
+      const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
+      (tables.broadcasts ??= []).push(written("broadcasts", { id, created_at: at, tenant_id: p_tenant, ...run }));
+      for (const r of p_recipients ?? [])
+        (tables.broadcast_recipients ??= []).push(
+          written("broadcast_recipients", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            broadcast_id: id,
+            contact_id: r.contact_id,
+            tenant_id: p_tenant,
+            ...(r.facts ? { facts: r.facts } : {}),
+          }),
+        );
+      if (p_send_at)
+        (tables.jobs ??= []).push(
+          written("jobs", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            tenant_id: p_tenant,
+            kind: "broadcast_send",
+            due_at: p_send_at,
+            payload: { broadcast_id: id },
+          }),
+        );
+      return id;
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
@@ -656,7 +709,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       }
 
       if (q.op === "select") {
-        let out = rows().filter((r) => matches(r, q.filters));
+        let out = rows().filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
         if (q.orders.length) {
           // Sentinels of the SAME TYPE as the values, because the columns this
           // orders on hold ISO timestamps: comparing -Infinity against a string
@@ -695,7 +748,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // `.delete({ count: "exact" })` is how a route knows it removed nothing.
       if (q.op === "delete") {
         const all = rows();
-        const hit = all.filter((r) => matches(r, q.filters));
+        const hit = all.filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
         for (const r of hit) all.splice(all.indexOf(r), 1);
         return {
           data: q.selected ? hit.map(drawn()) : null,
@@ -748,7 +801,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // testable: a second caller whose filters name a value the first one has
       // already replaced matches nothing and comes back empty.
       const values = onTheWire(q.values);
-      const hit = rows().filter((r) => matches(r, q.filters));
+      const hit = rows().filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
       const refusedValue = hit.length ? refusedRow(SCHEMA, table, values, { insert: false }) : null;
       if (refusedValue) return { data: null, error: refusedValue, count: null };
       // Judged before anything is written: Postgres refuses the whole statement.

@@ -820,8 +820,8 @@
     "depth": 3
   },
   "packages/core/src/campaigns/create-broadcast.ts::createBroadcast#1": {
-    "lines": 168,
-    "branches": 47,
+    "lines": 152,
+    "branches": 45,
     "depth": 2
   },
   "packages/core/src/campaigns/run-playbook.ts::runPlaybook#1": {
@@ -855,17 +855,17 @@
     "depth": 2
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 236,
+    "lines": 232,
     "branches": 28,
     "depth": 3
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
-    "lines": 175,
+    "lines": 172,
     "branches": 1,
     "depth": 0
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
-    "lines": 163,
+    "lines": 162,
     "branches": 40,
     "depth": 2
   }

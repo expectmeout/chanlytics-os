@@ -958,6 +958,13 @@
       "rate": "partner_handover",
       "spend": false
     },
+    "POST platform/jobs/requeue": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_job_requeue",
+      "spend": false
+    },
     "POST platform/lines/refile": {
       "kind": "write",
       "scope": "platform",

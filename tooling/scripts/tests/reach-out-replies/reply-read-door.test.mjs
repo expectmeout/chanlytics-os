@@ -435,7 +435,11 @@ test("a notice whose mail failed: told stays unmarked, the job throws for the le
     const row = w.tables.reach_out_replies[0];
     assert.equal(row.told_at, null, "never marked before the owner was told");
     assert.ok(row.tell_claimed_at);
-    assert.equal(retryWait({ kind: "reply_read", attempts: 1 }), 2 * 60_000, "tried again in two minutes");
+    assert.equal(
+      retryWait({ kind: "reply_read", attempts: 1 }, () => 0),
+      2 * 60_000,
+      "tried again in two minutes",
+    );
     assert.ok(2 * 60_000 > LEASE_SECONDS * 1000, "after the claim has gone stale");
 
     // A try inside the lease finds the claim still live (a run that died holding it looks the same): it tells nobody,

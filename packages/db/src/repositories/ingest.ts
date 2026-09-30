@@ -549,3 +549,30 @@ export async function pauseConversation(
     });
   return true;
 }
+
+/**
+ * The thread's reply turn (00284; the verb's rule is core inbound/turn.ts): claimed for a message before the model is
+ * asked, so a newer message of the thread holds it. False only when a newer message has the turn. A call that fails
+ * throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
+ */
+export async function claimReplyTurn(
+  db: Db,
+  tenantId: string,
+  conversationId: string,
+  messageId: string,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId,
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+
+/** Whether this message still holds its thread's turn once the model has answered: false only when a newer message took it. */
+export async function holdsReplyTurn(db: Db, conversationId: string, messageId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
+}

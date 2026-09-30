@@ -135,6 +135,16 @@ select 'anon_holds_relation', coalesce(array_agg(x order by x), '{}') from (
        or (c.relkind = 'S' and has_sequence_privilege('anon', c.oid, 'USAGE,SELECT,UPDATE')))
 ) s
 union all
+select 'role_unbounded', coalesce(array_agg(x order by x), '{}') from (
+  select r.rolname::text as x
+    from pg_roles r
+   where r.rolname in ('anon', 'authenticated', 'service_role')
+     and not exists (select 1 from unnest(coalesce(r.rolconfig, '{}'::text[])) cfg where cfg like 'statement_timeout=%')
+) s
+union all
+select 'jobs_index_missing', case when to_regclass('public.jobs_tenant_kind_state') is null
+                                   then array['jobs_tenant_kind_state'] else '{}'::text[] end
+union all
 select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -155,6 +165,38 @@ test("anon holds nothing in public: no table, view or sequence privilege", { ski
   // already denied anon every row; since 00122 the privilege itself is gone.
   assert.deepEqual(rules.anon_holds_relation, [], "revoke all from anon: the logged-out key reads through no table");
 });
+
+test("every role a request runs as has a statement bound, the service role's too (00283)", { skip }, () => {
+  // A member's statements end at 8 s and a stranger's at 3 (Supabase's own settings); the service role, which the edge,
+  // the sweeps and the scripts use through PostgREST, had none, and a statement one of them ran could hold a pooled
+  // connection for as long as it liked.
+  assert.deepEqual(rules.role_unbounded, [], "alter role <role> set statement_timeout = '<bound>'");
+  const [row] = query(
+    "select (select c from unnest(rolconfig) c where c like 'statement_timeout=%') as bound from pg_roles where rolname = 'service_role'",
+  );
+  assert.equal(
+    row?.bound,
+    "statement_timeout=30s",
+    "the service role's is 30 s: the client waits 40, so the database ends it first",
+  );
+});
+
+test(
+  "a workspace's jobs of a kind are found by index, not by a scan of every workspace's ledger (00283)",
+  { skip },
+  () => {
+    assert.deepEqual(
+      rules.jobs_index_missing,
+      [],
+      "create index jobs_tenant_kind_state on jobs (tenant_id, kind, state)",
+    );
+    const [row] = query("select indexdef from pg_indexes where indexname = 'jobs_tenant_kind_state'");
+    assert.ok(
+      (row?.indexdef ?? "").includes("(tenant_id, kind, state)"),
+      "on the three columns every per-workspace read filters by",
+    );
+  },
+);
 
 test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");

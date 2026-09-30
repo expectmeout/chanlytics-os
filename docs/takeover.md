@@ -40,13 +40,13 @@ directories over 20 modules           5
 window globals                      200   names
 window publishers                   443   sites in 164 files
 copies                               52   of 14 names
-as unknown as                       186
+as unknown as                       184
 as never                             13
 non-null assertions, x!             128
 index reads the compiler lets pass  449   in 113 files
-table names outside packages/db     509
+table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
-edge statements naming no workspace   29   in 17 files
+edge statements naming no workspace   28   in 16 files
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
 literal style values               1093   in 22 stylesheets

@@ -979,6 +979,33 @@ The day's numbers are in the back office ("Each workspace's day", `platform_metr
 before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
 played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
 
+## Read the jobs ledger
+
+Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
+intake, the lead finder, a phone told. pg_cron asks every ten seconds whether one is due and calls `api/jobs/tick`,
+which runs up to three at once (`CLAIM_SLOTS`; `1` is the old one at a time). The claim takes a reply first, then someone
+waiting who is not a customer, then bulk, each workspace taking its turn at bulk (decision 0018).
+
+- **Is a reply waiting?** Each `jobs_tick` line in the edge's logs carries `late_ms_<kind>`, the worst first-claim wait of
+  each kind in that heartbeat, and `reply_late_ms`, the reply lane's. A reply claimed more than a minute late pages the
+  platform (`jobs_replies_late`, once per window). If it pages, the ledger's heartbeat was slow to start or every runner
+  was busy with replies: read `sweep_health()` for the `jobs` clock, then the `jobs_tick` lines.
+- **A job failed.** The workspace's owner was told, and the row is `failed`, final, kept 90 days. The page for many at once
+  says the query to list them. When the cause is fixed (a provider's outage over, a key replaced), run one again from a
+  platform admin's session: `POST /api/v1/platform/jobs/requeue` with `{ "tenant_id": "<workspace>", "job_id": "<job>" }`.
+  It makes a fresh row of the same kind and payload, due now, and writes who asked first (`platform.acted`, in the
+  workspace's activity). It refuses work that speaks to a person (`outbound_send`, `broadcast_send`: it may have reached
+  them; send it again from the thread or the broadcast), a job that has not failed, a kind this deploy does not know,
+  and work the ledger already holds again.
+- **A kind the runner does not know** is kept, not failed: a newer deploy wrote it. It is looked at again every five minutes
+  and fails as never run after a day, which is longer than any deploy takes.
+- **A broadcast that says it stopped.** "WhatsApp could not be reached" is a connection that never opened: nobody was
+  written to, the run waited through its waits and stopped. "Its people or its number's credentials could not be read" is
+  thirty minutes of failed reads. "The day's sending hours ran out" is a run that waited past the evening. Each says how
+  many got it, and sending it again reaches the whole list.
+- **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
+  at 40, so a hung statement no longer holds a function until it is killed.
+
 ## Apply a migration
 
 The practice every lane follows, since migrations began to reach production from branches before they merged
@@ -1090,4 +1117,7 @@ of the message id on every line.
 Every writing script in `tooling/scripts/ops` is a dry run by default, writes a
 JSONL backup first, is idempotent, and takes `--apply` to mean it. Read the
 header of the script before running it; each says what it needs and what it
-refuses.
+refuses. Their statements go through PostgREST as the service role, which ends
+a statement at 30 seconds (00283): a script that must run one longer, a
+workspace's whole history deleted at once, says so in its header and is run from
+psql after `set statement_timeout = 0`.

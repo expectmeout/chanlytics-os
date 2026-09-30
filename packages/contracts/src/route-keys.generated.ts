@@ -157,6 +157,7 @@ export const ROUTE_KEYS = [
   "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
+  "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
   "POST platform/lines/replace",

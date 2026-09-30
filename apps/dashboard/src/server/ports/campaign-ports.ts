@@ -2,11 +2,12 @@
  * The adapter between the campaign verbs and this runtime: the tables a
  * person's broadcast, an approval, a cancel and a playbook's check touch. A
  * verb never sees a client, a service module or an environment; it sees
- * these. The session role writes here: it may insert a broadcast and its
- * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
+ * these. The session role writes here: it updates a broadcast's `state`
+ * (00046) and `scheduled_for` (00119). A broadcast, its people and its job are
+ * assembled through one door (00282) that is the service role's alone.
  */
-import type { Json } from "@chanlytics/db";
 import { AppError, numberHealth, parseTenantConfig } from "@chanlytics/contracts";
+import { assembleBroadcast } from "@chanlytics/db";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -19,10 +20,8 @@ import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
 import { cancelKindFor, schedule } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
+import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
-
-/** PostgREST takes a payload this size in one statement. */
-const INSERT_CHUNK = 500;
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -48,44 +47,32 @@ export function templateValuePorts(ctx: RouteContext, tenantId: string): Templat
   };
 }
 
-/** The rows, then the job, as the session role may write them. */
+/**
+ * The run, its people and its job, whole: the one SQL door (00282 assemble_broadcast). It puts the send job on the
+ * ledger, which no session may, so it is the service role's, called here after the route's role check (the door) and
+ * naming the person who asked; the function itself asks that every person, the template and the playbook are the
+ * workspace's, as the insert policies asked of the session.
+ */
 function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
   return {
-    create: async (row) => {
-      const { data, error } = await ctx.supabase
-        .from("broadcasts")
-        .insert({
-          tenant_id: tenantId,
-          ...row,
-          params: row.params as unknown as Json,
+    assemble: (row, recipients, sendAt) =>
+      assembleBroadcast(serviceDb(), {
+        tenantId,
+        run: {
+          name: row.name,
+          template_id: row.template_id,
+          template_name: row.template_name,
+          template_language: row.template_language,
+          params: row.params,
           audience: { kind: row.audience.kind, id: row.audience.id, label: row.audience.label },
-        })
-        .select("id")
-        .single();
-      if (error || !data) throw new Error(error?.message ?? "broadcast not created");
-      return data.id;
-    },
-    enrol: async (id, rows) => {
-      for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-        const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => ({
-          broadcast_id: id,
-          contact_id: r.contact_id,
-          tenant_id: tenantId,
-          ...(r.facts ? { facts: r.facts } : {}),
-        }));
-        const { error } = await ctx.supabase.from("broadcast_recipients").insert(chunk);
-        if (error) throw new Error(error.message);
-      }
-    },
-    // The session role may update `state` alone on a broadcast, so the reason
-    // goes to the person in the error; a playbook's run, written by the edge,
-    // carries its reason on the row.
-    fail: async (id) => {
-      await ctx.supabase.from("broadcasts").update({ state: "failed" }).eq("id", id);
-    },
-    schedule: async (id, at) => {
-      await schedule(tenantId, "broadcast_send", at, { broadcast_id: id });
-    },
+          state: row.state,
+          scheduled_for: row.scheduled_for,
+          recipient_count: row.recipient_count,
+          created_by: ctx.userId,
+        },
+        recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
+        sendAt,
+      }),
   };
 }
 

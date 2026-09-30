@@ -48,8 +48,9 @@ test("internal work is tried again up to the cap, then given up", () => {
 });
 
 test("an intake that threw waits five minutes, then thirty, and its last try is not waited on", () => {
-  assert.equal(retryWait({ kind: "email_ingest", attempts: 1 }), 5 * 60_000);
-  assert.equal(retryWait({ kind: "email_ingest", attempts: 2 }), 30 * 60_000);
+  const none = () => 0;
+  assert.equal(retryWait({ kind: "email_ingest", attempts: 1 }, none), 5 * 60_000);
+  assert.equal(retryWait({ kind: "email_ingest", attempts: 2 }, none), 30 * 60_000);
   assert.equal(
     retryWait({ kind: "email_ingest", attempts: MAX_ATTEMPTS }),
     null,
@@ -58,6 +59,37 @@ test("an intake that threw waits five minutes, then thirty, and its last try is 
   for (const kind of ["outbound_send", "broadcast_send", "line_provision"]) {
     assert.equal(retryWait({ kind, attempts: 1 }), null, `${kind} fails on its first throw`);
   }
+});
+
+test("a wait is drawn up to a fifth longer at random, never shorter, so the jobs one outage failed are claimed apart", () => {
+  const job = { kind: "email_ingest", attempts: 1 };
+  assert.equal(
+    retryWait(job, () => 1),
+    6 * 60_000,
+    "the longest draw: a fifth more",
+  );
+  assert.equal(
+    retryWait(job, () => 0.5),
+    5.5 * 60_000,
+  );
+  assert.equal(
+    retryWait(job, () => 7),
+    6 * 60_000,
+    "a draw outside [0, 1] is held to it",
+  );
+  assert.equal(
+    retryWait(job, () => -1),
+    5 * 60_000,
+  );
+  for (let i = 0; i < 50; i += 1) {
+    const w = retryWait(job);
+    assert.ok(w >= 5 * 60_000 && w <= 6 * 60_000, `Math.random's draw stays inside the spread (${w})`);
+  }
+  assert.equal(
+    retryWait({ kind: "outbound_send", attempts: 1 }, () => 1),
+    null,
+    "a send is never drawn a wait",
+  );
 });
 
 test("only a declared kind that speaks to nobody is tried again after a throw, and every wait it names is reached", () => {
@@ -93,6 +125,30 @@ test("a job kept to be tried again keeps its claim and why, on the claim that ra
     false,
     "a failed row is never brought back",
   );
+});
+
+test("a job whose kind this runner does not know is kept with its claim given back, so the runner that knows it finds a first claim", async () => {
+  const jobs = [{ id: "j1", state: "fired", attempts: 1, lease_until: "2026-01-01T00:01:30Z", last_error: null }];
+  const db = fakeDb({ jobs });
+  assert.equal(await deferJob(db, { id: "j1", attempts: 1 }, "2026-01-01T00:05:00Z", "unknown job kind x", true), true);
+  assert.deepEqual(
+    [jobs[0].state, jobs[0].attempts, jobs[0].lease_until, jobs[0].last_error],
+    ["fired", 0, "2026-01-01T00:05:00Z", "unknown job kind x"],
+    "nothing ran, so nothing is counted; the next claim is attempts 1 again, judged as a first run",
+  );
+  // The next claim, by any runner: the same row, a first claim, and verdictFor runs it (a send is not given up).
+  jobs[0].attempts += 1;
+  assert.equal(verdictFor({ kind: "outbound_send", attempts: jobs[0].attempts }), "run");
+
+  // Never below zero, and never a run that no longer holds it.
+  const fresh = [{ id: "j2", state: "fired", attempts: 0, lease_until: "2026-01-01T00:01:30Z" }];
+  assert.equal(
+    await deferJob(fakeDb({ jobs: fresh }), { id: "j2", attempts: 0 }, "2026-01-01T00:05:00Z", "x", true),
+    true,
+  );
+  assert.equal(fresh[0].attempts, 0);
+  assert.equal(await deferJob(db, { id: "j1", attempts: 5 }, "2026-01-01T00:10:00Z", "x", true), false);
+  assert.equal(jobs[0].lease_until, "2026-01-01T00:05:00Z");
 });
 
 test("the timings nest: claiming stops, then handlers yield, then a lease runs out", () => {
@@ -264,6 +320,23 @@ test("a broadcast still in flight is handed to a fresh run, with what it reached
     "one that never left 'scheduled' is resumed, not stranded",
   );
   assert.equal(jobs.length, 2);
+});
+
+test("a fresh run carries what the dying one had waited through, so it still looks at the sending hours and still counts toward the cap", async () => {
+  const broadcasts = [sending()];
+  const broadcast_recipients = peopleOf("b1", ["sent", "queued"]);
+  const jobs = [];
+  const db = fakeDb({ broadcasts, broadcast_recipients, jobs });
+  await settleJob(db, ranAndDied({ broadcast_id: "b1", waits: 2, stalls: 7, resumes: 1 }), false);
+  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1", waits: 2, stalls: 7, resumes: 2 });
+
+  const junk = [];
+  await settleJob(
+    fakeDb({ broadcasts: [sending()], broadcast_recipients, jobs: junk }),
+    ranAndDied({ broadcast_id: "b1", waits: "x", stalls: -1 }),
+    false,
+  );
+  assert.deepEqual(junk[0].payload, { broadcast_id: "b1", resumes: 1 }, "anything but a count is none");
 });
 
 test("a broadcast whose dying run already scheduled the next batch is not handed a SECOND run", async () => {

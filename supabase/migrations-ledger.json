@@ -28,7 +28,7 @@
     "00249": "an erased person's digest is keyed landed as 00263 (#1330)",
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
-    "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
+    "00267": "the reply lanes and fairness (#1340) landed as 00281, above production's head then (00275)",
     "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)"
   },
   "migrations": {
@@ -282,6 +282,10 @@
     "00277_what_happened_is_named_audited_and_counted.sql": "b958ed0900957430803a370878166f2a1a7b7e7f5cbc03f5318ea4ace6c9e787",
     "00278_a_session_inserts_only_the_columns_it_writes.sql": "d3eb31d387cc99044a23788f3cd3dd5a3d4a62b047bcaa00d5bb281c9c32589c",
     "00279_a_child_names_only_its_own_workspace_s_parent.sql": "3fd7d8267c42480fe5c88721ef07388bfdb31f6c6d544cf3eff388337ea770a5",
-    "00280_a_partner_s_password_opens_no_door_a_seat_opens.sql": "764ea8127cc2b0d10bed0245f7716ba2d6e9a0cb4ccd2a87c47159a3b32abea5"
+    "00280_a_partner_s_password_opens_no_door_a_seat_opens.sql": "764ea8127cc2b0d10bed0245f7716ba2d6e9a0cb4ccd2a87c47159a3b32abea5",
+    "00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "45e9a8fefeb76be5da1d9546815d86dfbf844d44dc850d198cc02ca5f6eb2966",
+    "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
+    "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
+    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "7c6984d484ebc5576581c25bd8b855cb059a7a68dec78ec55918add42fbce87f"
   }
 }

@@ -6,14 +6,18 @@
  *
  * A ticket per message, in the messages' order, is the contract the job
  * stands on, and the receipts a quarter of an hour on (00189) are the second
- * door. A refusal or a dead wire before anything has left throws with what
- * happened, and the ledger tries again (RETRY_WAITS_MS); once a batch has
- * left, a later batch's failure is said in its receipts instead, because a
- * retry would tell the phones already told a second time.
+ * door. A first batch the service provably did not take (it refused it, said
+ * "not now", or the connection never opened: providerFetch's `refused` and
+ * `retryable`) throws with what happened, and the ledger tries again
+ * (RETRY_WAITS_MS). One that MAY have been taken (a timeout, a connection
+ * dropped after the request left, a 5xx: `unknown`) is never thrown: a retry
+ * would tell the phones a second time, so it is said in the receipts and
+ * logged, as a later batch's failure always was once a batch had left.
  */
 import type { PushMessage } from "../packages/contracts.js";
 import type { PushPort, PushReceipt } from "../packages/jobs.js";
 import { env } from "../env.js";
+import { logger } from "../log.js";
 import { providerFetch, type ProviderReply } from "../packages/channels.js";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -83,8 +87,6 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
       },
       { fetch: fetchImpl },
     );
-    // No answer at all throws, as the bare fetch it replaces did: the batch's own catch says what it means.
-    if (r.status === 0) throw new Error(r.error ?? "no answer");
     return r;
   };
   const text = (r: ProviderReply) => r.text;
@@ -94,17 +96,25 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
       const receipts: PushReceipt[] = [];
       for (let i = 0; i < messages.length; i += PUSH_BATCH) {
         const batch = messages.slice(i, i + PUSH_BATCH);
-        let r: ProviderReply;
-        try {
-          r = await post(EXPO_PUSH_URL, batch);
-        } catch (e) {
-          if (i === 0) throw e;
-          receipts.push(...refused(messages.slice(i), `push_rejected ${e instanceof Error ? e.message : String(e)}`));
-          break;
-        }
+        const r = await post(EXPO_PUSH_URL, batch);
         if (r.outcome === "ok") {
           receipts.push(...ticketsOf(batch, r.json as { data?: ExpoTicket[] }));
           continue;
+        }
+        if (r.outcome === "unknown") {
+          // It may have been taken (defect 50): the phones may be told already, so nothing here asks again, and the
+          // rest are not sent either. Said in the receipts and on the log; the ledger records the job done.
+          const why = `push_outcome_unknown ${r.status || r.error || "no answer"}`;
+          logger().warn("push_outcome_unknown", { batch: i / PUSH_BATCH, messages: messages.length - i, why });
+          receipts.push(...refused(messages.slice(i), why));
+          break;
+        }
+        if (r.status === 0) {
+          // Provably not taken: the connection never opened, or this provider's breaker held the call.
+          const why = `push_rejected ${r.error ?? "no answer"}`;
+          if (i === 0) throw new Error(why);
+          receipts.push(...refused(messages.slice(i), why));
+          break;
         }
         const detail = text(r);
         const groups = r.status === 400 ? experienceGroups(detail) : [];
@@ -117,9 +127,9 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
             const sub = batch.filter((m) => g.has(m.to));
             sub.forEach((m) => grouped.add(m.to));
             if (!sub.length) continue;
-            const rr = await post(EXPO_PUSH_URL, sub).catch(() => null);
-            if (rr?.outcome === "ok") receipts.push(...ticketsOf(sub, rr.json as { data?: ExpoTicket[] }));
-            else receipts.push(...refused(sub, `push_rejected ${rr ? rr.status : "unreachable"}`));
+            const rr = await post(EXPO_PUSH_URL, sub);
+            if (rr.outcome === "ok") receipts.push(...ticketsOf(sub, rr.json as { data?: ExpoTicket[] }));
+            else receipts.push(...refused(sub, `push_rejected ${rr.status || "unreachable"}`));
           }
           receipts.push(
             ...refused(
@@ -143,7 +153,7 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
         const r = await post(EXPO_RECEIPTS_URL, { ids: batch });
         if (r.outcome !== "ok") {
           const detail = text(r);
-          throw new Error(`push_receipts_rejected ${r.status} ${detail.slice(0, 200)}`.trim());
+          throw new Error(`push_receipts_rejected ${r.status || r.error} ${detail.slice(0, 200)}`.trim());
         }
         const { data } = (r.json ?? {}) as { data?: Record<string, ExpoReceipt> };
         for (const [id, rc] of Object.entries(data ?? {})) {

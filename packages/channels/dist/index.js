@@ -164,397 +164,6 @@ function errField(e) {
   return e instanceof Error ? errText(e) : String(e);
 }
 
-// src/provider-fetch.ts
-var PROVIDER_NAMES = [
-  "meta",
-  "twilio",
-  "retell",
-  "resend",
-  "google",
-  "apify",
-  "expo",
-  "anthropic",
-  "typesafe"
-];
-var BREAKER_FAILURES = 5;
-var BREAKER_OPEN_MS = 3e4;
-var RETRY_BASE_MS = 250;
-var RETRY_WAIT_CAP_MS = 2e3;
-var BREAKER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.provider-breakers");
-var breakerHolder = globalThis;
-var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
-var breakerMap = breakers.held;
-var breakerLog = logger();
-function breakerOf(provider, now = Date.now()) {
-  const b = breakerMap.get(provider);
-  return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
-}
-function breakerStates(now = Date.now()) {
-  return PROVIDER_NAMES.map((provider) => {
-    const b = breakerMap.get(provider);
-    const open = !!b && b.openUntil > now;
-    return {
-      provider,
-      open,
-      failures: b?.failures ?? 0,
-      opened: breakers.opened.get(provider) ?? 0,
-      open_until: open ? new Date(b.openUntil).toISOString() : null
-    };
-  });
-}
-function resetBreakers() {
-  breakerMap.clear();
-  breakers.opened.clear();
-}
-var NEVER_LEFT = /* @__PURE__ */ new Set([
-  "ECONNREFUSED",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "ENETUNREACH",
-  "EHOSTUNREACH",
-  "UND_ERR_CONNECT_TIMEOUT"
-]);
-function outcomeOfStatus(status) {
-  if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429) return "retryable";
-  if (status >= 500) return "unknown";
-  return "refused";
-}
-function outcomeOfThrow(e) {
-  const err = e instanceof Error ? e : new Error(String(e));
-  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
-  const cause = err.cause;
-  const code = typeof cause?.code === "string" ? cause.code : err.code;
-  const words2 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
-  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words2 };
-}
-function retryAfterOf(header, now = Date.now()) {
-  if (!header) return null;
-  const secs = Number(header);
-  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
-  const at = Date.parse(header);
-  return Number.isFinite(at) ? Math.max(0, at - now) : null;
-}
-var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
-function note(provider, a, now) {
-  if (a.error === "breaker_open") return;
-  const b = breakerMap.get(provider);
-  if (!isFault(a)) {
-    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
-    breakerMap.delete(provider);
-    return;
-  }
-  const next = b ?? { failures: 0, openUntil: 0 };
-  const wasOpen = next.openUntil > now;
-  next.failures += 1;
-  if (next.failures >= BREAKER_FAILURES) {
-    next.openUntil = now + BREAKER_OPEN_MS;
-    if (!wasOpen) {
-      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
-      breakerLog.warn("breaker_open", {
-        provider,
-        failures: next.failures,
-        status: a.status,
-        error: a.error,
-        open_ms: BREAKER_OPEN_MS
-      });
-    }
-  }
-  breakerMap.set(provider, next);
-}
-async function once(provider, url, call2, deps, tries) {
-  const now = deps.now();
-  const b = breakerMap.get(provider);
-  if (b && b.openUntil > now && call2.breaker !== "count") {
-    const held = {
-      outcome: "retryable",
-      status: 0,
-      text: "",
-      json: null,
-      body: null,
-      headers: null,
-      retryAfterMs: b.openUntil - now,
-      error: "breaker_open",
-      tries: tries - 1
-    };
-    return held;
-  }
-  const init = {
-    method: call2.method,
-    headers: call2.headers,
-    body: call2.body,
-    cache: call2.cache,
-    redirect: call2.redirect
-  };
-  let a;
-  const bound = AbortSignal.timeout(call2.timeoutMs);
-  try {
-    const r2 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
-    if (call2.stream && r2.ok && r2.body) {
-      a = {
-        outcome: "ok",
-        status: r2.status,
-        text: "",
-        json: null,
-        body: r2.body,
-        headers: r2.headers,
-        retryAfterMs: null,
-        error: null,
-        tries
-      };
-      note(provider, a, deps.now());
-      return a;
-    }
-    const text = await r2.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    a = {
-      outcome: outcomeOfStatus(r2.status),
-      status: r2.status,
-      text,
-      json,
-      body: null,
-      headers: r2.headers,
-      retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
-      error: null,
-      tries
-    };
-  } catch (e) {
-    const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
-  }
-  note(provider, a, deps.now());
-  return a;
-}
-async function providerFetch(provider, url, call2, deps = {}) {
-  const d = {
-    fetch: deps.fetch ?? globalThis.fetch,
-    now: deps.now ?? Date.now,
-    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
-  };
-  const started = d.now();
-  const max = Math.max(1, Math.floor(call2.tries ?? 1));
-  for (let n = 1; ; n++) {
-    const a = await once(provider, url, call2, d, n);
-    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
-    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
-    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
-    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
-    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
-    if (wait + call2.timeoutMs > left) return a;
-    await d.sleep(wait);
-  }
-}
-function answerObject(a) {
-  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
-}
-
-// src/public-fetch.ts
-import dns from "dns";
-import http from "http";
-import https from "https";
-import net from "net";
-import { pipeline, Readable, Transform } from "stream";
-import zlib from "zlib";
-var resolveByLookup = async (host) => {
-  const all = await dns.promises.lookup(host, { all: true, verbatim: true });
-  return all.map((a) => ({ address: a.address, family: a.family }));
-};
-function octetsOf(address) {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
-  if (!m) return null;
-  const o = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
-  return o.every((n) => n <= 255) ? o : null;
-}
-function v4IsPublic(o) {
-  const [a, b, c] = o;
-  if (a === 0 || a === 10 || a === 127) return false;
-  if (a === 100 && b >= 64 && b <= 127) return false;
-  if (a === 169 && b === 254) return false;
-  if (a === 172 && b >= 16 && b <= 31) return false;
-  if (a === 192 && b === 168) return false;
-  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-  if (a === 198 && (b === 18 || b === 19)) return false;
-  if (a === 198 && b === 51 && c === 100) return false;
-  if (a === 203 && b === 0 && c === 113) return false;
-  if (a >= 224) return false;
-  return true;
-}
-function bytesOfV6(address) {
-  const bare = address.replace(/^\[|\]$/g, "").split("%")[0] ?? "";
-  if (net.isIP(bare) !== 6) return null;
-  let head = bare;
-  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(bare);
-  if (tail) {
-    const o = octetsOf(tail[1] ?? "");
-    if (!o) return null;
-    head = bare.slice(0, tail.index) + (o[0] << 8 | o[1]).toString(16) + ":" + (o[2] << 8 | o[3]).toString(16);
-  }
-  const [left = "", right] = head.split("::");
-  const groups = (s) => s ? s.split(":").filter((x) => x !== "") : [];
-  const l = groups(left);
-  const r2 = right === void 0 ? [] : groups(right);
-  const zeros = right === void 0 ? 0 : 8 - l.length - r2.length;
-  if (zeros < 0 || right === void 0 && l.length !== 8) return null;
-  const all = [...l, ...Array(zeros).fill("0"), ...r2];
-  const bytes = [];
-  for (const g of all) {
-    const n = parseInt(g, 16);
-    if (!Number.isFinite(n) || n < 0 || n > 65535) return null;
-    bytes.push(n >> 8, n & 255);
-  }
-  return bytes.length === 16 ? bytes : null;
-}
-function carriedV4(b) {
-  return [b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0];
-}
-var zeroBetween = (b, from, to) => b.slice(from, to).every((x) => x === 0);
-function v6IsPublic(b) {
-  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false;
-  if (zeroBetween(b, 0, 10) && b[10] === 255 && b[11] === 255) return v4IsPublic(carriedV4(b));
-  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
-  if (b[0] === 0 && b[1] === 100 && b[2] === 255 && b[3] === 155 && zeroBetween(b, 4, 12))
-    return v4IsPublic(carriedV4(b));
-  const first = b[0] ?? 0;
-  const second = b[1] ?? 0;
-  if ((first & 254) === 252) return false;
-  if (first === 254 && (second & 192) === 128) return false;
-  if (first === 255) return false;
-  if (first === 32 && second === 1 && b[2] === 13 && b[3] === 184) return false;
-  return true;
-}
-function isPublicAddress(address) {
-  const o = octetsOf(address);
-  if (o) return v4IsPublic(o);
-  const b = bytesOfV6(address);
-  return b ? v6IsPublic(b) : false;
-}
-var NotPublicError = class extends Error {
-  constructor(host, detail) {
-    super(`${host}: ${detail}`);
-    this.name = "NotPublicError";
-  }
-};
-function publicLookup(resolve) {
-  return (host, options, callback) => {
-    resolve(host).then(
-      (answers) => {
-        const bad = answers.find((a) => !isPublicAddress(a.address));
-        if (answers.length === 0) return callback(new NotPublicError(host, "no address"), "");
-        if (bad) return callback(new NotPublicError(host, `resolves to ${bad.address}, not a public address`), "");
-        if (typeof options === "object" && options?.all) return callback(null, answers);
-        const first = answers[0];
-        return first ? callback(null, first.address, first.family) : callback(new NotPublicError(host, "no address"), "");
-      },
-      (e) => callback(e instanceof Error ? e : new Error(String(e)), "")
-    );
-  };
-}
-var BODYLESS = /* @__PURE__ */ new Set([101, 103, 204, 205, 304]);
-function bodyText(body) {
-  if (typeof body === "string") return body;
-  if (body instanceof URLSearchParams) return body.toString();
-  throw new TypeError("publicFetch sends a string or form fields as a body");
-}
-var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
-function capped(limit) {
-  let seen = 0;
-  return new Transform({
-    transform(chunk, _encoding, done) {
-      seen += chunk.length;
-      if (seen > limit) done(new Error(`the response is over ${limit} bytes`));
-      else done(null, chunk);
-    }
-  });
-}
-function decoded(res) {
-  const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
-  const cap2 = capped(RESPONSE_MAX_BYTES);
-  const ignore = () => void 0;
-  if (coding === "gzip" || coding === "x-gzip") return pipeline(res, zlib.createGunzip(), cap2, ignore);
-  if (coding === "deflate") return pipeline(res, zlib.createInflate(), cap2, ignore);
-  if (coding === "br") return pipeline(res, zlib.createBrotliDecompress(), cap2, ignore);
-  return pipeline(res, cap2, ignore);
-}
-function publicFetch(deps = {}) {
-  const lookup = publicLookup(deps.resolve ?? resolveByLookup);
-  const request = deps.request ?? https.request;
-  const once2 = async (input, init) => {
-    const target = new URL(input instanceof Request ? input.url : String(input));
-    if (target.protocol !== "https:" && target.protocol !== "http:")
-      throw new NotPublicError(target.host, `${target.protocol} is not fetched`);
-    const literal = target.hostname.replace(/^\[|\]$/g, "");
-    if (net.isIP(literal) && !isPublicAddress(literal)) throw new NotPublicError(target.host, "not a public address");
-    const headers2 = { "accept-encoding": "gzip, deflate, br" };
-    new Headers(input instanceof Request ? input.headers : void 0).forEach((v, k) => headers2[k] = v);
-    new Headers(init?.headers).forEach((v, k) => headers2[k] = v);
-    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
-    const signal = init?.signal ?? (input instanceof Request ? input.signal : void 0);
-    return new Promise((resolveResponse, reject) => {
-      if (signal?.aborted) return reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-      const send = deps.request ?? (target.protocol === "http:" ? http.request : request);
-      const req = send(target, { method, headers: headers2, lookup }, (res) => {
-        const out = new Headers();
-        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2)
-          out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
-        const status = res.statusCode ?? 0;
-        if (out.has("content-encoding")) {
-          out.delete("content-encoding");
-          out.delete("content-length");
-        }
-        const body2 = BODYLESS.has(status) || method === "HEAD" ? null : Readable.toWeb(decoded(res));
-        if (body2 === null) res.resume();
-        resolveResponse(new Response(body2, { status, statusText: res.statusMessage ?? "", headers: out }));
-      });
-      const onAbort = () => req.destroy(signal?.reason instanceof Error ? signal.reason : new Error("aborted"));
-      signal?.addEventListener("abort", onAbort, { once: true });
-      req.on("error", (e) => {
-        signal?.removeEventListener("abort", onAbort);
-        reject(e);
-      });
-      req.on("close", () => signal?.removeEventListener("abort", onAbort));
-      const body = init?.body;
-      if (body !== void 0 && body !== null && method !== "GET" && method !== "HEAD") req.write(bodyText(body));
-      req.end();
-    });
-  };
-  return async (input, init) => {
-    const manual = init?.redirect === "manual" || input instanceof Request && input.redirect === "manual";
-    if (manual) return once2(input, init);
-    let url = input instanceof Request ? input.url : String(input);
-    let at = init;
-    for (let hop = 0; ; hop += 1) {
-      const res = await once2(url, at);
-      const next = REDIRECT_STATUSES.has(res.status) ? res.headers.get("location") : null;
-      if (!next) return res;
-      await res.body?.cancel().catch(() => void 0);
-      if (hop >= REDIRECTS_MAX) throw new NotPublicError(new URL(url).host, "too many redirects");
-      url = new URL(next, url).toString();
-      if (res.status !== 307 && res.status !== 308) at = { ...at, method: "GET", body: void 0 };
-    }
-  };
-}
-var REDIRECTS_MAX = 5;
-var REDIRECT_STATUSES = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
-var STAND_IN = /* @__PURE__ */ Symbol.for("chanlytics.publicFetch.standIn");
-var guarded = null;
-function publicFetcher() {
-  const standIn = globalThis[STAND_IN];
-  if (standIn) return standIn;
-  guarded ??= publicFetch();
-  return guarded;
-}
-function setPublicFetch(f) {
-  const holder = globalThis;
-  const before = holder[STAND_IN] ?? null;
-  holder[STAND_IN] = f;
-  return before;
-}
-
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -679,6 +288,10 @@ var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -3891,6 +3504,398 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/provider-fetch.ts
+var PROVIDER_NAMES = [
+  "meta",
+  "twilio",
+  "retell",
+  "resend",
+  "google",
+  "apify",
+  "expo",
+  "anthropic",
+  "typesafe"
+];
+var BREAKER_FAILURES = 5;
+var BREAKER_OPEN_MS = 3e4;
+var RETRY_BASE_MS = 250;
+var RETRY_WAIT_CAP_MS = 2e3;
+var BREAKER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.provider-breakers");
+var breakerHolder = globalThis;
+var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
+var breakerMap = breakers.held;
+var breakerLog = logger();
+function breakerOf(provider, now = Date.now()) {
+  const b = breakerMap.get(provider);
+  return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
+}
+function breakerStates(now = Date.now()) {
+  return PROVIDER_NAMES.map((provider) => {
+    const b = breakerMap.get(provider);
+    const open = !!b && b.openUntil > now;
+    return {
+      provider,
+      open,
+      failures: b?.failures ?? 0,
+      opened: breakers.opened.get(provider) ?? 0,
+      open_until: open ? new Date(b.openUntil).toISOString() : null
+    };
+  });
+}
+function resetBreakers() {
+  breakerMap.clear();
+  breakers.opened.clear();
+}
+var NEVER_LEFT = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function outcomeOfStatus(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 408 || status === 429) return "retryable";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+function outcomeOfThrow(e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
+  const cause = err.cause;
+  const code = typeof cause?.code === "string" ? cause.code : err.code;
+  const words2 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
+  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words2 };
+}
+function retryAfterOf(header, now = Date.now()) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
+function note(provider, a, now) {
+  if (a.error === "breaker_open") return;
+  const b = breakerMap.get(provider);
+  if (!isFault(a)) {
+    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
+    breakerMap.delete(provider);
+    return;
+  }
+  const next = b ?? { failures: 0, openUntil: 0 };
+  const wasOpen = next.openUntil > now;
+  next.failures += 1;
+  if (next.failures >= BREAKER_FAILURES) {
+    next.openUntil = now + BREAKER_OPEN_MS;
+    if (!wasOpen) {
+      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
+      breakerLog.warn("breaker_open", {
+        provider,
+        failures: next.failures,
+        status: a.status,
+        error: a.error,
+        open_ms: BREAKER_OPEN_MS
+      });
+    }
+  }
+  breakerMap.set(provider, next);
+}
+async function once(provider, url, call2, deps, tries) {
+  const now = deps.now();
+  const b = breakerMap.get(provider);
+  if (b && b.openUntil > now && call2.breaker !== "count") {
+    const held = {
+      outcome: "retryable",
+      status: 0,
+      text: "",
+      json: null,
+      body: null,
+      headers: null,
+      retryAfterMs: b.openUntil - now,
+      error: "breaker_open",
+      tries: tries - 1
+    };
+    return held;
+  }
+  const init = {
+    method: call2.method,
+    headers: call2.headers,
+    body: call2.body,
+    cache: call2.cache,
+    redirect: call2.redirect
+  };
+  let a;
+  const bound = AbortSignal.timeout(call2.timeoutMs);
+  try {
+    const r2 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
+    if (call2.stream && r2.ok && r2.body) {
+      a = {
+        outcome: "ok",
+        status: r2.status,
+        text: "",
+        json: null,
+        body: r2.body,
+        headers: r2.headers,
+        retryAfterMs: null,
+        error: null,
+        tries
+      };
+      note(provider, a, deps.now());
+      return a;
+    }
+    const text = await r2.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    a = {
+      outcome: outcomeOfStatus(r2.status),
+      status: r2.status,
+      text,
+      json,
+      body: null,
+      headers: r2.headers,
+      retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
+      error: null,
+      tries
+    };
+  } catch (e) {
+    const { outcome, error } = outcomeOfThrow(e);
+    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
+  }
+  note(provider, a, deps.now());
+  return a;
+}
+async function providerFetch(provider, url, call2, deps = {}) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+    random: deps.random ?? Math.random
+  };
+  const started = d.now();
+  const max = Math.max(1, Math.floor(call2.tries ?? 1));
+  for (let n = 1; ; n++) {
+    const a = await once(provider, url, call2, d, n);
+    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
+    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    const wait = a.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (n - 1), d.random);
+    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
+    if (wait + call2.timeoutMs > left) return a;
+    await d.sleep(wait);
+  }
+}
+function answerObject(a) {
+  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
+}
+
+// src/public-fetch.ts
+import dns from "dns";
+import http from "http";
+import https from "https";
+import net from "net";
+import { pipeline, Readable, Transform } from "stream";
+import zlib from "zlib";
+var resolveByLookup = async (host) => {
+  const all = await dns.promises.lookup(host, { all: true, verbatim: true });
+  return all.map((a) => ({ address: a.address, family: a.family }));
+};
+function octetsOf(address) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+  if (!m) return null;
+  const o = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  return o.every((n) => n <= 255) ? o : null;
+}
+function v4IsPublic(o) {
+  const [a, b, c] = o;
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  if (a >= 224) return false;
+  return true;
+}
+function bytesOfV6(address) {
+  const bare = address.replace(/^\[|\]$/g, "").split("%")[0] ?? "";
+  if (net.isIP(bare) !== 6) return null;
+  let head = bare;
+  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(bare);
+  if (tail) {
+    const o = octetsOf(tail[1] ?? "");
+    if (!o) return null;
+    head = bare.slice(0, tail.index) + (o[0] << 8 | o[1]).toString(16) + ":" + (o[2] << 8 | o[3]).toString(16);
+  }
+  const [left = "", right] = head.split("::");
+  const groups = (s) => s ? s.split(":").filter((x) => x !== "") : [];
+  const l = groups(left);
+  const r2 = right === void 0 ? [] : groups(right);
+  const zeros = right === void 0 ? 0 : 8 - l.length - r2.length;
+  if (zeros < 0 || right === void 0 && l.length !== 8) return null;
+  const all = [...l, ...Array(zeros).fill("0"), ...r2];
+  const bytes = [];
+  for (const g of all) {
+    const n = parseInt(g, 16);
+    if (!Number.isFinite(n) || n < 0 || n > 65535) return null;
+    bytes.push(n >> 8, n & 255);
+  }
+  return bytes.length === 16 ? bytes : null;
+}
+function carriedV4(b) {
+  return [b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0];
+}
+var zeroBetween = (b, from, to) => b.slice(from, to).every((x) => x === 0);
+function v6IsPublic(b) {
+  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false;
+  if (zeroBetween(b, 0, 10) && b[10] === 255 && b[11] === 255) return v4IsPublic(carriedV4(b));
+  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
+  if (b[0] === 0 && b[1] === 100 && b[2] === 255 && b[3] === 155 && zeroBetween(b, 4, 12))
+    return v4IsPublic(carriedV4(b));
+  const first = b[0] ?? 0;
+  const second = b[1] ?? 0;
+  if ((first & 254) === 252) return false;
+  if (first === 254 && (second & 192) === 128) return false;
+  if (first === 255) return false;
+  if (first === 32 && second === 1 && b[2] === 13 && b[3] === 184) return false;
+  return true;
+}
+function isPublicAddress(address) {
+  const o = octetsOf(address);
+  if (o) return v4IsPublic(o);
+  const b = bytesOfV6(address);
+  return b ? v6IsPublic(b) : false;
+}
+var NotPublicError = class extends Error {
+  constructor(host, detail) {
+    super(`${host}: ${detail}`);
+    this.name = "NotPublicError";
+  }
+};
+function publicLookup(resolve) {
+  return (host, options, callback) => {
+    resolve(host).then(
+      (answers) => {
+        const bad = answers.find((a) => !isPublicAddress(a.address));
+        if (answers.length === 0) return callback(new NotPublicError(host, "no address"), "");
+        if (bad) return callback(new NotPublicError(host, `resolves to ${bad.address}, not a public address`), "");
+        if (typeof options === "object" && options?.all) return callback(null, answers);
+        const first = answers[0];
+        return first ? callback(null, first.address, first.family) : callback(new NotPublicError(host, "no address"), "");
+      },
+      (e) => callback(e instanceof Error ? e : new Error(String(e)), "")
+    );
+  };
+}
+var BODYLESS = /* @__PURE__ */ new Set([101, 103, 204, 205, 304]);
+function bodyText(body) {
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  throw new TypeError("publicFetch sends a string or form fields as a body");
+}
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+function capped(limit) {
+  let seen = 0;
+  return new Transform({
+    transform(chunk, _encoding, done) {
+      seen += chunk.length;
+      if (seen > limit) done(new Error(`the response is over ${limit} bytes`));
+      else done(null, chunk);
+    }
+  });
+}
+function decoded(res) {
+  const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
+  const cap2 = capped(RESPONSE_MAX_BYTES);
+  const ignore = () => void 0;
+  if (coding === "gzip" || coding === "x-gzip") return pipeline(res, zlib.createGunzip(), cap2, ignore);
+  if (coding === "deflate") return pipeline(res, zlib.createInflate(), cap2, ignore);
+  if (coding === "br") return pipeline(res, zlib.createBrotliDecompress(), cap2, ignore);
+  return pipeline(res, cap2, ignore);
+}
+function publicFetch(deps = {}) {
+  const lookup = publicLookup(deps.resolve ?? resolveByLookup);
+  const request = deps.request ?? https.request;
+  const once2 = async (input, init) => {
+    const target = new URL(input instanceof Request ? input.url : String(input));
+    if (target.protocol !== "https:" && target.protocol !== "http:")
+      throw new NotPublicError(target.host, `${target.protocol} is not fetched`);
+    const literal = target.hostname.replace(/^\[|\]$/g, "");
+    if (net.isIP(literal) && !isPublicAddress(literal)) throw new NotPublicError(target.host, "not a public address");
+    const headers2 = { "accept-encoding": "gzip, deflate, br" };
+    new Headers(input instanceof Request ? input.headers : void 0).forEach((v, k) => headers2[k] = v);
+    new Headers(init?.headers).forEach((v, k) => headers2[k] = v);
+    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : void 0);
+    return new Promise((resolveResponse, reject) => {
+      if (signal?.aborted) return reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+      const send = deps.request ?? (target.protocol === "http:" ? http.request : request);
+      const req = send(target, { method, headers: headers2, lookup }, (res) => {
+        const out = new Headers();
+        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2)
+          out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
+        const status = res.statusCode ?? 0;
+        if (out.has("content-encoding")) {
+          out.delete("content-encoding");
+          out.delete("content-length");
+        }
+        const body2 = BODYLESS.has(status) || method === "HEAD" ? null : Readable.toWeb(decoded(res));
+        if (body2 === null) res.resume();
+        resolveResponse(new Response(body2, { status, statusText: res.statusMessage ?? "", headers: out }));
+      });
+      const onAbort = () => req.destroy(signal?.reason instanceof Error ? signal.reason : new Error("aborted"));
+      signal?.addEventListener("abort", onAbort, { once: true });
+      req.on("error", (e) => {
+        signal?.removeEventListener("abort", onAbort);
+        reject(e);
+      });
+      req.on("close", () => signal?.removeEventListener("abort", onAbort));
+      const body = init?.body;
+      if (body !== void 0 && body !== null && method !== "GET" && method !== "HEAD") req.write(bodyText(body));
+      req.end();
+    });
+  };
+  return async (input, init) => {
+    const manual = init?.redirect === "manual" || input instanceof Request && input.redirect === "manual";
+    if (manual) return once2(input, init);
+    let url = input instanceof Request ? input.url : String(input);
+    let at = init;
+    for (let hop = 0; ; hop += 1) {
+      const res = await once2(url, at);
+      const next = REDIRECT_STATUSES.has(res.status) ? res.headers.get("location") : null;
+      if (!next) return res;
+      await res.body?.cancel().catch(() => void 0);
+      if (hop >= REDIRECTS_MAX) throw new NotPublicError(new URL(url).host, "too many redirects");
+      url = new URL(next, url).toString();
+      if (res.status !== 307 && res.status !== 308) at = { ...at, method: "GET", body: void 0 };
+    }
+  };
+}
+var REDIRECTS_MAX = 5;
+var REDIRECT_STATUSES = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
+var STAND_IN = /* @__PURE__ */ Symbol.for("chanlytics.publicFetch.standIn");
+var guarded = null;
+function publicFetcher() {
+  const standIn = globalThis[STAND_IN];
+  if (standIn) return standIn;
+  guarded ??= publicFetch();
+  return guarded;
+}
+function setPublicFetch(f) {
+  const holder = globalThis;
+  const before = holder[STAND_IN] ?? null;
+  holder[STAND_IN] = f;
+  return before;
+}
 
 // src/models/anthropic.ts
 var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";

@@ -10,7 +10,6 @@
   "apps/edge/lib/google/profile-connection.ts": 2,
   "apps/edge/lib/google/profile-sync.ts": 1,
   "apps/edge/lib/lines/line-release.ts": 1,
-  "apps/edge/lib/playbooks.ts": 1,
   "apps/edge/lib/reach-out/clock.ts": 2,
   "apps/edge/lib/receptionist/draft-queue.ts": 1,
   "apps/edge/lib/voice/forwarding.ts": 1,

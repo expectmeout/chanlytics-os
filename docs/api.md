@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-204 handlers in 46 domains.
+205 handlers in 46 domains.
 
 ## activity
 
@@ -1098,6 +1098,12 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 | `email` | string | yes | at most 254 characters; matches `^[^@\s]+@[^@\s]+\.[^@\s]+$` |
 
 ## platform
+
+### `POST /api/v1/platform/jobs/requeue`
+
+Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/jobs/requeue/route.ts`).
 
 ### `POST /api/v1/platform/lines/refile`
 

@@ -24,6 +24,19 @@ export const HOUR_MS = 3_600_000;
 export const DAY_MS = 86_400_000;
 export const WEEK_MS = 7 * DAY_MS;
 
+/** How much longer a retry's wait may be drawn, as a share of the wait: up to a fifth. */
+const JITTER_SPREAD = 0.2;
+
+/**
+ * A retry's wait, drawn up to JITTER_SPREAD longer at random, so the callers one outage failed together ask again
+ * apart rather than all at once. Only ever longer: a wait that must outlast something (the ledger's lease) still does.
+ * Every retry wait in the tree is drawn here: the ledger's, a held send's, a broadcast's back-off, a provider call's.
+ * `random` is a test's to fix; a draw outside [0, 1] is held to it.
+ */
+export function jittered(ms: number, random: () => number = Math.random): number {
+  return Math.round(ms * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
+
 /** "Sep 6", in the runtime's own locale and zone: the date a sentence gives once a count would read oddly. */
 export const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
