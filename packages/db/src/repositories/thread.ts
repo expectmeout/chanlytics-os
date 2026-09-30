@@ -1,20 +1,23 @@
 /**
- * The receptionist's working memory, read from Postgres — the only place it
- * lives.
- *
- * It used to live in Vercel Blob with Postgres as a write-only shadow, which
- * meant every surface we built read a MIRROR of the truth and the two had to
- * be kept in step by hand. Three of our worst bugs came from that gap (an
- * operator take-over clobbered by a webhook writing a stale whole-object,
- * archived threads swallowing new messages, a reply scheduled before its
- * mirror write). The rows the dashboard reads and writes ARE the memory now:
- *   history      last turns fed to the model
- *   pausedUntil  a human is handling this thread
- *   replies      bot sends in the last 24h (rate cap)
- * Retry dedupe is not here and needs nothing here: ingest_inbound's is_new is
- * an atomic gate on a unique index, which is strictly stronger than the
- * 40-entry array the store kept, and which two concurrent lambdas could both
- * miss.
+ * A repository, in this codebase's sense, is the one place a table's rows are read and written as typed facts, so a
+ * caller asks for the fact and does not spell the table; the database client comes in as an argument (the edge's
+ * service role, or a member's session client) and is never made here. This one only reads: what the agents and the
+ * dashboard know about a conversation, from Postgres, the only place the receptionist's memory lives (messages,
+ * contacts, conversations, deals and person_notes, and the search_messages function). Its groups:
+ *   - A thread's state (readThreadState, assembleHistory, HISTORY_COLUMNS): the turns the model is shown, the pause a
+ *     human set (handed in by the caller), the receptionist's own sends in the last day (its rate cap), and whether
+ *     anything ever left (repliedBefore, which decides the A2P footer). assembleHistory alone decides what counts as a
+ *     turn, so the WhatsApp receptionist and the voice agent cannot disagree about what was said. Called by the edge's
+ *     WhatsApp persistence, steer door and reach-out reply draft.
+ *   - A lead's context (readLeadContext, readDealForPhone, describeLead, notesForReceptionist): one person by phone
+ *     number across channels, and the plain lines a model is told about them. Called by the edge's WhatsApp ports,
+ *     voice call start and steer door; the availability door asks readDealForPhone.
+ *   - Finding words (searchMessages, messageSenders): Ask's message search, called by the dashboard's message reader.
+ * Every read names the tenant, so a service-role caller cannot cross workspaces and a session client is narrowed by
+ * RLS as well. A failed read throws, because a thread the database could not produce is unknown and never empty (a
+ * blank thread reads as no pause, nothing said and no replies spent: core's inbound/thread.ts); only a lead's deal and
+ * notes are best effort, so a context lookup never costs the reply. readLeadContext is read-only: it never makes a
+ * contact or a conversation. Retry dedupe is not here: ingest_inbound's is_new is an atomic gate on a unique index.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {

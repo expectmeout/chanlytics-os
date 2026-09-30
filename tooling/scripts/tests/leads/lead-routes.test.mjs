@@ -748,7 +748,14 @@ test("release B's ten declare their policy: working a lead is the operator's, er
     rate: "lead_draft",
     spend: false,
   });
-  assert.deepEqual(erase.DELETE.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
+  assert.deepEqual(erase.DELETE.policy, {
+    kind: "write",
+    fresh: true,
+    scope: "row",
+    role: "owner",
+    rate: "erase",
+    spend: false,
+  });
   assert.deepEqual(bulk.POST.policy, {
     kind: "write",
     scope: "workspace",
@@ -765,6 +772,7 @@ test("release B's ten declare their policy: working a lead is the operator's, er
   });
   assert.deepEqual(exportRoute.GET.policy, {
     kind: "read",
+    fresh: true,
     scope: "workspace",
     role: "owner",
     rate: "export",

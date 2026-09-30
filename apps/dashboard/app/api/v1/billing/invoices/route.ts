@@ -7,8 +7,8 @@ export const GET = read({
   scope: workspace,
   role: "owner",
   rate: "billing_read",
-  handle: async ({ member }) => {
-    const a = await edgeBilling({ op: "invoices", tenant_id: member.tenantId }, 20_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeBilling({ op: "invoices", tenant_id: member.tenantId, user_id: ctx.userId }, 20_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true || !Array.isArray(b.invoices)) {
       const reason = typeof b.error === "string" ? b.error : "failed";

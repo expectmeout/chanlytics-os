@@ -21,7 +21,10 @@
  * boundaries — which is why every call site names a tiebreak column. One
  * pager for the edge and the dashboard: the edge wraps it with its own logger
  * (apps/edge/lib/paged.ts).
+ *
+ * Workspace scope: no statement of its own; the caller's page() carries the client and the tenant filter, this only pages it.
  */
+import { dbLog } from "./observe";
 
 /** `api.max_rows` in supabase/config.toml. A page is a whole one or the last one. */
 export const MAX_ROWS = 1000;
@@ -47,8 +50,7 @@ export async function readAllRows<T>(
   what: string,
   page: (from: number, to: number) => PromiseLike<Page<T>>,
   cap = DEFAULT_ROW_CAP,
-  onCapped: (what: string, cap: number) => void = (w, c) =>
-    console.error("paged_read_capped", JSON.stringify({ what: w, cap: c })),
+  onCapped: (what: string, cap: number) => void = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c }),
 ): Promise<T[]> {
   const out: T[] = [];
   while (out.length < cap) {
@@ -80,8 +82,7 @@ export async function readAllRowsByKey<T>(
   key: (row: T) => string,
   page: (after: string | null, size: number) => PromiseLike<Page<T>>,
   cap = DEFAULT_ROW_CAP,
-  onCapped: (what: string, cap: number) => void = (w, c) =>
-    console.error("paged_read_capped", JSON.stringify({ what: w, cap: c })),
+  onCapped: (what: string, cap: number) => void = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c }),
 ): Promise<T[]> {
   const out: T[] = [];
   let after: string | null = null;

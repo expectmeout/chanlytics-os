@@ -55,7 +55,7 @@ export const POST = write({
       ownerEmail: input.email,
     });
     if (!r.ok) throw handoverRefusal(r);
-    const sent = await sendHandoverInvite(r.value.id, input.email);
+    const sent = await sendHandoverInvite(r.value.id, input.email, ctx.userId);
     return { workspace: r.value, sent };
   },
 });

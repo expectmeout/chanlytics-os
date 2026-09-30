@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { markLeads, planMarks, writeMarks } from "../../ops/lead-marks-backfill.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { notAnImage, png } from "../_mark-images.mjs";
+import { notAnImage, png } from "./_mark-images.mjs";
 
 const T1 = "11111111-1111-4111-8111-111111111111";
 const lead = (id, over = {}) => ({

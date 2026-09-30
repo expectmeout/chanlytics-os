@@ -224,7 +224,9 @@ test("the words a person will read, and the values Meta will accept", () => {
   assert.equal(cleanParam(""), null);
   assert.equal(cleanParam("x".repeat(1025)), null);
   assert.equal(cleanParam(42), null);
-  assert.ok(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00")).startsWith("Spring offer · Sep 5"));
+  // The instant carries New York's offset: written with none, it was 3 PM wherever the suite ran, the 4th in New York
+  // from Auckland.
+  assert.equal(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00-04:00")), "Spring offer · Sep 5");
 });
 
 test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {
@@ -268,10 +270,11 @@ test("the view model: delivered and read over sent, open while scheduled or send
     ZONE,
   );
   assert.equal(fresh.deliveredPct, null, "nothing to divide by yet");
-  const now = new Date("2026-09-05T09:00:00");
-  assert.ok(whenLabel("2026-09-05T15:30:00", ZONE, now).startsWith("today "));
-  assert.ok(whenLabel("2026-09-06T15:30:00", ZONE, now).startsWith("tomorrow "));
-  assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", ZONE, now)));
+  // 9 AM in New York, and a send at 3:30 PM there: each instant with its offset, as the database hands one over.
+  const now = new Date("2026-09-05T09:00:00-04:00");
+  assert.equal(whenLabel("2026-09-05T15:30:00-04:00", ZONE, now), "today 3:30 PM");
+  assert.equal(whenLabel("2026-09-06T15:30:00-04:00", ZONE, now), "tomorrow 3:30 PM");
+  assert.equal(whenLabel("2026-09-12T15:30:00-04:00", ZONE, now), "Sep 12 · 3:30 PM");
 });
 
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
@@ -285,12 +288,6 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(
     h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'),
     "the person's row still carries what the run needs",
-  );
-  assert.ok(
-    h.includes(
-      'await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id, ...(waits ? { waits } : {}) });',
-    ),
-    "the next batch is one more row, as this tenant, now unless the batch stalled or WhatsApp said not now",
   );
   assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally)'));
   // Not one port answers from a read whose error it dropped. Every one of them
@@ -456,8 +453,8 @@ test('the job carries WhatsApp\'s "not now" through: the person back in the queu
   assert.deepEqual(later[0].payload, { broadcast_id: "b1", waits: 3 }, "the count rides to the next batch");
   const wait = later[0].dueAt.getTime() - before;
   assert.ok(
-    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] + 5_000,
-    `the third wait, ${wait} ms`,
+    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] * 1.2 + 5_000,
+    `the third wait, drawn up to a fifth longer, ${wait} ms`,
   );
 });
 
@@ -487,10 +484,62 @@ test("a wire that could not be bound claims nobody: the run stays as it was, its
   assert.deepEqual(sent, [], "nobody is told WhatsApp could not be reached, or to reconnect a number that may work");
   assert.deepEqual(
     later.map(([kind, , payload]) => [kind, payload]),
-    [["broadcast_send", { broadcast_id: "b1" }]],
-    "the batch is tried again",
+    [["broadcast_send", { broadcast_id: "b1", stalls: 1 }]],
+    "the batch is tried again, the stall counted in the job",
   );
   assert.ok(later[0][1].getTime() >= before + BROADCAST_STALL_RETRY_MS, "a while later, not this second");
+});
+
+test("the job reads the stalls it carried, so a run that keeps stalling stops at the cap instead of waiting for ever, and the owner is told", async () => {
+  const { BROADCAST_STALLS_MAX } = await importSrc("packages/core/src/messages/broadcast.ts");
+  const w = world();
+  const sent = [];
+  const later = [];
+  const stalled = (carried) =>
+    dispatchJob(
+      {
+        db: fakeDb(w),
+        wire: { whatsapp: wireUnavailable("vault unavailable") },
+        alert: async (news) => sent.push(news),
+        schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+        deadline: Date.now() + 60_000,
+      },
+      { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1", ...carried } },
+    );
+
+  // One short of the cap: waits once more, the count one higher in the next job.
+  await stalled({ stalls: BROADCAST_STALLS_MAX - 1 });
+  assert.deepEqual(
+    later.map(([kind, , payload]) => [kind, payload]),
+    [["broadcast_send", { broadcast_id: "b1", stalls: BROADCAST_STALLS_MAX }]],
+  );
+  assert.deepEqual(sent, [], "nobody is told yet");
+
+  // At the cap: no next job, the run is failed as stalled, and its owner is told how it ended.
+  later.length = 0;
+  await stalled({ stalls: BROADCAST_STALLS_MAX });
+  assert.deepEqual(later, [], "nothing more is scheduled");
+  assert.equal(w.broadcasts[0].state, "failed");
+  assert.equal(w.broadcasts[0].failure, "stalled");
+  assert.deepEqual(
+    sent.map((n) => [n.kind, n.subject]),
+    [["broadcast_stopped", "Broadcast “Spring offer” stopped"]],
+  );
+
+  // Anything but a count in the payload is none: a run that was handed junk starts its count again, never throws.
+  later.length = 0;
+  const fresh = world();
+  await dispatchJob(
+    {
+      db: fakeDb(fresh),
+      wire: { whatsapp: wireUnavailable("vault unavailable") },
+      alert: async () => {},
+      schedule: async (kind, dueAt, payload) => later.push([kind, dueAt, payload]),
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j2", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1", stalls: "many", waits: -3 } },
+  );
+  assert.deepEqual(later[0][2], { broadcast_id: "b1", stalls: 1 });
 });
 
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {

@@ -111,7 +111,7 @@ test("the edge's receptionist keeps its brain over a field it has never heard of
   assert.equal(rt.brain?.business_name, "Test Salon", "the receptionist lost its brain over an unknown field");
   const said = lines.map((l) => JSON.parse(l)).find((l) => l.event === "tenant_config_keys_ignored");
   assert.ok(said, `no tenant_config_keys_ignored line: ${lines.join(" | ")}`);
-  assert.equal(said.tenant, tenantId);
+  assert.equal(said.tenant_id, tenantId);
   assert.deepEqual(said.keys, ["brain.greeting_style"]);
 });
 

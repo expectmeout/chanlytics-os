@@ -8,7 +8,7 @@
  * exactly where it mirrors it, as a subset where it is narrower on purpose. When
  * a migration changes a set and the file is regenerated, a stale copy stops
  * compiling on the line below that names it. packages/channels holds its own two
- * copies the same way, in channels/src/schema-agreement.ts.
+ * copies the same way, in channels/src/lines/lines.type-test.ts.
  *
  * This replaced a test that read the migrations as text and had to guess which
  * CHECK was the latest -- it guessed wrong twice, and it could see 20 of the 53

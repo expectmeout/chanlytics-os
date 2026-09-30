@@ -19,6 +19,7 @@ import { log } from "@/server/log";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   query: PeopleExportQuerySchema,
@@ -45,7 +46,7 @@ export const GET = read({
     }
     log.info("export.people", {
       user: ctx.userId,
-      tenant: member.tenantId,
+      tenant_id: member.tenantId,
       rows: people.length,
       ...(list ? { list: list.token } : {}),
     });

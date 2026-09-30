@@ -44,7 +44,7 @@ corepack pnpm --filter @chanlytics/dashboard dev
 ```
 
 `.claude/launch.json` starts the same command on port 3100. An unset
-`VERCEL_ENV` is a laptop, never production (`src/server/deployment.ts`): every
+`VERCEL_ENV` is a laptop, never production (`src/server/env.ts`): every
 call that would reach a provider through the edge answers "not here" unless
 `EDGE_PROVIDERS=live` and `EDGE_URL` point at an edge holding sandbox keys.
 
@@ -193,6 +193,41 @@ A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
 skipping. The nightly sets it; the pull-request jobs do not.
 
+**One clock.** `pnpm test` and `pnpm test:db` run through `tooling/scripts/checks/test.mjs`, which sets the zone
+before Node starts: UTC, whatever the machine's, or `TEST_TZ`'s. `TEST_TZ=Pacific/Auckland corepack pnpm test`
+(PowerShell: `$env:TEST_TZ='Pacific/Auckland'; corepack pnpm test`) is CI's second leg, "Node suite,
+Pacific/Auckland": the whole suite twelve hours east, where a rule that reads the viewer's zone, or a test that builds a
+date with no zone, gives the wrong day. A test that reads the wall clock pins it (`t.mock.timers.enable({ apis:
+["Date"], now })`), and one that builds an instant gives it its offset.
+
+**What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
+per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the
+dashboard's routes (`apps/dashboard/app/api`), in `tooling/scripts/tests/baselines/coverage.json`. Under a floor is a
+red run; a floor is raised by `UPDATE_BASELINES=1 corepack pnpm test` (two points under the measure, so another platform's
+V8 does not fail it) and lowered only by `COVERAGE_FLOORS=lower corepack pnpm test`, argued under "Rises" in `docs/debt.md` (`UPDATE_BASELINES=raise` is for the other ratchets, and neither lowers nor hides a floor). A run of
+some files, a flag, the database suites and the Auckland leg are not held to the floors (`TEST_COVERAGE=1` prints the table for some files); `TEST_COVERAGE=0` skips the measure
+for a full run that wants the speed. A package's code runs from its committed `dist`, so its lines are read back to the
+module that wrote them (`tooling/scripts/checks/coverage.mjs`).
+
+**The database in memory refuses what the real one refuses.** `tooling/scripts/tests/_fake-db.mjs` reads the schema
+the migrations generate (`packages/db/src/database.types.ts`, `packages/contracts/src/schema-sets.generated.ts`
+and `tooling/scripts/tests/_unique-keys.generated.json`, through `_schema.mjs`) and answers a table, column, function
+or embed the database lacks (`PGRST205`, `42703`, `PGRST204`, `PGRST202`, `PGRST200`), a NOT NULL left empty
+(`23502`), a value outside a CHECK's set (`23514`), a second row on a unique key (`23505`; a key is judged when the
+write moves a column it reads, as Postgres does), an upsert whose conflict target no key matches (`42P10`), a request
+line past the gateway's 8 KiB (about 208 uuids in one `.in()`), and reads at most 1,000 rows. It knows no trigger and
+no foreign key: a state machine's writers are run through the real guard by one `*.db.test.mjs` each (a broadcast
+through both guards, an escalation, a job's claim to its end, a message from queued to read, a line's voice, the lead
+money lock). `database/fake-db/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
+fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
+per table for the ten the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
+breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
+keys from the stack, and `database/generated/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
+processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
+switch list, the jobs ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a suite writing or
+counting them takes for its whole file. `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace
+and passes once per database: reset the stack (`supabase db reset`) before running it again.
+
 ### A signed-in spec, on this machine
 
 A signed-in spec needs a session, and no developer machine holds a service-role
@@ -244,7 +279,11 @@ the config's own 45s. Green here is not a green nightly.
 walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
-`e2e-harness/server.mjs`.
+`e2e-harness/server.mjs`. The harness signs in as the workspace's owner, and the
+role store the mockup makes (`window.ST_STORE`, in `settings.jsx`) is completed
+by the shell's own `installRoles` (`legacy-bridge/identity.ts`) the moment it is
+assigned, so `myRole()`, `mayAtLeast()` and View-as answer as they do in the app
+and an owner-only item (a person's "Delete person") is offered.
 
 One flake to know about, in the product and not in the harness: the week's copy
 menu is an `escape` `MoreMenu`, which closes on any captured scroll event
@@ -284,6 +323,33 @@ a kit class added without its entry is red there. Against production the spec sk
 does not count it.
 
 A kit step adds its entries in the pull request that adds the rules, and shows the spec's run in it.
+
+The kit's components with behaviour of their own, on Base UI (the Sheet, the Menu, the Popover, the Select, the
+Combobox, the Tooltip, the toast, the Switch, the Segmented control and the Field), run on a page of their own on the
+same harness, at `/behaves` (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`, bundled with the dashboard's React
+and the pinned Base UI as the harness starts):
+
+```bash
+corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts --scenario=kit   # how they behave, and what they draw
+node tooling/scripts/e2e-harness/server.mjs 3210 kit        # http://localhost:3210/behaves
+```
+
+Its spec drives each with a keyboard and a pointer, at a desk and on a phone, in both themes and both looks: Escape
+closes the sheet, a menu and the popover and gives focus back to what opened them; Tab stays in the sheet and the page
+behind it holds still; a menu's arrows walk it and typing finds an item; a switch answers Space and the segmented
+control the arrows; the combobox narrows and chooses by the keys; the tooltip shows on hover and on focus and hides on
+Escape; a toast arrives in a region a screen reader hears and goes on its ×; a field's problem reaches its box's
+`aria-describedby` and `aria-invalid`. A menu's items are chosen by Enter and by a press, an item that opens a page is a
+link, one of a set is chosen and marked, and a press outside closes it; the popover stays for a press inside and closes
+for one outside; the select is walked and chosen from; the sheet closes for its Close and its wash; and the sheet, an
+option with a sentence and a select in its field are named and described as the browser resolves it. In Glass it checks
+that no popup is held under a blurred pane or bar. And it
+holds what each draws, state by state, to its family "on Base UI" in the gallery, so the gallery the first spec reads
+draws what the components draw; `tooling/scripts/tests/styles/kit-behaves.test.mjs` holds what a server can draw of
+them in `corepack pnpm test`. It waits by condition, never for a fixed time, and each check is shown to fail on a fault planted in the page (one for a
+check, not for every line of it). No CI job runs this spec, so a change to a Base UI component shows its run in the pull
+request, as does a bump of Base UI's pinned version; the dashboard's `tsc` compiles the harness page, so a props change
+that an entry no longer meets fails `corepack pnpm -r typecheck`.
 
 ### Prove a style change
 
@@ -397,7 +463,7 @@ its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` a
 | `ci.yml`, Secret scan                      | every pull request and push to main                                                               | No secret in what the pull request adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `ci.yml`, Typecheck                        | same, and a merge queue's commit                                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); no production dependency with a high or critical advisory (`pnpm audit --prod`) or under a licence we may not ship (`tooling/scripts/checks/licences.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; dead exports (knip); the formatting check; the node suite; the dashboard builds the way Vercel builds it; the workspace route's bundle budget    |
 | `ci.yml`, Mobile                           | every pull request, push to main and merge queue's commit                                         | The phone app's types, lint, Expo's doctor (the SDK's patch drift warns) and a Metro bundle for each platform                                                                                                                                                                                                                                                                                                                                                                                               |
-| `ci.yml`, Node suite, Pacific/Auckland     | every pull request and push to main                                                               | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; red until the tests lane and the defects lane land their fixes, so its failure does not fail the run (`continue-on-error`)                                                                                                                                                                                                                            |
+| `ci.yml`, Node suite, Pacific/Auckland     | every pull request and push to main                                                               | The node suite with the clock at UTC+12 or +13, where a rule that reads the viewer's zone gives the wrong day. Not required, and not a merge queue's; green since the tests lane (29 tests failed under it on 29 Sep 2026), so a failure fails the run                                                                                                                                                                                                                                                      |
 | `ci.yml`, What landed keeps the title rule | every push to main                                                                                | Each commit the push landed: its subject keeps the title rule and carries its `(#N)`, and it is not a merge commit. A break opens an issue, since what landed cannot be undone                                                                                                                                                                                                                                                                                                                              |
 | `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's: every entry main recorded, unchanged |
 | `nightly-e2e.yml`                          | 09:00 UTC; by hand, the credential-free specs alone (against an address that needs no bypass too) | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace; Ask's day against its lines. One rolling issue each, closed by the first green run; the second red run in a row pages                                                                                                                                                                                                                                                                  |
@@ -468,7 +534,12 @@ lists them; deleting one is Ruben's call.
    dashboard's `https://app.chanlytics.com/api/version`); `GET /api/health` on
    the edge answers 200 when the platform's clocks are healthy and due work is
    draining; `GET /api/diag` (keyed) says what the deployment holds, its
-   `migrations.head` production's newest applied migration.
+   `migrations.head` production's newest applied migration. The first two are one command,
+   `node tooling/scripts/checks/smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha <the merge's commit>`
+   (exit 0 when both answer as they should, 1 when one does not; a protected preview takes
+   `VERCEL_AUTOMATION_BYPASS_SECRET`, and `--allow-unhealthy` takes a 503 from a preview with no database), and
+   `node tooling/scripts/ops/golden-edge.mjs --no-secret` probes the edge's public pages and each door refusing a
+   stranger, with `BASE_URL` or a preview's `VERCEL_URL`, holding no secret.
 5. A merge that carried a migration: compare production's ledger with main's,
    "Apply a migration" step 6. Nothing may be missing.
 
@@ -491,6 +562,12 @@ for `sig: true` on each of the three voice doors. The verifier tries one key,
 `RETELL_WEBHOOK_KEY` (`RETELL_API_KEY` when it is unset): `sig: false` on the
 fn and availability doors while the webhook shows `true` can mean the wrong
 key, not an unsigned delivery.
+
+Each switch that keeps a weaker mode open has a row in contracts' registry (`packages/contracts/src/ai/flags.ts`) with
+its day, the log line that proves it can close, and what closes it. `GET /api/diag` answers `securitySwitches`, one
+entry per switch the edge holds: whether its weaker mode is open on the deployment you asked, its day, and the days left.
+Start the 3 October read there. `RETELL_DOORS_SIGNED` closes the voice secret on any value but an explicit off (`0`,
+`false`, `off`, `no`); the edge never sets it, and the build fails a month after a switch's day.
 
 ## Turn on cold email
 
@@ -842,6 +919,93 @@ bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap 
 3. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## Read the logs
+
+### What a log line holds
+
+Every line the platform writes is one JSON object on stdout, from one logger (`packages/channels/src/log/`; the edge's
+`apps/edge/lib/log.ts` and the dashboard's `apps/dashboard/src/server/log.ts` re-export it, and core, jobs, db and
+channels write through it). A line holds, in this order:
+
+| Key          | What                                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `level`      | `info`, `warn` or `error`. Nothing else is written to stdout: `no-console` holds every tree.                                                                                       |
+| `event`      | The name, a closed set (`LOG_EVENTS`, `DASHBOARD_LOG_EVENTS`; `repo/log-events.test.mjs`). It never changes once shipped: alerting greps for it.                                   |
+| `request_id` | The request the line belongs to: the answer's `x-request-id`, a job's originating request (or its own row for a clock's), a delivery's platform id. Absent only outside a request. |
+| `tenant_id`  | The workspace, once the request has said which; the one spelling of it on any line.                                                                                                |
+| the fields   | The line's own, named, never positional. An `Error` is `"Name: message"`, and on an `error` line its first frames ride beside it as `<key>_stack`.                                 |
+
+A line has no clock of its own: the platform stamps it as it arrives, and so does any drain.
+
+What a line may not say is taken out where it is written, so no caller can forget (`edge/log-line.test.mjs` plants each):
+
+- **A number or an address**, by the key it is under (`to`, `from`, `phone`, `email`, `*_phone`, `*_email`): four digits, or
+  the domain. **What a person wrote** (`body`, `text`, `*_body`, `*_text`): its length.
+- **A credential**, by name (`token`, `secret`, `password`, `authorization`, `api_key`, `cookie`, `signature`, and any key
+  ending in one: a model's key included): nothing.
+- **What looks like either, in any string** (a provider's error text, an exception's message, a URL with `?key=`): an
+  address keeps its domain, an international number four digits, and a bearer token, a model or provider key, a JWT
+  and a `name=value` credential are replaced.
+
+To follow one thing from the click to the provider: take the `x-request-id` the dashboard answered with (the browser's
+network tab, or the `request_id` on any line of the route), and search it in both projects' logs. The dashboard's
+calls to the edge carry it, so the admin door's lines carry the same one; a job the request scheduled runs under it a
+minute or a day later; and the ledger's rows say it (`select * from events where request_id = '...'`).
+
+Other lines to know:
+
+- `client_error`: a page broke in someone's browser (`POST /api/v1/client-errors`, once per error per page load, twenty
+  an hour per person): which boundary caught it, the page, the error and its first frames, the workspace when they
+  hold one. Search it by `page`. It is a warning, not an error: a customer's browser is not the platform's failure,
+  and a drain's alert on `level = error` stays about the platform.
+- `breaker_open` and `breaker_closed`: a provider's breaker held its calls after five faults in a row, and let them
+  through again; `GET /api/diag` (`breakers`) says each provider's state in the instance that answered, with how many
+  times it has opened.
+- `emit_event_failed`, `paged_read_capped`: the database package's, now in the same shape.
+
+### Where the logs go
+
+Vercel keeps each invocation's stdout for its plan's retention, which is short: nothing here ships a line anywhere else,
+and nothing alerts on one. Two things are Ruben's to switch on, neither is code, and the day either is on, this section
+says so:
+
+1. **A log drain** on both Vercel projects (Settings, Log Drains) to a store that keeps thirty days and can be searched by
+   `request_id` and `event` (Axiom, Datadog, Better Stack). Then an alert on `level = error` by `event`, and on
+   `breaker_open`, so an outage that was silent is a message.
+2. **An external pinger** on `GET /api/health` (it answers 200 or 503), with SMS or push to a person: the health door is
+   the one door with no key so that a monitor outside the failure domain can page.
+
+The day's numbers are in the back office ("Each workspace's day", `platform_metrics`, counted at 00:17 UTC for the day
+before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
+played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
+
+## Read the jobs ledger
+
+Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's
+intake, the lead finder, a phone told. pg_cron asks every ten seconds whether one is due and calls `api/jobs/tick`,
+which runs up to three at once (`CLAIM_SLOTS`; `1` is the old one at a time). The claim takes a reply first, then someone
+waiting who is not a customer, then bulk, each workspace taking its turn at bulk (decision 0018).
+
+- **Is a reply waiting?** Each `jobs_tick` line in the edge's logs carries `late_ms_<kind>`, the worst first-claim wait of
+  each kind in that heartbeat, and `reply_late_ms`, the reply lane's. A reply claimed more than a minute late pages the
+  platform (`jobs_replies_late`, once per window). If it pages, the ledger's heartbeat was slow to start or every runner
+  was busy with replies: read `sweep_health()` for the `jobs` clock, then the `jobs_tick` lines.
+- **A job failed.** The workspace's owner was told, and the row is `failed`, final, kept 90 days. The page for many at once
+  says the query to list them. When the cause is fixed (a provider's outage over, a key replaced), run one again from a
+  platform admin's session: `POST /api/v1/platform/jobs/requeue` with `{ "tenant_id": "<workspace>", "job_id": "<job>" }`.
+  It makes a fresh row of the same kind and payload, due now, and writes who asked first (`platform.acted`, in the
+  workspace's activity). It refuses work that speaks to a person (`outbound_send`, `broadcast_send`: it may have reached
+  them; send it again from the thread or the broadcast), a job that has not failed, a kind this deploy does not know,
+  and work the ledger already holds again.
+- **A kind the runner does not know** is kept, not failed: a newer deploy wrote it. It is looked at again every five minutes
+  and fails as never run after a day, which is longer than any deploy takes.
+- **A broadcast that says it stopped.** "WhatsApp could not be reached" is a connection that never opened: nobody was
+  written to, the run waited through its waits and stopped. "Its people or its number's credentials could not be read" is
+  thirty minutes of failed reads. "The day's sending hours ran out" is a run that waited past the evening. Each says how
+  many got it, and sending it again reaches the whole list.
+- **A statement that hangs.** The service role's statements end at 30 seconds (00283) and the client gives up on a request
+  at 40, so a hung statement no longer holds a function until it is killed.
+
 ## Apply a migration
 
 The practice every lane follows, since migrations began to reach production from branches before they merged
@@ -867,7 +1031,11 @@ differently on the next fresh database than it ran in production.
 
 2. **Replay it locally**: `supabase db reset` (a worktree uses a stack of its own, `project_id` and ports moved, so it
    touches no one else's). Then regenerate what the schema drives, `corepack pnpm gen:schema-sets` and
-   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files.
+   `corepack pnpm gen:db-types`, rebuild `dist` if a package changed, and commit the generated files. With the stack
+   still up, `corepack pnpm gen:schema-snapshot` writes `supabase/schema.sql` (the schema it built); then
+   `corepack pnpm gen:data-model` writes `docs/data-model.md` from that file, with no stack. Commit both: a plain run fails a stale
+   data model or a stale function body in the snapshot, and the Database workflow's replay fails any other drift of the
+   snapshot.
 3. **Let CI replay it** from zero and run the database suites against it.
 4. **Apply it to production** just before the merge, from the pull request's branch with `origin/main` merged into
    it, so the checkout holds every migration main has:
@@ -949,4 +1117,7 @@ of the message id on every line.
 Every writing script in `tooling/scripts/ops` is a dry run by default, writes a
 JSONL backup first, is idempotent, and takes `--apply` to mean it. Read the
 header of the script before running it; each says what it needs and what it
-refuses.
+refuses. Their statements go through PostgREST as the service role, which ends
+a statement at 30 seconds (00283): a script that must run one longer, a
+workspace's whole history deleted at once, says so in its header and is run from
+psql after `set statement_timeout = 0`.

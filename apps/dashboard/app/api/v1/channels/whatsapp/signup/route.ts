@@ -11,8 +11,8 @@ import { ROLE_PERMS } from "@chanlytics/contracts";
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ member }) => {
-    const cfg = await whatsappSignupConfig();
+  handle: async ({ ctx, member }) => {
+    const cfg = await whatsappSignupConfig({ workspace: member.tenantId, user: ctx.userId });
     return { ...cfg, canConnect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready };
   },
 });

@@ -26,6 +26,10 @@
  * Everything else the generator emits for one schema is byte-stable, so
  * everything else has to match.
  *
+ * The same stack also writes tooling/scripts/tests/_unique-keys.generated.json (unique-keys.mjs) when this writes the
+ * types: every unique index and primary key, which the tests' in-memory database (_fake-db.mjs) refuses a duplicate
+ * on. database/generated/unique-keys.db.test.mjs, in the replay's database suites, holds that file to the migrations.
+ *
  * Exit codes: 0 current, 1 stale, 2 the CLI could not be run or did not
  * produce types -- a check that cannot run must not pass. SUPABASE_CLI names
  * the binary when `supabase` is not on PATH.
@@ -34,6 +38,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { OUT as KEYS_OUT, readIndexes, render as renderKeys } from "./unique-keys.mjs";
 
 export const OUT = "packages/db/src/database.types.ts";
 export const FIX = "supabase start && corepack pnpm gen:db-types";
@@ -182,6 +187,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!check) {
     fs.writeFileSync(out, generated);
     console.log(`wrote ${OUT} (${lines} lines)`);
+    const read = readIndexes(ROOT);
+    fs.writeFileSync(path.join(ROOT, KEYS_OUT), renderKeys(read.rows, read.defaults));
+    console.log(`wrote ${KEYS_OUT}`);
     process.exit(0);
   }
 

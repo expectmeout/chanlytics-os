@@ -4,9 +4,11 @@
  * the vault, the receptionist, Retell's import, the routing row. The saga
  * itself is pure and tested with the dry provider; this file is the only
  * place a real SID, token or key is handled.
+ *
+ * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import { tenantDb, type Database, type Json } from "../packages/db.js";
 import {
   chooseLineProvider,
   twilioProvider,
@@ -14,7 +16,6 @@ import {
   importPhoneNumber,
   voiceEndpoints,
   smsInboundUrl,
-  DEFAULT_FN_URL,
   withKey,
   type LinePorts,
   type LineRow,
@@ -27,24 +28,12 @@ import {
 import { ensureVoiceAgent } from "../voice/voice-agent.js";
 import type { LineDto } from "../packages/contracts.js";
 import { env } from "../env.js";
+import { edgeFnUrl } from "../dashboard-origin.js";
 
 export interface LineProviderChoice {
   name: LineProviderName;
   provider: LineProvider;
   master: ProviderAccount;
-}
-
-/**
- * Where this deployment answers, as the provider must be told to reach it.
- *
- * The default is the address the edge has always had; `EDGE_ORIGIN` moves
- * it, the way DASHBOARD_ORIGIN moves the dashboard's. Without this the
- * production URL is a constant inside a shared package, which is exactly
- * the thing that has to be edited and redeployed to move an environment.
- */
-export function edgeFnUrl(): string {
-  const o = env.EDGE_ORIGIN;
-  return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? `${o}/api/retell-fn` : DEFAULT_FN_URL;
 }
 
 /** Real credentials win; the dry provider only outside production; otherwise none. */
@@ -141,7 +130,7 @@ export function linePorts(
       async save(patch) {
         const row: Partial<Row> = {};
         for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
-        const { error } = await db.from("lines").update(row).eq("id", line.id);
+        const { error } = await tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id);
         if (error) throw new Error(`saving the line: ${error.message}`);
       },
       async getSecrets() {

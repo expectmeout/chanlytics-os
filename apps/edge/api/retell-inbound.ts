@@ -1,28 +1,42 @@
 /**
- * Retell inbound-call webhook — fires when a call arrives on the number, and
- * answers with what the receptionist is told before it speaks: whose facts,
- * whose memory, the greeting, the line a transfer dials.
- * Auth: Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL while this door still reads one; what each knock
- * carried is logged (lib/voice/voice-door-auth.ts says which doors read the secret, and why).
+ * Retell inbound-call webhook — fires when a call arrives on the number, and answers with what the receptionist is
+ * told before it speaks: whose facts, whose memory, the greeting, the line a transfer dials (the shell's dynamic
+ * variables business_facts, caller_context, greeting and, when the workspace has a line to dial, handoff_number).
+ * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL until Ruben sets
+ * RETELL_DOORS_SIGNED=1; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that
+ * came in carried is logged (voice_door_auth; lib/voice/voice-door-auth.ts says which doors read the secret, what is
+ * built and what waits).
  *
- * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the
- * tenant right is not bookkeeping — it decides whose words come out of the
- * agent's mouth. It resolves the tenant from the agent the call arrived on,
- * the same routing every other voice endpoint uses, and when it cannot it
- * returns NO context rather than guessing. A caller treated as new is a small
- * loss; a caller read someone else's conversation is not recoverable.
+ * FINISHED as a door. It routes on the agent the call arrived on, hands the agent the business's facts and the
+ * caller's memory, takes the caller's thread for the length of the call (00132) and proves a test of "keep my number"
+ * from the diversion headers. What is not done is not in this file: the shared secret on the URL is still accepted here,
+ * and closing it is Ruben's switch, decided by reading `voice_door_auth` on production from 3 October 2026.
  *
- * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What the agent is handed is
- * decided by planCallStart (lib/call-start.ts), which runs over a database in
- * memory in a test; what is left here is the key, the body, the log, the
- * alert's own suppression, and the shape Retell wants back. The same split
- * the texting door, the health route and the OAuth callback use.
+ * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the tenant right is not bookkeeping — it
+ * decides whose words come out of the agent's mouth. It resolves the tenant from the agent the call arrived on, the
+ * same routing every other voice endpoint uses, and when it cannot it returns NO context rather than guessing. A caller
+ * treated as new is a small loss; a caller read someone else's conversation is not recoverable.
  *
- * ALWAYS 200. Retell gives this webhook ten seconds and three tries, then
- * connects the call to the agent anyway with the shell's own defaults — so a
- * refusal here costs the caller the business's facts, never the call. The
- * judgement never refuses: every way it can fall short is a fallback variable
- * and a line in the log.
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What the agent is handed is decided by planCallStart
+ * (lib/voice/call-start.ts), which runs over a database in memory in a test; what is left here is the key, the body,
+ * the log, the alert's own suppression, and the shape Retell wants back. The same split the texting door, the health
+ * route and the OAuth callback use. Past the key the answer is ALWAYS 200. Retell gives this webhook ten seconds and
+ * three tries, then connects the call to the agent anyway with the shell's own defaults — so a refusal here costs the
+ * caller the business's facts, never the call. The judgement never refuses: every way it can fall short is a fallback
+ * variable (FACTS_UNAVAILABLE, CALLER_UNKNOWN) and a line in the log: inbound_ctx_failed (an error) for a read that
+ * failed, inbound_ctx_unrouted or inbound_facts_missing (warnings) for an agent nobody routes or a workspace with no
+ * persona. A workspace whose billing stopped gets the take-a-message script instead of its facts.
+ *
+ * Around the judgement it does three things, none fatal to the call:
+ *   - An agent nobody routes tells the platform through alertUnroutable, suppressed for fifteen minutes per agent, and
+ *     that note is waited for, but no longer than ALERT_BUDGET_MS.
+ *   - A caller who already has a thread takes the call's hold on it (claimControl, CALL_CONTROL_S, 00132), so the text
+ *     receptionist does not answer the same person on WhatsApp while they are on the phone; a hold that could not be
+ *     taken is logged (retell_inbound_hold_failed).
+ *   - A test of "keep my number" is proven as the call arrives (markForwardingVerified), with the one thing the call
+ *     webhook never sees: the diversion headers (custom_sip_headers).
+ * Lines carry the caller's last four digits (from_tail), never the number, with the agent and the call id; the call ends
+ * in one retell_inbound with how the facts and the memory were arrived at.
  */
 import { phoneTail, divertedNumbers } from "../lib/packages/contracts.js";
 import { markForwardingVerified } from "../lib/voice/forwarding.js";
@@ -31,13 +45,13 @@ import { pg } from "../lib/pg.js";
 import { planCallStart } from "../lib/voice/call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../lib/packages/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the ?key= while this door still reads one (voice-door-auth.ts says which doors do, and why).
   if (!voiceDoorAuth("inbound", request, raw).ok) {
@@ -85,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
   // provider's budget while making the common case -- a Resend POST, well
   // under a second -- actually happen.
   if (start.alert) {
-    // The timer is cleared whichever side wins, as lib/call-recording.ts does:
+    // The timer is cleared whichever side wins, as lib/voice/call-recording.ts does:
     // the common case is a send well under a second, and leaving three seconds
     // of timer armed behind the answer is the same class of thing this await
     // exists to stop.
@@ -139,4 +153,4 @@ export async function POST(request: Request): Promise<Response> {
     hold: held,
   });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });
-}
+});

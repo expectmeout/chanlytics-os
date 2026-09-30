@@ -52,7 +52,7 @@ export async function addPeopleSeen(
         firstRefusal ??= error.message;
         continue;
       }
-      log.error("calendar_person_add_failed", { tenant: tenantId, code: error.code, error: error.message });
+      log.error("calendar_person_add_failed", { tenant_id: tenantId, code: error.code, error: error.message });
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
@@ -68,13 +68,13 @@ export async function addPeopleSeen(
       });
       if (!eErr) email = r.email;
       else if (eErr.code !== "23505" && eErr.code !== "22023")
-        log.error("calendar_person_email_failed", { tenant: tenantId, code: eErr.code });
+        log.error("calendar_person_email_failed", { tenant_id: tenantId, code: eErr.code });
     }
     added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email });
   }
   if (refused) {
     log.error("calendar_people_refused", {
-      tenant: tenantId,
+      tenant_id: tenantId,
       refused,
       of: rows.length,
       added: added.length,

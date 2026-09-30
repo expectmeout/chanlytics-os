@@ -221,7 +221,6 @@ export {
   DRAFT_WHYS,
   isDraftWhy,
   DRAFT_NEEDS_MS,
-  DRAFT_MAX,
   DRAFT_NOTICE_MAX,
   draftRefusal,
   leadReplyNote,

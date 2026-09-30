@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  assembleBroadcast,
   emitEvent,
   everyoneIn,
   listPolicies,
@@ -18,7 +19,6 @@ import {
   type Database,
   type Json,
 } from "./packages/db.js";
-import { scheduleJob } from "./packages/jobs.js";
 import {
   runPlaybook as runOverPorts,
   type PlaybookRow,
@@ -260,6 +260,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         const { data } = await db
           .from("broadcasts")
           .select("id")
+          .eq("tenant_id", tenantId)
           .eq("playbook_id", playbookId)
           .eq("run_for", runFor)
           .maybeSingle();
@@ -267,39 +268,33 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       },
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
-        await db.from("playbooks").update({ last_run_for: runFor, last_run_at: at.toISOString() }).eq("id", playbookId);
+        await db
+          .from("playbooks")
+          .update({ last_run_for: runFor, last_run_at: at.toISOString() })
+          .eq("id", playbookId)
+          .eq("tenant_id", tenantId);
       },
-      create: async (row) => {
-        const { data, error } = await db
-          .from("broadcasts")
-          .insert({
-            tenant_id: tenantId,
-            ...row,
-            params: row.params as unknown as Json,
+      // The run, its people and its job, whole (00282 assemble_broadcast): a sweep that dies halfway leaves nothing.
+      assemble: (row, recipients, sendAt) =>
+        assembleBroadcast(db, {
+          tenantId,
+          run: {
+            name: row.name,
+            template_id: row.template_id,
+            template_name: row.template_name,
+            template_language: row.template_language,
+            params: row.params,
             audience: row.audience as unknown as Json,
-          })
-          .select("id")
-          .single();
-        if (error || !data) throw new Error(error?.message ?? "run not created");
-        return data.id;
-      },
-      enrol: async (id, rows) => {
-        const { error } = await db.from("broadcast_recipients").insert(
-          rows.map((r) => ({
-            broadcast_id: id,
-            contact_id: r.contact_id,
-            tenant_id: tenantId,
-            ...(r.facts ? { facts: r.facts } : {}),
-          })),
-        );
-        if (error) throw new Error(error.message);
-      },
-      fail: async (id, failure) => {
-        await db.from("broadcasts").update({ state: "failed", failure }).eq("id", id);
-      },
-      schedule: async (id, at) => {
-        await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: at, payload: { broadcast_id: id } });
-      },
+            state: row.state,
+            scheduled_for: row.scheduled_for,
+            recipient_count: row.recipient_count,
+            created_by: row.created_by,
+            playbook_id: row.playbook_id ?? null,
+            run_for: row.run_for ?? null,
+          },
+          recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts })),
+          sendAt,
+        }),
       // The ledger: a run the sweep sends is the system's decision under the
       // mode the owner chose; a run a person asked for is theirs.
       decide: async ({ broadcastId, by, payload }) => {

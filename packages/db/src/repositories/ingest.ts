@@ -4,9 +4,16 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing, HOUR_MS } from "@chanlytics/contracts";
+import {
+  CARRIER_CONSENT_SOURCE,
+  conversationPatch,
+  normalizePhone,
+  type PurposeBearing,
+  HOUR_MS,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { emitEvent } from "../events";
+import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -100,15 +107,11 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
     if (mErr && /p_evidence/.test(mErr.message))
       ({ error: mErr } = await db.rpc("set_marketing_consent", args as never));
     if (mErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "marketing_consent_write_failed",
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          error: mErr.message,
-        }),
-      );
+      dbLog().error("marketing_consent_write_failed", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message,
+      });
     }
   }
   return out;
@@ -400,7 +403,7 @@ export async function recordStatusByExternalId(
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
   if (error && !/monotone|terminal/.test(error.message)) {
-    console.error("record_status_failed", externalId, error.message);
+    dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
 }
 
@@ -428,7 +431,10 @@ export async function recordEchoAndPause(
   try {
     contact = await getOrCreateContact(db, p.tenantId, phone);
   } catch (e) {
-    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return;
   }
   // The thread, without moving anything on it yet. Meta redelivers a webhook it
@@ -444,7 +450,7 @@ export async function recordEchoAndPause(
     .select("id")
     .single();
   if (verr || !conv) {
-    console.error("record_echo_conv_failed", verr?.message);
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
     return;
   }
   const { error } = await db.from("messages").insert({
@@ -460,7 +466,8 @@ export async function recordEchoAndPause(
     status: "sent",
     meta: { echo: true },
   });
-  if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   // An echo we have already stored changes nothing else: the owner spoke once.
   // An echo carrying no id of its own cannot be told apart from its own replay,
   // so it still pauses -- a receptionist talking over the owner is the worse of
@@ -468,10 +475,11 @@ export async function recordEchoAndPause(
   if (error?.code === "23505" && p.externalId) return;
   const { error: perr } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: new Date().toISOString() })
+    .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
     .eq("tenant_id", p.tenantId);
-  if (perr) console.error("record_echo_pause_failed", perr.message);
+  if (perr)
+    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
 }
 
 /**
@@ -501,16 +509,20 @@ export async function pauseConversation(
 ): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: pausedUntilIso })
+    .update(conversationPatch("hand_off", { until: pausedUntilIso }))
     .eq("id", conversationId)
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) {
-    console.error("pause_conversation_failed", conversationId, error.message);
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message,
+    });
     return false;
   }
   if (!data || data.length === 0) {
-    console.error("pause_conversation_noop", conversationId);
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
   // A person is taking the thread, so the receptionist's held drafts on it
@@ -529,6 +541,38 @@ export async function pauseConversation(
     .eq("status", "queued");
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
-  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
+  if (wErr)
+    dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: wErr.message,
+    });
   return true;
+}
+
+/**
+ * The thread's reply turn (00284; the verb's rule is core inbound/turn.ts): claimed for a message before the model is
+ * asked, so a newer message of the thread holds it. False only when a newer message has the turn. A call that fails
+ * throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
+ */
+export async function claimReplyTurn(
+  db: Db,
+  tenantId: string,
+  conversationId: string,
+  messageId: string,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId,
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+
+/** Whether this message still holds its thread's turn once the model has answered: false only when a newer message took it. */
+export async function holdsReplyTurn(db: Db, conversationId: string, messageId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
 }

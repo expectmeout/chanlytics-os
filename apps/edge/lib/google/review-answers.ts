@@ -89,7 +89,7 @@ async function answerNewReviews(
   now: Date,
   net: PlacesHttp = http,
 ): Promise<Array<{ id: string; author: string | null; text: string }>> {
-  const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
+  const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
   // Not while the workspace is paused or ended or its plan has stopped the receptionist: a public reply, with nobody
   // left to read it (workspaceAnswersOnItsOwn says which).

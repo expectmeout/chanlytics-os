@@ -54,9 +54,6 @@ export interface LeadClassification {
   reasons: string[];
 }
 
-/** The reason tokens of a contact standard not met, so SQL and the check can find "the email was the only reason". */
-export const LEAD_EMAIL_REASON = /^email:/;
-
 /**
  * Code decides the class from the judge's per-criterion answers (§0.1, 26).
  * Exclusions are checked before criteria, so a place that is both a chain and

@@ -96,10 +96,13 @@ const EVERY_CLOCK = {
   purge_jobs: "purge-jobs",
   // How fast the pages were (00255): nightly, after thirty days.
   purge_page_vitals: "purge-page-vitals",
+  // Each workspace's day, counted (00277): nightly at 00:17 UTC, judged by its run.
+  platform_metrics_roll: "platform-metrics-roll",
 };
 const RUN_JUDGED = [
   "partitions",
   "pauses",
+  "platform_metrics_roll",
   "purge_ask",
   "purge_cron_history",
   "purge_events",

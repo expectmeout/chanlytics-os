@@ -18,6 +18,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import { legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { stageArgs, LEAD_CONSENT_REFUSAL } from "../../../../packages/contracts/src/leads/leads.ts";
 
@@ -71,8 +72,13 @@ const setStage = (who, leadId, input) => who.client.rpc("lead_set_stage", { p_le
 const leadRow = async (id) => ok(await db.from("leads").select("*").eq("id", id).single());
 const events = async (subjectId) => ok(await db.from("events").select("kind, data").eq("subject_id", subjectId));
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -169,10 +175,14 @@ before(async () => {
 // nothing behind. Everything carrying a tenant_id cascades from the workspace;
 // events have no foreign key to it, so they go by hand.
 after(async () => {
-  if (skip) return;
-  await db.from("events").delete().eq("tenant_id", A);
-  await db.from("tenants").delete().eq("id", A);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  try {
+    if (skip) return;
+    await db.from("events").delete().eq("tenant_id", A);
+    await db.from("tenants").delete().eq("id", A);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseList?.();
+  }
 });
 
 test(

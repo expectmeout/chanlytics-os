@@ -21,7 +21,7 @@ export const POST = write({
     if (call.status !== "ongoing") {
       throw new AppError("conflict", "This call is not in progress — there is nobody on the line to end.", 409);
     }
-    const done = await stopLiveCall(call.retell_call_id);
+    const done = await stopLiveCall(call.retell_call_id, { workspace: call.tenant_id, user: ctx.userId });
     if (!done.ok) {
       throw new AppError(
         "upstream_retell",

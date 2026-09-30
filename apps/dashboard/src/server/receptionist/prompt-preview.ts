@@ -105,7 +105,7 @@ export async function openingsBlock(
     return describeOpenings(openings, cfg.tz, { daysAhead, hasBookingLink: offersBookingLink(cfg.brain) });
   } catch (e) {
     log.error("prompt_preview_openings_failed", {
-      tenant: tenantId,
+      tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
     return null;
@@ -134,7 +134,7 @@ export async function promptPreview(
     policy = Object.fromEntries((await listPolicies(ctx.supabase, tenantId)).map((p) => [p.class, { mode: p.mode }]));
   } catch (e) {
     log.error("prompt_preview_policy_unreadable", {
-      tenant: tenantId,
+      tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
     return null;
@@ -144,7 +144,7 @@ export async function promptPreview(
     return composePromptPreview(brain, { tz, policy, known, openings }, now);
   } catch (e) {
     // A config the composer refuses is a real answer, and the card says nothing rather than something else.
-    log.error("prompt_preview_refused", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("prompt_preview_refused", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

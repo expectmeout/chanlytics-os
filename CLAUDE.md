@@ -37,18 +37,22 @@ corepack pnpm --filter "./packages/*" build   # apps typecheck against built dis
 corepack pnpm -r typecheck
 corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
-corepack pnpm test                            # the node suite; database suites skip without credentials
+corepack pnpm test                            # the node suite, in UTC, and what it ran of the code held at a floor; database suites skip without credentials
+TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland')
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
 corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise js=<bytes> a rise, by the growth argued
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
+node tooling/scripts/checks/smoke.mjs <host>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer (docs/runbook.md, Deploy)
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
 corepack pnpm gen:api-reference               # docs/api.md (what each route takes), after a route's input or policy changes; the suite fails a stale one
 corepack pnpm gen:schema-sets                 # the closed sets, after a migration changes one (needs the stack)
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
+corepack pnpm gen:schema-snapshot             # supabase/schema.sql, after a migration (needs the stack)
+corepack pnpm gen:data-model                  # docs/data-model.md, from the snapshot and packages/db (no stack)
 ```
 
 `pnpm` is corepack-only. Node 22 or newer.
@@ -99,7 +103,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Rebuild and commit `packages/*/dist`** whenever a package changes. CI fails on drift.
 - **Either deploy order works.** The two apps deploy independently; a shape both must agree on
   is compatible whichever deploys first.
-- **A job kind arrives with its handler, its caller and the `jobs.kind` CHECK**, in one change.
+- **A job kind arrives with its handler, its caller, the `jobs.kind` CHECK and its lane**, in one change.
 - **Migrations are forward-only.** Named for the schema change, re-runnable statements, never
   edited or renamed once applied. Two files on one number fail the build.
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and
@@ -108,7 +112,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
-  the compiler lets pass; a table name outside `packages/db`; dead exports; a duration written as a
+  the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
+  imports a repository or a provider client; dead exports; a duration written as a
   bare number (name it from `contracts/shared/time.ts`, or give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
@@ -120,11 +125,19 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`, `surfaces`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
-  or the client; the edge never imports the dashboard, `next` or `react`. Types cross freely.
-  `eslint.config.mjs` enforces it.
+  or the client; the edge never imports the dashboard, `next` or `react`; a core verb takes the world through its ports, so
+  nothing of `packages/core` imports a database or a provider value (the named adapters aside, `repo/hygiene.test.mjs`);
+  each package imports only what its `package.json` declares (`shipping/package-dependencies.test.mjs`). Types cross
+  freely. `eslint.config.mjs` and those tests enforce it.
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
   never change; they are what alerting greps for.
+- **One logger, one request id.** Every runtime writes through `packages/channels/src/log/`: the edge's `lib/log.ts`, the
+  dashboard's `src/server/log.ts`, and core, jobs, db and Ask directly. One JSON object per line, redacted by key and by
+  shape where it is written, carrying the request's name (`request_id`) and the workspace as `tenant_id`, never `tenant`.
+  A `console` call in any of those trees is a lint error, and a name is one of the app's closed set (`LOG_EVENTS`,
+  `DASHBOARD_LOG_EVENTS`; `repo/log-events.test.mjs`). Every edge door is wrapped in `door()` or `adminDoor()`
+  (`edge/request-id-doors.test.mjs` runs each one). `docs/runbook.md`, "Read the logs", says what a line holds.
 - **A refusal on the edge is a code.** `refuse(status, code, detail?)` from `apps/edge/lib/http.ts`, the code one of
   `EDGE_ERROR_CODES` (`packages/contracts/src/shared/edge-errors.ts`), reused before one is added; the words for a
   person or for support go in `detail`. tsc refuses any other `error` at `json` and `refuse`, and
@@ -149,12 +162,14 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                                                                         | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables                                                       |
 | A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `packages/contracts/src/calendar/calendar-vm.ts`                                | Pure; every sentence the page says comes from here                                                                                               |
 | A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `apps/dashboard/src/legacy-bridge/calendar.ts`                                 | Classify it in `apps/dashboard/src/legacy-bridge/surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page             |
-| A component of the kit                        | `apps/dashboard/src/surfaces/kit/button.tsx` with `apps/dashboard/src/surfaces/kit/kit.css`                                        | Its classes from `variants()`, listed in the registry beside it; a type test beside it; drawn as its gallery family draws it                     |
+| A component of the kit                        | `apps/dashboard/src/surfaces/kit/button/button.tsx` with `apps/dashboard/src/surfaces/kit/kit.css`                                 | Its classes from `variants()`, in the kit's registry; its type test beside it, in its family's folder; drawn as its gallery family draws it      |
+| A component with behaviour of its own         | `apps/dashboard/src/surfaces/kit/menu/menu.tsx`                                                                                    | Built on its own Base UI part (`@base-ui/react/menu`), never the index; driven in a browser by `e2e/kit/kit-behaves.spec.ts`                     |
 | A colour, a size or an effect                 | `apps/dashboard/src/legacy/styles/tokens.css`: a role on `:root, [data-theme]`, a scale on `:root`, or both themes' colour         | A role where a look sets the value (a surface, a control, an action), else a scale or the themes' colour; a role comes with its reader           |
 | A look                                        | The `[data-look="glass"]` blocks in `apps/dashboard/src/legacy/styles/tokens.css`, after the roles                                 | Two blocks, the dark side second: the roles, and the theme's colours where the look's differ (`docs/runbook.md`, "Add a look")                   |
 | A page's styles                               | `apps/dashboard/src/legacy/styles/<surface>.css`, then its folder in `apps/dashboard/src/surfaces/<surface>/` once it moves        | None is layout-only yet: Phase 4 leaves each with display, grid, flex, gap, position, size and overflow alone                                    |
 | An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`                                                          | `tooling/scripts/tests/repo/env-manifest.test.mjs` holds the two to the same list; blank is unset                                                |
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`                                                 | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                                                                 |
+| A log line in the dashboard's server          | `log.error("event_name", { tenant_id, fields })` from `apps/dashboard/src/server/log.ts`                                           | The same logger and the same envelope; the name is one of `DASHBOARD_LOG_EVENTS`                                                                 |
 | A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                         |
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                              |
 | A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                     |
@@ -184,8 +199,11 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 - Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
   (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
   `packages/contracts/src/mobile/app-bridge.ts`.
-- A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
-  shares stays at the root as `tooling/scripts/tests/_<name>.mjs`.
+- A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper several domains share stays at
+  the root as `tooling/scripts/tests/_<name>.mjs` (the root is a directory too, at its 20 modules), and one a single
+  domain uses lives in that domain's folder (`tooling/scripts/tests/leads/_mark-images.mjs`). A row a fixture seeds can be
+  made by `tooling/scripts/tests/_rows.mjs`, which fills every column the table has and refuses one it does not, and a
+  database in memory refuses what the real one refuses (`docs/runbook.md`, "Test it").
 - A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it
   proves, named for it, as `packages/contracts/src/shared/identity.type-test.ts` is for
   `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles
@@ -197,7 +215,9 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
   first and takes `--apply` (`tooling/scripts/ops/lead-marks-backfill.mjs`).
 - A file a script writes: regenerated by its command under Commands, never edited.
   `apps/dashboard/src/client/routes.generated.ts` and `packages/contracts/src/route-keys.generated.ts` follow the
-  routes; `packages/contracts/src/schema-sets.generated.ts` and `packages/db/src/database.types.ts` the migrations.
+  routes; `packages/contracts/src/schema-sets.generated.ts`, `packages/db/src/database.types.ts`,
+  `supabase/schema.sql` (the schema a replay builds) and `docs/data-model.md` (its tables, and who owns each) the
+  migrations.
 
 A domain earns a folder at its second module. Until then it is one module at its tree's root, beside
 the plumbing, named for the domain (`apps/edge/lib/notes.ts`). That holds in each package's `src`,

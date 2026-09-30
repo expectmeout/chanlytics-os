@@ -42,7 +42,7 @@ export async function personVisits(
     try {
       return await parsedFeedFor(tenantId, url, timezone, now, { stale: true });
     } catch (e) {
-      log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+      log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
       return { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
     }
   });

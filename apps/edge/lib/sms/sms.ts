@@ -4,12 +4,15 @@
  * the receptionist's reply, a held draft fired later, a person's reply from
  * the Inbox. The provider is the same one the lines saga uses, so the dry
  * provider on a preview sends nothing and says so.
+ *
+ * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
 import type { LineSecrets, ProviderAccount, ProviderReply, SendResult } from "../packages/channels.js";
 import { answerObject, smsStatusUrl, smsRefusalOf, twilioRequest } from "../packages/channels.js";
-import { lineProviderFromEnv, edgeFnUrl } from "../lines/lines.js";
+import { lineProviderFromEnv } from "../lines/lines.js";
+import { edgeFnUrl } from "../dashboard-origin.js";
 import { logger, errField, type Logger } from "../log.js";
 import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
 import { wireUnavailable, type WireUnavailable } from "../packages/core.js";

@@ -34,16 +34,19 @@
  *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
  *     decision 0015 rather than joining;
  *
- * less the trees of the programs in flight (IN_FLIGHT: Ask, Reach out, the
- * phone app, partners), which join as those land, as eslint.config.mjs says.
+ * less the trees of the programs in flight (IN_FLIGHT: Ask Rewired and the
+ * phone app), which join as those land, as eslint.config.mjs says, each by the
+ * day its program's entry names.
  *
  * Nothing here reads the config's text; it asks ESLint.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
+import { DAY_MS } from "@chanlytics/contracts";
 import config, {
   FUNCTION_LIMITS,
   HELD_TYPED,
@@ -136,11 +139,11 @@ test("a surface is browser code, linted as the dashboard's own: its layer, and t
 
 /** What each raw element's refusal tells a surface to take (eslint.config.mjs, KIT_TAKES), and what else it says. */
 const KIT_TAKES = {
-  button: ["Take the kit's Button,", "a button that opens a page is a link"],
-  input: ["Take the kit's Field,", "the kit's Switch for a checkbox"],
-  select: ["Take the kit's Select,", ""],
-  textarea: ["Take the kit's Field,", ""],
-  dialog: ["Take the kit's Sheet,", "the kit's Confirm for a confirmation"],
+  button: ["Take the kit's Button (kit/button/),", "a button that opens a page is a link"],
+  input: ["Take the kit's Field (kit/field/),", "the kit's Switch (kit/switch/) for a checkbox"],
+  select: ["Take the kit's Select (kit/select/),", "its Combobox (kit/combobox/)"],
+  textarea: ["Take the kit's Field (kit/field/)", "its `rows`"],
+  dialog: ["Take the kit's Sheet (kit/sheet/),", "the kit's Confirm for a confirmation"],
 };
 
 /** A raw element made every way the rule knows, one line each: its JSX, a member's JSX, and from its name. */
@@ -155,6 +158,28 @@ const everyWay = (element) =>
     `export const g = jsxDEV("${element}", {});`,
     "",
   ].join("\n");
+
+test("each raw element's refusal sends a surface to a component the kit has, by its folder", async () => {
+  const named = [];
+  for (const element of Object.keys(KIT_TAKES)) {
+    const [result] = await eslint.lintText(`export const a = <${element} />;\n`, {
+      filePath: path.join(ROOT, SURFACES[0]),
+    });
+    const [refusal] = result.messages.filter((m) => m.severity === 2);
+    for (const [, family] of refusal.message.matchAll(/\bkit\/([a-z-]+)\//g)) named.push(family);
+  }
+  assert.deepEqual(
+    [...new Set(named)].sort(),
+    ["button", "combobox", "field", "select", "sheet", "switch"],
+    "the components the refusals name",
+  );
+  for (const family of named) {
+    assert.ok(
+      fs.existsSync(path.join(ROOT, `apps/dashboard/src/surfaces/kit/${family}/${family}.tsx`)),
+      `a refusal names kit/${family}/, which holds no ${family}.tsx`,
+    );
+  }
+});
 
 test("a surface takes its controls from the kit: a raw one, however it is made, is refused with what to take, and the kit draws them", async () => {
   const [page, kit] = SURFACES;
@@ -288,6 +313,41 @@ test("every file under src/surfaces is TypeScript the lint and the typecheck rea
   );
 });
 
+/** Base UI's index or one of its parts, named each way an import names a module. */
+const baseUi = (from) =>
+  [
+    `import { Dialog } from "${from}";`,
+    `import type { Menu } from "${from}";`,
+    `export { Popover } from "${from}";`,
+    `export * from "${from}";`,
+    "export const a = Dialog;",
+    "export type B = Menu;",
+    "",
+  ].join("\n");
+
+test("Base UI's parts are imported one at a time anywhere in the dashboard, and its index never, as a type or a re-export either", async () => {
+  const places = [
+    ...SURFACES,
+    "apps/dashboard/src/legacy-bridge/probe.tsx",
+    "apps/dashboard/src/client/probe.ts",
+    "apps/dashboard/app/probe/page.tsx",
+  ];
+  for (const at of places) {
+    const [result] = await eslint.lintText(baseUi("@base-ui/react"), { filePath: path.join(ROOT, at) });
+    const refused = result.messages.filter((m) => m.severity === 2);
+    assert.deepEqual(
+      refused.map((m) => [m.line, m.ruleId]),
+      [1, 2, 3, 4].map((line) => [line, "no-restricted-imports"]),
+      `${at}: the index, imported, as a type, and re-exported by name and whole`,
+    );
+    for (const { message } of refused) {
+      assert.match(message, /Import the Base UI part you draw \(`@base-ui\/react\/dialog`/, `${at}: ${message}`);
+      assert.match(message, /A surface takes the kit's component instead/, "and a surface is sent to the kit");
+    }
+    assert.deepEqual(await rulesFiredOn(at, baseUi("@base-ui/react/dialog")), [], `${at}: a part passes`);
+  }
+});
+
 test("server code may not import the shell, the bridge or the browser client", async () => {
   for (const at of ["apps/dashboard/src/server/probe.ts", "apps/dashboard/app/api/v1/probe/route.ts"]) {
     assert.deepEqual(
@@ -325,7 +385,49 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   assert.deepEqual(await rulesFiredOn(at, "export const k = process.env.DIAG_KEY;\n"), ["no-restricted-syntax"]);
   assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"]);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/env.ts", "export const k = process.env.DIAG_KEY;\n"), []);
-  assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), []);
+  // The edge's log.ts is a typed door to the one logger, no longer the place a line reaches stdout: that is the
+  // package's writer, and only it (and db's fallback, until an app hands db the logger) may call console.
+  assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), ["no-console"]);
+  assert.deepEqual(await rulesFiredOn("packages/channels/src/log/logger.ts", 'console.error("{}");\n'), []);
+  assert.deepEqual(await rulesFiredOn("packages/db/src/observe.ts", 'console.error("{}");\n'), []);
+});
+
+test("every server tree logs through the one logger: a console call in the dashboard's server, its routes, its auth routes, Ask, or any package is a lint error", async () => {
+  for (const at of [
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/src/server/ask/probe.ts",
+    "apps/dashboard/app/api/v1/probe/route.ts",
+    "apps/dashboard/app/api/v1/ask/probe.ts",
+    "apps/dashboard/app/auth/probe/route.ts",
+    "packages/core/src/probe.ts",
+    "packages/jobs/src/probe.ts",
+    "packages/db/src/probe.ts",
+    "packages/channels/src/probe.ts",
+  ])
+    assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"], at);
+});
+
+test("the dashboard reads the environment through src/server/env.ts or src/lib/public-env.ts, nowhere else", async () => {
+  const read = "export const k = process.env.DIAG_KEY;\n";
+  for (const at of [
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/app/api/v1/probe/route.ts",
+    "apps/dashboard/proxy.ts",
+    "apps/dashboard/next.config.ts",
+    "apps/dashboard/instrumentation.ts",
+    "apps/dashboard/src/legacy-bridge/probe.ts",
+    "apps/dashboard/src/auth/Probe.tsx",
+    "apps/dashboard/src/csp.ts",
+  ]) {
+    assert.deepEqual(await rulesFiredOn(at, read), ["no-restricted-properties"], at);
+  }
+  assert.deepEqual(
+    await rulesFiredOn("apps/dashboard/src/server/probe.ts", "const { env } = process;\nexport const k = env;\n"),
+    ["no-restricted-properties"],
+    "a destructured read is a read",
+  );
+  assert.deepEqual(await rulesFiredOn("apps/dashboard/src/server/env.ts", read), []);
+  assert.deepEqual(await rulesFiredOn("apps/dashboard/src/lib/public-env.ts", read), []);
 });
 
 /**
@@ -377,24 +479,70 @@ test("a tree is held once the ratchet holds nothing in it, and every tree it nam
 /**
  * The trees of the programs in flight, which join LIMITED_TREES as those land: until then each program holds its own
  * functions to the ratchet, which may raise with a reason, where the lint could not. A tree leaves this list in the
- * change that lists it there.
+ * change that lists it there. Each program says the day it was granted the exemption and the day it ends: past that
+ * day the test below fails, and the program's trees join LIMITED_TREES, or the day moves in a change that says why.
+ * Reach out (Part 7, #1329) and partners (0020, #1206) have landed: their emptied trees are held.
  */
 const IN_FLIGHT = {
-  "Ask Rewired": [
-    "packages/contracts/src/ask",
-    "packages/contracts/src/ask-proposals",
-    "apps/dashboard/src/server/ask",
-    "apps/dashboard/src/legacy-bridge/ask",
-  ],
-  "Reach out": [
-    "packages/contracts/src/reach-out",
-    "apps/edge/lib/reach-out",
-    "apps/dashboard/src/legacy-bridge/reach-out",
-  ],
-  "the phone app": ["packages/contracts/src/mobile"],
-  partners: ["apps/edge/lib/partners"],
+  "Ask Rewired": {
+    since: "28 September 2026",
+    until: "13 October 2026",
+    trees: [
+      "packages/contracts/src/ask",
+      "packages/contracts/src/ask-proposals",
+      "apps/dashboard/src/server/ask",
+      "apps/dashboard/src/legacy-bridge/ask",
+    ],
+  },
+  "the phone app": {
+    since: "28 September 2026",
+    until: "13 October 2026",
+    trees: ["packages/contracts/src/mobile"],
+  },
 };
-const inFlight = Object.values(IN_FLIGHT).flat();
+const inFlight = Object.values(IN_FLIGHT).flatMap((p) => p.trees);
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+/** A day as the lists write it, `13 October 2026`, as the UTC midnight that starts it; NaN for any other spelling. */
+function dayOf(text) {
+  const m = /^(\d{1,2}) ([A-Z][a-z]+) (\d{4})$/.exec(text);
+  const month = m ? MONTHS.indexOf(m[2]) : -1;
+  return month < 0 ? NaN : Date.UTC(Number(m[3]), month, Number(m[1]));
+}
+
+test("each program in flight names the day its exemption began and the day it ends, and that day has not passed", () => {
+  for (const [program, { since, until, trees }] of Object.entries(IN_FLIGHT)) {
+    assert.ok(
+      Number.isFinite(dayOf(since)) && Number.isFinite(dayOf(until)),
+      `${program}: "since" and "until" are days`,
+    );
+    assert.ok(dayOf(since) < dayOf(until), `${program}: the exemption ends after it began`);
+    assert.ok(trees.length > 0, `${program}: the trees it exempts`);
+    assert.ok(
+      Date.now() < dayOf(until) + DAY_MS,
+      `${program}'s exemption from the lint's limits ended on ${until}: add its emptied trees to LIMITED_TREES in eslint.config.mjs and take it out of IN_FLIGHT, or move the day in a change that says why`,
+    );
+  }
+});
+
+test("a day is read as the lists write it, and nothing else is a day", () => {
+  assert.equal(dayOf("13 October 2026"), Date.UTC(2026, 9, 13));
+  assert.equal(dayOf("1 January 2027"), Date.UTC(2027, 0, 1));
+  for (const bad of ["2026-10-13", "13 Oct 2026", "October 13, 2026", ""]) assert.ok(Number.isNaN(dayOf(bad)), bad);
+});
 
 /** What the lint's limits read: TypeScript under apps/ and packages/, as the ratchet's file set has it. */
 const typescript = repoFiles(["apps", "packages"]).filter((f) => /\.tsx?$/.test(f));

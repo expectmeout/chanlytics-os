@@ -81,7 +81,8 @@ test("the eight declare their policy: the back office on the platform scope with
   assert.deepEqual(overview.GET.policy, office);
   assert.deepEqual(tenant.GET.policy, office);
   assert.deepEqual(refile.POST.policy, act("platform_line_refile"));
-  assert.deepEqual(release.POST.policy, act("platform_line_release"));
+  // Releasing a number cannot be taken back: it asks the Auth server whether the session is still live.
+  assert.deepEqual(release.POST.policy, { ...act("platform_line_release"), fresh: true });
   assert.deepEqual(retry.POST.policy, act("platform_line_retry"));
   // A read of the invoices takes from its own ceiling: pressing Show invoices never locks an owner out of Checkout for the hour.
   assert.deepEqual(invoices.GET.policy, {
@@ -91,12 +92,14 @@ test("the eight declare their policy: the back office on the platform scope with
     rate: "billing_read",
     spend: false,
   });
+  // Resuming a subscription spends the owner's money: it asks the Auth server whether the session is still live.
   assert.deepEqual(resume.POST.policy, {
     kind: "write",
     scope: "workspace",
     role: "owner",
     rate: "billing",
     spend: false,
+    fresh: true,
   });
   assert.deepEqual(sync.POST.policy, {
     kind: "write",
@@ -221,6 +224,7 @@ test("partners: the two verbs declare the platform scope, no workspace role, and
   assert.equal(payout.POST.policy.scope, "platform");
   assert.equal(payout.POST.policy.role, null);
   assert.equal(payout.POST.policy.rate, "platform_partner_payout");
+  assert.equal(payout.POST.policy.fresh, true, "it moves money: the session is asked about");
 });
 
 test("partners: a customer who guessed the doors learns nothing, and nothing reaches the functions", async () => {

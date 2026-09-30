@@ -162,7 +162,7 @@ export async function createBroadcast(
       : broadcastName(tpl.name, tz, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label, ...(kept ? { list: kept } : {}) };
 
-  // 5. The rows, then the job, then the ledger.
+  // 5. The rows and the job, whole (00282); then the ledger.
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -179,25 +179,9 @@ export async function createBroadcast(
     recipients: eligible.map((p) => ({ contact_id: p.id, facts: null })),
     sendAt: when,
   });
-  if (!made.ok) {
-    if (made.failure === "schedule_failed")
-      throw new AppError(
-        "upstream_meta",
-        "The send could not be scheduled. Nothing was sent; try again.",
-        502,
-        made.error,
-      );
-    // A sentence for the person either way: the row says failed, and a bare
-    // error reached them as "Something went wrong" with no reason on the row.
-    throw new AppError(
-      "internal",
-      made.failure === "run_not_created"
-        ? "The broadcast could not be created. Nothing was sent; try again."
-        : "The people could not be enrolled. Nothing was sent; try again.",
-      500,
-      made.error,
-    );
-  }
+  if (!made.ok)
+    // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong".
+    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500, made.error);
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
     template: `${tpl.name}/${tpl.language}`,

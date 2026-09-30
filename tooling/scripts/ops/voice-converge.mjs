@@ -34,7 +34,8 @@
  *       RETELL_FN_SECRET optional — sets the booking tool's x-fn-secret header
  *                        when the live tool has none (the edge refuses calls
  *                        without it). A live header is carried over untouched.
- *       VOICE_FN_URL     optional — where the booking tool posts
+ *       VOICE_FN_URL     where the booking tool posts; optional while the live
+ *                        LLM has a booking tool, whose address is kept
  *
  * Usage: node tooling/scripts/ops/voice-converge.mjs [--apply] [--pin] [--retention-days N]
  *   --pin   also bind the number to agent_version "latest_published" (weight
@@ -53,7 +54,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { desiredVoiceShell, planVoiceConvergence, planAgentSettings, DEFAULT_FN_URL } from "@chanlytics/channels";
+import { desiredVoiceShell, planVoiceConvergence, planAgentSettings } from "@chanlytics/channels";
 
 const KEY = process.env.RETELL_API_KEY;
 const AGENT_ID = process.env.VOICE_AGENT_ID;
@@ -119,7 +120,14 @@ console.log(`llm ${llm.llm_id} version ${llm.version} (${(llm.general_prompt ?? 
 const liveBooking = (llm.general_tools ?? []).find((t) => t.name === "send_booking_link");
 const headers =
   liveBooking?.headers ?? (process.env.RETELL_FN_SECRET ? { "x-fn-secret": process.env.RETELL_FN_SECRET } : null);
-const desired = desiredVoiceShell(process.env.VOICE_FN_URL || liveBooking?.url || DEFAULT_FN_URL, headers);
+// Where the booking tool posts: said, or the live tool's own. Never an address baked into a package: an agent with
+// no booking tool and no VOICE_FN_URL stops here rather than be pointed at a guess.
+const fnUrl = process.env.VOICE_FN_URL || (typeof liveBooking?.url === "string" ? liveBooking.url : null);
+if (!fnUrl) {
+  console.error("no booking tool on the live LLM: set VOICE_FN_URL (https://<edge>/api/retell-fn) and run again");
+  process.exit(1);
+}
+const desired = desiredVoiceShell(fnUrl, headers);
 const plan = planVoiceConvergence(llm, desired);
 
 console.log("\nplan:");

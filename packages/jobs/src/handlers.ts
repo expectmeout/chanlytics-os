@@ -16,7 +16,10 @@ import {
   classifyReceived,
   emailPlainText,
   isEmailRequest,
+  logger,
   messageIdsIn,
+  requestIdShaped,
+  withRequestId,
   type ReceivedEmail,
 } from "@chanlytics/channels";
 import {
@@ -87,20 +90,16 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       alert: ctx.alert,
       ...(ctx.page ? { page: ctx.page } : {}),
       // The same send as a fresh row, through the same door a broadcast's next batch takes: this job completes, and
-      // the ledger claims the new one when it is due. Said on the console, since the tick sees only a job done.
+      // the ledger claims the new one when it is due. Said in the log, since the tick sees only a job done.
       retry: async (dueAt, payload) => {
         await ctx.schedule("outbound_send", dueAt, payload as Json);
-        console.warn(
-          JSON.stringify({
-            level: "warn",
-            event: "outbound_send_rescheduled",
-            tenant: job.tenant_id,
-            job: job.id,
-            message_id: payload.message_id,
-            resumes: payload.resumes ?? null,
-            due_at: dueAt.toISOString(),
-          }),
-        );
+        logger().warn("outbound_send_rescheduled", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          message_id: payload.message_id,
+          resumes: payload.resumes ?? null,
+          due_at: dueAt.toISOString(),
+        });
       },
       now: Date.now,
     },
@@ -181,7 +180,7 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     { payload: job.payload },
   );
-  console.log(JSON.stringify({ level: "info", event: "email_ingested", tenant: job.tenant_id, job: job.id, outcome }));
+  logger().info("email_ingested", { tenant_id: job.tenant_id, job: job.id, outcome });
 }
 
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
@@ -400,6 +399,9 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"do
   // and the tick fails the job loudly rather than guessing.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
-  await handler(ctx, job);
+  // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
+  // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
+  // has none and runs as itself, named by its row.
+  await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
   return "done";
 }

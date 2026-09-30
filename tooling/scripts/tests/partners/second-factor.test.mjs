@@ -269,6 +269,7 @@ test("the reset's door: the platform's, counted, and its input judged before any
     role: null,
     rate: "platform_partner_second_factor",
     spend: false,
+    fresh: true,
   });
   assert.equal(RATE.platform_partner_second_factor.limit, 10);
 });

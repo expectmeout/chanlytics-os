@@ -51,8 +51,6 @@ export const ASK_MAX_TOKENS = 4000;
  * of eval runs and refused the palette until the window rolled.
  */
 export const ASK_TOKENS_DAY = 1_500_000;
-/** Ask threads are purged after this many days; they quote customers. */
-export const ASK_RETENTION_DAYS = 90;
 /** How much of the workspace one read may return. The words stay the pages' words. */
 export const ASK_CAPS = {
   threads: 20,

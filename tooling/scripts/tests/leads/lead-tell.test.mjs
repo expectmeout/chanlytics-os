@@ -74,3 +74,15 @@ test("a round that is no longer asking sends nothing, and a round that is not th
   );
   assert.deepEqual(m.sent, []);
 });
+
+test("a round names its own workspace's search: another workspace's search of the same id is not read for the mail's name", async () => {
+  const m = mailbox();
+  const t = tables(OWN);
+  // The round's search_id points at a row of another workspace: the mail says what it can and never that row's name.
+  t.lead_searches = [
+    { id: S, tenant_id: "99999999-9999-4999-8999-999999999999", name: "another workspace's private search" },
+  ];
+  assert.equal(await tellLeadQuestion(fakeDb(t), R, { send: m.send }), true);
+  assert.equal(m.sent[0].subject, "Your search for leads is waiting for your answer");
+  assert.ok(!m.sent[0].text.includes("private"), "another workspace's words never reach this one's mail");
+});

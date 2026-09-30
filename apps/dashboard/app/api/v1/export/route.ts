@@ -18,6 +18,7 @@ import { log } from "@/server/log";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   handle: async ({ ctx, member }) => {
@@ -94,7 +95,7 @@ export const GET = read({
     };
     const { name, timezone } = await tenantFacts(supabase, tenantId);
     const now = new Date();
-    log.info("export.workspace", { user: userId, tenant: tenantId });
+    log.info("export.workspace", { user: userId, tenant_id: tenantId });
     // On the ledger before the first byte: the copy exists once this returns.
     await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "workspace" });
     return attachmentStream(

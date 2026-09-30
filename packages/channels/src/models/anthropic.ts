@@ -27,8 +27,8 @@ import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "@chanlytics/contra
 import type { ModelPurpose, ModelUsage } from "@chanlytics/contracts";
 import { providerFetch, type ProviderReply } from "../provider-fetch";
 
-export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
-export const ANTHROPIC_VERSION = "2023-06-01";
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
 
 /** A content block as the port reads it: text is all the platform's callers take from an answer. */
 export interface ModelBlock {
@@ -134,7 +134,7 @@ function messageOf(json: unknown): ModelMessage {
 }
 
 /** The text of an answer's text blocks, joined. */
-export function messageTextOf(message: Pick<ModelMessage, "content">): string {
+function messageTextOf(message: Pick<ModelMessage, "content">): string {
   return message.content
     .filter((b) => b.type === "text")
     .map((b) => (typeof b.text === "string" ? b.text : ""))

@@ -39,6 +39,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { emptyBusinessRecord, RECORDING_RETENTION_DAYS, newReceptionistDefaults } from "@chanlytics/contracts";
 import { LOW_VOLUME_USECASE } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 
 // Each test file is its own process, so this is the whole environment. Every
 // variable is declared in apps/edge/.env.example except VERCEL_ENV, which the
@@ -1954,7 +1955,7 @@ test("lines: a line 'setting up' past its deadline is taken and resumed by sched
   );
   assert.equal(row(oldest).facts.automatic_resumes, 1);
   assert.deepEqual(
-    tables.jobs.map((j) => [j.tenant_id, j.kind, j.payload]),
+    tables.jobs.map((j) => [j.tenant_id, j.kind, withoutRequestId(j.payload)]),
     [[T, "line_provision", { line_id: oldest, by: "sweep" }]],
     "the saga is a job on the ledger, not a run inside this tick",
   );

@@ -8,11 +8,13 @@
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00077).
+ *
+ * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { registerLine } from "../../lib/lines/a2p-register.js";
 import { syncRegistration } from "../../lib/lines/a2p-sync.js";
@@ -23,7 +25,7 @@ const MAX_PER_TICK = 20;
 /** The states that mean the carriers still have it. */
 const WAITING = ["registering", "approved"];
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "registrations" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -116,4 +118,4 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "no_registration_readable", checked: lines.length, unreadable });
   }
   return json(200, { ok: true, checked: lines.length, campaigns_filed: filed, states_moved: moved, unreadable });
-}
+});

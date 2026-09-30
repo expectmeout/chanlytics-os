@@ -39,6 +39,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
@@ -60,32 +61,6 @@ export const UNLISTED = {
   "stabs-badge": "the count on a tab (SurfaceTabs), which mobile.css hides on a phone's Inbox",
   "rec-seg-label": "an option's label beside its hint (RecordToggleGroup), which no stylesheet names",
   "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
-};
-
-/* The glyphs the entries draw, as components/icons.jsx draws them: a 16-unit box, a 1.5 stroke, the class `icon`. */
-const GLYPHS = {
-  alert: '<path d="M8 2L1.5 13h13L8 2z"/><path d="M8 6.5v3M8 11.5v.5"/>',
-  "arrow-right": '<path d="M3 8h10M9 4l4 4-4 4"/>',
-  bell: '<path d="M4 11V7a4 4 0 018 0v4l1 1H3l1-1z M6.5 13a1.5 1.5 0 003 0"/>',
-  calendar: '<rect x="2" y="3.5" width="12" height="10" rx="1"/><path d="M2 6.5h12M5 2v3M11 2v3"/>',
-  check: '<path d="M3 8.5l3.5 3L13 5"/>',
-  chevron: '<path d="M6 4l4 4-4 4"/>',
-  "chevron-down": '<path d="M4 6l4 4 4-4"/>',
-  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/>',
-  edit: '<path d="M3 13h2.5l7-7-2.5-2.5-7 7V13z"/><path d="M11 4l1 1"/>',
-  inbox:
-    '<path d="M2 9l1.5-5.5A1 1 0 014.5 3h7a1 1 0 011 .5L14 9"/><path d="M2 9v3.5a1 1 0 001 1h10a1 1 0 001-1V9"/><path d="M2 9h3.5l1 2h3l1-2H14"/>',
-  info: '<circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.25v.5"/>',
-  mail: '<rect x="2" y="3.5" width="12" height="9" rx="1"/><path d="M2.5 5l5.5 4 5.5-4"/>',
-  more: '<circle cx="3.5" cy="8" r="0.8" fill="currentColor"/><circle cx="8" cy="8" r="0.8" fill="currentColor"/><circle cx="12.5" cy="8" r="0.8" fill="currentColor"/>',
-  pause:
-    '<rect x="4.5" y="3" width="2.5" height="10" fill="currentColor"/><rect x="9" y="3" width="2.5" height="10" fill="currentColor"/>',
-  phone: '<path d="M3 3.5l2.5-.5 1.5 3-1.5 1c.7 1.5 1.7 2.5 3 3.2L9.5 9l3 1.5-.5 2.5c-4.5.3-9-4.2-9-9.5z"/>',
-  plus: '<path d="M8 3v10M3 8h10"/>',
-  refresh: '<path d="M2 8a6 6 0 0110-4.5L13 5M14 8a6 6 0 01-10 4.5L3 11"/><path d="M13 2v3h-3M3 14v-3h3"/>',
-  search: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3 3"/>',
-  user: '<circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14a5.5 5.5 0 0111 0"/>',
-  x: '<path d="M4 4l8 8M12 4l-8 8"/>',
 };
 
 /** Icon's markup (components/icons.jsx), its size written on the element as Icon writes it. A glyph not here throws. */
@@ -336,6 +311,196 @@ const SHEET_APART = [
   ...["display", "flex-direction", "flex-shrink"],
   ...["outline-color", "outline-style", "outline-width"],
 ];
+
+/* ---- the kit's components on Base UI, as they draw themselves (step 2.5; kit-behaves.tsx draws the same) ---- */
+
+/** Where a popup stands in its stage: Base UI places its positioner against the window with a style of its own. */
+const placed = (where) => `style="position: absolute; ${where}"`;
+
+/** A field of the kit's (Base UI's Field): its label beside its box, and a hint under it or none. */
+const kitBox = (label, value, hint = null) =>
+  `<div class="rec-field"><label><span class="rec-field-label">${label}</span></label>` +
+  `<input class="rec-input" type="text" value="${value}">` +
+  (hint ? `<span class="rec-hint">${hint}</span>` : "") +
+  `</div>`;
+
+/** The rows the running page's sheet holds: a service each, and how long it takes (kit-shared.mjs). */
+const KIT_ROWS = SHEET_SERVICES.map(
+  ([name, long]) =>
+    `<div class="rec-row" data-empty="false"><span class="rec-row-key">${name}</span>` +
+    `<div class="rec-row-val"><span class="rec-row-value">${long}</span></div></div>`,
+).join("");
+
+/** The kit's Sheet, open: the control that opened it, the wash, and the dialog with the composer in it. */
+const kitSheet = () =>
+  `<button type="button" class="btn">Open the services</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Services</h2>` +
+  `<p class="rec-sheet-sub">What you offer, and how long each takes.</p></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-tools">${kitBox("Find a service", "")}</div>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><div class="rec-foot">` +
+  `<button type="button" class="btn btn-sm btn-primary">Save</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
+  `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
+
+/** A menu item of the kit's: a button, with its glyph, its words and what follows them. */
+const kitItem = (glyphName, label, { tone = "", after = "" } = {}) =>
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item${tone}">` +
+  `${icon(glyphName, 13)}<span class="more-item-label">${label}</span>${after}</button>`;
+
+/** The kit's Menu, open under its control: a group under its heading, a line, a door and the danger item. */
+const kitMenu = () =>
+  `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
+  `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1">` +
+  `<div role="group"><div class="more-header" aria-hidden="true">Sam Ortega</div>` +
+  kitItem("copy", "Copy number") +
+  kitItem("calendar", "Send booking link", { after: `<span class="more-item-meta">By text</span>` }) +
+  kitItem("pause", "Pause the receptionist", { after: `<span class="more-item-hint">until 10:00</span>` }) +
+  `</div>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
+  `<span class="more-item-label">Open their page</span></a>` +
+  kitItem("x", "Delete person…", { tone: " danger" }) +
+  `</div></div>`;
+
+/** The kit's Menu of one of a set, open: the tick drawn on each option, seen beside the one chosen. */
+const kitMenuSet = () =>
+  `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm">Sort ` +
+  `${icon("chevron-down", 10)}</button>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-left" role="menu" tabindex="-1"><div role="group">` +
+  [
+    ["Newest first", true],
+    ["Oldest first", false],
+    ["By name", false],
+  ]
+    .map(
+      ([label, on]) =>
+        `<button type="button" aria-disabled="false" role="menuitemradio" tabindex="-1" aria-checked="${on}" ` +
+        `class="more-item">${icon("check", 13)}<span class="more-item-label">${label}</span></button>`,
+    )
+    .join("") +
+  `</div></div></div>`;
+
+/** The kit's Popover, open under its control: Base UI's dialog on the panel's pop. */
+const kitPopover = () =>
+  `<button type="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" class="btn btn-sm">Hours</button>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="panel panel-pop panel-sm" role="dialog" tabindex="-1" aria-label="Hours">` +
+  `<p class="gx-pop-words">Open today until six.</p>` +
+  `<button type="button" class="btn btn-sm">Change the hours</button></div></div>`;
+
+/** The kit's Tooltip, shown over its control. */
+const kitTooltip = () =>
+  `<button type="button" class="btn btn-sm">Export</button>` +
+  `<div class="tip-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="ui-tip show" tabindex="-1">Only an owner can export this workspace's people.</div></div>`;
+
+/** An option of the kit's select or combobox: its words and its word at the end, walked to, chosen, or neither. */
+const kitOption = (label, meta, { chosen = false, walked = false, focus = null } = {}) =>
+  `<div role="option" aria-selected="${chosen}"${focus === null ? "" : ` tabindex="${focus}"`} class="rec-combo-opt"` +
+  `${chosen ? ' data-selected="" data-chosen="true"' : ""}${walked ? ' data-highlighted=""' : ""}>` +
+  `<span class="rec-combo-label">${label}</span><span class="rec-combo-meta">${meta}</span></div>`;
+
+/** The kit's Select in its Field, open: its box a button, its list over the page, the one chosen walked to. */
+const kitSelect = () =>
+  `<div class="rec-field"><label><span class="rec-field-label">Service</span></label>` +
+  `<button type="button" tabindex="0" role="combobox" aria-expanded="true" aria-haspopup="listbox" ` +
+  `class="rec-input rec-select"><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
+  `</button><span class="rec-hint">What the proposal is for.</span></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 88px; left: 16px; --anchor-width: 240px;")}>` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +
+  `<div class="rec-combo-list" role="listbox">` +
+  kitOption("Consultation", "45m", { chosen: true, walked: true, focus: 0 }) +
+  kitOption("Follow-up visit", "30m", { focus: -1 }) +
+  kitOption("Full treatment", "2h", { focus: -1 }) +
+  `</div></div></div>`;
+
+/** The kit's Combobox, typed into: its box, and its matches over the page, the first walked to. */
+const kitCombobox = () =>
+  `<div class="rec-combo" role="group"><span class="rec-combo-field">` +
+  `<span class="rec-combo-glass" aria-hidden="true">${icon("search", 12)}</span>` +
+  `<input class="rec-combo-input" role="combobox" aria-label="Languages" aria-expanded="true" ` +
+  `aria-haspopup="listbox" aria-autocomplete="list" autocomplete="off" spellcheck="false" ` +
+  `placeholder="Add a language" value="Sp"></span></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px; --anchor-width: 240px;")}>` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +
+  `<div class="rec-combo-list" role="listbox" tabindex="-1" aria-label="Languages">` +
+  kitOption("Spanish", "es", { walked: true }) +
+  kitOption("Spanish, Mexico", "es-MX") +
+  `</div></div></div>`;
+
+/** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
+const kitToast = () =>
+  `<div class="pp-toast-stack" role="region" tabindex="-1" aria-live="polite" aria-label="Notifications">` +
+  `<div class="pp-toast pp-toast-ok" data-tone="ok" role="dialog" tabindex="0" aria-modal="false">${icon("check", 13)}` +
+  `<span class="pp-toast-msg">Saved for every line.</span>` +
+  `<button type="button" tabindex="0" class="pp-toast-cta">Undo</button>` +
+  `<button type="button" tabindex="0" aria-hidden="true" aria-label="Dismiss" class="pp-toast-x">${icon("x", 11)}` +
+  `</button></div></div>`;
+
+/** A switch of the kit's (Base UI's Switch): on or off, read-only or not. */
+const kitSwitch = (on, label, readOnly = false) =>
+  `<button type="button" tabindex="0" role="switch" aria-checked="${on}"${readOnly ? ' aria-readonly="true"' : ""} ` +
+  `aria-label="${label}" class="rec-switch"><span aria-hidden="true" class="rec-knob"></span></button>`;
+
+/** The kit's switches: off, on, read-only. */
+const kitSwitches = () =>
+  kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
+
+/** The kit's segmented control: a radio group of three, the second chosen. */
+const kitSegmented = () =>
+  `<div role="radiogroup" aria-label="How often" class="rec-seg">` +
+  [
+    ["Once", false],
+    ["Every week", true],
+    ["Every month", false],
+  ]
+    .map(
+      ([label, on]) =>
+        `<button type="button" tabindex="${on ? 0 : -1}" role="radio" aria-checked="${on}" class="rec-seg-btn">` +
+        `${label}</button>`,
+    )
+    .join("") +
+  `</div>`;
+
+/** The kit's segmented control with a sentence under each option. */
+const kitSegmentedHints = () =>
+  `<div role="radiogroup" aria-label="Who it answers" data-hints="true" class="rec-seg">` +
+  [
+    ["Everyone", "Every caller and every message.", true],
+    ["People it knows", "A new number is handed to you.", false],
+  ]
+    .map(
+      ([label, hint, on]) =>
+        `<button type="button" tabindex="${on ? 0 : -1}" role="radio" aria-checked="${on}" class="rec-seg-btn">` +
+        `<span class="rec-seg-label">${label}</span><span class="rec-seg-hint">${hint}</span></button>`,
+    )
+    .join("") +
+  `</div>`;
+
+/** The kit's fields: a hint under the box, and a unit beside it. */
+const kitFields = () =>
+  kitBox("Booking link", "https://example.com/book", "Sent instead of booking a visit itself.") +
+  `<div class="rec-field"><label><span class="rec-field-label">Least notice</span></label>` +
+  `<span class="rec-input-group"><input class="rec-input" type="text" value="24">` +
+  `<span class="rec-input-unit">hours</span></span></div>`;
+
+/** The kit's fields: what is wrong, marked on the box and said under it; and a box of sentences. */
+const kitFieldsWrong = () =>
+  `<div class="rec-field"><label><span class="rec-field-label">Website</span></label>` +
+  `<input class="rec-input" type="text" aria-invalid="true" value="northside studio">` +
+  `<span class="field-error" role="alert">${icon("alert", 11)}` +
+  `<span class="field-error-words">A website starts with https://.</span></span></div>` +
+  `<div class="rec-field"><label><span class="rec-field-label">What fits no field</span></label>` +
+  `<textarea class="rec-input" rows="3">Parking is behind the building, through the gate.</textarea></div>`;
 
 /* ---- the families ---- */
 
@@ -1272,6 +1437,86 @@ export const FAMILIES = [
       },
     ],
   },
+  /* ---- the kit's components with behaviour of their own, on Base UI (step 2.5) ----
+     Each entry is the markup a component draws in one state, on Base UI's parts: e2e/kit/kit-behaves.spec.ts drives
+     the component there on the harness's running page (kit-behaves.tsx, at /behaves) and holds what it draws to the
+     entry, element for element (the tag, the classes and the attributes a stylesheet or a screen reader reads, in
+     order; a Base UI part's own elements that carry no class, its focus guards, hidden inputs and portals, give way
+     to what they hold). A popup is drawn where Base UI portals it, after its control, and stood in a stage here. */
+  {
+    family: "Sheet, on Base UI",
+    about:
+      "The kit's Sheet (surfaces/kit/sheet/sheet.tsx), open over its wash: Base UI's modal dialog wearing the kit's " +
+      "sheet, the record sheet's head, tools, rows and foot inside it, and the control that opened it.",
+    entries: [{ id: "sheet-kit", stage: "sheet", html: kitSheet() }],
+  },
+  {
+    family: "Menu, on Base UI",
+    about:
+      "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
+      "its heading, a line, a door and the danger item; and a set to choose one of, the tick beside the one chosen.",
+    entries: [
+      { id: "menu-kit", stage: "pop", html: kitMenu() },
+      { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
+    ],
+  },
+  {
+    family: "Popover, on Base UI",
+    about: "The kit's Popover (surfaces/kit/popover/popover.tsx), open: Base UI's popover on the panel's pop.",
+    entries: [{ id: "popover-kit", stage: "pop", html: kitPopover() }],
+  },
+  {
+    family: "Tooltip, on Base UI",
+    about:
+      "The kit's Tooltip (surfaces/kit/tooltip/tooltip.tsx), shown: the house's tip on Base UI's positioner (.tip-place).",
+    entries: [{ id: "tooltip-kit", stage: "pop", html: kitTooltip() }],
+  },
+  {
+    family: "Select, on Base UI",
+    about:
+      "The kit's Select (surfaces/kit/select/select.tsx) in its Field, open: the record kit's box as a button, and its " +
+      "list over the page on the panel's pop (.rec-combo-pop), the one chosen walked to.",
+    entries: [{ id: "select-kit", stage: "pop", html: kitSelect() }],
+  },
+  {
+    family: "Combobox, on Base UI",
+    about:
+      "The kit's Combobox (surfaces/kit/combobox/combobox.tsx), typed into: the record kit's box, and its matches over " +
+      "the page on the panel's pop (.rec-combo-pop), the first walked to.",
+    entries: [{ id: "combobox-kit", stage: "pop", html: kitCombobox() }],
+  },
+  {
+    family: "Toast, on Base UI",
+    about:
+      "The kit's toast (surfaces/kit/toast/toast.tsx, useToast): Base UI's region of toasts, wearing the house's stack, " +
+      "a confirmation with its Undo and its ×.",
+    entries: [{ id: "toast-kit", stage: "sheet", html: kitToast() }],
+  },
+  {
+    family: "Switch, on Base UI",
+    about: "The kit's Switch (surfaces/kit/switch/switch.tsx): off, on, and read-only, on Base UI's switch.",
+    entries: [{ id: "switch-kit", html: kitSwitches() }],
+  },
+  {
+    family: "Segmented, on Base UI",
+    about:
+      "The kit's Segmented (surfaces/kit/segmented/segmented.tsx): Base UI's radio group on the record kit's track, and " +
+      "its options as cards with a sentence each.",
+    entries: [
+      { id: "segmented-kit", html: kitSegmented() },
+      { id: "segmented-kit-hints", html: kitSegmentedHints() },
+    ],
+  },
+  {
+    family: "Field, on Base UI",
+    about:
+      "The kit's Field (surfaces/kit/field/field.tsx): Base UI's field wearing the record kit's, a hint and a unit; what " +
+      "is wrong, in the one red a field wears; and a box of sentences.",
+    entries: [
+      { id: "field-kit", html: kitFields() },
+      { id: "field-kit-wrong", html: kitFieldsWrong() },
+    ],
+  },
 ];
 
 /* ---- the document ---- */
@@ -1315,6 +1560,7 @@ const GALLERY_CSS = `
     .gx-panel-row { padding: var(--space-2) var(--space-3); }
     .gx-panel-row + .gx-panel-row { border-top: 1px solid var(--line); }
     .gx-narrow { max-width: 220px; }
+    .gx-pop-words { margin: 0; }
 `;
 
 /**
@@ -1391,6 +1637,36 @@ export function galleryDocument(families = FAMILIES) {
 ${families.map(familyHtml).join("\n")}
   </main></div>
   <script>${GALLERY_SCRIPT}  </script>
+</body>
+</html>
+`;
+}
+
+/** The running page's own layout: room under its entries, so the page is taller than the window and a modal can be seen to hold it still. */
+const BEHAVES_CSS = `
+    .gx-room { height: 150vh; }
+`;
+
+/**
+ * The page that runs the kit's components (kit-behaves.tsx), in the gallery's stylesheets and layout: its bundle
+ * (kit-behaves.mjs, served at `bundle`) draws the entries into #root, after the gallery's script has set the theme and
+ * the look from the address, as the gallery sets them.
+ */
+export function behavesDocument(bundle = "/_hx/kit-behaves.js") {
+  return `<!doctype html>
+<html lang="en" data-theme="dark" data-look="classic" class="legacy-on">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chanlytics · the kit, behaving</title>
+  ${documentLinks().join("\n  ")}
+  ${APP_RULES}
+  <style>${GALLERY_CSS}${BEHAVES_CSS}  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>${GALLERY_SCRIPT}  </script>
+  <script src="${bundle}"></script>
 </body>
 </html>
 `;

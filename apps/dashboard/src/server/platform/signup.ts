@@ -1,19 +1,17 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
-import { deployment } from "../deployment";
 import { createClient } from "@supabase/supabase-js";
 import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
  * Sign-up, the half that knows who exists.
  *
- * This is the second place the dashboard holds the service role (the first
- * is service-db.ts, for jobs), and it writes no tenant data at all: it creates
- * the auth user, keeps what the form said on that user, and asks Supabase to
- * send the sign-in code with the anon client, exactly as /login does. An
- * address Supabase already has is recognised by its own error and left
- * alone: that person gets a code and signs in to what they have. The caller
- * says the same sentence either way.
+ * It writes no tenant data at all. `signUp` asks Supabase, with the anon client and exactly as /login does, to make
+ * the auth user and send the sign-in code, keeping what the form said on that user. An address Supabase already has
+ * is recognised by its own error and left alone: that person gets a code and signs in to what they have. The
+ * caller says the same sentence either way. The service role serves two other things here: `joinWaitlist` (the
+ * waitlist table, which has no workspace), and `notifyPlatformSignup`, which tells the platform's mailbox, through
+ * the edge, that a workspace was made.
  *
  * THE WORKSPACE WAITS FOR ITS OWNER. This used to make it here, with the
  * service role, for an address nobody had proved: a stranger typing someone
@@ -25,10 +23,13 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
  * enters the code makes the workspace through the one door every workspace
  * uses (create_workspace, signed in). Nothing exists for an address until
  * its owner does.
+ *
+ * Cross-workspace: sign-up and the waitlist precede any workspace; waitlist has no tenant_id to scope by.
  */
 
 import { callEdge, edgeConfigured } from "../edge";
 import { serviceDb } from "../service-db";
+import { deployment, env } from "../env";
 import { log } from "@/server/log";
 
 /** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
@@ -54,7 +55,7 @@ interface SignupOutcome {
  */
 export function inviteCodeMatches(given: string | undefined | null): boolean {
   const a = Buffer.from(given ?? "");
-  const b = Buffer.from(process.env.SIGNUP_CODE ?? "");
+  const b = Buffer.from(env.SIGNUP_CODE ?? "");
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
@@ -82,7 +83,7 @@ export function inviteCodeMatches(given: string | undefined | null): boolean {
  * cheerfully reports a code on its way.
  */
 export async function signUp(input: SignupInput & { password: string }): Promise<SignupOutcome> {
-  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { data, error } = await anon.auth.signUp({
@@ -170,12 +171,12 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  * holds the email key. Called where workspaces are made, /api/v1/workspaces/create,
  * for the first one and every one after. A failure is a shrug.
  */
-export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
+export async function notifyPlatformSignup(tenantId: string, email: string, userId: string): Promise<void> {
   if (!edgeConfigured() || !deployment.providersLive) return;
   const r = await callEdge(
     "/api/admin/signup-notify",
     { tenant_id: tenantId, email },
-    { workspace: tenantId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
+    { workspace: tenantId, user: userId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
   );
-  if (r.status >= 503) log.warn("signup_notify_failed", { tenant: tenantId, error: r.body?.detail });
+  if (r.status >= 503) log.warn("signup_notify_failed", { tenant_id: tenantId, error: r.body?.detail });
 }

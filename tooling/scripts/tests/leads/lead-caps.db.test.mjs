@@ -11,6 +11,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 import {
   LEAD_DAY_CAP_USD,
   LEAD_LIST_MAX,
@@ -42,8 +43,13 @@ const ok = (res, what = "") => {
   return res.data;
 };
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -73,18 +79,22 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
-  if (p.data)
-    await db
-      .from("lead_platform")
-      .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
-      .eq("id", true);
-  if (A) {
-    await db.from("events").delete().eq("tenant_id", A);
-    await db.from("tenants").delete().eq("id", A);
+  try {
+    if (skip) return;
+    const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
+    if (p.data)
+      await db
+        .from("lead_platform")
+        .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
+        .eq("id", true);
+    if (A) {
+      await db.from("events").delete().eq("tenant_id", A);
+      await db.from("tenants").delete().eq("id", A);
+    }
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => undefined);
+  } finally {
+    await releaseList?.();
   }
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => undefined);
 });
 
 test("SQL's caps and contracts' are the same numbers, name by name", { skip }, async () => {

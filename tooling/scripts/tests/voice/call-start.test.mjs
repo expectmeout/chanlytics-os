@@ -41,6 +41,9 @@ import {
 } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { planCallStart } = await import(at("apps/edge/lib/voice/call-start.ts"));
@@ -377,7 +380,7 @@ test("a throw after the facts were composed keeps them: the caller gets what was
 });
 
 test("the shell's defaults are the judgement's fallbacks, one constant each: a call it cannot place is told exactly what the shell says on its own", () => {
-  assert.deepEqual(desiredVoiceShell().default_dynamic_variables, {
+  assert.deepEqual(desiredVoiceShell(FN_URL).default_dynamic_variables, {
     business_facts: FACTS_UNAVAILABLE,
     caller_context: CALLER_UNKNOWN,
     greeting: GREETING_DEFAULT,

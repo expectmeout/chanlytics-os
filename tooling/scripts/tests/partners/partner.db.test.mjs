@@ -815,8 +815,13 @@ test(
     tenants.push(made.id);
     ok(await earn({ p_tenant_id: made.id, p_invoice_id: "in_letter_1", p_event_id: "evt_letter_1" }));
 
-    const dueFor = async (at = new Date()) =>
-      ok(await db.rpc("partner_letters_due", { p_now: at.toISOString() })).filter((r) => r.partner_id === p4Id);
+    // With no instant, the database's own now() (the function's default): the runner's clock and the database's differ
+    // by milliseconds, and what the database stamped a moment ago is after a runner's new Date() when its clock is
+    // ahead. An instant the test names is an hour on, or a millisecond past a stamp the database gave (mine.through).
+    const dueFor = async (at) =>
+      ok(await db.rpc("partner_letters_due", at ? { p_now: at.toISOString() } : {})).filter(
+        (r) => r.partner_id === p4Id,
+      );
     const [mine] = await dueFor();
     assert.ok(mine, "a share and a workspace brought since the mark");
     assert.equal(mine.email.endsWith("@example.com"), true);

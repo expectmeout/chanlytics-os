@@ -35,8 +35,13 @@ import {
   copiesAmong,
   castsIn,
   tableNames,
+  rpcNames,
+  importsMatching,
+  workspacelessStatements,
+  headerOf,
   durationsIn,
   inlineStyles,
+  sourceReads,
   SOURCE,
 } from "./_ast.mjs";
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
@@ -47,6 +52,8 @@ export const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
 const DIRECTORY_LIMIT = 20;
 const COPY_LIMIT = 3;
+/** The suffix of a tables.json key that counts a file's `.rpc("…")` calls rather than its `.from("…")`. */
+export const RPC_KEY = "::rpc";
 
 /** The code that ships: the two apps and the packages' sources. Tests and specs are not held to a function's size. */
 const SRC = repoFiles(["apps", "packages"]);
@@ -56,6 +63,20 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "e2e"]);
 const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
+const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
+/**
+ * What a door does not import (specifiers as written, so the edge's relative facade of a package is a pattern of its
+ * own beside the package): a repository (`@chanlytics/db`, or supabase-js, which is one's client) and a provider client
+ * (`@chanlytics/channels`, whose `providerFetch` and wires are the providers' own). A door that holds one holds a rule
+ * or a table query the layer behind it should. The edge's `lib/pg` handle is not named: nearly every door takes it to
+ * pass on, and the tables ratchet already counts the ones that query it.
+ */
+export const DOOR_FORBIDS = [
+  /^@chanlytics\/(db|channels)$/,
+  /^@supabase\/supabase-js$/,
+  /(^|\/)lib\/packages\/(db|channels)(\.js)?$/,
+];
 /**
  * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
  * classic scripts (legacy/) and the static files the browser loads as they are (public/) — and less the home itself.
@@ -83,6 +104,30 @@ const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f
  * all they have and they are not held.
  */
 const MARKUP = SRC.filter((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\/.*\.(jsx|tsx)$/.test(f));
+
+/** The tables whose every row belongs to one workspace: each names `tenant_id` in its Row (the generated types). */
+export function tenantTablesOf() {
+  const tables = new Set();
+  let table = null;
+  let inRow = false;
+  let inTables = false;
+  for (const line of fs.readFileSync(path.join(ROOT, "packages/db/src/database.types.ts"), "utf8").split(/\r?\n/)) {
+    if (/^ {2}public: \{/.test(line)) inTables = true;
+    else if (/^ {2}\w+: \{/.test(line)) inTables = false;
+    if (!inTables) continue;
+    const t = /^ {6}(\w+): \{$/.exec(line);
+    if (t) table = t[1];
+    if (/^ {8}Row: \{$/.test(line)) inRow = true;
+    else if (inRow && /^ {8}\}$/.test(line)) inRow = false;
+    else if (inRow && table && /^ {10}tenant_id: /.test(line)) tables.add(table);
+  }
+  return tables;
+}
+
+/** A file that reads across workspaces on purpose says so in its header, as a line `Cross-workspace: <why>`. */
+export const CROSS_WORKSPACE = /^\s*(?:\/\/|\/\*\*|\*)?\s*Cross-workspace: \S/m;
+/** The edge's own code: its doors and what they call, less the facades that re-export the packages' dist. */
+const EDGE = SRC.filter((f) => /^apps\/edge\/(api|lib)\//.test(f) && !f.startsWith("apps/edge/lib/packages/"));
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -166,15 +211,44 @@ export const MEASURES = [
       "Name the shape and parse it, or narrow it with a type guard: a value laundered through unknown, told it is never, or told it is not null is a type the compiler no longer checks. An index read that can miss is guarded (const first = rows[0]; if (!first) …), never asserted with !.",
   },
   {
+    // A file's `.from("…")` count under its path, and its `.rpc("…")` count under `<path>${RPC_KEY}`: a SQL function
+    // called by name outside packages/db is a table read or written there all the same.
     name: "table names outside packages/db",
     file: "tables.json",
-    measure: () =>
-      perFile(
-        SRC.filter((f) => !f.startsWith("packages/db/")),
-        tableNames,
-      ),
+    measure: () => {
+      const outside = SRC.filter((f) => !f.startsWith("packages/db/"));
+      const rpcs = perFile(outside, rpcNames);
+      return {
+        ...perFile(outside, tableNames),
+        ...Object.fromEntries(Object.entries(rpcs).map(([f, n]) => [f + RPC_KEY, n])),
+      };
+    },
     advice:
-      "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+      "A table, and a SQL function, is named once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "route files that hold a repository or a provider client",
+    file: "route-doors.json",
+    measure: () => perFile(ROUTES, (sf) => importsMatching(sf, DOOR_FORBIDS)),
+    advice:
+      "A route file is a door: it verifies, parses its input and answers, and everything else is a call into lib/ (the edge), src/server (the dashboard) or a core verb. Read or write through a repository behind that call, and reach a provider through a wire in packages/channels behind it too.",
+  },
+  {
+    name: "edge statements that name no workspace",
+    file: "workspaceless.json",
+    measure: () => {
+      const tables = tenantTablesOf();
+      const out = {};
+      for (const f of EDGE) {
+        const sf = parse(f);
+        if (CROSS_WORKSPACE.test(headerOf(sf))) continue;
+        const n = workspacelessStatements(sf, tables);
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "A statement on a workspace's table names the workspace: tenantDb(db, tenantId).from(...) (packages/db), or .eq(\"tenant_id\", …), or a row that carries its tenant_id. A module that reads across workspaces on purpose (a sweep, a provider's webhook) says why in its header, on a line that begins Cross-workspace: and is not measured.",
   },
   {
     name: "unnamed durations",
@@ -264,12 +338,20 @@ function repoTestFiles() {
   }
 }
 
-/** Every test file and, for those that read source as text, how many times: `readCode(` and `readRaw(` on the comment-stripped file. */
+/**
+ * Every test file and, for those that read source as text, how many times: `readCode(` and `readRaw(` on the
+ * comment-stripped file, and each call of a helper of the file's own that reads a source file with `readFileSync`
+ * (`sourceReads`, measured on the syntax tree). The helpers went uncounted until 29 Sep 2026: 22 reads in 7 files the
+ * count did not see, banked then as a correction of the measure.
+ */
 export function sourceScan() {
   const files = repoTestFiles().filter((f) => f !== SOURCE_SCAN_SELF && fs.existsSync(path.join(ROOT, TESTS_DIR, f)));
   const counts = Object.fromEntries(
     files
-      .map((f) => [f, (readCode(`${TESTS_DIR}/${f}`).match(/\b(readCode|readRaw)\(/g) ?? []).length])
+      .map((f) => {
+        const rel = `${TESTS_DIR}/${f}`;
+        return [f, (readCode(rel).match(/\b(readCode|readRaw)\(/g) ?? []).length + sourceReads(parse(rel))];
+      })
       .filter(([, n]) => n > 0),
   );
   return { files, counts };

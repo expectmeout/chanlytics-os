@@ -22,6 +22,7 @@ import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
+import { env } from "../env";
 
 /* --------------------------------------------------------- a page of rows */
 
@@ -181,7 +182,7 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     postal_code: r.postal_code,
     neighborhood: r.neighborhood ?? null,
     // Served from our own storage, on the origin the content policy allows (00161); the site's own address never.
-    mark_url: leadMarkSrc(process.env.NEXT_PUBLIC_SUPABASE_URL, r.mark_path),
+    mark_url: leadMarkSrc(env.NEXT_PUBLIC_SUPABASE_URL, r.mark_path),
     lat: r.lat ?? null,
     lng: r.lng ?? null,
     search_name: searchNames.get(r.search_id) ?? null,

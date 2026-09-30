@@ -556,8 +556,8 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   assert.ok(!/_sid/.test(client), "no provider SID reaches the page");
   const agent = readCode("apps/edge/lib/voice/voice-agent.ts");
   for (const pin of [
-    "createRetellLlm(cfg, voiceLlmCreateBody(secrets))",
-    "createAgent(cfg, voiceAgentCreateBody(",
+    "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
+    "voiceAgentCreateBody({ llmId, llmVersion, agentName: o.agentName }, secrets, fnUrl)",
     'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
     "await getAgentRaw(cfg, o.agentId)",
     "await getRetellLlm(cfg, llmId)",

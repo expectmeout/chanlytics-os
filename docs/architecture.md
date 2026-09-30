@@ -107,6 +107,32 @@ Every request proves who is knocking before anything is read.
 
 And one door with no key: `GET /api/health` answers 200 or 503 so a pinger outside the failure domain can page a person.
 
+## What happened, and to which request
+
+Three records answer it, and one name joins them.
+
+- **The log.** One logger for every runtime, `packages/channels/src/log/`, which the edge (`apps/edge/lib/log.ts`) and the
+  dashboard's server (`apps/dashboard/src/server/log.ts`) re-export with their own closed set of event names
+  (`LOG_EVENTS`, `DASHBOARD_LOG_EVENTS`), and core, jobs, db and channels write through directly (db through a port an app
+  hands it). One JSON object per line on stdout: `level`, `event`, `request_id`, `tenant_id`, then the line's own fields,
+  each redacted where it is written, by the key it sits under and by what it looks like: a number keeps four digits, an
+  address its domain, words their length, a credential nothing. `no-console` holds every tree, Ask's included. What a
+  line holds is `docs/runbook.md`, "Read the logs".
+- **The request's name.** Minted once where a request enters: `withRoute` for a route, `door()` for an edge door (the
+  platform's id for the invocation, or a fresh one; an admin door takes the dashboard's, signed into the token the
+  dashboard minted for the call, so a header cannot rename it). It is held by an `AsyncLocalStorage` for what the request awaits and no longer, answered as `x-request-id`,
+  carried on every call the dashboard makes to the edge, written into the payload of every job the request schedules
+  (the tick runs the job as that request, or as its own row for a clock's), sent to the database on every call so the
+  ledger's rows say it (`events.request_id`), and read by the logger on every line.
+- **The ledgers.** `events` says what happened and `decisions` who decided, as before; a team change is one transaction
+  with its decision, and playing a call's recording is a decision too (`open_recording`). Beside them, one row per
+  workspace per day is counted (`platform_metrics`, rolled up nightly): messages, answers, held and handed over, latency,
+  failed sends by outcome, tokens; a workspace whose customers wrote all day and got no answer pages the platform.
+
+What the browser hits is told to the same log: each error boundary sends its report once to
+`POST /api/v1/client-errors`, logged as `client_error`. A provider's breaker that opens says so (`breaker_open`, and
+`breaker_closed`), and `/api/diag` reads each provider's state.
+
 ## A message in
 
 Each channel has a door on the edge that verifies the wire, and a plan
@@ -283,7 +309,7 @@ Arrows point at what a package depends on, read upward: `jobs` depends on
 | `contracts` | Types, zod schemas, the closed sets generated from the database (`schema-sets.generated.ts`), the view models every page reads, the prompt composer, the words the UI says                                                                                                                                                                       | Pure. No client, no framework, no environment. It is larger than its name: view models and prompt composition live here today                                            |
 | `core`      | The use cases as verbs over ports: `conversations` (reply, take over, hand back, snooze, wake, resolve, archive), `campaigns` (assemble a run, create a broadcast, run a playbook, approve, cancel), `messages` (send, broadcast batch, email intake, line provisioning), `leads` (the finder's runner, judge, cleaning, endings), and `deliver` | A verb takes a `ports` object and a command and returns an outcome. No database client, framework, provider or environment inside a verb. The adapters live at the doors |
 | `db`        | Supabase repositories, the generated database types, realtime                                                                                                                                                                                                                                                                                    | The one place a table name is typed                                                                                                                                      |
-| `channels`  | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token                                                                                                     | Owns each provider's wire format. Knows nothing about threads                                                                                                            |
+| `channels`  | Provider adapters: Meta (WhatsApp, templates, Embedded Signup), Retell (calls, agents, the prompt shell), Twilio (lines, SMS, A2P), Resend (email), Google (Places, Business Profile, OAuth), Apify (actors), the lead judge, the edge token, and the platform's one logger and its request store                                                | Owns each provider's wire format. Knows nothing about threads                                                                                                            |
 | `jobs`      | The ledger, the tick, the handlers, escalation on failure                                                                                                                                                                                                                                                                                        | Handlers build ports from the job's context and call core                                                                                                                |
 
 ## The app plane
@@ -369,7 +395,7 @@ as each surface moves onto the kit (the plan's Phase 4).
 ```text
 apps/dashboard/src/legacy/styles/tokens.css   the scales, each theme's colours, the roles, the looks
 apps/dashboard/src/surfaces/kit/kit.css       the kit's own rules, reading the tokens
-apps/dashboard/src/surfaces/kit/*.tsx         its components, for a surface written in TSX
+apps/dashboard/src/surfaces/kit/*/*.tsx       its components, a folder each, for a surface written in TSX
 a page's own stylesheet                       its layout; until Phase 4, its own primitives and values too
 ```
 
@@ -399,24 +425,30 @@ design until Phase 4 takes the house's out: `.avatar` beside `.face`,
 `.confirm-block` beside `.panel-pop` and `.panel-inset`. `classes.json` is its
 registry: the house's own names, with no prefix, which the measures read, so
 a listed class declared in any other stylesheet is a primitive outside the
-kit. Each component is a module that renders those classes, typed and named
-in `index.ts` (`Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`),
-its props mapped to classes by `variants.ts`, so a legacy page that writes
-the classes and a surface that draws the component draw the same markup. The
+kit. Each component is a folder of its own, the module that renders those
+classes and its type test, named in `index.ts` (`Button`, `LinkButton`,
+`Panel`, `Face`, `ListRow`, `Meter`), its props mapped to classes by
+`variants.ts`, so a legacy page that writes the classes and a surface that
+draws the component draw the same markup. The
 shell reaches the kit through its classes, since
 `apps/dashboard/src/legacy-bridge/legacy.css` imports `kit.css` right after
 the tokens. A surface in TSX cannot import the house's JSX components over
 the kit's classes (`StatePill`, `Confirm`, the record kit's fields): the
 first surface that needs one moves it into the kit as TSX, drawing what it
-drew (the plan's Phase 3). A component with behaviour of its own (a sheet,
-a menu, a picker, a tooltip, a toast, a switch, tabs, a field) is built in
-the kit on Base UI's unstyled parts (`@base-ui/react`, one pinned version,
-each part imported alone), which bring focus, Escape, the keyboard and the
-page held still behind a sheet, while the kit's classes draw them (the
-plan's decision 15 and step 2.5). A surface swaps the house's for it at its
-kit step, as a listed difference, and deletes the hand-written behaviour
-there. The lint's messages name the kit's Field, Switch, Select, Sheet and
-Confirm, which arrive by one of these two roads.
+drew (the plan's Phase 3). The components with behaviour of their own are
+built in the kit on Base UI's unstyled parts (`@base-ui/react`, one exact
+version, each part imported alone, which the lint holds): `Sheet` (a modal
+dialog), `Menu`, `Popover`, `Select`, `Combobox`, `Tooltip`, `useToast`,
+`Switch`, `Segmented` (a radio group) and `Field` (the plan's decision 15 and
+step 2.5). Base UI brings focus held inside, Escape, the keyboard, the page
+held still behind a sheet and what a screen reader is told, and portals each
+popup to the body; the kit's classes draw them, a state Base UI marks drawn
+by the kit's own where it has one. A glyph such a part draws is the page's,
+handed in, until the Icon moves into the kit. No page draws them yet: a
+surface swaps the house's for one at its kit step, as a listed difference,
+and deletes the hand-written behaviour there. The lint's refusals of a raw
+control name the kit's Button, Field, Switch, Select, Combobox and Sheet by
+their folders, and Confirm, which a surface moves into the kit.
 
 **The gallery** draws every class of the registry in every state its rules
 name, in both themes and both looks, at a desk and a phone width:
@@ -424,8 +456,11 @@ name, in both themes and both looks, at a desk and a phone width:
 record, never served in production. `e2e/kit/kit.spec.ts` checks in a
 browser that every class and every selector of `kit.css` is drawn and reads
 its tokens, and `tooling/scripts/tests/styles/` holds the registry, the
-gallery's classes and the components' markup in `corepack pnpm test`
-(`docs/runbook.md`, "See the kit").
+gallery's classes and the components' markup in `corepack pnpm test`. The
+same harness runs the Base UI components on a page of their own
+(`/behaves`), where `e2e/kit/kit-behaves.spec.ts` drives each with a
+keyboard and a pointer and holds what it draws, state by state, to its
+family in the gallery (`docs/runbook.md`, "See the kit").
 
 **Surfaces.** `apps/dashboard/src/surfaces/` is where a page goes when it
 leaves the shell (decision 0015), a folder per surface beside `kit/`. It is
@@ -558,6 +593,7 @@ packages/channels/src/
   google/
   leads/
   lines/
+  log/
   models/
   tokens/
   voice/
@@ -633,6 +669,7 @@ Every path is from the repository's root, and
 | A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `apps/dashboard/app/api/v1/conversations/[id]/`, a row in `tooling/scripts/tests/route-policy.json`, the shell's `apps/dashboard/src/legacy-bridge/inbox-verbs.ts` |
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                                                                                                       |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                                                                                                   |
+| A log line, a request's name           | `packages/channels/src/log/` (the logger, its redaction and the request store), `apps/edge/lib/log.ts` (`door`, `LOG_EVENTS`), `apps/dashboard/src/server/log.ts` (`DASHBOARD_LOG_EVENTS`)                                         |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                        |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                              |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                |

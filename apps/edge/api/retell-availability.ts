@@ -30,7 +30,7 @@ import {
   type ServiceOffer,
 } from "../lib/packages/contracts.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
@@ -97,7 +97,7 @@ export function availabilityAnswer(
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
@@ -130,7 +130,7 @@ export async function POST(request: Request): Promise<Response> {
   const hasBookingLink = offersBookingLink(rt.brain);
   const lane = !hasBookingLink ? "no_link" : held ? "held" : "link";
   if (!rt.calendar?.ical_url) {
-    L.info("retell_availability_no_calendar", { tenant: routed.tenantId, held });
+    L.info("retell_availability_no_calendar", { tenant_id: routed.tenantId, held });
     return json(200, { result: WITHOUT_TIMES.no_calendar[lane] });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
@@ -142,7 +142,7 @@ export async function POST(request: Request): Promise<Response> {
     openingsData(rt),
   ]);
   if (!data) {
-    L.info("retell_availability_unavailable", { tenant: routed.tenantId, held });
+    L.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held });
     return json(200, { result: WITHOUT_TIMES.cannot_see[lane] });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args, {
@@ -151,7 +151,7 @@ export async function POST(request: Request): Promise<Response> {
     bookingHeld: held,
   });
   L.info("retell_availability", {
-    tenant: routed.tenantId,
+    tenant_id: routed.tenantId,
     day: answer.day,
     service: answer.offer?.service.name ?? null,
     consultation: answer.offer?.consultation ?? false,
@@ -160,4 +160,4 @@ export async function POST(request: Request): Promise<Response> {
     held,
   });
   return json(200, { result: answer.result });
-}
+});

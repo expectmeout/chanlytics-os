@@ -13,9 +13,10 @@ import { json } from "../../../lib/http.js";
 import { authorizeAdmin } from "../../../lib/admin-auth.js";
 import { GRAPH_VERSION, metaAppId } from "../../../lib/whatsapp/meta-graph.js";
 import { env } from "../../../lib/env.js";
+import { adminDoor } from "../../../lib/log.js";
 
-export async function GET(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
+export const GET = adminDoor(async function GET(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/signup-config");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const configId = env.META_ES_CONFIG_ID || null;
@@ -29,4 +30,4 @@ export async function GET(request: Request): Promise<Response> {
     ready: reason === null,
     reason,
   });
-}
+});

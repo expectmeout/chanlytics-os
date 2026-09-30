@@ -21,6 +21,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { composeSystemPrompt } from "@chanlytics/contracts";
 import { FACTS_UNAVAILABLE, desiredVoiceShell } from "@chanlytics/channels";
+
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -87,7 +90,7 @@ test("speaking aloud, the agent offers to send the link to the caller's WhatsApp
 test("with no facts to read, the shell's fallback offers the link on WhatsApp, as the tool it offers says", () => {
   assert.doesNotMatch(FACTS_UNAVAILABLE, TEXTS_THE_LINK, "REGRESSION: the fallback offered to text the link");
   assert.ok(FACTS_UNAVAILABLE.includes("offer to send the booking link to the caller's WhatsApp"), FACTS_UNAVAILABLE);
-  const tool = desiredVoiceShell().general_tools.find((t) => t.name === "send_booking_link");
+  const tool = desiredVoiceShell(FN_URL).general_tools.find((t) => t.name === "send_booking_link");
   assert.match(tool.description, /to the caller's WhatsApp/);
   assert.match(tool.execution_message_description, /to their WhatsApp/);
 });

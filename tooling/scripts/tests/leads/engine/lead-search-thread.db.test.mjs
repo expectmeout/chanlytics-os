@@ -12,6 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -94,8 +95,13 @@ const create = async (who, thread) =>
 const threadOfSearch = async (id) =>
   ok(await db.from("lead_searches").select("thread_id").eq("id", id).single()).thread_id;
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -123,27 +129,31 @@ before(async () => {
 });
 
 after(async () => {
-  if (skip) return;
-  const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
-  if (p.data)
-    await db
-      .from("lead_platform")
-      .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
-      .eq("id", true);
-  for (const id of [A, B].filter(Boolean)) {
-    for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
-      platformDays.add(r.platform_day);
-    await db.from("events").delete().eq("tenant_id", id);
-    await db.from("tenants").delete().eq("id", id);
+  try {
+    if (skip) return;
+    const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
+    if (p.data)
+      await db
+        .from("lead_platform")
+        .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
+        .eq("id", true);
+    for (const id of [A, B].filter(Boolean)) {
+      for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
+        platformDays.add(r.platform_day);
+      await db.from("events").delete().eq("tenant_id", id);
+      await db.from("tenants").delete().eq("id", id);
+    }
+    if (platformDays.size)
+      await db
+        .from("lead_counters")
+        .delete()
+        .is("tenant_id", null)
+        .eq("kind", "day")
+        .in("period", [...platformDays]);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseList?.();
   }
-  if (platformDays.size)
-    await db
-      .from("lead_counters")
-      .delete()
-      .is("tenant_id", null)
-      .eq("kind", "day")
-      .in("period", [...platformDays]);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
 test(

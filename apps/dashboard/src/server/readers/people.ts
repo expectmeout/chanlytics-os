@@ -12,7 +12,8 @@ import {
   type PersonRowVM,
   type PipelineVM,
 } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, countPeople, listPeople } from "../people/people";
+import { PEOPLE_PAGE, countPeople, listPeople, nextPeopleParam } from "../people/people";
+import type { PeopleCursor } from "@chanlytics/db";
 import { withVisits, type PeopleVisits } from "../calendar/people-visits";
 import { dealPaceRead } from "../people/deals";
 import { stepNamer } from "../people/person-notes";
@@ -32,7 +33,12 @@ interface PeoplePage {
   deals_on: boolean;
   deal_pace: DealPaceDto | null;
   follow_up: FollowUpFactsDto | null;
-  page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean };
+  /**
+   * `offset` is how many rows the caller holds, and counts `has_more`; `next`, when the rows carry their place in the
+   * order (00276), is where the next page starts: handed back as `?after=`, it reads just past the last row, and
+   * nobody who writes in between is read twice.
+   */
+  page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean; next: string | null };
 }
 
 /**
@@ -44,13 +50,15 @@ interface PeoplePage {
  * checks the offset; this takes them as given. How the workspace's customers buy, and the calendar's zone and
  * settings, come through their readers, once in a turn. Each person is a row a citation may name, as People names them.
  */
-export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = {
+export const people: Reader<{ q: string | null; offset: number; after?: PeopleCursor | null }, PeoplePage> = {
   name: "people",
-  async read(rc, { q, offset }) {
+  async read(rc, { q, offset, after }) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
     const [rows, total] = await Promise.all([
-      listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE }),
+      // Just past the cursor when the page holds one, else by the offset: never both, since the offset then only
+      // counts what the page holds.
+      listPeople(ctx, tenantId, after ? { q, after, limit: PEOPLE_PAGE } : { q, offset, limit: PEOPLE_PAGE }),
       countPeople(ctx, tenantId, q),
     ]);
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
@@ -74,7 +82,7 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
         dealsAreOn(s) && offset === 0 && !q
           ? followUpFacts(ctx, tenantId, rc.now).catch((e: unknown) => {
               log.error("follow_up_facts_failed", {
-                tenant: tenantId,
+                tenant_id: tenantId,
                 error: e instanceof Error ? e.message : String(e),
               });
               return null;
@@ -83,6 +91,9 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
       ),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
+    // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
+    // next pass, never after the cursor.
+    const hasMore = rows.length === PEOPLE_PAGE && offset + rows.length < total;
     const data: PeoplePage = {
       ...out,
       people: out.people.map(nameSteps),
@@ -95,7 +106,14 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
       // The proposal follow-up, where one runs (0006): who it has in hand and when, row by row, on People and Today.
       follow_up: dealsOn ? followUp : null,
       consult_first: out.consult_first,
-      page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },
+      page: {
+        q,
+        offset,
+        limit: PEOPLE_PAGE,
+        total,
+        has_more: hasMore,
+        next: hasMore ? nextPeopleParam(rows[rows.length - 1]) : null,
+      },
     };
     return {
       data,

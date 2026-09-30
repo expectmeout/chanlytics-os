@@ -27,7 +27,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/ops/sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/whatsapp/receipts-watch.js";
 import {
@@ -36,10 +36,11 @@ import {
   describeMailDomainTrouble,
 } from "../../lib/email/mail-domain.js";
 import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
+import { watchAnswerSilence } from "../../lib/ops/answer-silence.js";
 import { watchModels } from "../../lib/ops/model-watch.js";
 import { env } from "../../lib/env.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "health" });
   const db = pg();
   if (!db) {
@@ -146,6 +147,8 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // Workspaces whose customers wrote all day and got no answer from anyone (00277), paged once per silent day.
+  const answerSilent = await watchAnswerSilence(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
 
@@ -156,6 +159,7 @@ export async function POST(request: Request): Promise<Response> {
     unreceipted,
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
     cold_reply_trouble: coldTrouble,
+    answer_silent: answerSilent,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
   });
@@ -165,4 +169,4 @@ export async function POST(request: Request): Promise<Response> {
   // to report someone else's failure would make the health check report itself
   // as broken and never recover.
   return json(200, { ok: true, healthy: plan.broken.length === 0, broken: plan.broken });
-}
+});

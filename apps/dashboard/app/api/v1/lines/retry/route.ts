@@ -12,14 +12,14 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "lines_retry",
-  handle: async ({ req, member }) => {
+  handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };
     const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";
     if (!isUuid(lineId)) throw new AppError("validation", "Which line?", 400);
     // `by`, because the edge cannot tell an owner's Retry from support's: both send the
     // same op, and it used to write "started by support" on every one of them.
     const a = await edgeLines(
-      { op: "retry", tenant_id: member.tenantId, line_id: lineId, by: "owner" },
+      { op: "retry", tenant_id: member.tenantId, user_id: ctx.userId, line_id: lineId, by: "owner" },
       EDGE_LINES_TIMEOUT_MS,
     );
     const b = a.body ?? {};

@@ -16,6 +16,8 @@ pnpm-lock.yaml
 # Written by a script; regenerating is the only correct edit
 packages/db/src/database.types.ts
 *.generated.ts
+docs/data-model.md
+*.generated.json
 tooling/scripts/tests/route-policy.json
 tooling/scripts/tests/source-scan-baseline.json
 tooling/scripts/tests/baselines/

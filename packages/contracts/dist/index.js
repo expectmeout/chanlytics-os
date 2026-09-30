@@ -136,17 +136,6 @@ function injectionQuestion() {
     }
   };
 }
-var FENCE_TAGS = [
-  "customer",
-  "profile_name",
-  "transcript",
-  "review",
-  "reply",
-  "record",
-  "conversation",
-  "places",
-  "note"
-];
 function defang(text) {
   return text.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
@@ -167,6 +156,186 @@ function promptSafeName(name) {
   const flat = defang(name).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!flat) return null;
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
+}
+
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
+// src/playbooks/playbook-time.ts
+var SWEEP_TICK_MS = 5 * MIN_MS;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
+}
+
+// src/shared/words.ts
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+
+// src/playbooks/playbook-triggers.ts
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
+var PLAYBOOK_STATES = ["running", "paused"];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+var PLAYBOOK_NAME_MAX = 80;
+var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function triggerOffered(t, dealsOn) {
+  if (t.kind === "reach_out") return false;
+  return t.kind !== "deal" || dealsOn;
+}
+function policyClassOffered(cls, dealsOn) {
+  if (cls === "outreach") return true;
+  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
+  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
 
 // src/config/workspace-config/policy-classes.ts
@@ -197,12 +366,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -220,7 +389,7 @@ var POLICY_CLASS_WORDS = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -451,44 +620,6 @@ function purposeOfTemplate(category) {
 }
 function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
-}
-
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
 }
 
 // src/calendar/feed-url.ts
@@ -779,6 +910,7 @@ var BookingRulesSchema = z4.object({
   notes: z4.array(z4.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E164.test(s);
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z4.object({
   address: z4.string().max(300).optional(),
@@ -1628,7 +1760,6 @@ var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 function leadMonth(zone, at3) {
   const d = dayInZone(zone, at3.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
@@ -2330,7 +2461,6 @@ var MONEY_PATTERNS = [
 function namesMoney(text) {
   return MONEY_PATTERNS.some((p) => p.test(text));
 }
-var HELD_LINE_KINDS = ["price", "money", "booking", "faq"];
 var HELD_LINES = {
   en: {
     price: "Good question! A member of our team will follow up here with the details shortly.",
@@ -2403,6 +2533,13 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var REPLY_CAP_DEFAULT = 20;
 var PAUSE_HOURS_DEFAULT = 24;
+function pauseHoursOf(limits) {
+  const stored = PolicyLimitsSchema.shape.pause_hours.safeParse(limits?.pause_hours);
+  return stored.success && stored.data !== void 0 ? stored.data : PAUSE_HOURS_DEFAULT;
+}
+function pauseMsOf(limits) {
+  return pauseHoursOf(limits) * HOUR_MS;
+}
 function hardLimitsWords(limits) {
   const stored = (v) => {
     const n = Number(v);
@@ -2413,7 +2550,7 @@ function hardLimitsWords(limits) {
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
     pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
-    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
+    hours: pauseHoursOf(limits)
   };
 }
 function replyDelayMs(mode, limits) {
@@ -2959,7 +3096,6 @@ function openingVerdict(code2, reading, stepLanguage) {
 var DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"];
 var isDraftWhy = (v) => DRAFT_WHYS.includes(v);
 var DRAFT_NEEDS_MS = 25e3;
-var DRAFT_MAX = 4e3;
 var DRAFT_NOTICE_MAX = 240;
 var SILENT_MODE = "never";
 function draftRefusal(f) {
@@ -3339,7 +3475,6 @@ function leadPhoneState(phone) {
   if (!phone) return "none";
   return phoneDialable(phone) ? "ok" : "invalid";
 }
-var LEAD_EMAIL_REASON = /^email:/;
 function classify(plan, answer, facts, emailState, inArea, phoneState) {
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
@@ -3867,18 +4002,18 @@ function aiUsageBodyOf(call) {
 function usageMonthOf(month, lines) {
   const models = lines.filter((l) => l.meter === "model");
   const priced = models.filter((l) => l.usd !== null);
-  const sum = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
+  const sum2 = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
   return {
     month,
     lines,
-    model_usd: priced.length ? Math.round(sum(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
-    model_calls: sum(models, (l) => l.uses),
-    model_tokens: sum(models, (l) => l.quantity),
-    voice_seconds: sum(
+    model_usd: priced.length ? Math.round(sum2(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
+    model_calls: sum2(models, (l) => l.uses),
+    model_tokens: sum2(models, (l) => l.quantity),
+    voice_seconds: sum2(
       lines.filter((l) => l.meter === "voice_seconds"),
       (l) => l.quantity
     ),
-    wa_conversations: sum(
+    wa_conversations: sum2(
       lines.filter((l) => l.meter === "wa_conversation"),
       (l) => l.uses
     )
@@ -3892,8 +4027,15 @@ var FLAG_MECHANISMS = [
   "workspace_feature",
   "ci_secret",
   "deployment",
-  "model_override"
+  "model_override",
+  "rollout"
 ];
+function daysToSunset(flag, now) {
+  if (flag.sunset === null) return null;
+  const end = Date.parse(`${flag.sunset}T00:00:00Z`);
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((end - today) / DAY_MS);
+}
 var FLAGS = [
   {
     name: "WHATSAPP_TEST_ALLOWLIST",
@@ -3906,10 +4048,83 @@ var FLAGS = [
   {
     name: "RETELL_DOORS_SIGNED",
     mechanism: "edge_env",
-    does: "'1' makes Retell's signature the only key to the voice doors.",
+    does: "'1' makes Retell's signature the only key to the voice doors; unset, the shared secret opens them beside it.",
     owner: "Ruben",
     sunset: "2026-10-17",
-    kept: "Set after the 3 October log read; the change that empties KEY_READ_FROM removes it (docs/debt.md)."
+    weaker: {
+      allows: "Unset, the three voice doors (the inbound webhook, the booking-link and availability functions) open for RETELL_FN_SECRET (?key= or x-fn-secret) as well as for Retell's signature (lib/voice/voice-door-auth.ts).",
+      readiness: {
+        event: "voice_door_auth",
+        when: "sig: true on each of the three doors on real deliveries, read from 3 October 2026"
+      },
+      closes: "Ruben sets RETELL_DOORS_SIGNED=1 after the read; after a clean week the change that empties KEY_READ_FROM and stops provisioning the secret (docs/debt.md)."
+    }
+  },
+  {
+    name: "RETELL_FN_SECRET",
+    mechanism: "edge_env",
+    does: "The shared secret that opens the voice doors beside Retell's signature: `?key=` on the inbound webhook's URL, `x-fn-secret` on the two tools; unset, it opens nothing.",
+    owner: "Ruben",
+    sunset: "2026-10-17",
+    weaker: {
+      allows: "A secret in a URL (a Retell dashboard, an agent's tool config, any access log) opens the inbound webhook, and the same secret in a header opens the two tools, for a caller with no signature.",
+      readiness: {
+        event: "voice_door_auth",
+        when: "secret: false and sig: true on every door for a week under RETELL_DOORS_SIGNED=1"
+      },
+      closes: "RETELL_DOORS_SIGNED=1 first (above); then the change that empties KEY_READ_FROM, stops provisioning the secret into the inbound URL and the tools' header, and removes this variable."
+    }
+  },
+  {
+    name: "RETELL_WEBHOOK_KEY",
+    mechanism: "edge_env",
+    does: "The key Retell's signature is checked with; unset, RETELL_API_KEY is tried instead.",
+    owner: "Ruben",
+    sunset: "2026-10-17",
+    weaker: {
+      allows: "Unset, the signature is checked with RETELL_API_KEY instead of the badged webhook key, so a delivery Retell signed with the badged key reads as unsigned and only the shared secret admits it.",
+      readiness: { event: "voice_door_auth", when: "sig: true on the webhook door with RETELL_WEBHOOK_KEY set" },
+      closes: "Set RETELL_WEBHOOK_KEY on the edge; then the change that stops falling back to RETELL_API_KEY."
+    }
+  },
+  {
+    name: "DIAG_KEY",
+    mechanism: "edge_env",
+    does: "The platform's shared key: with EDGE_CALL_SECRET set it opens only the knocks that name it (the diagnostic, the pager, the sending-domains lift); on an edge without the secret it opens every admin door.",
+    owner: "Ruben",
+    sunset: "2026-10-17",
+    weaker: {
+      allows: "On an edge without EDGE_CALL_SECRET (a preview: a production edge refuses to boot without it), the platform key alone opens every admin door (lib/admin-auth.ts).",
+      readiness: {
+        event: "admin_door_key_only",
+        when: "no ok: true line but the diagnostic's, the pager's and the sending-domains lift's, read from 3 October 2026"
+      },
+      closes: "EDGE_CALL_SECRET on the preview projects (Ruben's switch); then the change that deletes DIAG_KEY from every door but the platform's, the runbook's knock minting a token instead."
+    }
+  },
+  {
+    name: "GOOGLE_OAUTH_STATE_SECRET",
+    mechanism: "dashboard_env",
+    does: "Signs the Google OAuth state; unset on a preview or a laptop, DIAG_KEY signs it. Production refuses the stand-in.",
+    owner: "Ruben",
+    sunset: "2026-10-17",
+    weaker: {
+      allows: "Unset on a preview or a laptop, DIAG_KEY signs the Google OAuth state (src/server/connections/google.ts). Production refuses the fallback: without its own secret, Connect Google says it is not set up.",
+      readiness: { event: "google_state_signed_by_diag_key", when: "no line from any deployment for a week" },
+      closes: "GOOGLE_OAUTH_STATE_SECRET on every project that offers Connect Google; then the change that deletes the fallback."
+    }
+  },
+  {
+    name: "EDGE_TOKEN_UNBOUND",
+    mechanism: "rollout",
+    does: "A per-call token from a dashboard deployed before tokens named their body and workspace is still let in, so either app may deploy first.",
+    owner: "platform",
+    sunset: "2026-10-13",
+    weaker: {
+      allows: "A per-call token with no body hash is accepted on a POST, and one with no workspace on a door that must check whose row it acts on (the live-call doors and steer: tokenWorkspace in lib/admin-auth.ts), so a dashboard built before this may still call an edge that reads them. A token about no workspace is otherwise a platform operator's on purpose (the runbook's knock), so only these doors say it.",
+      readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
+      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors."
+    }
   },
   {
     name: "LINES_DRY_RUN",
@@ -4229,10 +4444,6 @@ function endingOfRound(x) {
   if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
   return "few_new_matches";
 }
-
-// src/shared/words.ts
-var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 
 // src/leads/lead-words.ts
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -5191,7 +5402,6 @@ var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
-var ASK_RETENTION_DAYS = 90;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -5556,7 +5766,7 @@ var DAY_WORDS = [
 function dayKey(atMs, tz) {
   try {
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz || void 0,
+      timeZone: tz || "UTC",
       year: "numeric",
       month: "2-digit",
       day: "2-digit"
@@ -5759,134 +5969,6 @@ var ASK_MODEL = MODEL_ROUTES.ask.model;
 function askModelProfile(name) {
   const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
   return ASK_MODEL_PROFILES[id];
-}
-
-// src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * MIN_MS;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
-}
-
-// src/playbooks/playbook-triggers.ts
-var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  {
-    id: "new_week",
-    label: "Welcome",
-    list: "new_week",
-    cls: "campaign",
-    kind: "list",
-    hint: "First contact in the last 7 days"
-  },
-  {
-    id: "phoned_only",
-    label: "Save our number",
-    list: "phoned_only",
-    cls: "reengage",
-    kind: "list",
-    hint: "Only ever phoned, never texted"
-  },
-  {
-    id: "everyone_monthly",
-    label: "The month's offer",
-    list: null,
-    cls: "campaign",
-    kind: "cadence",
-    hint: "Everyone who said yes, on a cadence"
-  },
-  {
-    id: "visit_tomorrow",
-    label: "Visit reminder",
-    list: null,
-    cls: "booking",
-    kind: "visit",
-    hint: "The day before an appointment on the calendar"
-  },
-  {
-    id: "visited",
-    label: "After the visit",
-    list: null,
-    cls: "reengage",
-    kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
-  },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    list: "lapsed",
-    cls: "reengage",
-    kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
-  },
-  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
-  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
-  {
-    id: "saved_list",
-    label: "On a list",
-    list: null,
-    cls: "campaign",
-    kind: "saved",
-    hint: "Everyone on a list: one of People's, or one you keep"
-  },
-  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
-  {
-    id: "proposal_waiting",
-    label: "Proposal follow-up",
-    list: null,
-    cls: "follow_up",
-    kind: "deal",
-    hint: "A proposal waiting with nothing back"
-  },
-  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
-  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
-  {
-    id: "lead_first",
-    label: "Businesses a search found",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "The first email of a reach-out"
-  },
-  {
-    id: "after_step",
-    label: "After the step before",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "A nudge, days after the step before"
-  }
-];
-var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
-  (t) => t.kind !== "reach_out"
-);
-var PLAYBOOK_STATES = ["running", "paused"];
-var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
-var PLAYBOOK_NAME_MAX = 80;
-var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
-function triggerOf(id) {
-  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
-}
-function triggerOffered(t, dealsOn) {
-  if (t.kind === "reach_out") return false;
-  return t.kind !== "deal" || dealsOn;
-}
-function policyClassOffered(cls, dealsOn) {
-  if (cls === "outreach") return true;
-  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
-  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
 
 // src/ask-proposals/spec.ts
@@ -8142,6 +8224,13 @@ function savedListLookup(saved) {
     return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
   };
 }
+function listNamer(saved) {
+  return (token2) => {
+    const ref = parseListToken(token2);
+    if (!ref) return null;
+    return ref.kind === "builtin" ? PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null : saved.find((l) => l.id === ref.id)?.name ?? null;
+  };
+}
 function listNeeds(rule, lookup = () => null) {
   if (!rule) return [];
   const needs = new Set(ruleNeeds(rule));
@@ -10039,20 +10128,26 @@ var BROADCAST_FAILURE_WORDS = {
   template_not_approved: "WhatsApp no longer approves its template",
   wire_unavailable: "WhatsApp could not be reached",
   run_interrupted: "its send stopped partway and did not start again",
-  throttled: "WhatsApp kept limiting how fast this number may send"
+  throttled: "WhatsApp kept limiting how fast this number may send",
+  stalled: "its people or its number's credentials could not be read for half an hour",
+  after_hours: "the day's sending hours ran out while it waited"
 };
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
-  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later."
+  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
+  stalled: "Nobody got it. Nothing is wrong with the number; send it again later.",
+  after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours."
 };
 var BROADCAST_FAILURE_FIX_AFTER = {
   paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
   wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  stalled: (n) => `The first ${n === 1 ? "one" : n} got it, then its reads failed. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  after_hours: (n) => `The first ${n === 1 ? "one" : n} got it before the day's sending hours ran out. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 function broadcastFailureFix(failure, reached = 0) {
   if (!failure) return null;
@@ -10900,8 +10995,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z26] = m;
-  if (z26) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z28] = m;
+  if (z28) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -12467,7 +12562,12 @@ var DECISION_VERBS = [
   "restore_list",
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
+  "import",
+  /**
+   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -16102,6 +16202,55 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/conversations/conversation-moves.ts
+var ANY = CONVERSATION_STATES;
+var CONVERSATION_MOVES = {
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  take_over: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user" }
+  },
+  /** A person's reply claims the thread as a take-over does, and touches it. */
+  reply_claim: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
+  },
+  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
+  /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
+  snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
+  /** A person ends a snooze early. */
+  wake: { from: ["snoozed"], to: "open", sets: { snooze_until: null } },
+  /** Closed, never deleted: released completely. A later message reopens it. */
+  archive: { from: ANY, to: "archived", sets: { paused_until: null, assignee_user_id: null } },
+  /** The receptionist hands the thread to a person (an escalation, a message it cannot read, a call's callback). */
+  hand_off: { from: ANY, to: "needs_human", sets: { paused_until: "until" } },
+  /** The owner answered from the WhatsApp Business app: the receptionist paused under them, the thread touched. */
+  owner_echo: { from: ANY, to: "needs_human", sets: { paused_until: "until", last_message_at: "now" } },
+  /** ingest_inbound: a customer's message reopens a closed or snoozed thread, never one a person has. */
+  reopen: { from: ["archived", "snoozed"], to: "open", sets: { snooze_until: null } },
+  /** expire_stale_pauses: a pause ran out with no escalation still open. */
+  pause_expired: { from: ["needs_human"], to: "open", sets: { paused_until: null, assignee_user_id: null } },
+  /** wake_stale_snoozes: a snooze ran out. */
+  snooze_expired: { from: ["snoozed"], to: "open", sets: { snooze_until: null } }
+};
+function conversationPatch(move, ...input) {
+  const m = CONVERSATION_MOVES[move];
+  const given = input[0] ?? {};
+  const patch = { state: m.to };
+  for (const [column, from] of Object.entries(m.sets)) {
+    const value = from === null ? null : given[from];
+    if (value === void 0) throw new Error(`${move} needs ${from} for ${column}`);
+    patch[column] = value;
+  }
+  return patch;
+}
+function conversationMoveAllowed(move, state) {
+  return CONVERSATION_MOVES[move].from.includes(state);
+}
+
 // src/deals/deal-amount.ts
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
@@ -17292,7 +17441,7 @@ function reachLines(reach, p) {
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
   const once = t?.kind === "deal";
-  const one = (n, singular, plural2) => n === 1 ? singular : plural2;
+  const one = (n, singular, plural3) => n === 1 ? singular : plural3;
   const reasons = [
     {
       n: reach.noYes,
@@ -21094,7 +21243,7 @@ var REACH_OUT_SHEET_WORDS = {
   opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: "Starts today. The first run waits on you. After that, a run gives you thirty minutes to stop it.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
   slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
@@ -21216,7 +21365,7 @@ function startWords(s) {
     case "sent":
       return {
         tone: "good",
-        text: `Planned ${n}. They go in each business's hours; you have thirty minutes to stop them.`
+        text: `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
       };
     case "held":
       switch (s.reason) {
@@ -21380,13 +21529,13 @@ function reportRowOf(s, step2) {
   ];
 }
 function chainReportWordsOf(c, report, reach, p) {
-  const sum = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum("written");
-  const wroteBack = sum("wrote_back");
-  const saidNo = sum("said_no");
-  const bounced = sum("bounced");
-  const held = sum("held");
-  const handed = sum("handed");
+  const sum2 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum2("written");
+  const wroteBack = sum2("wrote_back");
+  const saidNo = sum2("said_no");
+  const bounced = sum2("bounced");
+  const held = sum2("held");
+  const handed = sum2("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
@@ -23267,7 +23416,6 @@ function toCampaignReportVM(dto) {
     }
   };
 }
-var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/reports/report-facts.ts
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -23407,9 +23555,9 @@ function domainsOf(dto, nowMs) {
   }));
 }
 var shareOf = (n, of) => of ? `${pct(n, of)}% (${n})` : String(n);
-function chainRowOf(c, nowMs, tz) {
-  const sum = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum("written");
+function chainLineOf(c, nowMs, tz) {
+  const sum2 = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum2("written");
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
   return {
     id: c.root_id,
@@ -23424,16 +23572,16 @@ function chainRowOf(c, nowMs, tz) {
     ].filter(Boolean).join(" \xB7 "),
     to: `outbound/${c.root_id}`,
     written: String(written),
-    delivered: pctText(sum("delivered"), written),
-    wroteBack: shareOf(sum("wrote_back"), written),
-    interested: String(sum("interested")),
-    booked: String(sum("booked")),
-    saidNo: String(sum("said_no")),
-    bounced: String(sum("bounced")),
+    delivered: pctText(sum2("delivered"), written),
+    wroteBack: shareOf(sum2("wrote_back"), written),
+    interested: String(sum2("interested")),
+    booked: String(sum2("booked")),
+    saidNo: String(sum2("said_no")),
+    bounced: String(sum2("bounced")),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
 }
-function stepRowOf(root, s) {
+function stepLineOf(root, s) {
   const name = `${s.n + 1} \xB7 ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
   if (s.hand)
     return {
@@ -23514,8 +23662,8 @@ function toReachOutReportVM(raw, nowMs = Date.now()) {
   }));
   const sources = [];
   for (const c of dto.chains) {
-    sources.push(chainRowOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepRowOf(c.root_id, s));
+    sources.push(chainLineOf(c, nowMs, dto.timezone));
+    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
   }
   return {
     present: dto.has_reach_out,
@@ -25107,8 +25255,10 @@ var EDGE_ERROR_CODES = [
   "stripe_unreadable",
   "subscribe_failed",
   "token_audience",
+  "token_body",
   "token_expired",
   "token_malformed",
+  "token_replayed",
   "token_required",
   "token_signature",
   "too_large",
@@ -25250,7 +25400,8 @@ var SCHEMA_SETS = {
     "archive_list",
     "restore_list",
     "delete_list",
-    "import"
+    "import",
+    "open_recording"
   ],
   "escalations.reason": [
     "human_token",
@@ -25557,6 +25708,7 @@ var ROUTE_KEYS = [
   "POST calls/[id]/whisper",
   "POST capabilities/[kind]",
   "POST channels/whatsapp/connect",
+  "POST client-errors",
   "POST contacts",
   "POST contacts/[id]/deal",
   "POST contacts/[id]/notes",
@@ -25608,6 +25760,7 @@ var ROUTE_KEYS = [
   "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
+  "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
   "POST platform/lines/replace",
@@ -25931,6 +26084,44 @@ function pageVitalsWords(rows) {
     };
   }
   return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows) };
+}
+
+// src/shell/client-error.ts
+import { z as z21 } from "zod";
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+var ClientErrorInput = z21.object({
+  boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z21.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z21.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+});
+function clientErrorOf(boundary, error, page, digest, workspace) {
+  const e = error instanceof Error ? error : new Error(String(error));
+  const first = (page ?? "").split(/[/?#]/)[0] ?? "";
+  return {
+    boundary,
+    page: PAGE.test(first) ? first : null,
+    name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
+    message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
+    stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
+    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
+    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
+  };
 }
 
 // src/templates/template-slots.ts
@@ -28178,13 +28369,13 @@ var NOTIFICATION_KIND_GROUPS = [
 ];
 
 // src/workspace/signup.ts
-import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z21.string().trim().max(80);
-var SignupSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z21.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z22.string().trim().max(80);
+var SignupSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z22.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -28198,9 +28389,9 @@ var SignupSchema = z21.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z21.string().max(200).optional(),
+  password: z22.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z21.string().trim().min(1).max(64).optional(),
+  timezone: z22.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -28210,11 +28401,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z21.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -28690,6 +28881,7 @@ var WORDS2 = {
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
+  open_recording: "Listened to a call's recording",
   end_call: "Ended a call",
   record_deal: "Recorded a deal",
   make_list: "Made a list",
@@ -29003,6 +29195,49 @@ function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
 }
 
+// src/workspace/event-data.ts
+import { z as z23 } from "zod";
+var SHARED_EVENT_VERSIONS = {
+  "contact.added": 1,
+  "contact.consent_changed": 1,
+  "platform.acted": 1
+};
+var wireText = z23.string();
+var ContactAddedData = z23.looseObject({
+  source: wireText,
+  title: wireText.nullish(),
+  uid: wireText.nullish(),
+  start: wireText.nullish(),
+  by: wireText.nullish(),
+  lead_id: wireText.nullish()
+});
+var ContactConsentChangedData = z23.looseObject({
+  consent: wireText,
+  source: wireText,
+  purpose: wireText.optional(),
+  previous: wireText.nullish(),
+  by: wireText.nullish(),
+  note: wireText.nullish(),
+  channel: wireText.nullish(),
+  message_external_id: wireText.nullish(),
+  message_id: wireText.nullish(),
+  words: wireText.nullish()
+});
+var PlatformActedData = z23.looseObject({
+  action: wireText,
+  by: wireText,
+  by_email: wireText.nullish(),
+  partner_id: wireText.nullish(),
+  standing: wireText.nullish(),
+  status: wireText.nullish(),
+  from: wireText.nullish()
+});
+var SHARED_EVENT_SHAPES = {
+  "contact.added": ContactAddedData,
+  "contact.consent_changed": ContactConsentChangedData,
+  "platform.acted": PlatformActedData
+};
+
 // src/workspace/password.ts
 var PASSWORD_MIN = 12;
 var PASSWORD_MAX_BYTES = 72;
@@ -29042,7 +29277,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z22 } from "zod";
+import { z as z24 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -29065,11 +29300,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z22.object({
-  code: z22.string().trim().min(1).max(64),
-  terms: z22.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z22.object({ letters: z22.boolean() }).strict();
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -29351,32 +29586,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z22.coerce.number();
-var letterSum = z22.object({ currency: z22.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z22.object({
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z22.array(z22.object({ kind: z22.string(), currency: z22.string(), count: z22.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z22.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z22.array(letterSum).default([]),
-  paid: z22.array(z22.object({ currency: z22.string(), cents: letterCents, reference: z22.string(), sent_at: z22.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z22.array(z22.object({ workspace: z22.string().nullable(), standing: z22.string(), why: z22.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z22.array(z22.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z22.array(z22.string().nullable()).default([]),
-  declined: z22.array(z22.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z22.object({ status: z22.string(), why: z22.string().nullable() }).nullable().default(null),
-  balance: z22.array(
-    z22.object({
-      currency: z22.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z22.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
@@ -29477,16 +29712,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z23 } from "zod";
+import { z as z25 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z23.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z23.object({
-  name: z23.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z23.string().trim().max(64).nullish(),
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z23.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -29562,7 +29797,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z24 } from "zod";
+import { z as z26 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -29630,16 +29865,16 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z24.object({
-  partner_id: z24.string().uuid("That partner does not exist."),
-  why: z24.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
 
 // src/workspace/partner-invite.ts
-import { z as z25 } from "zod";
+import { z as z27 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
 var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
 var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
@@ -29648,8 +29883,8 @@ function partnerCodeFrom(raw) {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-var PartnerInviteSchema = z25.object({
-  code: z25.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -29733,6 +29968,52 @@ function partnerInviteEmail(i) {
 
 // src/workspace/activation.ts
 var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
+
+// src/workspace/platform-days.ts
+var PLATFORM_DAYS_READ = { days: 7 };
+var sum = (m) => Object.values(m).reduce((a, n) => a + n, 0);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var FAILURE_WORDS = {
+  refused: "refused",
+  retryable: "not taken",
+  unknown: "may have gone"
+};
+function failuresOf(m) {
+  const n = sum(m);
+  if (n === 0) return "";
+  const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
+  return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
+}
+function receptionistLine(r2) {
+  const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
+  if (replies === 0) return "the receptionist did not reply";
+  const parts2 = [
+    `${r2.replies_answered} answered at once`,
+    ...r2.replies_held ? [`${r2.replies_held} held`] : [],
+    ...r2.replies_handed_off ? [`${r2.replies_handed_off} handed over`] : []
+  ];
+  const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
+  return `${parts2.join(", ")}${pace}`;
+}
+function platformDaysWords(rows) {
+  if (!rows) return { day: null, sentence: "Could not be read just now.", lines: [] };
+  const day = rows.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
+  if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
+  const lines = rows.filter((r2) => r2.day === day).map((r2) => ({
+    tenantId: r2.tenant_id,
+    name: r2.name,
+    day: r2.day,
+    answers: `${r2.asks} asked, ${r2.answered} answered`,
+    receptionist: receptionistLine(r2),
+    failures: failuresOf(r2.provider_failures),
+    silent: r2.asks > 0 && r2.answered === 0,
+    tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
+    asks: r2.asks
+  })).sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name)).map(({ asks: _asks, ...line }) => line);
+  const silent = lines.filter((l) => l.silent).length;
+  const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
+  return { day, sentence: sentence2, lines };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -29762,7 +30043,6 @@ export {
   ASK_MODEL_PROFILES,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
-  ASK_RETENTION_DAYS,
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -29816,7 +30096,6 @@ export {
   CALL_KEY_PREFIX,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
-  CAMPAIGN_REPORT_RANGES,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_CONSENT_SOURCE,
@@ -29829,6 +30108,8 @@ export {
   CHECKOUT_RETURNS,
   CHECKOUT_RETURN_ROUTE,
   CHIPS_SHOWN,
+  CLIENT_ERROR_BOUNDARIES,
+  CLIENT_ERROR_LIMITS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -29841,11 +30122,15 @@ export {
   CONSENT_STATES,
   CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
+  CONVERSATION_MOVES,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
   CalendarConfigSchema,
+  ClientErrorInput,
   ClosureSchema,
+  ContactAddedData,
+  ContactConsentChangedData,
   DATA_NOT_INSTRUCTIONS,
   DAYS,
   DAY_MS,
@@ -29886,7 +30171,6 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
-  DRAFT_MAX,
   DRAFT_NEEDS_MS,
   DRAFT_NOTICE_MAX,
   DRAFT_WHYS,
@@ -29909,7 +30193,6 @@ export {
   FEED_CHECK_WORDS,
   FEED_GUIDES,
   FEED_MAX_BYTES,
-  FENCE_TAGS,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
@@ -29943,7 +30226,6 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
-  HELD_LINE_KINDS,
   HELD_REASONS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
@@ -29985,7 +30267,6 @@ export {
   LEAD_DAY_CAP_USD,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_DRAFT_NOTE,
-  LEAD_EMAIL_REASON,
   LEAD_EMAIL_STATES,
   LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
@@ -30038,7 +30319,6 @@ export {
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_QUESTION_WAIT_LINE,
-  LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
   LEAD_REVIEW_ACT_WORDS,
@@ -30218,6 +30498,7 @@ export {
   PIPELINE_RAIL_SERVICES,
   PIPELINE_SORTS,
   PIPELINE_WORDS,
+  PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
@@ -30234,9 +30515,9 @@ export {
   PLAYBOOK_TOUCH_WINDOW_MS,
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_MS,
+  PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
-  POLICY_CLASS_NONE,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
@@ -30267,6 +30548,7 @@ export {
   PartnerSecondFactorResetSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
+  PlatformActedData,
   PolicyLimitsSchema,
   ProposeLeadSearchSchema,
   QUEUE_SENDS_NOTHING,
@@ -30394,9 +30676,10 @@ export {
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
-  SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
+  SHARED_EVENT_SHAPES,
+  SHARED_EVENT_VERSIONS,
   SHORTCUTS,
   SIGNED_BY_MAX,
   SIGNIN_RESEND_COOLDOWN_S,
@@ -30594,6 +30877,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  clientErrorOf,
   clip,
   clipAtWord,
   clockDate,
@@ -30632,7 +30916,9 @@ export {
   consultsHeldWords,
   contactMeta,
   contactName,
+  conversationMoveAllowed,
   conversationOfNeedsKey,
+  conversationPatch,
   coversSpan,
   csvCell,
   customerDomainOf,
@@ -30646,6 +30932,7 @@ export {
   dayPlusInZone,
   dayProblems,
   dayWords,
+  daysToSunset,
   dealCardsOf,
   dealFactsOf,
   dealIsOpen,
@@ -30671,6 +30958,7 @@ export {
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
+  delayWords,
   deltaOf,
   describeNow,
   describeOpenings,
@@ -30844,6 +31132,7 @@ export {
   isDealSheetMode,
   isDealStage,
   isDraftWhy,
+  isE164,
   isForwardingMode,
   isFreeMail,
   isHeldDraft,
@@ -30882,6 +31171,7 @@ export {
   isWaitRefusal,
   isYes,
   itemFocus,
+  jittered,
   jobNewsWords,
   judgeAsked,
   judgeDomain,
@@ -30980,6 +31270,7 @@ export {
   listDraftFieldLines,
   listFactWords,
   listMembers,
+  listNamer,
   listNeeds,
   listRuleMatches,
   listRuleParts,
@@ -31119,6 +31410,8 @@ export {
   partnerVM,
   partnerWorkspacesVM,
   passwordProblem,
+  pauseHoursOf,
+  pauseMsOf,
   pausedGreetingFor,
   pausedVoiceFacts,
   pendingCodeOf,
@@ -31168,6 +31461,7 @@ export {
   planWho,
   planWords,
   platformActionWarning,
+  platformDaysWords,
   platformHealthOf,
   platformHealthWords,
   platformLineActions,

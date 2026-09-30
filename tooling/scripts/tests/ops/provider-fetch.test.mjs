@@ -5,7 +5,8 @@
  */
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { breakerOf, providerFetch, resetBreakers } from "@chanlytics/channels";
+import { breakerOf, breakerStates, providerFetch, resetBreakers } from "@chanlytics/channels";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 beforeEach(() => resetBreakers());
 
@@ -35,6 +36,8 @@ const clock = (start = 1_000_000) => {
     },
     pass: (ms) => (now += ms),
     waits,
+    // No jitter unless a case asks for it: a wait reads as the doubling's own.
+    random: () => 0,
   };
 };
 
@@ -119,6 +122,16 @@ test("retry by outcome: a call is asked again only when asking again cannot do t
   const down = provider(429, 429, 200);
   await providerFetch("google", "u", { timeoutMs: 1, tries: 3 }, { ...down, ...c2 });
   assert.deepEqual(c2.waits, [250, 500]);
+
+  // Drawn up to a fifth longer at random, so the callers one outage failed do not all ask again at the same instant.
+  const c3 = clock();
+  await providerFetch(
+    "google",
+    "u",
+    { timeoutMs: 1, tries: 3 },
+    { ...provider(429, 429, 200), ...c3, random: () => 1 },
+  );
+  assert.deepEqual(c3.waits, [300, 600]);
 });
 
 test("a wait longer than a call may take, or past its deadline, hands the answer back for the caller to ask later", async () => {
@@ -178,4 +191,50 @@ test("a call that puts words in front of a person is never held by the breaker: 
     await providerFetch("meta", "u", { method: "POST", timeoutMs: 1, breaker: "count" }, { ...failing, ...c });
   assert.equal(failing.calls.length, 5, "every send was made");
   assert.equal(breakerOf("meta", c.now()).open, true);
+});
+
+test("a breaker opens and closes in the log, once each, naming the provider; the states count each opening", async () => {
+  const c = clock();
+  const dead = provider(503);
+  const lines = [];
+  const real = { info: console.log, warn: console.warn };
+  console.log = (...a) => lines.push(logLineOf(a));
+  console.warn = (...a) => lines.push(logLineOf(a));
+  try {
+    for (let i = 0; i < 5; i++) await providerFetch("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
+    // A sixth fault while it is open is not a second opening, and a held call is not a fault.
+    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...dead, ...c });
+    assert.deepEqual(
+      lines.map((l) => [l.level, l.event, fieldsOf(l)]),
+      [["warn", "breaker_open", { provider: "retell", failures: 5, status: 503, error: null, open_ms: 30_000 }]],
+      "the opening is one warning: the outage that was silent",
+    );
+    assert.deepEqual(
+      breakerStates(c.now()).find((b) => b.provider === "retell"),
+      { provider: "retell", open: true, failures: 5, opened: 1, open_until: new Date(c.now() + 30_000).toISOString() },
+    );
+    // The pause ends, one call goes and is answered: closed, said once.
+    c.pass(30_000);
+    lines.length = 0;
+    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
+    await providerFetch("retell", "u", { timeoutMs: 1 }, { ...provider(200), ...c });
+    assert.deepEqual(
+      lines.map((l) => [l.level, l.event, fieldsOf(l)]),
+      [["info", "breaker_closed", { provider: "retell", failures: 5 }]],
+      "closing is said once, when the first answer comes, and not for every answer after",
+    );
+  } finally {
+    console.log = real.info;
+    console.warn = real.warn;
+  }
+  const after = breakerStates(c.now());
+  assert.deepEqual(
+    after.find((b) => b.provider === "retell"),
+    { provider: "retell", open: false, failures: 0, opened: 1, open_until: null },
+    "closed, and the count of the outage kept",
+  );
+  assert.ok(
+    after.filter((b) => b.provider !== "retell").every((b) => !b.open && b.failures === 0 && b.opened === 0),
+    "every other provider untouched",
+  );
 });

@@ -238,15 +238,18 @@ const EDGE_MAY_NOT_IMPORT = [
  * A surface draws its controls with the kit's components (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
  * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, whether it is
  * written as JSX (`<button>`, `<motion.button>`) or made from its name (`createElement("button")`, and the JSX
- * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead. The kit draws each raw element
- * once, in its component.
+ * runtime's `jsx`, `jsxs` and `jsxDEV`), and the refusal says what to take instead, by the folder it is in. The kit
+ * draws each raw element once, in its component; Confirm is the house's until its first surface moves it into the kit.
  */
 const KIT_TAKES = {
-  button: "Take the kit's Button, not a raw <button>; a button that opens a page is a link, as a door is.",
-  input: "Take the kit's Field, or the kit's Switch for a checkbox, not a raw <input>.",
-  select: "Take the kit's Select, not a raw <select>.",
-  textarea: "Take the kit's Field, not a raw <textarea>.",
-  dialog: "Take the kit's Sheet, or the kit's Confirm for a confirmation, not a raw <dialog>.",
+  button:
+    "Take the kit's Button (kit/button/), not a raw <button>; a button that opens a page is a link, as a door is.",
+  input: "Take the kit's Field (kit/field/), or the kit's Switch (kit/switch/) for a checkbox, not a raw <input>.",
+  select:
+    "Take the kit's Select (kit/select/), or its Combobox (kit/combobox/) for a list to type into, not a raw <select>.",
+  textarea: "Take the kit's Field (kit/field/) with its `rows`, not a raw <textarea>.",
+  dialog:
+    "Take the kit's Sheet (kit/sheet/), or the kit's Confirm for a confirmation (the house's until it moves), not a raw <dialog>.",
 };
 /** The calls that make an element from its name: React's own, and the JSX runtime's. */
 const MAKES_AN_ELEMENT = "/^(createElement|jsx|jsxs|jsxDEV)$/";
@@ -259,6 +262,18 @@ const RAW_ELEMENTS = Object.entries(KIT_TAKES).map(([element, take]) => ({
   ].join(", "),
   message: `${take} The kit is apps/dashboard/src/surfaces/kit/: if it has no variant for this, add one there with its gallery entry. A pure move under decision 0015 adds its surface's folder to KIT_PENDING (eslint.config.mjs), and that surface's kit step (Phase 4) removes it.`,
 }));
+
+/**
+ * Base UI (`@base-ui/react`), which the kit's components with behaviour of their own are built on (the interface
+ * kit's plan, decision 15): one exact version, pinned in apps/dashboard/package.json, and each part imported alone
+ * (`@base-ui/react/dialog`), never through the package's index, so a component names the one part it draws and
+ * nothing else of the library rides along. Anywhere in the dashboard's TypeScript, the kit's or not.
+ */
+export const BASE_UI_INDEX = {
+  name: "@base-ui/react",
+  message:
+    "Import the Base UI part you draw (`@base-ui/react/dialog`, `@base-ui/react/menu`), never the package's index. A surface takes the kit's component instead (apps/dashboard/src/surfaces/kit/), which is built on its own part.",
+};
 
 /**
  * The surfaces that have moved under decision 0015 and not yet had their kit step (Phase 4 of the interface kit's
@@ -291,7 +306,7 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
  * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
  * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
- * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
+ * (Ask Rewired, the phone app), which join as those land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
  */
@@ -304,6 +319,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/lines",
   "packages/contracts/src/notes",
   "packages/contracts/src/playbooks",
+  "packages/contracts/src/reach-out",
   "packages/contracts/src/reports",
   "packages/contracts/src/shared",
   "packages/core/src/inbound",
@@ -313,6 +329,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/mascot",
+  "apps/dashboard/src/legacy-bridge/reach-out",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/connections",
@@ -332,12 +349,13 @@ export const LIMITED_TREES = [
   "apps/edge/lib/google",
   "apps/edge/lib/ops",
   "apps/edge/lib/packages",
+  "apps/edge/lib/partners",
   "apps/edge/lib/sms",
 ];
 
 /**
  * The held trees where a function still takes more than four parameters (measured 28 September 2026: 48 functions,
- * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
+ * db's widest at 7 and today-sample's at 11; Reach out's timetable and the partners' ledger joined on 29 September). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
 export const WIDE_PARAMS = [
@@ -345,6 +363,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ai",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
+  "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",
@@ -355,9 +374,35 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
   "apps/edge/lib/google",
+  "apps/edge/lib/partners",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
+
+/**
+ * The dashboard's own code, as the TypeScript blocks below read it: everything but the ported mockup.
+ */
+const DASHBOARD_CODE = [
+  "apps/dashboard/app/**/*.{ts,tsx}",
+  "apps/dashboard/src/server/**/*.ts",
+  "apps/dashboard/src/lib/**/*.ts",
+  "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+  // The typed client and the sign-in screens ran without any static
+  // analysis until the boundaries below needed to see them.
+  "apps/dashboard/src/client/**/*.{ts,tsx}",
+  "apps/dashboard/src/auth/**/*.{ts,tsx}",
+  // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
+  "apps/dashboard/src/yes/**/*.tsx",
+  // The surfaces that leave the shell (decision 0015), and the kit they draw with.
+  "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
+  // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
+  "apps/dashboard/src/*.ts",
+  // The app's own configuration and entry points (next.config.ts, proxy.ts, instrumentation.ts), which its tsconfig compiles.
+  "apps/dashboard/*.ts",
+];
+
+/** The two modules that read the dashboard's environment; a read anywhere else in DASHBOARD_CODE is refused. */
+const DASHBOARD_ENV_READERS = ["apps/dashboard/src/server/env.ts", "apps/dashboard/src/lib/public-env.ts"];
 
 /** The typescript-eslint rules that read a type, which a block without a program cannot run. */
 const NEEDS_TYPES = new Set(
@@ -434,24 +479,25 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: EDGE_MAY_NOT_IMPORT }],
     },
   },
-  // The two modules that are allowed to do what the block above forbids.
-  {
-    files: ["apps/edge/lib/log.ts"],
-    rules: { "no-console": "off" },
-  },
+  // The one module that is allowed to do what the block above forbids: the edge reads its environment here. Logging is
+  // not its own: the logger is packages/channels/src/log/logger.ts, the one place a line reaches stdout.
   {
     files: ["apps/edge/lib/env.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
-  // The dashboard's server logs through one logger too (src/server/log.ts): one JSON object per line, named by
-  // its event, carrying the request it belongs to. Ask's modules keep their own lines until the Ask lane moves them.
+  // The dashboard's server, its auth routes, Ask's modules and the packages log through the one logger too
+  // (packages/channels log/, re-exported as src/server/log.ts): one JSON object per line, named by its event,
+  // carrying the request it belongs to. The exceptions, each with the program that owns it:
+  //   - the logger's own writer, and db's until an app hands it the logger (packages/db observe.ts);
+  //   - db's realtime subscription, which runs in the browser and is #1333's (decision 0019).
   {
-    files: ["apps/dashboard/src/server/**/*.ts", "apps/dashboard/app/api/**/*.ts"],
-    ignores: [
-      "apps/dashboard/src/server/log.ts",
-      "apps/dashboard/src/server/ask/**",
-      "apps/dashboard/app/api/v1/ask/**",
+    files: [
+      "apps/dashboard/src/server/**/*.ts",
+      "apps/dashboard/app/api/**/*.ts",
+      "apps/dashboard/app/auth/**/*.ts",
+      "packages/*/src/**/*.ts",
     ],
+    ignores: ["packages/channels/src/log/logger.ts", "packages/db/src/observe.ts", "packages/db/src/realtime.ts"],
     rules: { "no-console": "error" },
   },
 
@@ -485,24 +531,7 @@ export default [
 
   // The dashboard's own code (not the ported mockup).
   {
-    files: [
-      "apps/dashboard/app/**/*.{ts,tsx}",
-      "apps/dashboard/src/server/**/*.ts",
-      "apps/dashboard/src/lib/**/*.ts",
-      "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
-      // The typed client and the sign-in screens ran without any static
-      // analysis until the boundaries below needed to see them.
-      "apps/dashboard/src/client/**/*.{ts,tsx}",
-      "apps/dashboard/src/auth/**/*.{ts,tsx}",
-      // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
-      "apps/dashboard/src/yes/**/*.tsx",
-      // The surfaces that leave the shell (decision 0015), and the kit they draw with.
-      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
-      // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
-      "apps/dashboard/src/*.ts",
-      // The app's own configuration and entry points (next.config.ts, proxy.ts), which its tsconfig compiles.
-      "apps/dashboard/*.ts",
-    ],
+    files: DASHBOARD_CODE,
     languageOptions: {
       parser: tseslint.parser,
       ecmaVersion: 2023,
@@ -519,6 +548,24 @@ export default [
       // errors. Adopting those is a decision about the mockup, not a bump.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+
+  // The dashboard reads its environment in one place too, as the edge does: src/server/env.ts on the server, typed by
+  // one zod schema and checked at boot, and src/lib/public-env.ts for the NEXT_PUBLIC_ values the browser's bundles
+  // carry. A read anywhere else is a second opinion on what a variable means, and a default nobody checks at boot.
+  {
+    files: DASHBOARD_CODE,
+    ignores: DASHBOARD_ENV_READERS,
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message: "Read the environment through src/server/env.ts (or src/lib/public-env.ts in the browser).",
+        },
+      ],
     },
   },
 
@@ -545,6 +592,12 @@ export default [
   // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements, and
   // a surface moved before its kit step waits in KIT_PENDING.
   rawElementsRule(KIT_PENDING),
+
+  // Base UI's parts are imported one at a time (BASE_UI_INDEX above).
+  {
+    files: ["apps/dashboard/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { paths: [BASE_UI_INDEX] }] },
+  },
 
   // A type test proves a type refuses `any` by writing one, under `@ts-expect-error <why>`.
   {

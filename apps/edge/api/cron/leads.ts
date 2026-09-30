@@ -6,11 +6,13 @@
  * failure, so one bad row never costs the others their tick).
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
+ *
+ * Cross-workspace: the lead sweep visits every workspace's runs and rounds; each job it schedules carries the row's tenant_id.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, door } from "../../lib/log.js";
 import { leadWires } from "../../lib/leads/lead-wires.js";
 import { planLeadSweep, type SweepRoundRow, type SweepRunRow } from "../../lib/leads/lead-sweep.js";
 import { reconcileUnknownRuns, type LeadPorts, type LeadRunRow } from "../../lib/packages/core.js";
@@ -23,7 +25,7 @@ const RECONCILE_PER_TICK = 10;
 /** The deadline the sweep hands the lead runner, from its start, inside the function's sixty seconds (vercel.json). */
 const SWEEP_DEADLINE_MS = 50_000;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "leads" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -181,4 +183,4 @@ export async function POST(request: Request): Promise<Response> {
   }
   L.info("leads_sweep_done", { ...counts, actions: actions.length });
   return json(200, { ok: true, ...counts });
-}
+});

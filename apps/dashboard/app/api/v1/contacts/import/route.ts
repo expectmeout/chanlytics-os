@@ -95,7 +95,7 @@ export const POST = write({
       });
     } catch (e) {
       log.error("import_decision_failed", {
-        tenant: tenantId,
+        tenant_id: tenantId,
         import_id: input.import_id,
         added: out.added,
         existed: out.existed,

@@ -27,6 +27,7 @@ import {
   platformPartnerSummary,
   platformPartnerStanding,
   pageVitalsWords,
+  platformDaysWords,
   partnerPayoutOutcomeWords,
   partnerStandingOutcomeWords,
   partnerStatusOutcomeWords,
@@ -44,6 +45,7 @@ import {
   type PlatformPartnerBalanceDto,
   type PlatformPartnerWorkspaceDto,
   type PageVitalsRowDto,
+  type PlatformDayRowDto,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
@@ -77,6 +79,8 @@ type OverviewAnswer = {
    * and absent from an overview that predates it, which draws no card.
    */
   vitals?: PageVitalsRowDto[] | null;
+  /** Each workspace's day, counted (00277); null when unread, absent from an overview that predates it. */
+  days?: PlatformDayRowDto[] | null;
   message: string;
 };
 type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
@@ -91,6 +95,8 @@ export interface PlatformApi {
   healthWords: typeof platformHealthWords;
   /** The field data card: a sentence, a line per metric, the slowest pages. Pure, from contracts. */
   vitalsWords: typeof pageVitalsWords;
+  /** The day-by-workspace card: a sentence and a line per workspace's newest day. Pure, from contracts. */
+  daysWords: typeof platformDaysWords;
   /** The waiting list as rows and a sentence. Pure, from contracts. */
   queue: typeof platformQueue;
   /**
@@ -185,6 +191,7 @@ export function installPlatform(win: Window = window): void {
             queue: null,
             partners: null,
             vitals: null,
+            days: null,
             message: r.message,
           };
         // `health` rides on this read rather than a route of its own: the same
@@ -197,6 +204,7 @@ export function installPlatform(win: Window = window): void {
           queue: r.data.queue ?? null,
           partners: r.data.partners ?? null,
           vitals: r.data.vitals,
+          days: r.data.days,
           message: "",
         };
       }),
@@ -288,6 +296,7 @@ export function installPlatform(win: Window = window): void {
     rows: platformRows,
     healthWords: platformHealthWords,
     vitalsWords: pageVitalsWords,
+    daysWords: platformDaysWords,
     queue: platformQueue,
     words: activityWords,
     clock: { time: clockTime, dateYear: clockDateYear, dayLabel: clockDayLabel, dayKey: zoneDayKey },

@@ -3,7 +3,13 @@
  * Part 2.5), which re-exports its public names.
  */
 import { parseTenantConfig } from "@chanlytics/contracts";
-import { deliver, isWireUnavailable, sendBroadcastBatch, type BroadcastBatchPorts } from "@chanlytics/core";
+import {
+  deliver,
+  isWireUnavailable,
+  sendBroadcastBatch,
+  type BatchCarry,
+  type BroadcastBatchPorts,
+} from "@chanlytics/core";
 import { type Database, recordEvent, resolveOutboundTarget } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "./context";
@@ -62,7 +68,7 @@ function wirePorts(ctx: JobContext): Pick<BroadcastBatchPorts, "wireUnavailable"
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { broadcast_id: string; waits?: unknown };
+  const p = job.payload as { broadcast_id: string; waits?: unknown; stalls?: unknown };
   const db = ctx.db;
   await sendBroadcastBatch(
     {
@@ -203,10 +209,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return row?.state ?? null;
       },
-      // The count of WhatsApp's "not now" rides in the payload to the next batch, and only while it is running.
-      scheduleNext: async (id, dueAt, waits) => {
-        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id, ...(waits ? { waits } : {}) });
-      },
+      scheduleNext: (id, dueAt, carry) => ctx.schedule("broadcast_send", dueAt ?? new Date(), nextBatch(id, carry)),
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.
       tally: async (id) => {
@@ -233,8 +236,24 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, waits: waitsOf(p) },
+    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, ...carriedBy(p) },
   );
+}
+
+/** What the run has waited through rides in the payload to the next batch, and only while it is running. */
+export function nextBatch(id: string, carry: BatchCarry | undefined): Record<string, string | number> {
+  return {
+    broadcast_id: id,
+    ...(carry?.waits ? { waits: carry.waits } : {}),
+    ...(carry?.stalls ? { stalls: carry.stalls } : {}),
+  };
+}
+
+/** What this batch's job carries of the run so far: how many waits, how many stalls; anything but a count is none. */
+export function carriedBy(payload: unknown): Required<BatchCarry> {
+  const p: { waits?: unknown; stalls?: unknown } = payload !== null && typeof payload === "object" ? payload : {};
+  const count = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n > 0 ? n : 0);
+  return { waits: count(p.waits), stalls: count(p.stalls) };
 }
 
 /**
@@ -259,9 +278,4 @@ async function workspaceFacts(
     bookingLink: parsedCfg?.brain?.booking_link ?? null,
     timezone: tenantRow?.timezone || "UTC",
   };
-}
-
-/** How many times running WhatsApp has said "not now", as the job carries it; anything but a count is none. */
-function waitsOf(payload: { waits?: unknown }): number {
-  return typeof payload.waits === "number" && Number.isInteger(payload.waits) && payload.waits > 0 ? payload.waits : 0;
 }

@@ -22,7 +22,7 @@
  */
 import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { logger, errField } from "../lib/log.js";
+import { logger, errField, door } from "../lib/log.js";
 import { coldReplyDomains, emailDomain } from "../lib/email/email.js";
 import { planResendEvent } from "../lib/email/email-ingress.js";
 import { applyEmailReceipt } from "../lib/email/email-receipts.js";
@@ -37,7 +37,7 @@ const MAX_BODY_BYTES = 256 * 1024;
 const UNROUTABLE_ROW_MS = MIN_MS;
 let lastUnroutableRow = 0;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const domain = emailDomain();
   if (!domain) return refuse(404, "email_off");
   const L = logger({ door: "resend-webhook", svix_id: request.headers.get("svix-id") });
@@ -77,11 +77,11 @@ export async function POST(request: Request): Promise<Response> {
     const r = verdict.receipt;
     try {
       const outcome = await applyEmailReceipt(db, r, new Date().toISOString());
-      L.info("email_receipt", { type: r.type, tenant: r.tenantId, message: r.messageId, outcome });
+      L.info("email_receipt", { type: r.type, tenant_id: r.tenantId, message: r.messageId, outcome });
     } catch (e) {
       L.error("email_receipt_not_applied", {
         type: r.type,
-        tenant: r.tenantId,
+        tenant_id: r.tenantId,
         message: r.messageId,
         error: errField(e),
       });
@@ -111,11 +111,11 @@ export async function POST(request: Request): Promise<Response> {
         dueAt: now,
         payload: { mailbox_id: job.mailboxId, received_id: verdict.receivedId },
       });
-      L.info("email_received", { tenant: job.tenantId, mailbox: job.mailboxId, outcome });
+      L.info("email_received", { tenant_id: job.tenantId, mailbox: job.mailboxId, outcome });
     }
   } catch (e) {
     L.error("email_intake_not_scheduled", { error: errField(e) });
     return refuse(503, "no_database");
   }
   return json(200, { ok: true });
-}
+});

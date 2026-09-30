@@ -14,7 +14,12 @@
  *
  * Dry run by default. Idempotent: a converged agent plans nothing. The
  * response carries each agent as it was before any change, its webhook
- * secret stripped, as the backup. Diagnostic-key only.
+ * secret stripped, as the backup.
+ *
+ * Cross-workspace: a platform door converging every workspace's voice agent; nothing in the dashboard calls it.
+ * Because it acts on any agent by id, it is the platform's alone: a token minted by the platform for this door (the
+ * runbook's knock) that names no workspace, or the platform key on an edge that holds no secret. A token that names
+ * a workspace is a dashboard's, and is refused (`platform_only`), as the pager's door refuses one.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -29,7 +34,7 @@ import {
   type LiveAgentSettings,
 } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -45,30 +50,33 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
   return { ...a, webhook_url: url };
 }
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/voice-converge");
+/** Which agents: the one named, else every voice channel's (or the refusal to read them). */
+async function agentsNamed(body: Body): Promise<string[] | Response> {
+  if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) return [body.agent_id];
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("external_id")
+    .eq("kind", "voice")
+    .eq("status", "active");
+  if (error) return refuse(503, "read_failed", error.message);
+  return (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
+}
+
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
+  if (auth.workspace)
+    return refuse(403, "platform_only", "this door converges every workspace's agent: the platform's alone");
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return refuse(503, "no_provider_key");
   const body = await readBody<Body>(request);
   const apply = body.apply === true;
   const publish = body.publish === true;
 
-  // Which agents: the one named, else every voice channel's.
-  let agentIds: string[];
-  if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) {
-    agentIds = [body.agent_id];
-  } else {
-    const db = pg();
-    if (!db) return refuse(503, "no_database");
-    const { data, error } = await db
-      .from("tenant_channels")
-      .select("external_id")
-      .eq("kind", "voice")
-      .eq("status", "active");
-    if (error) return refuse(503, "read_failed", error.message);
-    agentIds = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
-  }
+  const agentIds = await agentsNamed(body);
+  if (agentIds instanceof Response) return agentIds;
 
   const cfg = { apiKey };
   const agents: Record<string, unknown>[] = [];
@@ -135,4 +143,4 @@ export async function POST(request: Request): Promise<Response> {
     agents.push(out);
   }
   return json(200, { ok: true, apply, publish, agents });
-}
+});

@@ -8,6 +8,8 @@
  * endpoint and describes the last day: how many replies, how sure, how fast,
  * how many held or handed off. recordTokens is the one place a model call's
  * usage is written, so the budget reads every token the receptionist spent.
+ *
+ * Cross-workspace: only brainSummary with no workspace reads every workspace, for the platform's /api/diag.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent, type Database } from "../packages/db.js";
@@ -100,7 +102,7 @@ async function* usagePages(
   }
   // Reached only by exhausting the bound. Silence here is the defect this file
   // was fixed for, one cap further out.
-  logger().error("usage_read_capped", { tenant: tenantId, cap });
+  logger().error("usage_read_capped", { tenant_id: tenantId, cap });
 }
 
 async function usageRows(
@@ -135,8 +137,10 @@ export async function tokensLast24h(
   tenantId: string,
   stopAt = Number.POSITIVE_INFINITY,
 ): Promise<number> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
+    // Without a workspace the read would sum every workspace's day: a budget for none is an error, which counts zero.
+    if (!tenantId) throw new Error("tokensLast24h: a workspace is required");
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
       for (const r of page) sum += finiteOrZero(r.data?.input_tokens) + finiteOrZero(r.data?.output_tokens);

@@ -38,18 +38,8 @@ export function injectionQuestion(): SystemOneQuestion {
 }
 
 /** The tags someone else's words are fenced in. Five were in use before this module; it names them once. */
-export const FENCE_TAGS = [
-  "customer",
-  "profile_name",
-  "transcript",
-  "review",
-  "reply",
-  "record",
-  "conversation",
-  "places",
-  "note",
-] as const;
-export type FenceTag = (typeof FENCE_TAGS)[number];
+export type FenceTag =
+  "customer" | "profile_name" | "transcript" | "review" | "reply" | "record" | "conversation" | "places" | "note";
 
 /** A tag-like run neutralised: the angle brackets become their look-alikes, so nothing inside can open or close a tag. */
 function defang(text: string): string {

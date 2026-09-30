@@ -37,7 +37,7 @@ const NOW = new Date("2026-09-06T14:00:00Z");
 const D = 86_400_000;
 const T1 = "77777777-7777-4777-8777-777777777771";
 const S1 = "66666666-6666-4666-8666-666666666661";
-const WRITES = new Set(["create", "enrol", "fail", "schedule", "record", "release", "hold", "withdraw", "cancel"]);
+const WRITES = new Set(["assemble", "fail", "schedule", "record", "release", "hold", "withdraw", "cancel"]);
 
 const template = (over = {}) => ({
   id: T1,
@@ -92,8 +92,7 @@ function fakes(over = {}) {
     number: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
     // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
     timezone: "America/New_York",
-    create: "b1",
-    enrol: undefined,
+    assemble: "b1",
     fail: undefined,
     schedule: undefined,
     record: "d1",
@@ -245,7 +244,7 @@ test("a list the send can't count here is refused in its own words, never sent t
   const booked = fakes({ list: (ref) => (ref.id === "booked" ? { label: "Booked", memberIds: ["a"] } : null) });
   await make(booked, { template_id: T1, audience: { kind: "list", id: "booked" } });
   assert.deepEqual(
-    booked.of("enrol")[0][2].map((r) => r.contact_id),
+    booked.of("assemble")[0][2].map((r) => r.contact_id),
     ["a"],
   );
 });
@@ -254,27 +253,27 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
   const all = fakes();
   await make(all, { template_id: T1, audience: everyone });
   assert.deepEqual(
-    all.of("enrol")[0][2].map((r) => r.contact_id),
+    all.of("assemble")[0][2].map((r) => r.contact_id),
     ["a", "b"],
     "marketing: the yes to offers",
   );
-  assert.equal(all.of("create")[0][1].audience.label, EVERYONE_LABEL);
+  assert.equal(all.of("assemble")[0][1].audience.label, EVERYONE_LABEL);
   const utility = fakes({ template: template({ category: "utility" }) });
   await make(utility, { template_id: T1, audience: everyone });
   assert.deepEqual(
-    utility.of("enrol")[0][2].map((r) => r.contact_id),
+    utility.of("assemble")[0][2].map((r) => r.contact_id),
     ["a", "b", "c"],
     "a utility message needs only the yes to messages",
   );
   const quiet = fakes();
   await make(quiet, { template_id: T1, audience: { kind: "list", id: "quiet" } });
   assert.deepEqual(
-    quiet.of("enrol")[0][2].map((r) => r.contact_id),
+    quiet.of("assemble")[0][2].map((r) => r.contact_id),
     ["a"],
   );
   // The send keeps the list as it was counted (decision 0009): its token, and its rule then.
   const counted = { counted_at: NOW.toISOString(), rule: null };
-  assert.deepEqual(quiet.of("create")[0][1].audience, {
+  assert.deepEqual(quiet.of("assemble")[0][1].audience, {
     kind: "list",
     id: "quiet",
     label: "Quiet 30+ days",
@@ -283,11 +282,11 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
   const saved = fakes({ list: (ref) => (ref.id === S1 ? { label: "VIPs", memberIds: ["b", "d"] } : null) });
   await make(saved, { template_id: T1, audience: { kind: "saved", id: S1 } });
   assert.deepEqual(
-    saved.of("enrol")[0][2].map((r) => r.contact_id),
+    saved.of("assemble")[0][2].map((r) => r.contact_id),
     ["b"],
     "on the list and said yes",
   );
-  assert.deepEqual(saved.of("create")[0][1].audience, {
+  assert.deepEqual(saved.of("assemble")[0][1].audience, {
     kind: "saved",
     id: S1,
     label: "VIPs",
@@ -547,8 +546,8 @@ test("when, and what it is called: not a time, past the window, a past time is n
     name: "  Spring offer  ",
   });
   assert.equal(r2.scheduled_for, later.toISOString());
-  assert.deepEqual(future.of("schedule")[0], ["schedule", "b1", later]);
-  assert.equal(future.of("create")[0][1].scheduled_for, later.toISOString());
+  assert.deepEqual(future.of("assemble")[0][3], later, "the job is due when the run is");
+  assert.equal(future.of("assemble")[0][1].scheduled_for, later.toISOString());
   assert.equal(r2.name, "Spring offer");
 });
 
@@ -557,8 +556,8 @@ test("the rows, then the job, then the ledger: the row as the person composed it
   const r = await make(f, { template_id: T1, params: ["@first_name", "  20% off  "], audience: everyone });
   const specs = [{ kind: "first_name" }, { kind: "text", value: "20% off" }];
   const name = broadcastName("month_offer", ZONE, NOW, "Monthly offer");
-  assert.deepEqual(f.ops(), ["create", "enrol", "schedule", "record"]);
-  assert.deepEqual(f.of("create")[0][1], {
+  assert.deepEqual(f.ops(), ["assemble", "record"], "the run, its people and its job whole; then the ledger");
+  assert.deepEqual(f.of("assemble")[0][1], {
     name,
     template_id: T1,
     template_name: "month_offer",
@@ -570,15 +569,11 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     recipient_count: 2,
     created_by: "u1",
   });
-  assert.deepEqual(f.of("enrol")[0], [
-    "enrol",
-    "b1",
-    [
-      { contact_id: "a", facts: null },
-      { contact_id: "b", facts: null },
-    ],
+  assert.deepEqual(f.of("assemble")[0][2], [
+    { contact_id: "a", facts: null },
+    { contact_id: "b", facts: null },
   ]);
-  assert.deepEqual(f.of("schedule")[0], ["schedule", "b1", NOW]);
+  assert.deepEqual(f.of("assemble")[0][3], NOW);
   assert.deepEqual(f.of("record")[0], [
     "record",
     "broadcast",
@@ -605,33 +600,19 @@ test("the rows, then the job, then the ledger: the row as the person composed it
   });
 });
 
-test("what could not be written says so: no row is an error; people not written fails the row, then the error; a job the ledger refused fails the row and asks the person to try again; nothing on the ledger", async () => {
-  const noRow = fakes({ create: new Error("insert refused") });
-  await refused(
-    make(noRow, { template_id: T1, audience: everyone }),
-    "internal",
-    500,
-    "The broadcast could not be created. Nothing was sent; try again.",
-  );
-  assert.deepEqual(noRow.ops(), ["create"]);
-  const noPeople = fakes({ enrol: new Error("rows refused") });
-  await refused(
-    make(noPeople, { template_id: T1, audience: everyone }),
-    "internal",
-    500,
-    "The people could not be enrolled. Nothing was sent; try again.",
-  );
-  assert.deepEqual(noPeople.ops(), ["create", "enrol", "fail"]);
-  assert.deepEqual(noPeople.of("fail")[0], ["fail", "b1", "recipients_write_failed"]);
-  const noJob = fakes({ schedule: new Error("schedule_job: no row") });
-  await refused(
-    make(noJob, { template_id: T1, audience: everyone }),
-    "upstream_meta",
-    502,
-    "The send could not be scheduled. Nothing was sent; try again.",
-  );
-  assert.deepEqual(noJob.ops(), ["create", "enrol", "schedule", "fail"]);
-  assert.deepEqual(noJob.of("fail")[0], ["fail", "b1", "schedule_failed"]);
+test("what could not be written says so: the run, its people and its job are one write, so a refusal leaves nothing behind to fail and nothing on the ledger", async () => {
+  // They were three writes with a compensating fail between them (a run with no people, people with no job); the
+  // transaction itself is proved against Postgres (broadcasts/assemble-broadcast.db.test.mjs).
+  for (const why of ["insert refused", "3 of the 40 people are not this workspace's to send to"]) {
+    const f = fakes({ assemble: new Error(why) });
+    await refused(
+      make(f, { template_id: T1, audience: everyone }),
+      "internal",
+      500,
+      "The broadcast could not be created. Nothing was sent; try again.",
+    );
+    assert.deepEqual(f.ops(), ["assemble"], "nothing to fail, nothing recorded");
+  }
 });
 
 test("approve: a playbook's run is a day's run: approved on a later day it is refused before anything moves, and the one for today goes", async () => {
@@ -728,8 +709,8 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
   const r = await createBroadcast(f.ports, { userId: "u1", body: { template_id: T1, audience: everyone }, now: night });
   assert.equal(r.scheduled_for, nine.toISOString(), "nine in the morning, by the business's clock");
   assert.equal(r.moved_from, night.toISOString(), "and it says what was asked for");
-  assert.deepEqual(f.of("schedule")[0], ["schedule", "b1", nine]);
-  assert.equal(f.of("create")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
+  assert.deepEqual(f.of("assemble")[0][3], nine);
+  assert.equal(f.of("assemble")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
   assert.equal(f.of("record")[0][4].moved_from, night.toISOString(), "the ledger keeps the move");
   // Asked for 05:30 New York (09:30 UTC): the same morning's nine.
   const early = new Date("2026-09-07T09:30:00Z");

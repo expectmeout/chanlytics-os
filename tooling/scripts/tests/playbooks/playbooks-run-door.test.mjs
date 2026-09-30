@@ -27,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
 import { localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 
 // Each test file is its own process: this is the whole environment. No
 // mailbox, so a run nobody is told about tells nobody; no Supabase
@@ -76,7 +77,7 @@ const IN_HOURS = Date.parse("2026-09-11T15:00:00Z");
 const token = (o = {}) =>
   signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
     workspace: "workspace" in o ? o.workspace : A,
-    user: U,
+    user: "user" in o ? o.user : U,
   });
 const knock = (body, headers = { "x-edge-token": token() }) =>
   door.POST(
@@ -179,7 +180,7 @@ const playbook = (tenant, id, over = {}) => ({
   ...over,
 });
 
-function world({ people = {}, faults = {} } = {}) {
+function world({ people = {}, faults = {}, rpcs = {} } = {}) {
   const tables = {
     tenants: [],
     tenant_config: [],
@@ -194,7 +195,7 @@ function world({ people = {}, faults = {} } = {}) {
     events: [],
     notifications: [],
   };
-  const db = fakeDb(tables, faults, { people_list: (a) => people[a.p_tenant_id] ?? [] });
+  const db = fakeDb(tables, faults, { people_list: (a) => people[a.p_tenant_id] ?? [], ...rpcs });
   setPg(db);
   return { db, tables, peopleRead: () => db.seen.filter((s) => s.rpc === "people_list").map((s) => s.args) };
 }
@@ -258,16 +259,16 @@ test("the door: a token for another door, a forgery and no credential are 403 be
     [403, { ok: false, error: "workspace_mismatch" }],
     "a token about A may not run B's playbooks",
   );
-  for (const bad of [
-    {},
-    { playbook_id: P },
-    { user_id: U },
-    { playbook_id: "win-back", user_id: U },
-    { playbook_id: P, user_id: "ada" },
-    "not json",
-  ]) {
+  for (const bad of [{}, { user_id: U }, { playbook_id: "win-back", user_id: U }, "not json"]) {
     assert.deepEqual(await answer(await knock(bad)), [400, { ok: false, error: "bad_request" }], JSON.stringify(bad));
   }
+  // The token's person is who runs it: a body that names none is fine, and a token about no person leaves the body to
+  // say who, so a body that names none (or names one that is not an id) is refused.
+  for (const bad of [{ playbook_id: P }, { playbook_id: P, user_id: "ada" }])
+    assert.deepEqual(await answer(await knock(bad, { "x-edge-token": token({ user: null }) })), [
+      400,
+      { ok: false, error: "bad_request" },
+    ]);
   await keyed(async () => {
     assert.deepEqual(await answer(await knock(press, { "x-diag-key": "not-the-key" })), [403, { ok: false }]);
     assert.deepEqual(
@@ -397,7 +398,7 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
     "every recipient row names the run and the workspace",
   );
   assert.deepEqual(
-    w.tables.jobs.map((j) => [j.tenant_id, j.kind, j.payload, j.due_at]),
+    w.tables.jobs.map((j) => [j.tenant_id, j.kind, withoutRequestId(j.payload), j.due_at]),
     [[A, "broadcast_send", { broadcast_id: run.id }, run.scheduled_for]],
     "the send is on the ledger, due when the run is",
   );
@@ -556,7 +557,15 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   ]);
   assert.deepEqual(w.peopleRead(), [], "a playbook that cannot be read is answered before the workspace is");
 
-  w = world({ people: { [A]: [person("c1")] }, faults: { "broadcasts.insert": { message: "connection reset" } } });
+  w = world({
+    people: { [A]: [person("c1")] },
+    // The run, its people and its job are one write (00282): the door refuses it whole.
+    rpcs: {
+      assemble_broadcast: () => {
+        throw new Error("connection reset");
+      },
+    },
+  });
   workspace(w.tables, A, "auto");
   w.tables.playbooks.push(playbook(A, P));
   assert.deepEqual(

@@ -26,7 +26,9 @@ import {
 import { readRaw } from "../_source.mjs";
 
 const module_ = readRaw("packages/channels/src/voice/voice-provision.ts");
-const llm = voiceLlmCreateBody({ fnSecret: "s" });
+/** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
+const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
+const llm = voiceLlmCreateBody({ fnSecret: "s" }, FN_URL);
 
 test("no business fact is written into provisioning", () => {
   // Anything you would be tempted to add here as text is a fact, and facts
@@ -58,7 +60,7 @@ test("what remains is the SHAPE of a call, not its content", () => {
     llm.general_tools.map((t) => t.name),
     ["end_call", "transfer_to_staff", "send_booking_link", "check_availability"],
   );
-  const agent = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
+  const agent = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   assert.equal(agent.end_call_after_silence_ms, VOICE_AGENT_DEFAULTS.end_call_after_silence_ms);
   assert.equal(agent.voice_id, VOICE_AGENT_DEFAULTS.voice_id);
 });

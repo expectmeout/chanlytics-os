@@ -1,14 +1,16 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
+export { providerFetch, answerObject, breakerOf, breakerStates, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
 export {
-  askModel,
-  streamModel,
-  formatRejected,
-  messageTextOf,
-  ANTHROPIC_MESSAGES_URL,
-  ANTHROPIC_VERSION,
-} from "./models/anthropic";
+  publicFetch,
+  publicFetcher,
+  setPublicFetch,
+  isPublicAddress,
+  publicLookup,
+  NotPublicError,
+} from "./public-fetch";
+export type { Resolve, Resolved, PublicFetchDeps } from "./public-fetch";
+export { askModel, streamModel, formatRejected } from "./models/anthropic";
 export type {
   ModelAsk,
   ModelDeps,
@@ -52,7 +54,6 @@ export {
   updateLiveCall,
   stopCall,
   getRetellLlm,
-  needsHydration,
   fetchRecording,
   verifyRetellSignature,
 } from "./voice/voice-retell";
@@ -84,7 +85,6 @@ export {
   HANDOFF_VAR,
   FACTS_UNAVAILABLE,
   CALLER_UNKNOWN,
-  DEFAULT_FN_URL,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
@@ -129,7 +129,6 @@ export {
   isValidSipPassword,
   RETELL_ORIGINATION,
   LINE_COSTS,
-  isE164,
   isAreaCode,
 } from "./lines/lines";
 export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";
@@ -332,8 +331,11 @@ export {
   GBP_REPLY_MAX,
 } from "./google/google-profile";
 export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
-export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
-export { requestIdOf, REQUEST_ID_HEADER } from "./tokens/request-id";
+export { signEdgeToken, verifyEdgeToken, edgeBodyMatches, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
+export { requestIdOf, requestIdShaped, REQUEST_ID_HEADER } from "./tokens/request-id";
+export { logger, errField } from "./log/logger";
+export type { Logger, LogFields, LogLevel } from "./log/logger";
+export { withRequestId, requestId, noteTenant, requestTenant } from "./log/request";
 export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
 export {
   signUnsubscribeToken,

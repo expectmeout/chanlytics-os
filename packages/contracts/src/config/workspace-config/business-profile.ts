@@ -178,6 +178,9 @@ export type BookingRules = z.infer<typeof BookingRulesSchema>;
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 export const E164 = /^\+[1-9]\d{6,14}$/;
 
+/** Whether a value is a number written in E.164, by that pattern. */
+export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
+
 /**
  * The most either set of the receptionist's instructions holds: the prompt a
  * workspace wrote before it had fields, and the owner's own instructions that

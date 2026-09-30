@@ -62,6 +62,7 @@ export async function addPeopleFromCalendar(
           .from("contacts")
           .update({ display_name: r.name })
           .eq("id", have.id)
+          .eq("tenant_id", tenantId)
           .is("display_name", null);
         if (!uErr) out.named += 1;
       }
@@ -75,6 +76,7 @@ export async function addPeopleFromCalendar(
           .from("contacts")
           .update({ email: r.email })
           .eq("id", have.id)
+          .eq("tenant_id", tenantId)
           .is("email", null);
         if (!eErr) out.emailed += 1;
         else if (eErr.code !== "23505") throw new Error(`calendar_people_email: ${eErr.message}`);

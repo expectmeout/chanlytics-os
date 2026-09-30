@@ -8,6 +8,7 @@ import { deleteCampaignRequest, updateCampaignRequest, encodeForm, twilioRequest
 import type { EdgeErrorCode } from "../packages/contracts.js";
 import { lineAccount } from "../sms/sms.js";
 import { logger } from "../log.js";
+import { tenantDb } from "../packages/db.js";
 import { filingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 
 /**
@@ -80,7 +81,7 @@ export async function unfileMockRegistration(
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of.
-  const cleared = await db
+  const cleared = await tenantDb(db, line.tenant_id)
     .from("lines")
     .update({
       brand_sid: null,
@@ -188,7 +189,7 @@ export async function resubmitRejectedCampaign(
   }
   L.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
 
-  const cleared = await db
+  const cleared = await tenantDb(db, line.tenant_id)
     .from("lines")
     .update({
       sms_state: "registering",
@@ -256,7 +257,7 @@ export async function replaceRejectedCampaign(
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of. The
   // brand and the messaging profile stay; only the campaign's receipt goes.
-  const cleared = await db
+  const cleared = await tenantDb(db, line.tenant_id)
     .from("lines")
     .update({
       campaign_sid: null,

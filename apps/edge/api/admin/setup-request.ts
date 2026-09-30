@@ -9,7 +9,7 @@
  * after the RPC, from production only, and treats a failure as a shrug —
  * the request is already on record. What travels is the workspace's own
  * name and id and who asked; no customer content exists here to withhold.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
@@ -17,7 +17,7 @@ import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -58,8 +58,8 @@ const WHAT: Record<string, { subject: string; how: string }> = {
   },
 };
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/setup-request");
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/setup-request");
   if (!auth.ok) return auth.response;
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
@@ -92,6 +92,6 @@ export async function POST(request: Request): Promise<Response> {
         `Workspace id: ${tenant.data.id}\n\n${w.how}\n`,
     },
   );
-  L.info("setup_request_told", { tenant: tenantId, what, sent });
+  L.info("setup_request_told", { tenant_id: tenantId, what, sent });
   return json(sent ? 200 : 502, { ok: sent, what, tenant: tenant.data.slug });
-}
+});

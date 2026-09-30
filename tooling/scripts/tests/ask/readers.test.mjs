@@ -651,8 +651,8 @@ test("searches: GET lead-searches' answer -- every kept search with its latest r
 /* -------------------------------------- the Inbox and Today, as the page composes them */
 
 /**
- * What `fn` logged under one event name: a logger line's fields (src/server/log.ts), or a package's own line's values
- * after its name.
+ * What `fn` logged under one event name: a logger line's fields (src/server/log.ts, and the packages', which write
+ * through the same logger), or a positional line's values after its name.
  */
 async function logged(event, fn) {
   const lines = [];
@@ -833,7 +833,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noCalls.data.calls, null, "a calls read that failed is its own state, not none");
   assert.equal(noCalls.data.conversations.length, 100);
   assert.equal(noCalls.data.searches.length, 1);
-  assert.deepEqual(callLines, [{ error: "permission denied" }]);
+  assert.deepEqual(callLines, [{ error: "Error: permission denied" }]);
 
   const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
     kernel.load(
@@ -845,7 +845,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
-  assert.deepEqual(searchLines, [{ error: "down" }]);
+  assert.deepEqual(searchLines, [{ error: "Error: down" }]);
 });
 
 /* -------------------------------------------------- the thread and the call (PR 1.3) */
@@ -1473,7 +1473,7 @@ test("a person's page holds their newest 2,000 messages, as it asks: PostgREST a
     [[0, 999], NEWEST_FIRST],
     [[1000, 1999], NEWEST_FIRST],
   ]);
-  assert.deepEqual(lines, [[JSON.stringify({ what: "person messages", cap: 2000 })]]);
+  assert.deepEqual(lines, [{ what: "person messages", cap: 2000 }]);
 
   // A person with a thread's worth: one page, as before.
   const few = personCtx(heavy(40), P1, {}, { maxRows: 1000 });
@@ -1641,7 +1641,7 @@ test("a report the function will not answer is GET reports' 404, in its sentence
   assert.deepEqual(
     lines,
     // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
-    [{ tenant: A, error: "getTenantConfig: config down" }],
+    [{ tenant_id: A, error: "getTenantConfig: config down" }],
   );
   const { result: r } = await logged("booking_report_failed", () =>
     kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30 }),
@@ -2086,7 +2086,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
     ],
   );
   assert.equal(harbor.data.calendar.state, "none");
-  assert.deepEqual(harbor.data.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false });
+  assert.deepEqual(harbor.data.page, { q: null, offset: 0, limit: 1000, total: 0, has_more: false, next: null });
   assert.deepEqual(
     harbor.rows.map((x) => x.label),
     ["Ada", "Ada"],
@@ -2094,7 +2094,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
   const found = await kernel.load(turnIn(worldCtx(pagingWorld())), peopleReader, { q: "bo", offset: 0 });
   assert.deepEqual(
     [found.data.people.map((p) => p.id), found.data.page],
-    [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false }],
+    [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false, next: null }],
     "the door matched, and the count counted the same match",
   );
   // The same reading of who exists as the CSV export (everyone(), server/people/people.ts): the door's rows under the member's
@@ -2289,7 +2289,7 @@ test("the people list's calendar is never fatal: settings that cannot be read co
     assert.deepEqual(
       lines,
       // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
-      [{ tenant: A, error: "getTenantConfig: config down" }],
+      [{ tenant_id: A, error: "getTenantConfig: config down" }],
     );
     const { result: r } = await logged("people_visits_failed", () =>
       kernel.load(turnIn(worldCtx(w, down)), peopleReader, { q: null, offset: 0 }),
@@ -2842,7 +2842,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       "no calendar read: the moments it names are not counted",
     );
     assert.ok(blind.pools.everyone_monthly && blind.playbooks.length === 2, "and everything else stands");
-    assert.deepEqual(lines, [{ tenant: A, error: "getTenantConfig: config down" }]);
+    assert.deepEqual(lines, [{ tenant_id: A, error: "Error: getTenantConfig: config down" }]);
     const { result: r2 } = await logged("playbook_pools_visits_failed", () =>
       kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
     );

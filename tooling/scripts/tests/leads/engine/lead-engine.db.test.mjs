@@ -19,6 +19,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../../_file-lock.mjs";
 import { ROLE_PERMS, leadMonth, legacyLeadSuppressionHash } from "@chanlytics/contracts";
 import { at } from "../../_cron-doors-world.mjs";
 import { sha256, webhookToken } from "../../_lead-world.mjs";
@@ -259,8 +260,13 @@ function a2World(base) {
   };
 }
 
+// The platform's switch list, lead_platform.tenants_on, is one array every lead suite reads, adds itself to and writes
+// back: this file takes the lock for the whole of it, as lead-lists.db and the money-lock walk do (_file-lock.mjs), or
+// one's write erases another's and its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -295,30 +301,34 @@ before(async () => {
 // workspace; events have no foreign key to it, and the platform's day
 // counter has no workspace at all, so those two go by hand.
 after(async () => {
-  if (skip) return;
-  const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
-  if (p.data)
-    await db
-      .from("lead_platform")
-      .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
-      .eq("id", true);
-  for (const id of [A, B].filter(Boolean)) {
-    for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
-      platformDays.add(r.platform_day);
-    await db.from("events").delete().eq("tenant_id", id);
-    await db.from("tenants").delete().eq("id", id);
+  try {
+    if (skip) return;
+    const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
+    if (p.data)
+      await db
+        .from("lead_platform")
+        .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
+        .eq("id", true);
+    for (const id of [A, B].filter(Boolean)) {
+      for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
+        platformDays.add(r.platform_day);
+      await db.from("events").delete().eq("tenant_id", id);
+      await db.from("tenants").delete().eq("id", id);
+    }
+    // The platform's day counter carries no workspace, so it does not cascade
+    // -- and it is the platform's, shared with every suite: take back exactly
+    // the day rows this suite's own rounds reserved in, and nothing else.
+    if (platformDays.size)
+      await db
+        .from("lead_counters")
+        .delete()
+        .is("tenant_id", null)
+        .eq("kind", "day")
+        .in("period", [...platformDays]);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseList?.();
   }
-  // The platform's day counter carries no workspace, so it does not cascade
-  // -- and it is the platform's, shared with every suite: take back exactly
-  // the day rows this suite's own rounds reserved in, and nothing else.
-  if (platformDays.size)
-    await db
-      .from("lead_counters")
-      .delete()
-      .is("tenant_id", null)
-      .eq("kind", "day")
-      .in("period", [...platformDays]);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
 const ids = {}; // what the tests hand each other, in order

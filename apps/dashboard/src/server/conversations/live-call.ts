@@ -1,5 +1,5 @@
 import "server-only";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import type { EdgeAnswerCode } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../edge";
 
@@ -16,17 +16,31 @@ function unreached(r: EdgeAnswer): LiveCallOutcome {
 }
 
 /**
+ * Who asks, for which workspace: the token names both, and the edge acts only on a call of that workspace. The
+ * route has already proved the call is the member's under RLS; the edge proves it again, with the token's workspace
+ * and not the body's call id alone.
+ */
+interface LiveCallAsker {
+  workspace: string;
+  user: string;
+}
+
+/**
  * Whisper to the phone receptionist mid-call, through the edge — the
  * provider key lives there. Same production guard as the pause mirror: a
  * preview must never speak into a real customer's call. Returns a reason
  * instead of throwing so the route can answer in a sentence.
  */
-export async function whisperLiveCall(retellCallId: string, text: string, trigger: boolean): Promise<LiveCallOutcome> {
+export async function whisperLiveCall(
+  retellCallId: string,
+  whisper: { text: string; trigger: boolean },
+  asker: LiveCallAsker,
+): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/whisper",
-    { call_id: retellCallId, text, trigger },
-    { timeoutMs: LIVE_CALL_TIMEOUT_MS },
+    { call_id: retellCallId, text: whisper.text, trigger: whisper.trigger },
+    { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
   return unreached(r);
@@ -38,9 +52,13 @@ export async function whisperLiveCall(retellCallId: string, text: string, trigge
  * customer's call -- and a reason instead of a throw, so the route answers
  * in a sentence.
  */
-export async function stopLiveCall(retellCallId: string): Promise<LiveCallOutcome> {
+export async function stopLiveCall(retellCallId: string, asker: LiveCallAsker): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge("/api/admin/stop-call", { call_id: retellCallId }, { timeoutMs: LIVE_CALL_TIMEOUT_MS });
+  const r = await callEdge(
+    "/api/admin/stop-call",
+    { call_id: retellCallId },
+    { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
+  );
   if (edgeAnswered(r)) return { ok: true };
   return unreached(r);
 }
@@ -50,12 +68,16 @@ export async function stopLiveCall(retellCallId: string): Promise<LiveCallOutcom
  * receptionist the owner is picking up and overrides the line its transfer
  * tool dials. Same guard, same shape of answer.
  */
-export async function handOverLiveCall(retellCallId: string, line: string): Promise<LiveCallOutcome> {
+export async function handOverLiveCall(
+  retellCallId: string,
+  line: string,
+  asker: LiveCallAsker,
+): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/hand-over",
     { call_id: retellCallId, line },
-    { timeoutMs: LIVE_CALL_TIMEOUT_MS },
+    { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
   return unreached(r);

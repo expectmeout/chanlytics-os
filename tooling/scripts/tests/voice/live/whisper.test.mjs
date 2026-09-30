@@ -57,7 +57,7 @@ test("the route proves visibility, then the role door, then the provider — and
   const rls = route.indexOf("scope: callScope,");
   const door = route.indexOf('role: "operator",');
   const ongoing = route.indexOf('call.status !== "ongoing"');
-  const provider = route.indexOf("await whisperLiveCall(call.retell_call_id, text, trigger)");
+  const provider = route.indexOf("await whisperLiveCall(");
   const ledger = route.indexOf('recordDecision(ctx, call.tenant_id, "call", call.id, "whisper"');
   for (const [name, at] of [
     ["rls", rls],

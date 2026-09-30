@@ -1,7 +1,35 @@
 /**
- * What the send door asks of a cold email (00177 outreach_facts): one question, one answer. The one place the door's
- * outreach facts are typed. The service role asks it (the send path runs on the edge); a read that fails throws,
- * because "we could not check" is not "yes".
+ * Reach out's facts about a person and a reply, asked of the database: the SQL doors behind a cold email's send, the
+ * never-again list and a reply's reading, with the rows they name (reach_out_replies is typed here; lead_suppressions
+ * and reach_out_sends are read here). Groups, top to bottom:
+ *
+ *   the send door's facts   outreachFactsOf (outreach_facts): the lead's stage, whether the address is suppressed,
+ *                           whether the person wrote back, an out-of-office or a stop in force, and the From domain's
+ *                           state and what left from it, in one answer. core's deliver() asks it for a reach-out email
+ *                           alone, on the service role.
+ *   the never-again list    addressesSuppressed (lead_addresses_suppressed): an address's own row, or its business's
+ *                           own domain after a no. The finder (apps/edge/lib/leads/lead-db.ts) asks it through this
+ *                           function; the door's facts and the audience ask the same predicate in SQL.
+ *   a reply and its         reachOutReplyOf says whose reply a received email is (the email intake job asks it to
+ *   reading                 decide whether to schedule a read). The reply_read job (packages/jobs/src/reply-read.ts)
+ *                           then reads and writes the reading through replyReadingOf, applyReplyReading, markReplyDraft
+ *                           and the notice's two phases, claimReplyTell and markReplyTold. takeReplyRead is the
+ *                           workspace's daily cap on reads, taken by the edge (apps/edge/lib/reach-out/reply-read.ts).
+ *   what a member sees      repliesFor, replyReadingRefOf, replyUndoableOf and undoReplyReading, on the member's own
+ *                           client (RLS decides), for apps/dashboard/src/server/campaigns/reach-out-replies.ts and
+ *                           apps/dashboard/src/server/verbs.ts.
+ *   the day's numbers       reachOutDayDue: the workspaces whose 6 PM it is, asked by the edge's hourly playbooks sweep
+ *                           (apps/edge/lib/reach-out/day-numbers.ts).
+ *
+ * Two rules hold throughout. A read or door that fails throws: "could not check" is neither yes nor no, and a reply
+ * taken for nobody's is a no that is never read. And the edge may deploy before the database, so a newer door's absence
+ * reads as it did before: addressesSuppressed falls back to the address's own row when lead_addresses_suppressed is
+ * missing (00220), reachOutReplyOf answers null when reach_out_reply_of is (00222), the lead argument is sent only when
+ * there is a lead (a database before 00184 knows five arguments), and away and stopped read false where the facts lack
+ * them (00226, 00241). A database that does not say whether the person wrote back (00181) is a failed read, not a
+ * never: a business that asked to be left alone would be written to cold.
+ *
+ * Cross-workspace: only reachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";

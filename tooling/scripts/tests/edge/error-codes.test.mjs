@@ -66,8 +66,9 @@ const FORWARDED = {
     'off.error ?? "record_incomplete"',
     'off.error ?? (takeOff === "replace" ? "replace_failed" : "unfile_failed")',
   ],
-  // The database's words, for a log and the job ledger (a resume's count) or for `detail` (a release's routing rows).
-  "apps/edge/lib/lines/line-resume.ts": ["error.message"],
+  // The database's words, or the count's own (a line that is not there to count against), for a log and the job
+  // ledger (a resume's count) or for `detail` (a release's routing rows).
+  "apps/edge/lib/lines/line-resume.ts": ["error.message", "NOT_THERE_TO_COUNT"],
   "apps/edge/lib/lines/lines.ts": ["error"],
   // Meta's own answers, in Meta's words: a door answers its code with them in `detail`.
   "apps/edge/lib/whatsapp/meta-graph.ts": ["String(res.error)", "body.error?.message ?? `graph ${res.status}`"],

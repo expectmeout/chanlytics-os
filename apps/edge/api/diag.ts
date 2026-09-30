@@ -2,15 +2,20 @@
  *  voice agents, the receptionist's last day
  *  + Meta access-token permanence check (debug_token expires_at).
  *  Auth: x-diag-key header (DIAG_KEY). Internal endpoint — not part of the
+ *
+ * Cross-workspace: the platform's diagnostic, opened by the platform key only, reports on every workspace.
  *  frozen surface. */
 import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
+import { migrationsLine } from "../lib/ops/migration-head.js";
 import { brainSummary } from "../lib/receptionist/budget.js";
+import { securitySwitchesHere } from "../lib/security-switches.js";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.js";
 import {
+  breakerStates,
   getAgent,
   getRetellLlm,
   providerFetch,
@@ -21,9 +26,10 @@ import {
 } from "../lib/packages/channels.js";
 import { metaAppId } from "../lib/whatsapp/meta-graph.js";
 import { env } from "../lib/env.js";
-import { unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
+import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
 import { coldReplyDomains } from "../lib/email/email.js";
 import { emailDomainOf } from "../lib/packages/contracts.js";
+import { door } from "../lib/log.js";
 
 const META_APP_ID = metaAppId();
 /** How long the report waits on a provider it reads (Meta's token check): a stuck one used to hold the whole report. */
@@ -35,19 +41,19 @@ type Section = Record<string, unknown>;
 /** The report: a key per part, and no `error` of its own (a part that cannot read says so under its own key). */
 type Report = { [part: string]: unknown; error?: never };
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = door(async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
   // and one that lands in access logs. The platform's door: nothing mints a
   // token for it (the runbook and the golden probe knock with the key), so
   // the key stays its credential on an edge that holds the secret too.
-  const auth = authorizeAdmin(request, "/api/diag", { platformKey: true });
+  const auth = await authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
 
   const out: Report = {};
   for (const part of REPORT) Object.assign(out, await part());
   return json(200, out);
-}
+});
 
 /**
  * The report, part by part, in the order it shows them. Nothing here runs before the knock is let in. Each part reads
@@ -57,6 +63,7 @@ export async function GET(request: Request): Promise<Response> {
 const REPORT: (() => Section | Promise<Section>)[] = [
   memoryBackend,
   envPresence,
+  securitySwitches,
   coldMailRouting,
   sweepHealth,
   pagerMemory,
@@ -66,7 +73,17 @@ const REPORT: (() => Section | Promise<Section>)[] = [
   whatsappGates,
   receptionistDay,
   migrationHead,
+  providerBreakers,
 ];
+
+/**
+ * Each provider's breaker in the instance that answered (channels providerFetch): whether it holds that provider's
+ * calls, how many faults in a row it has counted, and until when. An instance learns an outage for itself, so this is
+ * one instance's view; `breaker_open` in the log is every instance's.
+ */
+function providerBreakers(): Section {
+  return { breakers: breakerStates() };
+}
 
 /**
  * Where the bot's MEMORY comes from. Postgres, and nothing else: the
@@ -98,6 +115,11 @@ function envPresence(): Section {
       unsubscribe: !!env.UNSUBSCRIBE_SECRET,
     },
   };
+}
+
+/** Which weaker modes are open on this deployment, and the day each must be gone (contracts ai/flags.ts). */
+function securitySwitches(): Section {
+  return { securitySwitches: securitySwitchesHere() };
 }
 
 /**
@@ -258,7 +280,7 @@ function voiceAgentEntry(
         live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
         // Which text model the line runs — provisioning parity, in one word.
         model: llm?.model ?? null,
-        shell: llm ? voiceShellDrift(llm) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+        shell: llm ? voiceShellDrift(llm, edgeFnUrl()) : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
         // The agent-level settings the pipeline needs: the live
         // transcript event, a webhook budget the recording copy fits
         // in, signed recording links.
@@ -343,10 +365,7 @@ async function migrationHead(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { migrations: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("migration_head");
-    if (error) return { migrations: { error: error.message.slice(0, 200) } };
-    const row = (data ?? [])[0];
-    return { migrations: { head: row?.head ?? null, applied: row?.applied ?? 0 } };
+    return { migrations: await migrationsLine(db) };
   } catch (e) {
     return { migrations: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }

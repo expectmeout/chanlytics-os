@@ -48,7 +48,7 @@ export const report: Reader<
         });
       })
       .catch((e: unknown) => {
-        log.error("booking_report_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+        log.error("booking_report_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
         return null;
       });
     // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never

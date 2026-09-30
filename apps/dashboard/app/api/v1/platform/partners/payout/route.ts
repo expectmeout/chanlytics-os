@@ -18,6 +18,7 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_partner_payout",
+  fresh: true,
   handle: async ({ req, office }) => {
     const body = (await req.json().catch(() => ({}))) as {
       partner_id?: unknown;

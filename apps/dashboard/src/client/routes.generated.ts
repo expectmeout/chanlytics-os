@@ -102,6 +102,7 @@ export const ROUTES = {
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
+  "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
   "POST contacts/[id]/notes": { method: "POST", path: "/api/v1/contacts/[id]/notes" },
@@ -153,6 +154,7 @@ export const ROUTES = {
   "POST partner/invitations/[id]/decline": { method: "POST", path: "/api/v1/partner/invitations/[id]/decline" },
   "POST partner/workspaces": { method: "POST", path: "/api/v1/partner/workspaces" },
   "POST partner/workspaces/[id]/resend": { method: "POST", path: "/api/v1/partner/workspaces/[id]/resend" },
+  "POST platform/jobs/requeue": { method: "POST", path: "/api/v1/platform/jobs/requeue" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
@@ -309,6 +311,7 @@ export type Routes = {
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
+  "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
   "POST contacts/[id]/notes": typeof import("../../app/api/v1/contacts/[id]/notes/route").POST;
@@ -360,6 +363,7 @@ export type Routes = {
   "POST partner/invitations/[id]/decline": typeof import("../../app/api/v1/partner/invitations/[id]/decline/route").POST;
   "POST partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").POST;
   "POST partner/workspaces/[id]/resend": typeof import("../../app/api/v1/partner/workspaces/[id]/resend/route").POST;
+  "POST platform/jobs/requeue": typeof import("../../app/api/v1/platform/jobs/requeue/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;

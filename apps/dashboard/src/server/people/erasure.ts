@@ -110,7 +110,7 @@ export async function removeMediaObjects(
 ): Promise<{ requested: number; removed: string[]; error: string | null }> {
   const paths = named.filter((p) => inWorkspace(tenantId, p));
   if (paths.length < named.length)
-    log.error("media_remove_refused", { tenant: tenantId, refused: named.length - paths.length });
+    log.error("media_remove_refused", { tenant_id: tenantId, refused: named.length - paths.length });
   if (!paths.length) return { requested: 0, removed: [], error: null };
   const { data, error } = await serviceDb().storage.from("media").remove(paths);
   if (error) {

@@ -230,6 +230,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "DELETE me/devices": "this device's push registration",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
+  "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   // The partner's own pane and the team's partner card read their rows themselves, again after each act.
   "POST partner": "the partner's account, published from the answer at once (partner.ts become)",
   "PATCH partner": "the partner's letters, published from the answer at once (partner.ts setLetters)",
@@ -239,6 +240,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
   "DELETE team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
   // The back office reads its own lists on demand (platform.ts): no surface holds them.
+  "POST platform/jobs/requeue":
+    "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
   "POST platform/lines/release": "the back office's lines, read again by its pane",
   "POST platform/lines/replace": "the back office's lines, read again by its pane",

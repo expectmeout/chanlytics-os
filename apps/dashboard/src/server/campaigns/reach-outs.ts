@@ -49,7 +49,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
 import { serviceDb } from "@/server/service-db";
-import { deployment } from "@/server/deployment";
+import { deployment } from "@/server/env";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/edge";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */

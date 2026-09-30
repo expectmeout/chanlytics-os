@@ -16,6 +16,8 @@
  * a job whose outcome is unknown.
  */
 import { isCampaignEmail } from "@chanlytics/contracts";
+import { logger } from "@chanlytics/channels";
+import { carriedBy, nextBatch } from "./broadcast-send";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
@@ -112,7 +114,7 @@ async function noteMailboxTrouble(
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) {
-    console.error("mailbox_trouble_not_marked", error.message);
+    logger().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
     return { mailbox: "failed" };
   }
   return { mailbox: data && data.length > 0 ? "marked" : "gone" };
@@ -324,15 +326,14 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
         remaining,
       });
     try {
-      // The count rides the payload: nothing else survives the death of the run.
-      // broadcastSend's own scheduleNext writes a payload without it, so a run
-      // that got as far as its next batch resets the count, and this bounds only
-      // the runs that made no progress at all.
+      // The count rides the payload, and so do the waits and stalls the run had (a resumed run still looks at the
+      // day's sending hours): nothing else survives the death of the run. broadcastSend's own scheduleNext writes a
+      // payload without the count, so a run that got as far as its next batch resets it.
       await scheduleJob(db, {
         tenantId: job.tenant_id,
         kind: "broadcast_send",
         dueAt: new Date(),
-        payload: { broadcast_id: broadcastId, resumes: resumes + 1 },
+        payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 },
       });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e) {

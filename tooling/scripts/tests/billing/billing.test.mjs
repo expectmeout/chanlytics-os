@@ -5,6 +5,7 @@
  * webhook's order (signature, then the id, then the write), the ops, the
  * routes' roles and bucket, the bridge, the pane, the watch list, the kinds.
  */
+import "../fixtures/pin-utc.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

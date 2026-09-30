@@ -1,5 +1,5 @@
 /** Reports: the receptionist's numbers over a period, the facts the page leads with, and the campaigns. */
-export { toCampaignReportVM, CAMPAIGN_REPORT_RANGES } from "./campaign-report";
+export { toCampaignReportVM } from "./campaign-report";
 export type {
   CampaignDayDto,
   CampaignSourceDto,
@@ -58,7 +58,7 @@ export type {
   ReachOutFunnelRow,
   ReachOutAngleRow,
   ReachOutDomainRow,
-  ReachOutSourceRow,
+  ReachOutSourceLine,
   ReachOutReportVM,
   ReachOutDayNumbers,
 } from "./reach-out-report";

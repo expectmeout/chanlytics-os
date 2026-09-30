@@ -24,11 +24,15 @@
  * when the shared count cannot be read, it refuses (503) instead of falling
  * back to a per-instance count that a burst across instances walks past --
  * a ceiling on spend that cannot be held is not a ceiling.
+ *
+ * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
 import { AppError, MIN_MS, HOUR_MS, waitWords } from "@chanlytics/contracts";
-import { createServiceClient, type Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isProduction } from "@/server/env";
 import { log } from "@/server/log";
+import { serviceDbIfConfigured } from "@/server/service-db";
 
 interface RateRule {
   limit: number;
@@ -149,6 +153,11 @@ export const RATE = {
   platform_partner_standing: { limit: 60, windowMs: HOUR_MS, noun: "partner standings set" },
   platform_partner_payout: { limit: 30, windowMs: HOUR_MS, noun: "partner payouts recorded" },
   platform_partner_status: { limit: 20, windowMs: HOUR_MS, noun: "partners paused or restored" },
+  /**
+   * A failed job run again for another workspace (the back office's requeue door): worked down a list of failures after
+   * an outage is fixed, so a support session's ceiling, and still a ceiling: each one is a job run again.
+   */
+  platform_job_requeue: { limit: 60, windowMs: HOUR_MS, noun: "jobs run again for other workspaces" },
   /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */
   platform_partner_second_factor: { limit: 10, windowMs: HOUR_MS, noun: "second factors reset" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
@@ -175,6 +184,8 @@ export const RATE = {
   view_set: { limit: 60, windowMs: MIN_MS, noun: "view changes" },
   /** A page load's timings (vitals), sent each time a tab is put away: sixty a minute is a loop, not a person. */
   vitals: { limit: 60, windowMs: MIN_MS, noun: "page timings" },
+  /** An error a page hit, sent by its boundary once per error per load: twenty an hour is a broken page, not a flood. */
+  client_errors: { limit: 20, windowMs: HOUR_MS, noun: "error reports" },
   /** A lead search: a provider run and a judge on the platform's account (the door reserves the month; this stops a loop). */
   lead_search: { limit: 10, windowMs: HOUR_MS, noun: "lead searches" },
   /** An answer to the question after 25, or a Stop. */
@@ -298,10 +309,7 @@ let store: RateStore | null = null;
  * strict take refuses: a deployment that cannot count across instances does
  * not spend on a ceiling it cannot hold.
  */
-export function memoryByConfiguration(
-  fallback: RateStore,
-  production = process.env.VERCEL_ENV === "production",
-): RateStore {
+export function memoryByConfiguration(fallback: RateStore, production = isProduction()): RateStore {
   let said = false;
   return {
     async take(bucket, actor, rule, now, strict = false) {
@@ -324,12 +332,8 @@ export function memoryByConfiguration(
 /** Postgres when the server has its keys, else this instance's memory, said once. Chosen once. */
 function activeStore(): RateStore {
   if (store) return store;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  store =
-    url && serviceRoleKey
-      ? postgresStore(createServiceClient({ url, serviceRoleKey }), memory)
-      : memoryByConfiguration(memory);
+  const db = serviceDbIfConfigured();
+  store = db ? postgresStore(db, memory) : memoryByConfiguration(memory);
   return store;
 }
 

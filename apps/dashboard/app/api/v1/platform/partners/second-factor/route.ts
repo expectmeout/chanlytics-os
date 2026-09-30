@@ -11,6 +11,7 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_partner_second_factor",
+  fresh: true,
   input: PartnerSecondFactorResetSchema,
   handle: async ({ office, input }) => ({
     result: await platformPartnerSecondFactorReset(office, input.partner_id, input.why),

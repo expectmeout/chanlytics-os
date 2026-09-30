@@ -3,6 +3,7 @@
  * how a domain's facts become its state, and what the Connections row says. Pure; the edge reads the facts and
  * writes the row (lib/email/sending-domains.ts), and cron-domains-door.test.mjs runs it.
  */
+import "../../fixtures/pin-utc.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

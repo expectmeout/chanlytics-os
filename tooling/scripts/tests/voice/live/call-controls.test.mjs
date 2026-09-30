@@ -40,11 +40,15 @@ process.env.RETELL_API_KEY = "retell-key-for-this-file";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stop = await import(at("apps/edge/api/admin/stop-call.ts"));
+const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+const { fakeDb } = await import("../../_fake-db.mjs");
 const hand = await import(at("apps/edge/api/admin/hand-over.ts"));
 
 const CALL = "call_abc123def456";
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LINE = "+13055550199";
+// The doors prove the call is the token's workspace's before they act (live-call-workspace.test.mjs runs the refusals).
+setPg(fakeDb({ calls: [{ id: "row-1", tenant_id: A, retell_call_id: CALL }] }));
 
 /** Every call to the provider, captured; answered with the status given. */
 function provider(status, body = "") {

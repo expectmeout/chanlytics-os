@@ -68,6 +68,17 @@ select 'column_fence' as rule, coalesce(array_agg(x order by x), '{}') as offend
           and g.grantee = 'authenticated'::regrole and g.privilege_type = 'UPDATE')
 ) s
 union all
+select 'insert_fence', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname::text as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('r', 'p')
+     and has_table_privilege('authenticated', c.oid, 'INSERT')
+     and exists (
+       select 1 from pg_policy p
+        where p.polrelid = c.oid and p.polcmd in ('a', '*')
+          and (p.polroles = '{0}' or 'authenticated'::regrole = any (p.polroles)))
+) s
+union all
 select 'definer_anon', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -124,6 +135,16 @@ select 'anon_holds_relation', coalesce(array_agg(x order by x), '{}') from (
        or (c.relkind = 'S' and has_sequence_privilege('anon', c.oid, 'USAGE,SELECT,UPDATE')))
 ) s
 union all
+select 'role_unbounded', coalesce(array_agg(x order by x), '{}') from (
+  select r.rolname::text as x
+    from pg_roles r
+   where r.rolname in ('anon', 'authenticated', 'service_role')
+     and not exists (select 1 from unnest(coalesce(r.rolconfig, '{}'::text[])) cfg where cfg like 'statement_timeout=%')
+) s
+union all
+select 'jobs_index_missing', case when to_regclass('public.jobs_tenant_kind_state') is null
+                                   then array['jobs_tenant_kind_state'] else '{}'::text[] end
+union all
 select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -144,6 +165,38 @@ test("anon holds nothing in public: no table, view or sequence privilege", { ski
   // already denied anon every row; since 00122 the privilege itself is gone.
   assert.deepEqual(rules.anon_holds_relation, [], "revoke all from anon: the logged-out key reads through no table");
 });
+
+test("every role a request runs as has a statement bound, the service role's too (00283)", { skip }, () => {
+  // A member's statements end at 8 s and a stranger's at 3 (Supabase's own settings); the service role, which the edge,
+  // the sweeps and the scripts use through PostgREST, had none, and a statement one of them ran could hold a pooled
+  // connection for as long as it liked.
+  assert.deepEqual(rules.role_unbounded, [], "alter role <role> set statement_timeout = '<bound>'");
+  const [row] = query(
+    "select (select c from unnest(rolconfig) c where c like 'statement_timeout=%') as bound from pg_roles where rolname = 'service_role'",
+  );
+  assert.equal(
+    row?.bound,
+    "statement_timeout=30s",
+    "the service role's is 30 s: the client waits 40, so the database ends it first",
+  );
+});
+
+test(
+  "a workspace's jobs of a kind are found by index, not by a scan of every workspace's ledger (00283)",
+  { skip },
+  () => {
+    assert.deepEqual(
+      rules.jobs_index_missing,
+      [],
+      "create index jobs_tenant_kind_state on jobs (tenant_id, kind, state)",
+    );
+    const [row] = query("select indexdef from pg_indexes where indexname = 'jobs_tenant_kind_state'");
+    assert.ok(
+      (row?.indexdef ?? "").includes("(tenant_id, kind, state)"),
+      "on the three columns every per-workspace read filters by",
+    );
+  },
+);
 
 test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");
@@ -183,6 +236,17 @@ test("a column UPDATE grant is a fence: no table also hands authenticated table-
     rules.column_fence,
     [],
     "these tables grant columns and the whole row at once: revoke update on the table, then grant the columns again",
+  );
+});
+
+test("a column INSERT grant is a fence: a table a session may insert into holds no table-wide INSERT", { skip }, () => {
+  // A row policy decides which rows a member adds, never which columns: on a table with an INSERT policy for
+  // authenticated the whole-table grant let the session write any column the predicate did not read, the edge's
+  // among them (00278). REVOKE INSERT takes the column grants with it, so revoke first, then grant the columns.
+  assert.deepEqual(
+    rules.insert_fence,
+    [],
+    "these tables let a session insert and grant it the whole row: revoke insert on the table, then grant the columns the product writes",
   );
 });
 

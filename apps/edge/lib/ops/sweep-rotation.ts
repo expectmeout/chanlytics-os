@@ -32,6 +32,8 @@
  *              ticks with a backlog answers 503 — the queue is growing faster
  *              than the sweep drains it, which is a capacity fact a person has
  *              to hear before a customer does.
+ *
+ * Cross-workspace: the calendar and playbook sweeps' rotation; each due row carries its own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {

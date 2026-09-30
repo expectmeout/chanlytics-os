@@ -25,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { showSecondFactor } from "../_second-factor.mjs";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -249,8 +250,13 @@ const bellOf = async (round) =>
   ok(await db.from("notifications").select("kind, title, body, route").eq("tenant_id", A).eq("subject_id", round));
 
 let C;
+// The platform's switch list is one array every lead suite reads, adds itself to and writes back: this file and
+// leads/engine/the-money-lock... take a lock for the whole file (_file-lock.mjs), or one's write erases the other's and
+// its workspace finds its searches paused.
+let releaseList;
 before(async () => {
   if (skip) return;
+  releaseList = await takeLock("lead-platform-list");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = await one(
     db.from("tenants").insert({ slug: `lists-a-${stamp}`, name: "Harbor Fitness Co", timezone: "America/Chicago" }),
@@ -299,6 +305,7 @@ after(async () => {
       .eq("kind", "day")
       .in("period", [...platformDays]);
   for (const u of users) await db.auth.admin.deleteUser(u).catch(() => {});
+  await releaseList?.();
 });
 
 test(
@@ -641,8 +648,16 @@ test(
       );
     assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
 
-    const story = bodyIn(migration("00242"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), story, "the database runs 00242's");
+    const latest = bodyIn(migration("00280"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), latest, "the database runs 00280's");
+    // 00280 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
+    const story = latest
+      .replace(
+        "  -- A partner's seat counts for the calling session only once it showed its second factor (0013, 00261).\n",
+        "",
+      )
+      .replace("\n          and (m.role <> 'partner' or public.session_shows_second_factor())", "");
+    assert.equal(story, bodyIn(migration("00242"), "create or replace function public.reach_out_lead_timeline("));
     assert.equal(
       story.replace(/ {4}-- Found on a listing[^\n]*\n {4}'found_on_listing', v_lead\.place_id is not null,\n/, ""),
       bodyIn(migration("00241"), "create or replace function public.reach_out_lead_timeline("),

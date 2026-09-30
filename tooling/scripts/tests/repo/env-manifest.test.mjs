@@ -37,15 +37,22 @@ const MANIFESTS = [
   {
     name: "apps/dashboard/.env.example",
     file: path.join(ROOT, "apps/dashboard/.env.example"),
-    // src/legacy is the ported mockup and reads no env. middleware.ts sits at
+    // src/legacy is the ported mockup and reads no env. middleware.ts sat at
     // the app root and was not scanned at all — the one file every request
     // passes through, reading env to decide the address and the session.
+    // Since the dashboard read its environment in one place (src/server/env.ts,
+    // and src/lib/public-env.ts for the browser), a read anywhere else is a
+    // lint error; the whole tree is still scanned, so a read that slipped past
+    // the lint is still held to the manifest.
     sources: [
       "apps/dashboard/app",
       "apps/dashboard/src/server",
       "apps/dashboard/src/lib",
       "apps/dashboard/src/legacy-bridge",
+      "apps/dashboard/src/auth",
       "apps/dashboard/proxy.ts",
+      "apps/dashboard/next.config.ts",
+      "apps/dashboard/instrumentation.ts",
     ],
   },
 ];
@@ -89,7 +96,7 @@ function declared(file) {
 }
 
 // Set by the platform, not by an operator filling in this file.
-const PROVIDED_BY_VERCEL = new Set(["VERCEL_ENV", "VERCEL_URL", "VERCEL_GIT_COMMIT_SHA", "NODE_ENV"]);
+const PROVIDED_BY_VERCEL = new Set(["VERCEL_ENV", "VERCEL_URL", "VERCEL_GIT_COMMIT_SHA", "NODE_ENV", "NEXT_RUNTIME"]);
 
 const usedBy = (m) => new Set(m.sources.flatMap((s) => [...envReads(path.join(ROOT, s))]));
 

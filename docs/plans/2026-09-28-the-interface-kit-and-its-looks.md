@@ -268,7 +268,7 @@ tags and "Needs you" in the accent (Appendix A, item 8).
 ```text
 tokens.css                   scales · roles · modes · looks          a look is edited here
 src/surfaces/kit/kit.css     the primitives, reading roles only      a component is styled here
-src/surfaces/kit/*.tsx       the React components, for TSX pages     a component's markup lives here
+src/surfaces/kit/*/*.tsx     the React components, for TSX pages     a component's markup lives here, a folder each
 legacy pages                 the kit's class names, until they move
 a surface's own stylesheet   layout only
 ```
@@ -601,14 +601,119 @@ past the 20 modules a directory may hold. No page draws one yet: each replaces h
 the tests, the gallery spec, and each component's behaviour driven in a browser: Escape closes a sheet, a menu or a
 popover and returns focus to what opened it, Tab stays inside a modal sheet, the page behind it does not scroll, a
 menu's arrows move and its typeahead finds, a switch and a tab answer Space and the arrows. _Done when:_ a moved
-surface can import every primitive of §3.4.
+surface can import every primitive of §3.4 that has behaviour of its own; the tabs are not built (a door is a link), and
+Confirm, the token, the composer's foot and the Icon come into the kit with the surface that first draws them (Phase 3).
+
+Built on 29 September. The kit took a folder per family first, as a pure move: `kit/button/`, `kit/link-button/`,
+`kit/panel/`, `kit/face/`, `kit/list-row/` and `kit/meter/`, each with its type test, while `index.ts`, `variants.ts`,
+`press.tsx`, `kit.css` and its registry stay at the root. Then Base UI 1.8.0, pinned exactly in the dashboard's
+`package.json` (its peers are React 17, 18 or 19; MIT; nothing in its tree runs at install), which
+`tooling/scripts/tests/styles/kit-base-ui.test.mjs` holds; the lint refuses the package's index anywhere in the
+dashboard (`BASE_UI_INDEX` in `eslint.config.mjs`, with its probe). Then ten components, each in its family's folder
+with its type test and named in the index: `Sheet` on Dialog, modal; `Menu` on Menu; `Popover` on Popover; `Select` on
+Select; `Combobox` on Combobox; `Tooltip` on Tooltip; `useToast` on Toast, raised by usePPToast's `flash` and timed by
+contracts' `toastShape`; `Switch` on Switch; `Segmented` on RadioGroup and Radio; and `Field` on Field. A state Base UI
+marks is drawn by the kit's own where it has one (`data-leaving` for a sheet closing, `.show` for a tip, `data-chosen`
+for the option chosen, `hidden` for a list nothing matches); kit.css took the few rules the rest needs, reading no
+literal (the positioners' layers, `.pop-place` and `.tip-place`, with the menu and the tip in flow on them; a menu item
+that is a link; the option walked to, `[data-highlighted]`; the floating list, `.rec-combo-pop`; the select's box,
+`.rec-select`), so `kit.css?v=12`. Each popup goes through Base UI's portal to the body, where no Glass pane or bar
+holds it. Two things differ from the step as written. The tabs were not built: `.stabs` stays a strip of links when
+`SurfaceTabs` moves, since each of its views changes the address and a door is a link. And the sheet is `.sheet` as step
+2.2 drew it: a side pane on a desk and, on a phone, a sheet that rises from the bottom with its handle, not a full
+screen.
+
+The gallery draws each in its states, in ten families "on Base UI" after the others, and the harness runs them on a
+page of their own, `/behaves`: an esbuild bundle (esbuild 0.28.2, pinned in `tooling/scripts`) of
+`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`, which draws the gallery's entries with the components
+themselves on the dashboard's React 19. _Proof:_ `e2e/kit/kit-behaves.spec.ts`, at a desk and on a phone, in both
+themes and both looks: Escape closes the sheet, a menu and the popover and gives focus back to what opened each; Tab
+stays in the sheet, and the page behind it does not scroll; a menu's arrows walk it and typing finds; a switch answers
+Space and the segmented control the arrows; the combobox narrows, draws no list where nothing matches, chooses by the
+keys, and a search after a choice replaces the words chosen; the tooltip shows on hover and on focus and hides on
+Escape; a toast arrives in a region a screen reader hears and goes on its ×; a field's problem reaches its box's
+`aria-describedby` and `aria-invalid`. It holds what each draws, state by state, element for element, to its gallery
+entry, so Base UI's markup is held where it is drawn, in a browser; and in Glass it finds every popup on the body,
+under no blur, by its control. Each check is shown to fail on a fault planted in the page (one fault for a check, not one
+for every line of it). A menu's items are chosen by Enter and by a press, one that opens a page is a link, one of a set
+is chosen and marked, and a press outside closes the menu; the popover stays for a press inside and closes for one
+outside; the select is walked and chosen from by the keys and by a press; the sheet closes for its Close and for a press
+on its wash and gives focus back; and the sheet, an option with a sentence and a select in its field are named and
+described as the browser resolves it. No CI job runs the browser specs, so the harness page is compiled by the
+dashboard's `tsc` (a props change an entry no longer meets fails typecheck), and a Base UI bump's pull request shows both
+specs' runs. In `corepack pnpm test`,
+`tooling/scripts/tests/styles/kit-behaves.test.mjs` holds the running page's entries to the gallery's one for one, what
+a server draws of the switch, the segmented control and the field to their entries, and one React and one Base UI, at
+the pinned version, in the bundle; `kit-components.test.mjs` keeps holding 2.4's six. `kit.spec.ts` draws every rule
+kit.css took. The day's counts, on the tree as the step left it (29 September, Base UI 1.8.0). The kit's measures did not move:
+kit.css read no literal and drew no class a page's stylesheet names, so the register counts what it did before, 1,093
+literal style values in 22 stylesheets, 2,169 selectors naming 864 primitive classes outside the kit and 274 style props
+in 47 files (`docs/debt.md`, "The numbers"), and the only lines the step wrote in a baseline are the meter's own style
+prop, under its family's folder, and the CSS budget. The registry lists 182 classes (178 before: `pop-place`, `rec-combo-pop`,
+`rec-select` and `tip-place`) and 11 modifiers, kit.css 408 rules and 448 selectors, all drawn by the gallery, whose
+families went from 27 to 37. The kit's root holds 6 modules (18 before) and 16 folders of two, each a component and its
+type test. The workspace route's JS is 999,034 bytes gzipped on this tree and on its base, byte for byte, with no Base
+UI in what the build wrote; its CSS rose 112 bytes (133,798 to 133,910), which the budget is raised by, argued in
+`docs/debt.md` under "Rises". `corepack pnpm test` ran 7,458 tests, 6,865 passing and the rest the database's, skipped
+without credentials; the gallery spec ran 13 tests and the behaviour spec 7 (13 states held to their entries, and 17
+checks in each of 8 runs) on the harness's `kit` record.
+
+What each swap will do differently from the house's, for its Phase 4 step to list (decision 15, its fourth
+condition):
+
+- `RecordSheet`, `PhoneSheet`, the deal and step sheets become `Sheet`. It is drawn in a portal on the body, not in
+  `.app-root`, so People's row keys, which hold still for a dialog in `.app-root` (`PL_OVERLAY`), must find it there.
+  It says no `aria-modal`: Base UI makes the page behind inert and hidden from a screen reader instead. The fold's foot
+  (`onSave`, `saving`, the ask) is the page's `foot`, and there is no Back (`onBack`). Base UI's focus guards wrap
+  Tab; focus that went with what held it (an Undo gone with its row) goes to the sheet, not back to the field the
+  person was in, and `focusOn` has no counterpart yet. Escape and a press on the wash ask `onClose`, which a page with
+  a save out refuses, since the sheet is controlled; Ctrl or Cmd with Enter does not save. On a phone there is no pull
+  down to close: Base UI's Drawer has one, and the People step is where Ruben chooses between them.
+- `MoreMenu` becomes `Menu`: on a positioner in a portal, not in `.more-wrap` over a `.more-backdrop`; its items in
+  groups (`.more-header` names one, `.more-divider` stands between two); an item that opens a page is a link; a set is
+  radio items in a radio group; no gate on the trigger or an item yet. The arrows walk it and typing finds (the house's
+  had neither); Escape closes it and gives focus back to the trigger, and so does a press outside. The page behind
+  holds still while it is open (Base UI's menu is modal), where the house's scrolled under it or, placed against the
+  window (`escape`), closed as it scrolled; Base UI places it and turns it over where there is no room, so `moreFit`
+  goes.
+- `usePPToast` becomes `useToast`: the stack is a region a screen reader hears, each toast in it a dialog (a failure an
+  alert dialog, announced by Base UI's own hidden alert), where each of the house's was a status or an alert; no
+  `links` or `icon`, but one `action` and the tone's glyph. A fourth toast waits behind the three until one goes, where
+  the house's dropped the oldest; F6 takes focus to the stack; a swipe dismisses one; the clock stops for the whole
+  stack while the pointer or focus is on it.
+- `RecordCombobox` becomes `Combobox`: its list pops over the page on the panel's pop, where the house's pushed the rows
+  under it; `aria-selected` marks the option chosen and `data-highlighted` the one walked to (the house's
+  `aria-selected` marked the one walked to); with nothing matching, the box stays expanded over a hidden list, where the
+  house's collapsed. Typing matches an option's words only. Focus, or a press that opens the list, selects the words
+  chosen, as the house's did, but a search typed straight after a choice, with the box still focused, joins them,
+  where the house's searched what was typed into them. Not taken yet: `typed` and `onLeave` (the Business tab's
+  languages), `also` and an option's value (the timezone's box), `onKeyDown`, `gate`.
+- `DsSelect`, a native select, becomes `Select`: a button that says the one chosen, with the page's chevron, and Base
+  UI's listbox on the panel's pop, where the house's was the platform's own, on a phone too; the page behind holds
+  still while the list is open; read-only while a save is out, where the house's said `aria-disabled`. `CmPicker`'s
+  groups, faces, notes and status are the Campaigns step's to add to the kit's Select or Combobox.
+- `RecordTip` and `[data-tip]` become `Tooltip`: one tip per trigger, in a portal, with no role (the house's one
+  `.ui-tip` said `role="tooltip"`), so words a person must hear stay the mark's name or description, as RecordTip's
+  are. On hover after 280 ms and on focus, and gone on Escape, as the house's; never on touch (Base UI's rule), where
+  the house's showed at a press, and a gate's reason shown on a press (`window.__tip.show`) has no counterpart: a mark
+  whose words matter takes the Popover at the frame's step. Moving from one tip to the next waits again, where the
+  house's showed the next at once (Base UI's `Tooltip.Provider` does that).
+- `SetToggle` and `RecordSwitch` become `Switch`: `.rec-switch` (Settings' `.set-switch` goes), with Base UI's hidden
+  checkbox beside it, for a form; read-only is `aria-readonly`, where the house's said `aria-disabled`.
+- `RecordToggleGroup` becomes `Segmented`: the same radio group of buttons, with Base UI's hidden radio beside each;
+  the arrows choose and wrap, as the house's; Home and End do nothing (Base UI's radio group has neither; the house's
+  went to the ends).
+- `RecordField` and `FieldError` become `Field`: the same label, box, unit, hint and `.field-error`, with Base UI's ids
+  (the house's `rec-<id>-problem`); the page's `problem` is shown as it is, and Base UI's own validation goes unused.
+  `RecordBox`, a box in a row named by `aria-label`, has no counterpart yet.
+- `SurfaceTabs` takes no Base UI part: its tabs become links with `aria-current="page"`, where the house's were buttons.
 
 ### Phase 3 · The shell leaves (decision 0015, run as written)
 
 Not re-planned. 0015's order, with the shared components that move into the kit with each surface, the first time a
-moving surface draws them. Before the first of them moves in, the kit takes a folder for each family (`kit/button/`
-with its component, its props and its type test; the index names them from there): it held 16 modules after step 2.4,
-and a directory holds at most 20 (the tree-shape measure, `docs/debt.md`).
+moving surface draws them. The kit took a folder for each family in step 2.5 (`kit/button/` with its component and its
+type test; the index names them from there), since 2.5's components would have taken it past the 20 modules a
+directory may hold (the tree-shape measure, `docs/debt.md`); a component that moves in takes a folder the same way.
 
 | 0015 step | Surface                                    | Moves into the kit with it (where it is the first to draw them)                                                  |
 | --------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
@@ -700,7 +805,7 @@ banks its last entry.
   composes them and never declares its own; a new need is a variant in the kit, with its gallery entry. **A value is
   a token.** A colour, type size, radius, shadow, blur or duration is read from `tokens.css`; a page stylesheet
   declares layout only.
-- The canonical-example table: a component (`apps/dashboard/src/surfaces/kit/button.tsx` with `kit.css`), a colour,
+- The canonical-example table: a component (`apps/dashboard/src/surfaces/kit/button/button.tsx` with `kit.css`), a colour,
   size or effect (a role in `tokens.css`), a look (a `[data-look]` block in `tokens.css`), a page's styles (layout
   only, beside its surface). `docs-paths.test.mjs` then holds these paths.
 - "Where new code goes": something a page draws takes its primitives from the kit, and its layout lives with its

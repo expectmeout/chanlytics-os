@@ -33,7 +33,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
-const { PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
+const { PERSON_STATE_LABELS, PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -500,6 +500,22 @@ test("the mapping names every old tool once, each to a tool and action the regis
   );
 });
 
+/**
+ * people.get says where the person stands, as their People row does (personStateFor, for the member asking): a change
+ * to its bytes since 7405e34b, when an answer read a person's standing from their threads' stored states. Held to one
+ * of the states' words here, then taken out, so the rest is compared byte for byte.
+ */
+function withoutPersonState(old, got) {
+  if (NAMES[old] !== "people.get") return got;
+  const said = JSON.parse(got.result);
+  if (said.error) return got;
+  assert.ok(Object.values(PERSON_STATE_LABELS).includes(said.state), `people.get says a state: ${said.state}`);
+  const rest = { ...said };
+  delete rest.state;
+  delete rest.state_detail;
+  return { ...got, result: JSON.stringify(rest) };
+}
+
 test("every old tool's call, made by its new name and action, answers the bytes the old tool answered at 7405e34b, and makes the same reads", async () => {
   assert.equal(FIXTURE.length, CASES.length, "one frozen answer per call");
   for (let i = 0; i < CASES.length; i++) {
@@ -507,7 +523,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const { call: frozen, ...want } = FIXTURE[i];
     assert.deepEqual(frozen, [old, input, role], `case ${i} is the call the fixture froze`);
     const call = renamed(old, input);
-    const got = await answer(call.name, call.input, role);
+    const got = withoutPersonState(old, await answer(call.name, call.input, role));
     // A refusal that named an old tool names its new one: the one change to the bytes, applied to every old name.
     let result = want.result;
     for (const [from, to] of Object.entries(NAMES))

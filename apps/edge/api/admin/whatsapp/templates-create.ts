@@ -11,7 +11,7 @@
  */
 import { json, refuse } from "../../../lib/http.js";
 import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import {
@@ -21,15 +21,15 @@ import {
   type MetaTemplateComponent,
 } from "../../../lib/whatsapp/meta-templates.js";
 import type { Json } from "../../../lib/packages/db.js";
-import { logger } from "../../../lib/log.js";
+import { logger, adminDoor } from "../../../lib/log.js";
 
 const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
   const body = await readBody<{
     tenant_id?: unknown;
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
-  const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
+  const userId = personFor(auth, body.user_id);
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
@@ -123,4 +123,4 @@ export async function POST(request: Request): Promise<Response> {
   if (error || !saved) return refuse(500, "write_failed", error?.message);
   L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
-}
+});

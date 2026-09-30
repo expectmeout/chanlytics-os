@@ -21,9 +21,10 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "invite",
   input: Body,
   handle: async ({ ctx, member, input }) =>
-    await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role, ctx.via),
+    await inviteMember(member.tenantId, ctx.userId, input.email, input.role, ctx.via),
 });

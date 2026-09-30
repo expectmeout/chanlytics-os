@@ -45,8 +45,8 @@ export type ConsentState = (typeof CONSENT_STATES)[number];
  * `blob_thread_erase` is gone too (00151): it erased the Vercel Blob copy of
  * a conversation, and there is no such copy — Postgres is the receptionist's
  * only memory, and an erasure deletes rows.
- * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
- * together.
+ * A new kind arrives with its handler, its caller, the jobs.kind CHECK and
+ * its lane (jobs.lane, 00281: which work a claim takes first), together.
  */
 export const JOB_KINDS = [
   "outbound_send",
@@ -500,6 +500,11 @@ export const DECISION_VERBS = [
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import",
+  /**
+   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

@@ -1,5 +1,5 @@
 import "server-only";
-import { deployment } from "../deployment";
+import { deployment } from "../env";
 import { MIN_MS } from "@chanlytics/contracts";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 

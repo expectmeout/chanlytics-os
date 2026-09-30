@@ -5,7 +5,7 @@
  * A connected profile's own read is profile-sync.ts.
  */
 import { emitEvent } from "../packages/db.js";
-import { planListingCheck, type PlaceDetails } from "../packages/channels.js";
+import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
 import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
 import { recordNotification } from "../ops/notify.js";
@@ -41,7 +41,7 @@ export async function checkListing(
   site: SiteRead,
   now = new Date(),
 ): Promise<CheckResult> {
-  const L = logger({ tenant: row.tenant_id, place: row.place_id });
+  const L = logger({ tenant_id: row.tenant_id, place: row.place_id });
   const key = placesKey();
   if (!key) return { ok: false, error: "no_places_key" };
 
@@ -72,7 +72,7 @@ export async function checkListing(
 
   const booking_page =
     site === "read"
-      ? await siteBookingPage(fetch, details.facts.website)
+      ? await siteBookingPage(publicFetcher(), details.facts.website)
       : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
   details = { ...details, facts: { ...details.facts, booking_page } };
 

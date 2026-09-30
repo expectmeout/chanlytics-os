@@ -22,6 +22,7 @@ import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type 
 import { createThread, readRaws, readThread } from "./store";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
 import type { Msg, TurnInput } from "./loop";
+import { log } from "@/server/log";
 
 /**
  * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
@@ -245,14 +246,14 @@ async function chainFor(
   const ids = chainIds(rows, replays, now);
   if (!ids) return null;
   const raws = await readRaws(ctx, ids).catch((e: unknown) => {
-    console.error("ask_replay_unread", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant }));
+    log.error("ask_replay_unread", { error: e, tenant_id: tenant });
     return null;
   });
   if (!raws) return null;
   const kept = ids.map((id) => {
     const raw = raws.get(id);
     const turn = keptOf(raw);
-    if (raw != null && !turn) console.error("ask_replay_malformed", JSON.stringify({ tenant, row: id }));
+    if (raw != null && !turn) log.error("ask_replay_malformed", { tenant_id: tenant, row: id });
     return turn;
   });
   return chainFrom(kept, ids, now, rows);

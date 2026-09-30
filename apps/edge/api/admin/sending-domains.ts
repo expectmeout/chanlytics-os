@@ -14,10 +14,10 @@
  * and what the body names.
  */
 import { json, refuse } from "../../lib/http.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 import { env } from "../../lib/env.js";
 import { sendingDomainOf } from "../../lib/packages/db.js";
 import { dkimPublished, readDmarc } from "../../lib/email/dmarc.js";
@@ -45,13 +45,16 @@ interface Body {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
-export async function POST(request: Request): Promise<Response> {
-  const body = await readBody<Body>(request);
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  // Read once, as text: the token's body hash is checked over these bytes, and a body that is not an object (null
+  // included) is an empty one, validated below.
+  const raw = await request.text();
+  const body = await readBody<Body>(raw);
   // The platform lifts a second hold with its key and never with a token (D16, the runbook): that one op is the
   // key's on an edge that holds the secret too. Every other op is a dashboard's and carries a token; the key alone
   // is refused before a row is read.
   const platformLift = str(body.op) === "resume" && str(body.by) === "platform";
-  const auth = authorizeAdmin(request, "/api/admin/sending-domains", { platformKey: platformLift });
+  const auth = await authorizeAdmin(request, "/api/admin/sending-domains", { platformKey: platformLift, body: raw });
   if (!auth.ok) return auth.response;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -71,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
   const tenantId = ws.tenantId ?? "";
   if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
 
-  const L = logger({ door: "sending-domains", tenant: tenantId, op });
+  const L = logger({ door: "sending-domains", tenant_id: tenantId, op });
   const ports: DomainPorts = {
     db,
     cfg: { apiKey: coldKey },
@@ -88,7 +91,7 @@ export async function POST(request: Request): Promise<Response> {
         host: str(body.host),
         fromLocal: str(body.from_local),
         fromName: str(body.from_name),
-        by: UUID.test(str(body.user_id)) ? str(body.user_id) : (auth.user ?? null),
+        by: personFor(auth, body.user_id),
       });
       return out.ok ? json(200, out) : json(out.status, out);
     }
@@ -122,4 +125,4 @@ export async function POST(request: Request): Promise<Response> {
     L.error("sending_domain_door_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(503, { ok: false, error: "unavailable", message: "That didn't go through. Try again in a minute." });
   }
-}
+});

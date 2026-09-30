@@ -4,6 +4,8 @@
  * Every read names the workspace it is for; a read that fails throws with what
  * it was reading, because a failed read is not an answer (the ledger's rule).
  * Nothing here decides anything: the rules are in core and in SQL.
+ *
+ * Cross-workspace: runs and rounds are read by the id their job names; tenant-keyed reads filter on tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addressesSuppressed, erasureDigests, type Database } from "../packages/db.js";

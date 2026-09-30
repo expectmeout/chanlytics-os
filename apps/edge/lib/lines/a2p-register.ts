@@ -40,6 +40,7 @@ import { platformTo } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount } from "../sms/sms.js";
 import { logger } from "../log.js";
+import { tenantDb } from "../packages/db.js";
 import { env } from "../env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
 
@@ -277,7 +278,7 @@ async function preflightRefusal(db: Db, o: Filing, state: A2PState): Promise<Reg
   // sentences are what the owner has to act on. They are RETURNED as well as
   // stored: the row is read by a page that reloads, and the person who just
   // pressed the button is owed the answer now rather than an error token.
-  await db
+  await tenantDb(db, o.line.tenant_id)
     .from("lines")
     .update({
       sms_state: "needs_record",
@@ -360,7 +361,7 @@ function receiptSaver(db: Db, line: LineRow): A2PPorts["save"] {
       }
     }
     if (touchedFacts) row.facts = facts;
-    const { error } = await db
+    const { error } = await tenantDb(db, line.tenant_id)
       .from("lines")
       .update(row as Database["public"]["Tables"]["lines"]["Update"])
       .eq("id", line.id);
@@ -418,7 +419,7 @@ async function runFiling(db: Db, o: Filing, state: A2PState, ports: A2PPorts): P
   // owner who incorporates and types their new tax id would otherwise read
   // back as a standard brand while the carriers still hold the narrow one --
   // promising throughput the line does not have.
-  await db
+  await tenantDb(db, o.line.tenant_id)
     .from("lines")
     .update({
       sms_state: "registering",
@@ -440,7 +441,7 @@ async function settleFiling(db: Db, o: Filing, result: A2PResult): Promise<Regis
   // carriers", carries no error, and the next status check files it.
   const waiting = !result.ok && result.pending;
   const smsState = result.ok || waiting ? "registering" : "failed";
-  await db
+  await tenantDb(db, o.line.tenant_id)
     .from("lines")
     .update({
       sms_state: smsState,

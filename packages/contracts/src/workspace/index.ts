@@ -55,6 +55,14 @@ export {
 } from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
 export {
+  SHARED_EVENT_VERSIONS,
+  SHARED_EVENT_SHAPES,
+  ContactAddedData,
+  ContactConsentChangedData,
+  PlatformActedData,
+} from "./event-data";
+export type { SharedEventKind } from "./event-data";
+export {
   signupPosture,
   pendingWorkspaceOf,
   pendingCodeOf,
@@ -230,3 +238,5 @@ export type {
 } from "./partner-invite";
 export { ACTIVATION_MILESTONES } from "./activation";
 export type { ActivationMilestone } from "./activation";
+export { PLATFORM_DAYS_READ, platformDaysWords } from "./platform-days";
+export type { PlatformDayRowDto, PlatformDayLineVM, PlatformDaysVM } from "./platform-days";

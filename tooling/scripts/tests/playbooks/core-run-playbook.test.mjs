@@ -12,7 +12,7 @@ const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playboo
 const NOW = new Date("2026-09-06T14:00:00Z"); // 10:00 in New York
 const TZ = "America/New_York";
 const D = 86_400_000;
-const WRITES = new Set(["record", "create", "enrol", "fail", "schedule", "decide", "notify"]);
+const WRITES = new Set(["record", "assemble", "decide", "notify"]);
 
 /** A person as the People page reads them: quiet for 40 days, said yes to both. */
 const person = (id, over = {}) => ({
@@ -149,10 +149,7 @@ function fakes(over = {}) {
     template: { meta_status: "approved" },
     alreadyRan: false,
     record: undefined,
-    create: "b1",
-    enrol: undefined,
-    fail: undefined,
-    schedule: undefined,
+    assemble: "b1",
     decide: undefined,
     notify: undefined,
     ...over,
@@ -181,7 +178,7 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
   const noRow = fakes();
   const held = await runPlaybook(noRow.ports, cmd({ ctx: context({ modes: new Map() }) }));
   assert.equal(held.outcome, "held", "no row for the class is ask");
-  assert.equal(noRow.of("create")[0][1].state, "pending_approval");
+  assert.equal(noRow.of("assemble")[0][1].state, "pending_approval");
   const asked = fakes();
   const r = await runPlaybook(
     asked.ports,
@@ -200,8 +197,8 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
     },
     "a person's run now sends now under ask, and says when",
   );
-  assert.deepEqual(asked.of("schedule")[0], ["schedule", "b1", NOW]);
-  assert.deepEqual(asked.of("create")[0][1].created_by, "u1", "their run");
+  assert.deepEqual(asked.of("assemble")[0][3], NOW);
+  assert.deepEqual(asked.of("assemble")[0][1].created_by, "u1", "their run");
   assert.deepEqual(
     asked.of("decide")[0][1],
     {
@@ -283,17 +280,13 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
   const { ports, of } = fakes();
   const r = await runPlaybook(ports, cmd({ ctx: context({ people: rows }) }));
   assert.equal(r.outcome, "sent");
-  assert.deepEqual(of("enrol")[0], [
-    "enrol",
-    "b1",
-    [
-      { contact_id: "b", facts: null },
-      { contact_id: "a", facts: null },
-    ],
+  assert.deepEqual(of("assemble")[0][2], [
+    { contact_id: "b", facts: null },
+    { contact_id: "a", facts: null },
   ]);
-  assert.equal(of("create")[0][1].recipient_count, 2);
+  assert.equal(of("assemble")[0][1].recipient_count, 2);
   // And who it left out, kept on the run: three on the list, one of them never said yes.
-  assert.deepEqual(of("create")[0][1].audience.reach, { ...NOBODY_LEFT, pool: 3, will: 2, noYes: 1 });
+  assert.deepEqual(of("assemble")[0][1].audience.reach, { ...NOBODY_LEFT, pool: 3, will: 2, noYes: 1 });
   const capped = fakes();
   await runPlaybook(
     capped.ports,
@@ -302,12 +295,12 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
     }),
   );
   assert.deepEqual(
-    capped.of("enrol")[0][2].map((x) => x.contact_id),
+    capped.of("assemble")[0][2].map((x) => x.contact_id),
     ["b"],
     "the day's limit is a ceiling, not a refusal",
   );
   assert.deepEqual(
-    capped.of("create")[0][1].audience.reach,
+    capped.of("assemble")[0][1].audience.reach,
     { ...NOBODY_LEFT, pool: 3, will: 1, noYes: 1, overLimit: 1 },
     "and the one past it is counted, not dropped",
   );
@@ -352,7 +345,7 @@ test("a run counts everyone its moment named, each once, under the first rule th
   };
   const { ports, of } = fakes();
   await runPlaybook(ports, cmd({ playbook: playbook({ cap_per_run: 2 }), ctx: context({ people: rows, touches }) }));
-  const reach = of("create")[0][1].audience.reach;
+  const reach = of("assemble")[0][1].audience.reach;
   assert.deepEqual(reach, {
     pool: 9,
     will: 2,
@@ -377,7 +370,7 @@ test("a run counts everyone its moment named, each once, under the first rule th
     "the whole list, every person once",
   );
   assert.deepEqual(
-    of("enrol")[0][2].map((x) => x.contact_id),
+    of("assemble")[0][2].map((x) => x.contact_id),
     ["a", "g"],
     "and who it reaches is what it always was: the longest unheard, to the cap",
   );
@@ -395,8 +388,8 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     scheduled_for: NOW.toISOString(),
     moved_from: null,
   });
-  assert.deepEqual(ops(), ["create", "enrol", "schedule", "decide", "record"]);
-  assert.deepEqual(of("create")[0][1], {
+  assert.deepEqual(ops(), ["assemble", "decide", "record"]);
+  assert.deepEqual(of("assemble")[0][1], {
     name: "Win-back · 2026-09-06",
     template_id: "tpl-1",
     template_name: "winback_offer",
@@ -410,7 +403,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     playbook_id: "p1",
     run_for: "2026-09-06",
   });
-  assert.deepEqual(of("schedule")[0], ["schedule", "b1", NOW]);
+  assert.deepEqual(of("assemble")[0][3], NOW);
   assert.deepEqual(of("decide")[0][1], {
     broadcastId: "b1",
     by: { kind: "system" },
@@ -441,8 +434,8 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   const veto = fakes();
   await runPlaybook(veto.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
-  assert.deepEqual(veto.of("schedule")[0], ["schedule", "b1", at]);
-  assert.equal(veto.of("create")[0][1].scheduled_for, at.toISOString());
+  assert.deepEqual(veto.of("assemble")[0][3], at);
+  assert.equal(veto.of("assemble")[0][1].scheduled_for, at.toISOString());
 });
 
 test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at nine, and the ledger says what was asked for", async () => {
@@ -451,8 +444,8 @@ test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at
   const f = fakes();
   const r = await runPlaybook(f.ports, cmd({ ctx: context({ now: night }), by: { kind: "user", userId: "u1" } }));
   assert.equal(r.outcome, "sent");
-  assert.deepEqual(f.of("schedule")[0], ["schedule", "b1", nine]);
-  assert.equal(f.of("create")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
+  assert.deepEqual(f.of("assemble")[0][3], nine);
+  assert.equal(f.of("assemble")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
   assert.equal(f.of("decide")[0][1].payload.scheduled_for, nine.toISOString());
   assert.equal(f.of("decide")[0][1].payload.moved_from, night.toISOString(), "and the ledger keeps what was asked for");
   assert.equal(f.log.at(-1)[4].moved_from, night.toISOString());
@@ -470,9 +463,10 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   const { ports, of, ops } = fakes();
   const r = await runPlaybook(ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]) }) }));
   assert.deepEqual(r, { outcome: "held", broadcast_id: "b1", eligible: 2, mode: "ask", state: "pending_approval" });
-  assert.deepEqual(ops(), ["create", "enrol", "notify", "record"]);
-  assert.equal(of("create")[0][1].state, "pending_approval");
-  assert.equal(of("create")[0][1].scheduled_for, NOW.toISOString());
+  assert.deepEqual(ops(), ["assemble", "notify", "record"]);
+  assert.equal(of("assemble")[0][3], null, "a run that waits for a person has no job yet");
+  assert.equal(of("assemble")[0][1].state, "pending_approval");
+  assert.equal(of("assemble")[0][1].scheduled_for, NOW.toISOString());
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Playbook “Win-back” is ready: 2 people",
@@ -510,7 +504,7 @@ test("a visit run keeps each person's words on their row, from the visit the run
     }),
   );
   assert.equal(r.outcome, "sent");
-  assert.deepEqual(of("enrol")[0][2], [
+  assert.deepEqual(of("assemble")[0][2], [
     { contact_id: "a", facts: { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" } },
   ]);
 });
@@ -541,31 +535,16 @@ test('a reminder run asked for at night goes at nine and says "today": the words
   assert.equal(r.eligible, 3, "the cap is for offers: all three are reminded");
   assert.equal(r.moved_from, night.toISOString());
   assert.deepEqual(
-    f.of("enrol")[0][2].map((e) => e.facts.visit_when),
+    f.of("assemble")[0][2].map((e) => e.facts.visit_when),
     ["today at 2:00 PM", "today at 2:00 PM", "today at 2:00 PM"],
     "read at nine, the visit is today",
   );
 });
 
-test("a run that could not be written says so and stops: no row, nothing else; the people not written, the row failed with its reason; the job refused, the row failed with its reason and no decision", async () => {
-  const noRow = fakes({ create: new Error("insert refused") });
-  assert.deepEqual(await runPlaybook(noRow.ports, cmd()), { outcome: "failed", error: "insert refused" });
-  assert.deepEqual(noRow.ops(), ["create"]);
-  const noPeople = fakes({ enrol: new Error("rows refused") });
-  assert.deepEqual(await runPlaybook(noPeople.ports, cmd()), { outcome: "failed", error: "rows refused" });
-  assert.deepEqual(noPeople.log.slice(1), [
-    [
-      "enrol",
-      "b1",
-      [
-        { contact_id: "b", facts: null },
-        { contact_id: "a", facts: null },
-      ],
-    ],
-    ["fail", "b1", "recipients_write_failed"],
-  ]);
-  const noJob = fakes({ schedule: new Error("schedule_job: no row") });
-  assert.deepEqual(await runPlaybook(noJob.ports, cmd()), { outcome: "failed", error: "schedule_job: no row" });
-  assert.deepEqual(noJob.ops(), ["create", "enrol", "schedule", "fail"]);
-  assert.deepEqual(noJob.log.at(-1), ["fail", "b1", "schedule_failed"]);
+test("a run that could not be written says so and stops: the run, its people and its job are one write, so nothing is left to fail and no decision is made", async () => {
+  // They were three writes with a compensating fail between them; the transaction is proved against Postgres
+  // (broadcasts/assemble-broadcast.db.test.mjs).
+  const refused = fakes({ assemble: new Error("insert refused") });
+  assert.deepEqual(await runPlaybook(refused.ports, cmd()), { outcome: "failed", error: "insert refused" });
+  assert.deepEqual(refused.ops(), ["assemble"], "no decision, no notice, no record of a run that is not there");
 });

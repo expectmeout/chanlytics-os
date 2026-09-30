@@ -8,7 +8,7 @@
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import crypto from "node:crypto";
-import { callOutcomeWords } from "@chanlytics/contracts";
+import { callOutcomeWords, isE164 } from "@chanlytics/contracts";
 import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
 
 const API = "https://api.retellai.com";
@@ -93,8 +93,6 @@ export interface NormalizedCall {
   analysis: Record<string, unknown> | null;
 }
 
-const E164 = /^\+[1-9]\d{6,14}$/;
-
 function plainObject(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
@@ -164,9 +162,9 @@ export function normalizeCall(c: RetellCall): NormalizedCall {
     agentId: c.agent_id ?? null,
     direction: c.direction === "outbound" ? "outbound" : "inbound",
     callType: c.call_type ?? null,
-    fromE164: from && E164.test(from) ? from : null,
+    fromE164: isE164(from) ? from : null,
     fromRaw: from,
-    toE164: c.to_number && E164.test(c.to_number) ? c.to_number : null,
+    toE164: isE164(c.to_number) ? c.to_number : null,
     status: toStatus(c.call_status),
     startedAtIso: c.start_timestamp ? new Date(c.start_timestamp).toISOString() : null,
     endedAtIso: c.end_timestamp ? new Date(c.end_timestamp).toISOString() : null,
@@ -605,11 +603,6 @@ export async function getRetellLlm(
       : null,
     knowledge_base_ids: Array.isArray(l.knowledge_base_ids) ? (l.knowledge_base_ids as unknown[]).map(String) : null,
   };
-}
-
-/** True when a v3 list row still needs a getCall to be complete. */
-export function needsHydration(c: RetellCall): boolean {
-  return !c.transcript && !c.transcript_object;
 }
 
 /**

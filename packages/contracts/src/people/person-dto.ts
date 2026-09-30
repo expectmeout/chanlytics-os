@@ -101,6 +101,13 @@ export interface PersonRowDto {
   /** Who that step is for, attached by the API from the team as a note's is: their name, and whether it is the reader. */
   step_for_name?: StepColumns["step_for_name"];
   step_for_me?: StepColumns["step_for_me"];
+  /**
+   * The row's place in People's order (0021, 00276): when they were last in touch ("-infinity" for someone never in
+   * touch) and when they were added. The next page starts just past the last row's place. Absent on a row from a
+   * database before 00276, whose pages are read by offset.
+   */
+  in_touch_at?: string | null;
+  added_at?: string | null;
 }
 
 export interface PersonIdentityDto {

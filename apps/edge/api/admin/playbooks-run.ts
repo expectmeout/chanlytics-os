@@ -18,10 +18,10 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
 import { tenantZoneOf } from "../../lib/packages/db.js";
 import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
@@ -30,8 +30,8 @@ const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/playbooks-run");
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/playbooks-run");
   if (!auth.ok) return auth.response;
   const body = await readBody<{
     tenant_id?: unknown;
@@ -41,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
+  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const playbookId = typeof body.playbook_id === "string" ? body.playbook_id : "";
   const userId = typeof body.user_id === "string" ? body.user_id : "";
@@ -89,4 +90,4 @@ export async function POST(request: Request): Promise<Response> {
   if (r.outcome === "failed") return refuse(500, "run_failed", r.error);
   L.info("playbook_run_now", { tenant_id: tenantId, playbook_id: playbookId, outcome: r.outcome });
   return json(200, { ok: true, ...r });
-}
+});

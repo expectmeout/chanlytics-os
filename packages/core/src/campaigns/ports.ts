@@ -44,23 +44,18 @@ export interface NewRecipient {
 }
 
 export interface AssemblePorts {
-  /** The broadcast row, its id back; throws when it cannot be written. */
-  create(row: NewBroadcast): Promise<string>;
-  /** The people on it, all of them in one call (the adapter chunks); throws when they cannot be written. */
-  enrol(broadcastId: string, rows: NewRecipient[]): Promise<void>;
-  /** The row says why it failed. */
-  fail(broadcastId: string, failure: string): Promise<void>;
-  /** The send job, as this tenant, through the ledger; throws when the ledger refuses. */
-  schedule(broadcastId: string, at: Date): Promise<void>;
+  /**
+   * The run, its people and its send job when `sendAt` is set, written whole in one transaction (00282
+   * assemble_broadcast): the run's id back, or a throw, and then nothing was written.
+   */
+  assemble(row: NewBroadcast, recipients: NewRecipient[], sendAt: Date | null): Promise<string>;
 }
 export interface AssembleCommand {
   broadcast: NewBroadcast;
   recipients: NewRecipient[];
   sendAt: Date | null;
 }
-export type Assembled =
-  | { ok: true; id: string }
-  | { ok: false; failure: "run_not_created" | "recipients_write_failed" | "schedule_failed"; error: string };
+export type Assembled = { ok: true; id: string } | { ok: false; error: string };
 
 /* ---- The playbook's run ---- */
 

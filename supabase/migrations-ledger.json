@@ -28,8 +28,8 @@
     "00249": "an erased person's digest is keyed landed as 00263 (#1330)",
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
-    "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00267": "the reply lanes and fairness (#1340) landed as 00281, above production's head then (00275)",
+    "00268": "a page of People reads its own people landed as 00276 (#1343), above production's head then (00275)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -277,6 +277,15 @@
     "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80",
     "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
-    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3"
+    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
+    "00276_people_are_paged_by_their_kept_moments.sql": "c353c94ee3d5a362f03f1a2009ee1127acc4dcc13ce234c26616b38cf864d226",
+    "00277_what_happened_is_named_audited_and_counted.sql": "b958ed0900957430803a370878166f2a1a7b7e7f5cbc03f5318ea4ace6c9e787",
+    "00278_a_session_inserts_only_the_columns_it_writes.sql": "d3eb31d387cc99044a23788f3cd3dd5a3d4a62b047bcaa00d5bb281c9c32589c",
+    "00279_a_child_names_only_its_own_workspace_s_parent.sql": "3fd7d8267c42480fe5c88721ef07388bfdb31f6c6d544cf3eff388337ea770a5",
+    "00280_a_partner_s_password_opens_no_door_a_seat_opens.sql": "764ea8127cc2b0d10bed0245f7716ba2d6e9a0cb4ccd2a87c47159a3b32abea5",
+    "00281_a_reply_goes_first_and_each_workspace_takes_its_turn.sql": "45e9a8fefeb76be5da1d9546815d86dfbf844d44dc850d198cc02ca5f6eb2966",
+    "00282_a_broadcast_is_assembled_whole.sql": "26b4f5ea713483f3c502b04dc8fc88719854f25ae82fbaf49962edf32a38b300",
+    "00283_the_service_role_s_statements_have_a_bound.sql": "1faddcc8898b6efdef12d3cffab38200638aae5fb35c060750d8396261fba443",
+    "00284_a_thread_is_answered_one_turn_at_a_time.sql": "566085bccfb1629b0f5607a181251e62c9dde7e05e717061b4211014740f2ff8"
   }
 }

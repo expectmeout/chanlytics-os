@@ -54,7 +54,7 @@ export const POST = write({
     if (a.status !== 200 || b.ok !== true) {
       // Google's words (a refused key, a disabled API) are for the log; the owner hears that the search did not happen and that we know.
       log.error("google_search_failed", {
-        tenant: member.tenantId,
+        tenant_id: member.tenantId,
         status: a.status,
         error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
         detail: typeof b.detail === "string" ? b.detail.slice(0, 300) : null,

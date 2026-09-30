@@ -16,13 +16,13 @@ One qualification, because it changes what is worth centralising. `deliver()` is
 
 A conversation is not one table. It is five, and knowing which one owns which fact explains most of what follows.
 
-| Row             | Owns                                             | The rule that matters                                                                                        |
-| --------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `contacts`      | the person: number, address, consent, erasure    | one per workspace per identity; `contacts_tenant_phone_uq` is **partial**, on `where phone_e164 is not null` |
-| `conversations` | the thread: its state, who holds it, until when  | `unique (tenant_id, contact_id)` — **one thread per person per workspace, for ever, across every channel**   |
-| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` is the "we finished with this" stamp      |
-| `escalations`   | the hold: a thread waiting for a person, and why | `escalations_one_open` — **one open row per thread**; a second reason overwrites the first                   |
-| `jobs`          | the outbox: everything that happens later        | one insert, a lease, a heartbeat; a kind arrives with its handler, its caller and its CHECK together         |
+| Row             | Owns                                             | The rule that matters                                                                                          |
+| --------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `contacts`      | the person: number, address, consent, erasure    | one per workspace per identity; `contacts_tenant_phone_uq` is **partial**, on `where phone_e164 is not null`   |
+| `conversations` | the thread: its state, who holds it, until when  | `unique (tenant_id, contact_id)` — **one thread per person per workspace, for ever, across every channel**     |
+| `messages`      | what was said, both directions                   | `(tenant_id, external_id)` is the replay gate; `meta.processed_at` is the "we finished with this" stamp        |
+| `escalations`   | the hold: a thread waiting for a person, and why | `escalations_one_open` — **one open row per thread**; a second reason overwrites the first                     |
+| `jobs`          | the outbox: everything that happens later        | one insert, a lease, a heartbeat; a kind arrives with its handler, its caller, its CHECK and its lane together |
 
 Two ledgers sit beside them: `events` (what happened) and `decisions` (who decided it). A path that writes neither is invisible to Activity and to the owner's audit, and that absence is a finding below.
 
@@ -76,6 +76,8 @@ Stages 1–5 are the _way in_, and each channel built its own. Stage 10 is the _
 Three things fall out of that table.
 
 **The one door out is real.** `sendText`, `sendTemplate` and `sendEmail` are imported by exactly one file, `packages/core/src/deliver.ts:29`. Nothing in the dashboard calls `deliver` at all: it queues a row and a job and lets `outbound_send` reach the door, which is the only thing that makes the 15-second undo honest.
+
+**A thread is answered one turn at a time.** Two messages from one customer a moment apart were answered on their own, the first written without the second in view. Since 00284 the message about to be answered claims its thread's reply turn before the model is asked (`core/inbound/turn.ts`), and asks again before the words go out. The newest message holds the turn: an older one that comes to claim after it, or that finds it taken while its model was answering, sends nothing and is marked handled, and the drafts an older turn left waiting (its veto window, its confidence hold) are withdrawn as superseded. The claim never costs a reply: an adapter without it, or a claim that cannot be read, is a turn held.
 
 **The way in was built four times.** Three of the four now have the door/judgement split — a route that is only the wire, and a pure function that decides. WhatsApp, the oldest and busiest, is the one that never got it.
 

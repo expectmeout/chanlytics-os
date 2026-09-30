@@ -1,7 +1,24 @@
 /**
- * Partners (decision 0012): the one place the two tables are typed. Reads run on the session client, so RLS
- * decides what comes back: a partner sees their own row and the workspaces they brought; an owner sees who
- * brought theirs. The writes are functions (partner_become, create_workspace) and the service role's.
+ * The partner program's reads and verbs (decisions 0012, 0013, 0016 and 0020): the typed reads of partners,
+ * partner_tenants and partner_invitations, and one function per verb. The groups, each behind its own routes:
+ *   - A partner's own pane (getOwnPartner to getPartnerWorkspaces): their row, how many workspaces they brought, their
+ *     balance, their daily letter, becoming a partner, and the workspaces they brought with what each earned. Called by
+ *     the /api/v1/partner routes, and by the workspaces route at boot (getOwnPartner, getOpenHandovers).
+ *   - The back office's verbs (getPlatformPartners to recordPartnerSecondFactorReset): a platform admin's, called by
+ *     the dashboard's platform module.
+ *   - Handovers (0016): a partner sets a workspace up for a business and hands it to its owner, who accepts or
+ *     declines it.
+ *   - Invitations (0020): an owner asks a partner to join an existing workspace, and the partner answers.
+ * Every read and verb runs on the session client: RLS decides what a read returns, and each write is a database
+ * function that checks the caller itself. The exceptions are the edge's, on the service role: getHandoverInvite and
+ * getPartnerInviteMail take the address from the record, never from a caller, so the door that writes it reaches
+ * nobody else. A refusal is a value, not a throw: a verb answers { ok: false, code, message } with the function's own
+ * code and words. A read of a table or function the database has not reached yet (each names its migration) answers
+ * none or empty, so the app boots whichever deploys first; any other failure throws, except the brought count, the
+ * letter switch and getOpenHandovers, which answer null or hand their error back so a side read never takes the
+ * page or the boot down.
+ *
+ * Cross-workspace: a partner sees the workspaces they brought and the back office all; RLS and SQL checks decide.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";
@@ -33,6 +50,21 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
     throw new Error(`getOwnPartner: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Whether the session holds a partner's seat that row policy hides from it until it shows its second factor (00280
+ * session_has_partner_seat): how a password-only partner is sent to the second step instead of being told there is no
+ * workspace. A database that does not have the door yet, or one that cannot answer, says no: the request is a 404 as it
+ * was.
+ */
+export async function sessionHoldsPartnerSeat(db: Db): Promise<boolean> {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

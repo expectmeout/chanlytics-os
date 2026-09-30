@@ -28,14 +28,18 @@ const skip =
       : false;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+/** A body with LF line endings: a checkout on Windows writes CRLF, the migration is applied as written, and pg_proc keeps what it was given. */
+const lf = (text) => text.replaceAll("\r\n", "\n");
 const migration = (n) => {
   const dir = path.join(ROOT, "supabase/migrations");
-  return fs.readFileSync(
-    path.join(
-      dir,
-      fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
+  return lf(
+    fs.readFileSync(
+      path.join(
+        dir,
+        fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
+      ),
+      "utf8",
     ),
-    "utf8",
   );
 };
 const CLI = process.env.SUPABASE_CLI || "supabase";
@@ -57,7 +61,7 @@ function query(sql) {
 const liveBody = (name) =>
   query(
     `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
-  )[0]?.prosrc;
+  )[0]?.prosrc?.replaceAll("\r\n", "\n");
 const bodyIn = (src, header) => {
   const at = src.indexOf(header);
   assert.ok(at >= 0, `no ${header}`);

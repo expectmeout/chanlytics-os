@@ -1,6 +1,6 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 215,
+    "lines": 208,
     "branches": 40,
     "depth": 2
   },
@@ -545,8 +545,8 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 488,
-    "branches": 75,
+    "lines": 472,
+    "branches": 74,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
@@ -594,20 +594,10 @@
     "branches": 35,
     "depth": 2
   },
-  "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 78,
-    "branches": 32,
-    "depth": 3
-  },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 166,
-    "branches": 45,
+    "lines": 164,
+    "branches": 43,
     "depth": 1
-  },
-  "apps/edge/api/admin/voice-converge.ts::POST#1": {
-    "lines": 91,
-    "branches": 33,
-    "depth": 4
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
     "lines": 180,
@@ -625,8 +615,8 @@
     "depth": 3
   },
   "apps/edge/api/whatsapp.ts::POST#1": {
-    "lines": 186,
-    "branches": 54,
+    "lines": 185,
+    "branches": 52,
     "depth": 8
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
@@ -830,8 +820,8 @@
     "depth": 3
   },
   "packages/core/src/campaigns/create-broadcast.ts::createBroadcast#1": {
-    "lines": 168,
-    "branches": 47,
+    "lines": 152,
+    "branches": 45,
     "depth": 2
   },
   "packages/core/src/campaigns/run-playbook.ts::runPlaybook#1": {
@@ -845,7 +835,7 @@
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 160,
+    "lines": 154,
     "branches": 29,
     "depth": 2
   },
@@ -865,17 +855,17 @@
     "depth": 2
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 236,
-    "branches": 30,
+    "lines": 232,
+    "branches": 28,
     "depth": 3
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
-    "lines": 175,
+    "lines": 172,
     "branches": 1,
     "depth": 0
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
-    "lines": 163,
+    "lines": 162,
     "branches": 40,
     "depth": 2
   }

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { env } from "./src/server/env";
 
 /**
  * Response headers for an application that renders other people's customers.
@@ -47,7 +48,7 @@ const nextConfig: NextConfig = {
     // Inlined at build time so the surface cache can key on it synchronously,
     // before first paint. A deploy that changes a viewmodel's shape must not
     // restore the old shape into new components — a new sha starts cold.
-    NEXT_PUBLIC_BUILD_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev",
+    NEXT_PUBLIC_BUILD_SHA: env.VERCEL_GIT_COMMIT_SHA ?? "dev",
   },
   async headers() {
     return [

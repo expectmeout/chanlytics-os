@@ -22,6 +22,7 @@ import {
   type ReachOutReplyOf,
   type ReplyReadingRow,
 } from "@chanlytics/db";
+import { logger } from "@chanlytics/channels";
 import type { ClaimedJob, JobContext } from "./context";
 import { FUNCTION_CEILING_MS, LEASE_SECONDS } from "./ledger";
 
@@ -134,5 +135,5 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       deadline: ctx.deadline,
     },
   );
-  console.log(JSON.stringify({ level: "info", event: "reply_read", tenant: job.tenant_id, job: job.id, outcome }));
+  logger().info("reply_read", { tenant_id: job.tenant_id, job: job.id, outcome });
 }

@@ -75,7 +75,7 @@ export async function exportLeads(
   const { name, timezone } = await tenantFacts(ctx.supabase, tenantId);
   log.info("export.leads", {
     user: ctx.userId,
-    tenant: tenantId,
+    tenant_id: tenantId,
     rows: rows.length,
     marked: typeof data === "number" ? data : 0,
   });

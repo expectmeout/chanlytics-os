@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { read } from "@/server/route";
 import { callScope } from "@/server/verbs";
-import { signedMediaUrl } from "@/server/conversations/media";
+import { recordingOpened, signedMediaUrl } from "@/server/conversations/media";
 
 /**
  * GET /api/v1/calls/:id/recording — a redirect to a short-lived signed URL for
@@ -14,17 +14,21 @@ import { signedMediaUrl } from "@/server/conversations/media";
  * The call is the row (callScope): read under RLS, so one the caller cannot
  * see is a 404, and any member of the workspace it lives in may listen. A
  * redirect built by hand, because Response.redirect()'s headers are immutable
- * and the wrapper stamps its own.
+ * and the wrapper stamps its own. Who listened is on the ledger before the link
+ * leaves (media.ts recordingOpened, 00277), and only for a recording that is
+ * being served: a path outside the workspace is refused before anything is
+ * recorded.
  */
 export const GET = read({
   scope: callScope,
-  handle: async ({ row: call }) => {
+  handle: async ({ ctx, row: call }) => {
     const rec = call.recording as { storage_path?: string; fetch_state?: string } | null;
     if (!rec?.storage_path || rec.fetch_state !== "stored") {
       throw new AppError("not_found", "No recording stored for this call yet.");
     }
     const url = await signedMediaUrl(call.tenant_id, rec.storage_path, 300);
     if (!url) throw new AppError("internal", "Could not prepare the recording.");
+    await recordingOpened(ctx.supabase, call.id);
     return new Response(null, { status: 302, headers: { location: url } });
   },
 });

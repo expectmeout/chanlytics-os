@@ -20,7 +20,7 @@ import {
   listUnknownWords,
   ruleNeeds,
   unmetNeed,
-  parseListToken,
+  listNamer,
   savedListLookup,
   savedListTip,
   poolListContext,
@@ -109,8 +109,18 @@ export interface PeopleSurface {
   consultFirst: boolean;
   /** The workspace's pace (dealPaceOf, 0008 amended): when a proposal out is waiting, on Today and the Pipeline. */
   dealPace: DealPaceVM | null;
-  /** The page the rows came from: how many there are in all, and whether more follow (00112). */
-  page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
+  /**
+   * The page the rows came from: how many there are in all, and whether more follow (00112); and, once the rows carry
+   * their place in the order (00276), where the next page starts (handed back as `after`, 0021).
+   */
+  page: {
+    q: string | null;
+    offset: number;
+    limit: number;
+    total: number;
+    has_more: boolean;
+    next?: string | null;
+  } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
   views: Record<string, unknown>;
   /**
@@ -179,13 +189,7 @@ export function publishPeople(): void {
   });
   const savedLists = peopleLoaded.saved ?? [];
   const lookup = savedListLookup(savedLists);
-  const listName = (token: string): string | null => {
-    const ref = parseListToken(token);
-    if (!ref) return null;
-    return ref.kind === "builtin"
-      ? (PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null)
-      : (savedLists.find((l) => l.id === ref.id)?.name ?? null);
-  };
+  const listName = listNamer(savedLists);
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
     // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
@@ -284,13 +288,23 @@ export function keepSavedView(page: string, view: Record<string, unknown>): () =
 }
 
 /**
+ * The next page's question: the rows held, which count whether more follow, and where the next page starts when the
+ * last one said (0021): just past its last row, so someone who wrote in between is not read twice.
+ */
+function nextPageQuery(held: number, page: PeopleSurface["page"]): { offset: number; after?: string } {
+  return page?.next ? { offset: held, after: page.next } : { offset: held };
+}
+
+/**
  * The next thousand, appended under the same order, and the surface told:
  * `window.__peopleMore()`. The page shows the button only while the server
  * says more follow.
  */
 async function peopleMore(): Promise<void> {
   if (!peopleLoaded?.page?.has_more) return;
-  const next = await read("GET contacts", { query: { offset: peopleLoaded.people.length } });
+  const next = await read("GET contacts", {
+    query: nextPageQuery(peopleLoaded.people.length, peopleLoaded.page),
+  });
   const seen = new Set(peopleLoaded.people.map((p) => p.id));
   peopleLoaded.people = [...peopleLoaded.people, ...next.people.filter((p) => !seen.has(p.id))];
   peopleLoaded.page = next.page;
@@ -357,7 +371,7 @@ export async function everyPerson(first: {
   const people = [...first.people];
   let page = first.page ?? null;
   for (let pages = 1; page?.has_more && pages < PEOPLE_PAGES_BOUND; pages++) {
-    const next = await read("GET contacts", { query: { offset: people.length } });
+    const next = await read("GET contacts", { query: nextPageQuery(people.length, page) });
     if (!next.people.length) break;
     people.push(...next.people);
     page = next.page ?? page;

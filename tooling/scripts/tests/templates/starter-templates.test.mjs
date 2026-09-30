@@ -253,7 +253,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   );
   assert.ok(
     r.includes('if (r.reason === "meta_refused" && ALREADY_AT_META.test(r.detail ?? "")) {') &&
-      r.includes("await syncTemplates(member.tenantId);"),
+      r.includes("await syncTemplates(member.tenantId, ctx.userId);"),
     "a shared account's copy is synced in, not refused",
   );
   assert.ok(r.includes('results.push({ ...base, status: "submitted", meta_status: r.metaStatus });'));

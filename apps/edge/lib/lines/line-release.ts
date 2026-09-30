@@ -28,7 +28,7 @@ import {
   type LineReleaseWarned,
 } from "../packages/contracts.js";
 import { deletePhoneNumber, type RetellConfig } from "../packages/channels.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, tenantDb } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -103,7 +103,7 @@ export async function releaseLine(
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
   if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
-  const del = await db.from("lines").delete().eq("id", line.id);
+  const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
   if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
   await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
@@ -219,7 +219,7 @@ export async function sweepEndedLines(
       if (now < step.releaseAt) continue;
       out.due += 1;
       ports.log.info("line_release_report", {
-        tenant: row.tenant_id,
+        tenant_id: row.tenant_id,
         line: row.id,
         ended_at: new Date(step.endedAt).toISOString(),
       });
@@ -250,11 +250,12 @@ export async function sweepEndedLines(
             },
           },
         })
-        .eq("id", row.id);
+        .eq("id", row.id)
+        .eq("tenant_id", row.tenant_id);
       if (up.error) throw new Error(`keeping the warning: ${up.error.message}`);
       await ports.tell(row.tenant_id, lineReleaseWarning({ ...words, on }));
       out.warned += 1;
-      ports.log.info("line_release_warned", { tenant: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
+      ports.log.info("line_release_warned", { tenant_id: row.tenant_id, line: row.id, on: new Date(on).toISOString() });
       continue;
     }
 
@@ -272,7 +273,12 @@ export async function sweepEndedLines(
     const r = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());
     if (!r.ok) {
       out.failed += 1;
-      ports.log.error("line_release_failed", { tenant: row.tenant_id, line: row.id, error: r.error, detail: r.detail });
+      ports.log.error("line_release_failed", {
+        tenant_id: row.tenant_id,
+        line: row.id,
+        error: r.error,
+        detail: r.detail,
+      });
       await ports.alert(
         `A number could not be given back (workspace ${row.tenant_id})`,
         `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${r.detail}\n\nWhat came off before it stopped: ${JSON.stringify(r.released)}. The row stays, and the next quarter hour tries again.`,
@@ -281,7 +287,7 @@ export async function sweepEndedLines(
     }
     out.released += 1;
     await ports.tell(row.tenant_id, lineReleasedWords(words));
-    ports.log.info("line_released_by_sweep", { tenant: row.tenant_id, line: row.id, ...r.released });
+    ports.log.info("line_released_by_sweep", { tenant_id: row.tenant_id, line: row.id, ...r.released });
   }
   return out;
 }

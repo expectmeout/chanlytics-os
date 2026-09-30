@@ -52,7 +52,7 @@ import {
 import { readCode, readRaw } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../../../apps/edge/lib/lines/a2p-campaign-facts.ts";
-import { personRow } from "../_person-row.mjs";
+import { personRow } from "./_person-row.mjs";
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.

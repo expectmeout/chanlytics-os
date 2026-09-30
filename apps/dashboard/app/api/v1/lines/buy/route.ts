@@ -1,14 +1,11 @@
 import { z } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, E164 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
 import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
-  number: z
-    .string()
-    .trim()
-    .regex(/^\+[1-9]\d{6,14}$/, "Choose one of the numbers offered."),
+  number: z.string().trim().regex(E164, "Choose one of the numbers offered."),
   area_code: z
     .union([
       z.number().int(),
@@ -38,7 +35,7 @@ export const POST = write({
   rate: "lines_buy",
   spend: true,
   input: Body,
-  handle: async ({ member, input }) => {
+  handle: async ({ ctx, member, input }) => {
     // Kept as the three digits that were validated. Number() made "000" a zero,
     // which the truthiness check below then dropped -- searching with no area
     // code rather than refusing -- and "012" a 12, a different area code than
@@ -48,6 +45,7 @@ export const POST = write({
       {
         op: "buy",
         tenant_id: member.tenantId,
+        user_id: ctx.userId,
         number: input.number,
         ...(areaCode !== undefined ? { area_code: areaCode } : {}),
       },

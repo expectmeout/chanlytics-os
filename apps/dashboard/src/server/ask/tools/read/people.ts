@@ -7,6 +7,7 @@ import {
   ago,
   asListRule,
   listMembers,
+  listNamer,
   listRuleParts,
   listToken,
   listUnknownWords,
@@ -161,6 +162,11 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
     contact_id: id,
     route: `clients/${id}`,
     name: vm.name,
+    // Where they stand, as their People row and people.search say it: the row's rule (contracts personStateFor, for
+    // the member asking) under the page's own view model. Without it an answer read the stored thread states below,
+    // and a thread the member holds, still needs_human in storage, read "Needs you".
+    state: vm.stateLabel,
+    state_detail: vm.stateDetail || null,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
     // The deal's fact says its value at every stage (0008), and where its proposal lives: the host, never the address.
@@ -215,15 +221,8 @@ async function listLists(t: ToolContext): Promise<unknown> {
   const cal = pool.calendar.state;
   const kept = saved.data.lists;
   const lookup = savedListLookup(kept);
-  // A rule that reads another list names it as the rail does: a People list by its label, one of the workspace's by
-  // its name.
-  const listName = (token: string): string | null => {
-    const ref = parseListToken(token);
-    if (!ref) return null;
-    return ref.kind === "builtin"
-      ? (PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null)
-      : (kept.find((l) => l.id === ref.id)?.name ?? null);
-  };
+  // A rule that reads another list names it as the rail does (contracts listNamer).
+  const listName = listNamer(kept);
   // People's lists as the rail offers them: the outcome lists only when there is a calendar to read, the consultations
   // only with a consult-first service, the deal lists only where deals are on.
   const offered = PEOPLE_LISTS.filter(

@@ -93,6 +93,7 @@ const WORDS: Record<string, string> = {
   reply_review: "Replied to a Google review",
   export: "Exported data",
   import: "Imported people from a spreadsheet",
+  open_recording: "Listened to a call's recording",
   end_call: "Ended a call",
   record_deal: "Recorded a deal",
   make_list: "Made a list",

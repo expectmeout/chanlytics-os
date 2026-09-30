@@ -8,7 +8,7 @@ import type { BrandType } from "./business-record";
 /* --------------------------- the state machine --------------------------- */
 
 export type A2PStep = SchemaSet<"lines.reg_step">;
-/** In the order the saga walks them; schema-agreement.ts holds them to the column. */
+/** In the order the saga walks them; lines/lines.type-test.ts holds them to the column. */
 export const A2P_STEPS = [
   "profile",
   "business",

@@ -43,6 +43,7 @@ import {
 } from "@chanlytics/db";
 import {
   memberContext,
+  requireFreshSession,
   requireRole,
   requireSpend,
   withRoute,
@@ -98,6 +99,12 @@ type Call<S extends Scope, I> = { ctx: RouteCtx; req: Request; input: I } & Give
 
 interface Policy {
   readonly kind: "read" | "write";
+  /**
+   * Present, and true, on a route whose act is sensitive enough that a session revoked a minute ago must not pass: the
+   * Auth server is asked whether it is still live before the handler runs (requireFreshSession). Absent otherwise, so
+   * route-policy.json changes only on the routes that declare it.
+   */
+  readonly fresh?: true;
   readonly scope: Scope["kind"];
   /** On a read, null means every member may read. */
   readonly role: Role | null;
@@ -119,6 +126,8 @@ export type OutputOf<R> = R extends Shape<unknown, infer O> ? O : never;
 
 interface ReadSpec<S extends Scope, Q, O> {
   scope: S;
+  /** Ask the Auth server whether the session is still live before the handler runs (Policy.fresh). */
+  fresh?: boolean;
   /** Every member may read unless this says otherwise. */
   role?: Role;
   rate?: RateBucket | null;
@@ -128,6 +137,8 @@ interface ReadSpec<S extends Scope, Q, O> {
 
 interface WriteSpec<S extends Scope, I, O> {
   scope: S;
+  /** Ask the Auth server whether the session is still live before the handler runs (Policy.fresh). */
+  fresh?: boolean;
   /** Who may change this. null only on the account and platform scopes; route-policy.test holds that. */
   role: Role | null;
   /** A bucket, or null said out loud. Never omitted: the policy file shows every null for review. */
@@ -204,6 +215,7 @@ function parse<T>(schema: ZodType<T>, raw: unknown): T {
 
 interface Spec<S extends Scope, I, O> {
   scope: S;
+  fresh?: boolean;
   role?: Role | null;
   rate?: RateBucket | null;
   spend?: boolean;
@@ -276,16 +288,17 @@ async function onceForCard<O>(
     response,
     stamp: nowIso,
   }).catch((e: unknown) => {
-    log.error("card_receipt_unkept", { tenant: tenantId, error: e });
+    log.error("card_receipt_unkept", { tenant_id: tenantId, error: e });
     return true;
   });
-  if (!kept) log.error("card_receipt_unkept", { tenant: tenantId, error: "the key was taken over" });
+  if (!kept) log.error("card_receipt_unkept", { tenant_id: tenantId, error: "the key was taken over" });
   return out;
 }
 
 function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>) {
   const policy: Policy = Object.freeze({
     kind,
+    ...(spec.fresh ? { fresh: true as const } : {}),
     scope: spec.scope.kind,
     role: spec.role ?? null,
     rate: spec.rate ?? null,
@@ -294,6 +307,7 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
 
   const run = async (req: Request, ctx: RouteCtx): Promise<O> => {
     const { member, given } = await resolve(spec.scope, kind, req, ctx);
+    if (spec.fresh) await requireFreshSession(ctx);
     if (spec.role) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot require a role`);
       requireRole(member, spec.role);

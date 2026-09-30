@@ -254,17 +254,15 @@ function scripted(rounds) {
   return { round, requests };
 }
 /**
- * What the turn logged under one event name, while `fn` ran: an Ask line's values after its name, or a logger line's
- * fields (src/server/log.ts) as JSON.
+ * What the turn logged under one event name, while `fn` ran: each logger line's fields (src/server/log.ts) as JSON,
+ * the envelope and the stacks left out.
  */
 async function logged(event, fn) {
   const lines = [];
   const was = { warn: console.warn, error: console.error };
   console.warn = console.error = (...args) => {
     const line = logLineOf(args);
-    if (line) {
-      if (line.event === event) lines.push(JSON.stringify(fieldsOf(line)));
-    } else if (args[0] === event) lines.push(args.slice(1).join(" "));
+    if (line?.event === event) lines.push(JSON.stringify(fieldsOf(line)));
   };
   try {
     return { result: await fn(), lines };
@@ -4634,7 +4632,7 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
     "the failure was not kept: campaigns.audiences read the channels again",
   );
   assert.deepEqual(
-    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant]),
+    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant_id]),
     [
       ["workspace.settings", "channels", A],
       ["campaigns.audiences", "channels", A],
@@ -4997,8 +4995,9 @@ test("the three retries run in their order, each once: the page's data, then the
   // Every refusal the turn logged, in the order it logged them.
   const said = [];
   const was = console.error;
-  console.error = (name) => {
-    if (typeof name === "string" && /^ask_.*_rejected$/.test(name)) said.push(name);
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line && /^ask_.*_rejected$/.test(line.event)) said.push(line.event);
   };
   let r;
   try {
@@ -5987,7 +5986,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
     assert.equal(result.r.shape.replay, "rebuilt", why);
     assert.deepEqual(
       lines.map((l) => JSON.parse(l)),
-      fault ? [{ tenant: A, row: result.answered }] : [],
+      fault ? [{ tenant_id: A, row: result.answered }] : [],
       why,
     );
   }
@@ -6010,7 +6009,10 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
   };
   const said = [];
   const was = console.error;
-  console.error = (name, ...rest) => (name === "ask_replay_unread" ? said.push(rest.join(" ")) : undefined);
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line?.event === "ask_replay_unread") said.push(line);
+  };
   try {
     const found = await threadForTurn(refusing, {
       tenantId: A,
@@ -6024,9 +6026,10 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
       [null, 2, 1],
       "cold, its history kept, said once",
     );
+    assert.equal(said[0].level, "error");
     assert.deepEqual(
-      JSON.parse(said[0]),
-      { error: "canceling statement due to timeout", tenant: A },
+      fieldsOf(said[0]),
+      { error: "Error: canceling statement due to timeout", tenant_id: A },
       "with the tenant",
     );
   } finally {
@@ -6431,8 +6434,9 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
     };
     const said = [];
     const was = console.error;
-    console.error = (name) => {
-      if (typeof name === "string" && /^ask_.*_rejected$/.test(name)) said.push(name);
+    console.error = (...args) => {
+      const line = logLineOf(args);
+      if (line && /^ask_.*_rejected$/.test(line.event)) said.push(line.event);
     };
     try {
       const input = turn(ctx, {

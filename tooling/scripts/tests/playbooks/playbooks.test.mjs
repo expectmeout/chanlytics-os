@@ -19,6 +19,8 @@ import {
   MOMENT_TRIGGERS,
   REACH_OUT_IS_NOT_A_MOMENT,
   PLAYBOOK_VETO_DELAY_MS,
+  PLAYBOOK_VETO_DELAY_WORDS,
+  POLICY_CLASS_WORDS,
   eligibleForPlaybook,
   localDate,
   localHour,
@@ -338,10 +340,12 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // (packages/db touchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
+  assert.equal(
+    POLICY_CLASS_WORDS.reengage.note,
+    `the win-back and save-our-number playbooks · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+  );
   assert.ok(
-    readCode("packages/contracts/src/config/workspace-config/policy-classes.ts").includes(
-      'note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"',
-    ) && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
+    readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
   );
 });
@@ -529,7 +533,8 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"'));
   assert.equal(cardOpenRoute({ kind: "playbook", payload: {} }), "outbound", "a playbook card opens Playbooks");
-  assert.ok(/playbook:\s*"A standing rule/.test(readCode("apps/dashboard/src/server/ask/prompt.ts")));
+  const { ASK_DEFINITIONS } = await importSrc("apps/dashboard/src/server/ask/prompt.ts");
+  assert.ok(ASK_DEFINITIONS.playbook.startsWith("A standing rule"));
   const sug = buildAskSuggestions({
     surface: "people",
     language: "en",

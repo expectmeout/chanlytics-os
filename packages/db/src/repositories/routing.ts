@@ -1,7 +1,12 @@
-/** Webhook → tenant routing over tenant_channels(kind, external_id). */
+/**
+ * Webhook → tenant routing over tenant_channels(kind, external_id).
+ *
+ * Cross-workspace: a webhook finds its workspace by the provider's id (kind, external_id) on tenant_channels.
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { MIN_MS } from "@chanlytics/contracts";
+import { dbLog } from "../observe";
 
 export interface RoutedChannel {
   channelId: string;
@@ -49,7 +54,7 @@ export async function resolveChannelDetailed(
     .eq("external_id", externalId)
     .maybeSingle();
   if (error) {
-    console.error("resolve_channel_failed", error.message);
+    dbLog().error("resolve_channel_failed", { kind, error: error.message });
     // Never cache errors. A stale positive is still a real answer, so serve it;
     // otherwise report that we could not find out.
     if (hit?.v) return { channel: hit.v, lookupFailed: false };

@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-203 handlers in 45 domains.
+205 handlers in 46 domains.
 
 ## activity
 
@@ -275,6 +275,22 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts`).
 
+## client-errors
+
+### `POST /api/v1/client-errors`
+
+Writes; for any signed-in person, for themselves; counts against the `client_errors` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `boundary` | one of `"shell"`, `"os"`, `"root"` | yes |  |
+| `page` | string or null | yes |  |
+| `name` | string | yes | at most 60 characters |
+| `message` | string | yes | at most 300 characters |
+| `stack` | string or null | yes |  |
+| `digest` | string or null | yes |  |
+| `workspace` | string or null | yes |  |
+
 ## consent
 
 ### `GET /api/v1/consent/qr`
@@ -293,6 +309,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | --- | --- | --- | --- |
 | `q` | string | no | at most 80 characters |
 | `offset` | integer | no | ≥ 0; ≤ 1000000 |
+| `after` | string | no | at least 1 characters; at most 200 characters |
 
 ### `POST /api/v1/contacts`
 
@@ -1081,6 +1098,12 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 | `email` | string | yes | at most 254 characters; matches `^[^@\s]+@[^@\s]+\.[^@\s]+$` |
 
 ## platform
+
+### `POST /api/v1/platform/jobs/requeue`
+
+Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/jobs/requeue/route.ts`).
 
 ### `POST /api/v1/platform/lines/refile`
 

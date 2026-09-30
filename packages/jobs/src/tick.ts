@@ -6,16 +6,25 @@
  * the database and each job's tenant credentials into ports and hands them
  * here; this file imports neither, so it is tested by running it.
  *
- * ONE JOB AT A TIME, claimed immediately before it runs. A batch claimed up
- * front and worked through in turn leaves every job behind the running one
- * 'fired' but not started, and when the function is killed those come back on
- * their next claim looking exactly like runs that died mid-send, so a reply
- * nobody ever tried to send would be failed as "outcome unknown". Claiming one
- * at a time keeps "claimed" meaning "started", which is the fact verdictFor
- * stands on.
+ * EACH JOB CLAIMED IMMEDIATELY BEFORE IT RUNS. A batch claimed up front and
+ * worked through in turn leaves every job behind the running one 'fired' but
+ * not started, and when the function is killed those come back on their next
+ * claim looking exactly like runs that died mid-send, so a reply nobody ever
+ * tried to send would be failed as "outcome unknown". Claiming one at a time
+ * keeps "claimed" meaning "started", which is the fact verdictFor stands on.
+ * A tick may run a few jobs side by side (`slots`, ledger CLAIM_SLOTS): each
+ * slot is a runner of its own that claims one job, runs it, and claims the
+ * next, so the rule holds slot by slot.
  */
-import { jobNewsWords, type JobEnd, type JobNews } from "@chanlytics/contracts";
-import { verdictFor, retryWait, RUN_INTERRUPTED, type LedgerRow } from "./ledger";
+import { jittered, jobNewsWords, type JobEnd, type JobNews } from "@chanlytics/contracts";
+import {
+  verdictFor,
+  retryWait,
+  RUN_INTERRUPTED,
+  UNKNOWN_KIND_GIVE_UP_MS,
+  UNKNOWN_KIND_WAIT_MS,
+  type LedgerRow,
+} from "./ledger";
 import { saySettled, type Settled } from "./settle";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
@@ -35,11 +44,15 @@ export interface TickPorts {
   fail(job: LedgerRow, reason: string): Promise<boolean>;
   /** Keep a job that threw, to be claimed again once `untilIso` passes (ledger deferJob). False when this run no longer holds it. */
   defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
+  /** Keep a job of a kind this runner does not know, its claim given back (ledger deferUnknownJob). False when this run no longer holds it. */
+  deferUnknown(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
   /** Never throws: a write that failed comes back as a row with its error. */
   settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
   alert(job: LedgerRow, news: JobNews): Promise<void>;
   log: TickLog;
   now(): number;
+  /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
 }
 
 export interface TickOptions {
@@ -50,6 +63,8 @@ export interface TickOptions {
   /** A kind's own yield, when it differs (a lead job's, ledger.ts LEAD_YIELD_AT_MS); `yieldAtMs` otherwise. */
   yieldAtFor?: (kind: string) => number | undefined;
   leaseSeconds: number;
+  /** How many jobs run side by side, each claimed just before it runs (ledger CLAIM_SLOTS); one when absent. */
+  slots?: number;
 }
 
 export interface TickCounts {
@@ -64,16 +79,23 @@ export interface TickCounts {
    * A later claim of the same row is a retry or a lease that ran out, not a wait in the queue, so it is not counted.
    */
   lateMs: Record<string, number>;
+  /**
+   * The worst of those among the reply lane's (jobs.lane 0, read from the claimed row): a member's reply, an email
+   * arriving, a phone told. `outbound_send` is both a reply and a cold email, so its kind's number cannot say; this
+   * one can, and it is the one the route pages on (REPLY_LATE_PAGE_MS).
+   */
+  replyLateMs: number;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** Keep the worst wait among a kind's first claims: now, less the row's due time; a claim before it waited none. */
-function noteLate(lateMs: Record<string, number>, job: LedgerRow, now: number): void {
+function noteLate(c: TickCounts, job: LedgerRow, now: number): void {
   if (job.attempts !== 1) return;
   const late = Math.max(0, now - Date.parse(job.due_at));
   if (Number.isNaN(late)) return;
-  lateMs[job.kind] = Math.max(lateMs[job.kind] ?? 0, late);
+  c.lateMs[job.kind] = Math.max(c.lateMs[job.kind] ?? 0, late);
+  if (job.lane === 0) c.replyLateMs = Math.max(c.replyLateMs, late);
 }
 
 /** The heartbeat's line is flat, so each kind's worst wait is a field of its own: `late_ms_<kind>`. */
@@ -84,78 +106,138 @@ export function lateFields(lateMs: Record<string, number>): Record<string, numbe
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
-  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {} };
+  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
+  const slots = Math.max(1, Math.floor(opts.slots ?? 1));
+  const running: Promise<void>[] = [];
+  // Set by the first thing that throws out of a slot; every slot stops claiming, and the tick throws once what runs has
+  // finished. A slot never rejects, so no promise of the tick is left unobserved.
+  const halt: { stopped: boolean; error: unknown } = { stopped: false, error: null };
+  const stop = (e: unknown) => {
+    if (!halt.stopped) Object.assign(halt, { stopped: true, error: e });
+  };
 
-  for (let now = ports.now(); now - started < opts.claimForMs; now = ports.now()) {
-    // Only the claim may throw out of here. A ledger that cannot be claimed
-    // from is the database's problem, and the route answers 503 so that
-    // sweep_health() reports it as one.
-    const job = await ports.claim(opts.leaseSeconds);
-    if (!job) break;
-    c.claimed += 1;
-    noteLate(c.lateMs, job, now);
-
-    if (verdictFor(job) === "give_up") {
-      await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
-      c.gaveUp += 1;
-      continue;
-    }
-
-    let outcome: "done" | "unknown_kind";
-    try {
-      outcome = await ports.dispatch(job, deadlineFor(job.kind));
-    } catch (e) {
-      const msg = errText(e);
-      // A kind written to be run again is kept and tried again later, rather
-      // than failed for good on its first throw (ledger RETRY_WAITS_MS). The
-      // last try falls through to the failure below, and is told as one.
-      const wait = retryWait(job);
-      if (wait !== null) {
-        const untilIso = new Date(ports.now() + wait).toISOString();
-        try {
-          if (await ports.defer(job, untilIso, msg)) {
-            ports.log.warn("job_deferred", {
-              job_id: job.id,
-              tenant_id: job.tenant_id,
-              kind: job.kind,
-              attempts: job.attempts,
-              until: untilIso,
-              error: msg,
-            });
-          } else {
-            ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
-          }
-        } catch (d) {
-          // Not failed either: the claim's own lease still brings the row back, sooner.
-          ports.log.error("job_defer_write_failed", { job_id: job.id, kind: job.kind, error: errText(d) });
-        }
-        c.deferred += 1;
-        continue;
+  const slot = async (): Promise<void> => {
+    for (let now = ports.now(); now - started < opts.claimForMs && !halt.stopped; now = ports.now()) {
+      // Only the claim may throw out of here. A ledger that cannot be claimed
+      // from is the database's problem, and the route answers 503 so that
+      // sweep_health() reports it as one; the other slots claim nothing more.
+      let job: LedgerRow | null;
+      try {
+        job = await ports.claim(opts.leaseSeconds);
+      } catch (e) {
+        stop(e);
+        return;
       }
-      await conclude(ports, job, msg, false, "failed");
-      c.failed += 1;
-      continue;
+      if (!job) return;
+      try {
+        c.claimed += 1;
+        noteLate(c, job, now);
+        // The job starts before anything else is asked of the ledger (runOne's first step is synchronous up to the
+        // handler's own call). Work was due, so more may be: another slot opens beside this one, and it too claims only
+        // what it is about to run.
+        const run = runOne(ports, job, deadlineFor(job.kind), c);
+        if (running.length < slots) running.push(slot());
+        await run;
+      } catch (e) {
+        // Everything per job is caught inside runOne; a throw that still gets out (a logger that throws while saying
+        // what happened) is not hidden: no slot claims more, what runs is recorded, and the tick throws.
+        stop(e);
+        return;
+      }
     }
-
-    if (outcome === "unknown_kind") {
-      await conclude(ports, job, `unknown job kind ${job.kind}`, true, "unknown_kind");
-      c.failed += 1;
-      continue;
-    }
-
-    // The work is done; what follows only records it. A write that fails here
-    // must not be reported as the work failing: the lease brings the row back
-    // and verdictFor judges it, which for a send is an honest "unknown" rather
-    // than a false "failed".
-    try {
-      if (await ports.complete(job)) c.done += 1;
-      else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
-    } catch (e) {
-      ports.log.error("job_complete_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
-    }
-  }
+  };
+  running.push(slot());
+  for (let i = 0; i < running.length; i += 1) await running[i];
+  if (halt.stopped) throw halt.error;
   return c;
 }
+
+/** One claimed job, run and recorded; everything per job is caught here, so one job's throw is never another's. */
+async function runOne(ports: TickPorts, job: LedgerRow, deadline: number, c: TickCounts): Promise<void> {
+  if (verdictFor(job) === "give_up") {
+    await conclude(ports, job, RUN_INTERRUPTED, false, "unfinished");
+    c.gaveUp += 1;
+    return;
+  }
+
+  let outcome: "done" | "unknown_kind";
+  try {
+    outcome = await ports.dispatch(job, deadline);
+  } catch (e) {
+    const msg = errText(e);
+    // A kind written to be run again is kept and tried again later, rather
+    // than failed for good on its first throw (ledger RETRY_WAITS_MS). The
+    // last try falls through to the failure below, and is told as one.
+    const wait = retryWait(job, ports.random);
+    if (wait !== null) {
+      const until = await keepForLater(ports, job, wait, (untilIso) => ports.defer(job, untilIso, msg));
+      if (until) ports.log.warn("job_deferred", keptFields(job, until, msg));
+      c.deferred += 1;
+      return;
+    }
+    await conclude(ports, job, msg, false, "failed");
+    c.failed += 1;
+    return;
+  }
+
+  if (outcome === "unknown_kind") {
+    // A kind a newer deploy wrote waits for the runner that knows it (ledger UNKNOWN_KIND_WAIT_MS), so either app
+    // may deploy first. One nobody has known for a day is failed as never run, and its owner told.
+    const reason = `unknown job kind ${job.kind}`;
+    if (!(ports.now() - Date.parse(job.due_at) >= UNKNOWN_KIND_GIVE_UP_MS)) {
+      const wait = jittered(UNKNOWN_KIND_WAIT_MS, ports.random);
+      const until = await keepForLater(ports, job, wait, (untilIso) => ports.deferUnknown(job, untilIso, reason));
+      if (until) ports.log.warn("job_kind_unknown_deferred", keptFields(job, until, reason));
+      c.deferred += 1;
+      return;
+    }
+    await conclude(ports, job, reason, true, "unknown_kind");
+    c.failed += 1;
+    return;
+  }
+
+  // The work is done; what follows only records it. A write that fails here
+  // must not be reported as the work failing: the lease brings the row back
+  // and verdictFor judges it, which for a send is an honest "unknown" rather
+  // than a false "failed".
+  try {
+    if (await ports.complete(job)) c.done += 1;
+    else ports.log.warn("job_complete_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+  } catch (e) {
+    ports.log.error("job_complete_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+  }
+}
+
+/**
+ * Keep a job to be claimed again `wait` ms on: the moment it comes back, or null when it is not kept (another run holds
+ * it now, or the write failed, each said on the log). A write that failed is not a failure of the job either: the
+ * claim's own lease still brings the row back, sooner.
+ */
+async function keepForLater(
+  ports: TickPorts,
+  job: LedgerRow,
+  wait: number,
+  write: (untilIso: string) => Promise<boolean>,
+): Promise<string | null> {
+  const untilIso = new Date(ports.now() + wait).toISOString();
+  try {
+    if (await write(untilIso)) return untilIso;
+    ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+  } catch (d) {
+    ports.log.error("job_defer_write_failed", { job_id: job.id, kind: job.kind, error: errText(d) });
+  }
+  return null;
+}
+
+/** What the line for a kept job says. */
+const keptFields = (job: LedgerRow, until: string, why: string): TickFields => ({
+  job_id: job.id,
+  tenant_id: job.tenant_id,
+  kind: job.kind,
+  attempts: job.attempts,
+  until,
+  error: why,
+});
 
 /**
  * Fail the row, settle what it left behind, tell the owner what became of it.

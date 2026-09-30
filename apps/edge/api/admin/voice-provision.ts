@@ -19,16 +19,16 @@
  * month: only { apply: true } with area_code does it. Secrets never come
  * back: every URL is returned without its query string, and a provider's
  * success body (which echoes the webhook URL) is never echoed.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { edgeFnUrl } from "../../lib/lines/lines.js";
+import { edgeFnUrl } from "../../lib/dashboard-origin.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { formatPhoneDisplay, type EdgeErrorCode } from "../../lib/packages/contracts.js";
+import { formatPhoneDisplay, isE164, type EdgeErrorCode } from "../../lib/packages/contracts.js";
 import { createVoiceAgent } from "../../lib/voice/voice-agent.js";
 import {
   planVoiceProvision,
@@ -50,7 +50,7 @@ import {
   type VoiceProvisionRequest,
 } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -62,8 +62,6 @@ interface Body {
   agent_id?: string;
   apply?: boolean;
 }
-
-const E164 = /^\+[1-9]\d{6,14}$/;
 
 function requestOf(body: Body): VoiceProvisionRequest {
   const area =
@@ -134,7 +132,7 @@ interface ProvisionKnock {
  * body's workspace. A refused request reads nothing past the refusal.
  */
 async function checkProvisionKnock(request: Request): Promise<ProvisionKnock | Response> {
-  const auth = authorizeAdmin(request, "/api/admin/voice-provision");
+  const auth = await authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
@@ -238,7 +236,7 @@ interface BoundNumber {
   answer: Record<string, unknown>;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const knock = await checkProvisionKnock(request);
   if (knock instanceof Response) return knock;
   const line = await readWorkspaceLine(knock.db, knock.tenantId);
@@ -247,7 +245,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!plan.ok) return json(400, { ...out, error: "bad_request", detail: plan.errors.join("; ") });
   if (!knock.apply || plan.nothing) return json(200, out);
   return applyProvision(knock, req, plan, out);
-}
+});
 
 /**
  * Apply, in the plan's order. Every step reads its own effect before it acts; anything created so far rides in
@@ -296,7 +294,7 @@ async function applyProvision(
   const after = await readBackLeg(provider.cfg, agent);
   result.after = after;
   L.info("voice_provision", {
-    tenant: knock.tenantId,
+    tenant_id: knock.tenantId,
     agent_id: agent.agentId,
     llm_id: agent.llmId,
     number: bound.number,
@@ -327,7 +325,7 @@ async function bindExistingNumber(
   const w = await updatePhoneNumber(
     cfg,
     number,
-    voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets),
+    voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
   if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
   const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
@@ -343,11 +341,11 @@ async function buyInAreaCode(
 ): Promise<BoundNumber | RefusedLeg> {
   const w = await createPhoneNumber(
     cfg,
-    voiceNumberCreateBody({ areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets),
+    voiceNumberCreateBody({ areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets, edgeFnUrl()),
   );
   if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
   const bought = typeof w.body?.phone_number === "string" ? w.body.phone_number : "";
-  if (!E164.test(bought))
+  if (!isE164(bought))
     return { ok: false, step: "number", status: 502, detail: "the provider answered without a phone number" };
   const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
   const answer = { phone_number: bought, bought: true, area_code: areaCode, pinned, type: numberType };
@@ -432,7 +430,7 @@ async function readBackLeg(cfg: RetellConfig, { agentId, llmId }: MadeAgent): Pr
           retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
         }).drift
       : ["unreadable"],
-    shell: llmAfter ? voiceShellDrift(llmAfter).drift : ["unreadable"],
+    shell: llmAfter ? voiceShellDrift(llmAfter, edgeFnUrl()).drift : ["unreadable"],
     published: after?.is_published ?? null,
   };
 }

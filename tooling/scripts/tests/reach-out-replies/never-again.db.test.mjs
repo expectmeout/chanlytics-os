@@ -52,15 +52,19 @@ function query(sql) {
   const parsed = JSON.parse(out.slice(start, out.lastIndexOf(out[start] === "{" ? "}" : "]") + 1));
   return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
 }
-/** A migration's text, by its number. */
+/** A body with LF line endings: a checkout on Windows writes CRLF, the migration is applied as written, and pg_proc keeps what it was given. */
+const lf = (text) => text.replaceAll("\r\n", "\n");
+/** A migration's text, by its number, with LF line endings. */
 const migration = (n) => {
   const dir = path.join(ROOT, "supabase/migrations");
-  return fs.readFileSync(
-    path.join(
-      dir,
-      fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
+  return lf(
+    fs.readFileSync(
+      path.join(
+        dir,
+        fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
+      ),
+      "utf8",
     ),
-    "utf8",
   );
 };
 /** A function's body as a migration writes it: from `as $$` after its header to the next `$$`, as pg_proc keeps it. */
@@ -798,7 +802,7 @@ test("every function re-created whole is its source's body but for the lines it 
     );
     // A later migration that re-creates it whole runs now, and proves itself against this body (00226's suite).
     const later = LATER[name];
-    assert.equal(live.prosrc, later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
+    assert.equal(lf(live.prosrc), later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
   }
 });
 

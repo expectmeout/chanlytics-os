@@ -123,7 +123,14 @@ test("the ten declare their policy: the reads open to every member, the changes 
     rate: "person_create",
     spend: false,
   });
-  assert.deepEqual(person.DELETE.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
+  assert.deepEqual(person.DELETE.policy, {
+    kind: "write",
+    fresh: true,
+    scope: "row",
+    role: "owner",
+    rate: "erase",
+    spend: false,
+  });
   assert.deepEqual(details.PUT.policy, {
     kind: "write",
     scope: "row",
@@ -168,7 +175,7 @@ test("the people list is the workspace the tab named: each person with their rep
   assert.equal(out.calendar.state, "none");
   assert.deepEqual(
     out.page,
-    { q: null, offset: 0, limit: 1000, total: 0, has_more: false },
+    { q: null, offset: 0, limit: 1000, total: 0, has_more: false, next: null },
     "the page: counted where the rows are (none in this fixture's contacts table)",
   );
   const bayside = await contacts.GET.run(get(`?workspace=${B}`), ctxFor(tables, {}, rpcs));
@@ -725,7 +732,7 @@ test("the list pages under one order and counts everyone: the door is named a qu
     ],
   };
   const first = await contacts.GET.run(get(inA), ctxFor(tables, {}, rpcs));
-  assert.deepEqual(first.page, { q: null, offset: 0, limit: 1000, total: 2, has_more: false });
+  assert.deepEqual(first.page, { q: null, offset: 0, limit: 1000, total: 2, has_more: false, next: null });
   assert.deepEqual(
     asked.at(-1),
     { p_tenant_id: A },
@@ -743,7 +750,7 @@ test("the list pages under one order and counts everyone: the door is named a qu
   );
   assert.deepEqual(
     found.page,
-    { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false },
+    { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false, next: null },
     "counted with the same three matches",
   );
   const digits = await contacts.GET.run(get(`${inA}&q=0002`), ctxFor(tables, {}, rpcs));
@@ -751,6 +758,127 @@ test("the list pages under one order and counts everyone: the door is named a qu
   const punct = await contacts.GET.run(get(`${inA}&q=a,b(c)`), ctxFor(tables, {}, rpcs));
   assert.equal(punct.page.total, 0, "the filter grammar's own characters never reach it");
   await refused(contacts.GET.run(get(`${inA}&offset=-1`), ctxFor(tables, {}, rpcs)), "validation", 400);
+});
+
+/**
+ * people_list as 00276 answers it, over `n` people of workspace A in the kept order (the latest in touch first, then
+ * the newest added, then the id, falling): a page after the cursor or the offset, each row carrying its place. With
+ * `places: false`, a database before 00276: the same rows without their place, and no cursor taken. Every question is
+ * kept in `asked`, and `move(id)` puts someone at the top, as a word from them would.
+ */
+function kept(n, { places = true } = {}) {
+  const idOf = (i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  const rows = Array.from({ length: n }, (_, i) => ({
+    id: idOf(i + 1),
+    at: new Date(Date.UTC(2026, 8, 1) - i * 60_000).toISOString(),
+    added: "2026-01-01T00:00:00.000Z",
+  }));
+  const asked = [];
+  // The order's comparison, falling: -1 when a comes first.
+  const before = (a, b) =>
+    a.at !== b.at ? (a.at > b.at ? -1 : 1) : a.added !== b.added ? (a.added > b.added ? -1 : 1) : a.id > b.id ? -1 : 1;
+  const people_list = (a) => {
+    asked.push(a);
+    const order = [...rows].sort(before);
+    const after = a.p_after_id ? { at: a.p_after_at, added: a.p_after_added, id: a.p_after_id } : null;
+    if (after && !places) throw new Error("a database before 00276 was named a cursor");
+    const from = after ? order.filter((r) => before(after, r) < 0) : order.slice(a.p_offset ?? 0);
+    return from
+      .slice(0, a.p_limit ?? 1000)
+      .map((r) => personRow(r.id, places ? { in_touch_at: r.at, added_at: r.added } : {}));
+  };
+  const move = (id) => {
+    rows.find((r) => r.id === id).at = new Date(Date.UTC(2026, 8, 2)).toISOString();
+  };
+  const contacts = rows.map((r) => liveContact(r.id, A));
+  return { people_list, asked, move, contacts, idOf };
+}
+
+test("a page says where the next begins once its rows carry their place, and the next is read just past the last row; a cursor the route did not give is refused", async () => {
+  const world = kept(1500);
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    policies: [],
+    tenants: [],
+    tenant_config: [],
+    contacts: world.contacts,
+  };
+  const rpcs = { people_list: world.people_list };
+  const first = await contacts.GET.run(get(inA), ctxFor(tables, {}, rpcs));
+  assert.equal(first.people.length, 1000);
+  assert.equal(
+    first.people[999].in_touch_at,
+    world.people_list({ p_tenant_id: A })[999].in_touch_at,
+    "each row its place",
+  );
+  assert.equal(first.page.has_more, true);
+  assert.equal(typeof first.page.next, "string", "where the next page begins, opaque to the page");
+  // Someone the pages have not reached writes: they move above the cursor, and nobody is read twice.
+  world.move(world.idOf(1200));
+  const last = first.people[999];
+  const second = await contacts.GET.run(
+    get(`${inA}&offset=1000&after=${encodeURIComponent(first.page.next)}`),
+    ctxFor(tables, {}, rpcs),
+  );
+  assert.deepEqual(
+    world.asked.at(-1),
+    { p_tenant_id: A, p_after_at: last.in_touch_at, p_after_added: last.added_at, p_after_id: last.id },
+    "just past the last row, and the offset only counts what the page holds",
+  );
+  assert.equal(second.people.length, 499, "everyone past it but the one who wrote");
+  assert.ok(!second.people.some((p) => first.people.some((q) => q.id === p.id)), "nobody twice");
+  assert.deepEqual(second.page, { q: null, offset: 1000, limit: 1000, total: 1500, has_more: false, next: null });
+
+  // A database before 00276: no place on the rows, so no cursor, and the next page is asked by offset as before.
+  const before = kept(1500, { places: false });
+  const old = await contacts.GET.run(
+    get(inA),
+    ctxFor({ ...tables, contacts: before.contacts }, {}, { people_list: before.people_list }),
+  );
+  assert.deepEqual([old.page.has_more, old.page.next], [true, null]);
+
+  for (const bad of [
+    "not-a-cursor",
+    Buffer.from(JSON.stringify(["2026-09-01T00:00:00Z", "yesterday", P1])).toString("base64url"),
+    Buffer.from(JSON.stringify(["2026-09-01T00:00:00Z", "2026-01-01T00:00:00Z", "not-a-uuid"])).toString("base64url"),
+  ]) {
+    await refused(contacts.GET.run(get(`${inA}&after=${bad}`), ctxFor(tables, {}, rpcs)), "validation", 400, bad);
+  }
+});
+
+test("everyone is read a page at a time, each just past the last row's place, and nobody twice when someone writes between pages; by offset from a database before 00276", async () => {
+  const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
+  const world = kept(2500);
+  const tables = { memberships: both("owner", "owner"), policies: [], contacts: world.contacts };
+  let calls = 0;
+  const people_list = (a) => {
+    // Between the first page and the second, someone the pass has not reached writes.
+    if (++calls === 2) world.move(world.idOf(2200));
+    return world.people_list(a);
+  };
+  const all = await everyone(ctxFor(tables, {}, { people_list }), A);
+  assert.equal(new Set(all.map((p) => p.id)).size, all.length, "nobody twice");
+  assert.equal(all.length, 2499, "everyone but the one who moved above the cursor, whom the next pass reads first");
+  assert.deepEqual(
+    world.asked.map((a) => Object.keys(a).sort()),
+    [
+      ["p_tenant_id"],
+      ["p_after_added", "p_after_at", "p_after_id", "p_tenant_id"],
+      ["p_after_added", "p_after_at", "p_after_id", "p_tenant_id"],
+    ],
+  );
+
+  const before = kept(2500, { places: false });
+  const old = await everyone(
+    ctxFor({ ...tables, contacts: before.contacts }, {}, { people_list: before.people_list }),
+    A,
+  );
+  assert.equal(old.length, 2500);
+  assert.deepEqual(before.asked, [
+    { p_tenant_id: A },
+    { p_tenant_id: A, p_offset: 1000 },
+    { p_tenant_id: A, p_offset: 2000 },
+  ]);
 });
 
 test("the receptionist's mode for many: owners, ours and not erased, the same policy row and ledger verb per person", async () => {

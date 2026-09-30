@@ -921,8 +921,7 @@ test("the gateway: the key stays on the edge, Ask's tokens have their own event 
     1_500_000,
     "sized for a workspace's day with the page's context in every round; 400k was spent by one day of eval runs",
   );
-  const dash = readCode("apps/dashboard/src/server/ask/gateway.ts");
-  assert.ok(dash.includes('edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId })'));
+  // What the dashboard's call names and binds is run in edge/dashboard-names-its-callers.test.mjs.
   assert.ok(
     !readCode("apps/dashboard/src/server/ask/loop.ts").includes("ANTHROPIC_API_KEY"),
     "no model key on the dashboard",

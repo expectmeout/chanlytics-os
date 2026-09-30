@@ -12,8 +12,8 @@ export const DELETE = write({
   scope: workspace,
   role: "partner",
   rate: "google_link",
-  handle: async ({ member }) => {
-    const a = await edgeGoogle({ op: "disconnect", tenant_id: member.tenantId }, 25_000);
+  handle: async ({ ctx, member }) => {
+    const a = await edgeGoogle({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true)
       throw new AppError("internal", edgeRefusalWords(b) ?? "The connection could not be removed. Try again.", 502);

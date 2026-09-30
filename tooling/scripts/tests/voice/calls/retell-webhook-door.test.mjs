@@ -39,7 +39,7 @@ import {
   CALLER,
   NOW,
   iso,
-} from "../../_retell-webhook-world.mjs";
+} from "./_retell-webhook-world.mjs";
 
 // The door reads its keys at import; each test file is its own process, so
 // this is the whole environment.

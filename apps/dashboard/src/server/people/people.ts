@@ -1,5 +1,5 @@
-import type { PersonRowDto } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, everyoneIn, peoplePage } from "@chanlytics/db";
+import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
+import { PEOPLE_PAGE, everyoneIn, peopleCursorOf, peoplePage, type PeopleCursor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { log } from "@/server/log";
 
@@ -21,6 +21,33 @@ interface PeoplePage {
   q?: string | null;
   offset?: number;
   limit?: number;
+  /** Just past this place in the kept order (00276), in place of the offset. */
+  after?: PeopleCursor | null;
+}
+
+/**
+ * The next page's cursor as the wire carries it (`page.next`, then `GET contacts?after=`): the last row's place,
+ * opaque to the page, which only hands it back. Null when the row does not carry its place (a database before 00276):
+ * the page then asks by offset.
+ */
+export function nextPeopleParam(row: PersonRowDto | undefined): string | null {
+  const c = peopleCursorOf(row);
+  return c ? Buffer.from(JSON.stringify([c.at, c.added, c.id]), "utf8").toString("base64url") : null;
+}
+
+/** A place in the order read back from `?after=`; null when it is not one this route gave (the route refuses it). */
+export function peopleCursorParam(param: string): PeopleCursor | null {
+  let v: unknown;
+  try {
+    v = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(v) || v.length !== 3) return null;
+  const [at, added, id] = v as unknown[];
+  const moment = (x: unknown): x is string =>
+    typeof x === "string" && (x === "-infinity" || Number.isFinite(Date.parse(x)));
+  return moment(at) && moment(added) && added !== "-infinity" && isUuid(id) ? { at, added, id: id as string } : null;
 }
 
 /**

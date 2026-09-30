@@ -54,7 +54,16 @@ test("one request per hundred, the receipts in the messages' order, a gone devic
   assert.deepEqual(receipts[0], { to: "tok-0", status: "ok", id: "r" }, "the ticket's id, for its receipt");
 });
 
-test("the access token rides as a bearer when set; a refusal or a dead wire throws with what happened", async () => {
+/** A connection that never opened: the request provably did not leave (providerFetch's `retryable`). */
+const refusedConnection = () => {
+  const e = new TypeError("fetch failed");
+  e.cause = { code: "ECONNREFUSED", message: "connect ECONNREFUSED" };
+  return e;
+};
+/** The bound ran out: the service may have taken the batch (providerFetch's `unknown`). */
+const timedOut = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+
+test("the access token rides as a bearer when set; a first batch the service provably did not take throws with what happened", async () => {
   process.env.EXPO_ACCESS_TOKEN = "expo-secret";
   try {
     const s = stub();
@@ -63,9 +72,31 @@ test("the access token rides as a bearer when set; a refusal or a dead wire thro
   } finally {
     delete process.env.EXPO_ACCESS_TOKEN;
   }
-  await assert.rejects(expoPush(stub(503).fetchImpl).send([msg(0)]), /push_rejected 503/);
-  await assert.rejects(expoPush(stub(new Error("ECONNRESET")).fetchImpl).send([msg(0)]), /ECONNRESET/);
+  // Refused, "not now", or never reached: nothing left, so the ledger may ask again (RETRY_WAITS_MS push_send).
+  await assert.rejects(expoPush(stub(400).fetchImpl).send([msg(0)]), /push_rejected 400/);
+  await assert.rejects(expoPush(stub(429).fetchImpl).send([msg(0)]), /push_rejected 429/);
+  await assert.rejects(expoPush(stub(refusedConnection()).fetchImpl).send([msg(0)]), /push_rejected .*ECONNREFUSED/);
   assert.deepEqual(await expoPush(stub().fetchImpl).send([]), [], "nothing to send is nothing sent");
+});
+
+test("a first batch that timed out, dropped or met a 5xx is never thrown: the service may have taken it, and a retry would tell the phones twice (defect 50)", async () => {
+  for (const [answer, why] of [
+    [timedOut(), "push_outcome_unknown timeout"],
+    [new Error("ECONNRESET"), "push_outcome_unknown ECONNRESET"],
+    [503, "push_outcome_unknown 503"],
+  ]) {
+    const s = stub(answer);
+    const receipts = await expoPush(s.fetchImpl).send([msg(0), msg(1)]);
+    assert.equal(s.calls.length, 1, `${why}: asked once, never again`);
+    assert.deepEqual(
+      receipts,
+      [
+        { to: "tok-0", status: "error", error: why },
+        { to: "tok-1", status: "error", error: why },
+      ],
+      `${why}: said in the receipts, which carry no ticket to read later`,
+    );
+  }
 });
 
 test("once a batch has left, a later batch's refusal or dead wire is said in its receipts, never thrown", async () => {
@@ -78,7 +109,11 @@ test("once a batch has left, a later batch's refusal or dead wire is said in its
   const receipts = await expoPush(fetchImpl).send(Array.from({ length: PUSH_BATCH + 2 }, (_, i) => msg(i)));
   assert.equal(receipts.length, PUSH_BATCH + 2);
   assert.deepEqual(receipts[0], { to: "tok-0", status: "ok", id: "r" });
-  assert.deepEqual(receipts[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected 503 busy" });
+  assert.deepEqual(receipts[PUSH_BATCH], {
+    to: `tok-${PUSH_BATCH}`,
+    status: "error",
+    error: "push_outcome_unknown 503",
+  });
   const dead = [
     (init) => reply(200, { data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) }),
     () => {
@@ -87,7 +122,21 @@ test("once a batch has left, a later batch's refusal or dead wire is said in its
   ];
   const dying = async (url, init) => dead.shift()(init);
   const r2 = await expoPush(dying).send(Array.from({ length: PUSH_BATCH + 1 }, (_, i) => msg(i)));
-  assert.deepEqual(r2[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected ECONNRESET" });
+  assert.deepEqual(r2[PUSH_BATCH], {
+    to: `tok-${PUSH_BATCH}`,
+    status: "error",
+    error: "push_outcome_unknown ECONNRESET",
+  });
+  const never = [
+    (init) => reply(200, { data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) }),
+    () => {
+      throw refusedConnection();
+    },
+  ];
+  const r3 = await expoPush(async (url, init) => never.shift()(init)).send(
+    Array.from({ length: PUSH_BATCH + 1 }, (_, i) => msg(i)),
+  );
+  assert.match(r3[PUSH_BATCH].error, /^push_rejected .*ECONNREFUSED/, "not taken, and said so, never thrown");
 });
 
 test("tokens of two apps in one batch: the service refuses the whole batch, so each app's go in a request of their own", async () => {

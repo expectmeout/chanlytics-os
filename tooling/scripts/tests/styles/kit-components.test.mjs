@@ -1,7 +1,7 @@
 /**
  * The kit's components (apps/dashboard/src/surfaces/kit/), drawn on the stub React the page tests use
- * (_legacy-react.mjs), as decision 0015 tests a surface that has left the shell, and imported through the kit's index,
- * as a surface imports them. Each is held to its family in the gallery (tooling/scripts/e2e-harness/kit-gallery.mjs):
+ * (_legacy-react.mjs), as decision 0015 tests a surface that has left the shell, each imported from its own module (the
+ * index names the kit's Base UI components too, which this suite cannot load: below). Each is held to its family in the gallery (tooling/scripts/e2e-harness/kit-gallery.mjs):
  * every kit entry of the family is drawn by the component, and what the component draws for an entry has the entry's
  * skeleton: each element's tag, its classes, the attributes a stylesheet or a screen reader reads (READ, below) and the
  * elements it holds, in order. So the gallery cannot drift from the components: a class, an attribute or an element
@@ -10,9 +10,16 @@
  * component's own test holds where it matters: the attributes its element carries and no others, the ref, the page's
  * class last, a face's picture and its fallback, a meter's shares, a row's lines.
  *
- * The Sheet's family is not held: its component comes with the kit's other components with behaviour of their own,
- * built on Base UI (the plan's decision 15 and step 2.5). A family whose component is the house's JSX today is written
- * in TSX when its first surface moves (the plan's Phase 3), and joins this file then.
+ * The kit's components with behaviour of their own (the Sheet, the Menu, the Popover, the Select, the Combobox, the
+ * Tooltip, the toast, the Switch, the Segmented control and the Field; the plan's decision 15 and step 2.5) are not held
+ * here: they are Base UI's parts, whose hooks and contexts are React's own, which this stub does not have, and the React
+ * this suite would import runs under the react-server condition, where a Base UI module cannot even load (it makes a
+ * context as it loads). So they are held against their own families in the gallery (those "on Base UI") elsewhere: in
+ * a browser, in every state a person brings them to (e2e/kit/kit-behaves.spec.ts), and in this suite as far as a server
+ * draws them, with a React of their own bundled for it (kit-behaves.test.mjs). The Sheet family of step 2.2 (the frame,
+ * beside the record sheet and the phone sheet it reproduces) is the kit's Sheet's CSS; what the component draws is its
+ * family on Base UI. A family whose component is the house's JSX today is written in TSX when its first surface moves
+ * (the plan's Phase 3), and joins this file then.
  *
  * Each check runs on fixtures too, where it must find what it looks for.
  */
@@ -20,15 +27,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FAMILIES } from "../../e2e-harness/kit-gallery.mjs";
 import { fresh, installLegacyReact } from "../_legacy-react.mjs";
-import {
-  Button,
-  Face,
-  LinkButton,
-  ListRow,
-  Meter,
-  Panel,
-  cx,
-} from "../../../../apps/dashboard/src/surfaces/kit/index.ts";
+import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
+import { Face } from "../../../../apps/dashboard/src/surfaces/kit/face/face.tsx";
+import { LinkButton } from "../../../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
+import { ListRow } from "../../../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
+import { Meter } from "../../../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
+import { Panel } from "../../../../apps/dashboard/src/surfaces/kit/panel/panel.tsx";
+import { cx } from "../../../../apps/dashboard/src/surfaces/kit/variants.ts";
 
 installLegacyReact();
 

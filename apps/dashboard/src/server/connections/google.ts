@@ -7,7 +7,6 @@
  * Google is its own: the key that signs the OAuth state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deployment } from "../deployment";
 import type { Database } from "@chanlytics/db";
 import {
   listingFactsOf,
@@ -21,6 +20,8 @@ import {
 } from "@chanlytics/contracts";
 
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
+import { deployment, env, isProduction } from "../env";
+import { log } from "../log";
 
 const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
@@ -118,6 +119,7 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
   return callEdge("/api/admin/google", body, {
     workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
+    user: typeof body.user_id === "string" ? body.user_id : null,
     timeoutMs,
   });
 }
@@ -172,10 +174,24 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
   return value;
 }
 
-/** The secret that signs the OAuth state: the key the dashboard already shares with the edge. */
+let fallbackSaid = false;
+
+/**
+ * The secret that signs the OAuth state: GOOGLE_OAUTH_STATE_SECRET. Off production, while it is unset, the key the
+ * dashboard shares with the edge stands in and says so once (`google_state_signed_by_diag_key`): a security switch
+ * with a sunset (contracts' flag registry, ai/flags.ts). Production refuses the stand-in, so the door key never signs a
+ * production state; without its own secret, Connect Google says it is not available here.
+ */
 export function stateSecret(): string | null {
-  // Its own secret once set; the shared key until then, so nothing moves before it is.
-  return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;
+  const own = env.GOOGLE_OAUTH_STATE_SECRET;
+  if (own) return own;
+  if (isProduction()) return null;
+  const key = env.DIAG_KEY ?? null;
+  if (key && !fallbackSaid) {
+    fallbackSaid = true;
+    log.warn("google_state_signed_by_diag_key", { deployment: env.VERCEL_ENV ?? "development" });
+  }
+  return key;
 }
 
 /** Where the browser lands after Google: Integrations, with the outcome in a word the card reads once. */

@@ -15,7 +15,7 @@ import "server-only";
  * from an email, and it must not depend on the app's bundle to say "you're unsubscribed".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createServiceClient, type Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
 import {
   escapeHtml,
@@ -24,18 +24,17 @@ import {
   type UnsubscribeView,
   MIN_MS,
 } from "@chanlytics/contracts";
+import { env } from "@/server/env";
 import { log } from "@/server/log";
+import { serviceDbIfConfigured } from "@/server/service-db";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
 
+/** A test's database; otherwise the dashboard's one service-role client, when this deployment holds its keys. */
 let svc: SupabaseClient<Database> | null = null;
 function serviceDb(): SupabaseClient<Database> | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  svc ??= createServiceClient({ url, serviceRoleKey: key });
-  return svc;
+  return svc ?? serviceDbIfConfigured();
 }
 
 /** For tests: the database the page reads and writes through. */
@@ -48,9 +47,9 @@ export function setServiceClient(db: SupabaseClient<Database> | null): void {
  * Null without the current one, whatever the previous says: the door is either set up or it is not.
  */
 function secrets(): string[] | null {
-  const current = process.env.UNSUBSCRIBE_SECRET?.trim();
+  const current = env.UNSUBSCRIBE_SECRET;
   if (!current) return null;
-  const previous = process.env.UNSUBSCRIBE_SECRET_PREVIOUS?.trim();
+  const previous = env.UNSUBSCRIBE_SECRET_PREVIOUS;
   return previous ? [current, previous] : [current];
 }
 
@@ -267,7 +266,11 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     p_evidence: { channel: "email", via: oneClick ? "one_click" : "page" },
   });
   if (error) {
-    log.error("unsubscribe_not_recorded", { tenant: claims.tenantId, message: claims.messageId, error: error.message });
+    log.error("unsubscribe_not_recorded", {
+      tenant_id: claims.tenantId,
+      message: claims.messageId,
+      error: error.message,
+    });
     return oneClick
       ? plainText(503, "Not recorded. Try again in a minute.")
       : page(503, { kind: "unavailable", retry: true });

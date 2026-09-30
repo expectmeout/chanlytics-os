@@ -220,7 +220,7 @@ export async function handleWabaChange(
     logger().error("waba_unroutable", { waba_id: wabaId, field: change.field });
     return "unrouted";
   }
-  const L = logger({ tenant: routed.tenantId });
+  const L = logger({ tenant_id: routed.tenantId });
   const described = describeWabaChange(change, routed.number);
   await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "channel", routed.channelId, {
     waba_id: wabaId,
@@ -230,7 +230,12 @@ export async function handleWabaChange(
   });
   // The channel row remembers the newest rating, so Settings can show it.
   if (change.field === "phone_number_quality_update" && typeof change.value.current_limit === "string") {
-    const { data: row } = await db.from("tenant_channels").select("config").eq("id", routed.channelId).maybeSingle();
+    const { data: row } = await db
+      .from("tenant_channels")
+      .select("config")
+      .eq("id", routed.channelId)
+      .eq("tenant_id", routed.tenantId)
+      .maybeSingle();
     const cfg = (row?.config && typeof row.config === "object" ? row.config : {}) as Record<string, unknown>;
     await db
       .from("tenant_channels")
@@ -242,7 +247,8 @@ export async function handleWabaChange(
           quality_at: new Date().toISOString(),
         } as unknown as Json,
       })
-      .eq("id", routed.channelId);
+      .eq("id", routed.channelId)
+      .eq("tenant_id", routed.tenantId);
   }
   // The templates table follows Meta's word: a status or category change
   // lands on the row the sync keeps, by name and language. Only the events

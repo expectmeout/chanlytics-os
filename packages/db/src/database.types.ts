@@ -157,11 +157,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ask_messages_thread_id_fkey"
-            columns: ["thread_id"]
+            foreignKeyName: "ask_messages_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
             isOneToOne: false
             referencedRelation: "ask_threads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -365,25 +365,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "broadcast_recipients_broadcast_id_fkey"
-            columns: ["broadcast_id"]
+            foreignKeyName: "broadcast_recipients_broadcast_id_same_workspace"
+            columns: ["tenant_id", "broadcast_id"]
             isOneToOne: false
             referencedRelation: "broadcasts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "broadcast_recipients_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "broadcast_recipients_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "broadcast_recipients_message_id_fkey"
-            columns: ["message_id"]
+            foreignKeyName: "broadcast_recipients_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
             isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "broadcast_recipients_tenant_id_fkey"
@@ -460,18 +460,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "broadcasts_playbook_id_fkey"
-            columns: ["playbook_id"]
+            foreignKeyName: "broadcasts_playbook_id_same_workspace"
+            columns: ["tenant_id", "playbook_id"]
             isOneToOne: false
             referencedRelation: "playbooks"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "broadcasts_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "broadcasts_template_id_same_workspace"
+            columns: ["tenant_id", "template_id"]
             isOneToOne: false
             referencedRelation: "templates"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "broadcasts_tenant_id_fkey"
@@ -694,32 +694,32 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "calls_channel_id_fkey"
-            columns: ["channel_id"]
+            foreignKeyName: "calls_channel_id_same_workspace"
+            columns: ["tenant_id", "channel_id"]
             isOneToOne: false
             referencedRelation: "tenant_channels"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "calls_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "calls_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "calls_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "calls_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "calls_message_id_fkey"
-            columns: ["message_id"]
+            foreignKeyName: "calls_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
             isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "calls_tenant_id_fkey"
@@ -795,11 +795,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "contact_identities_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "contact_identities_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "contact_identities_tenant_id_fkey"
@@ -906,11 +906,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "contacts_merged_into_contact_id_fkey"
-            columns: ["merged_into_contact_id"]
+            foreignKeyName: "contacts_merged_into_contact_id_same_workspace"
+            columns: ["tenant_id", "merged_into_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "contacts_tenant_id_fkey"
@@ -981,11 +981,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "conversations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
+            foreignKeyName: "conversations_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: true
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "conversations_tenant_id_fkey"
@@ -1071,18 +1071,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "deals_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "deals_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "deals_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "deals_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "deals_tenant_id_fkey"
@@ -1139,11 +1139,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "decisions_undo_of_fkey"
-            columns: ["undo_of"]
+            foreignKeyName: "decisions_undo_of_same_workspace"
+            columns: ["tenant_id", "undo_of"]
             isOneToOne: false
             referencedRelation: "decisions"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -1204,11 +1204,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "escalations_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "escalations_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "escalations_tenant_id_fkey"
@@ -1226,6 +1226,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1237,6 +1238,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1248,6 +1250,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1262,6 +1265,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1273,6 +1277,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1284,6 +1289,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1298,6 +1304,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1309,6 +1316,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1320,6 +1328,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1334,6 +1343,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1345,6 +1355,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1356,6 +1367,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1370,6 +1382,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1381,6 +1394,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1392,6 +1406,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1406,6 +1421,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1417,6 +1433,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1428,6 +1445,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1442,6 +1460,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1453,6 +1472,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1464,6 +1484,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1478,6 +1499,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1489,6 +1511,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1500,6 +1523,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1514,6 +1538,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1525,6 +1550,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1536,6 +1562,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1550,6 +1577,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1561,6 +1589,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1572,6 +1601,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1586,6 +1616,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1597,6 +1628,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1608,6 +1640,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1622,6 +1655,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1633,6 +1667,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1644,6 +1679,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1658,6 +1694,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1669,6 +1706,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1680,6 +1718,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1694,6 +1733,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1705,6 +1745,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1716,6 +1757,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1730,6 +1772,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1741,6 +1784,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1752,6 +1796,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1766,6 +1811,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1777,6 +1823,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1788,6 +1835,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -2106,6 +2154,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
@@ -2120,6 +2169,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -2134,6 +2184,7 @@ export type Database = {
           fired_at?: string | null
           id?: string
           kind?: string
+          lane?: number | null
           last_error?: string | null
           lease_until?: string | null
           payload?: Json
@@ -2228,18 +2279,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_judgments_round_id_fkey"
-            columns: ["round_id"]
+            foreignKeyName: "lead_judgments_round_id_same_workspace"
+            columns: ["tenant_id", "round_id"]
             isOneToOne: false
             referencedRelation: "lead_rounds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_judgments_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "lead_searches_view"
-            referencedColumns: ["round_id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_judgments_tenant_id_fkey"
@@ -2316,18 +2360,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_operations_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_operations_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "lead_operations_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_operations_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches_view"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_operations_tenant_id_fkey"
@@ -2368,11 +2412,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_places_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "lead_places_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_places_tenant_id_fkey"
@@ -2446,11 +2490,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_preferences_from_lead_id_fkey"
-            columns: ["from_lead_id"]
+            foreignKeyName: "lead_preferences_from_lead_id_same_workspace"
+            columns: ["tenant_id", "from_lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_preferences_tenant_id_fkey"
@@ -2551,18 +2595,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_rounds_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_rounds_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "lead_rounds_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_rounds_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches_view"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_rounds_tenant_id_fkey"
@@ -2648,18 +2692,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_runs_round_id_fkey"
-            columns: ["round_id"]
+            foreignKeyName: "lead_runs_round_id_same_workspace"
+            columns: ["tenant_id", "round_id"]
             isOneToOne: false
             referencedRelation: "lead_rounds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_runs_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "lead_searches_view"
-            referencedColumns: ["round_id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_runs_tenant_id_fkey"
@@ -2733,39 +2770,32 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_search_members_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "lead_search_members_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "lead_search_members_round_id_fkey"
-            columns: ["round_id"]
+            foreignKeyName: "lead_search_members_round_id_same_workspace"
+            columns: ["tenant_id", "round_id"]
             isOneToOne: false
             referencedRelation: "lead_rounds"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "lead_search_members_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "lead_searches_view"
-            referencedColumns: ["round_id"]
-          },
-          {
-            foreignKeyName: "lead_search_members_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_search_members_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "lead_search_members_search_id_fkey"
-            columns: ["search_id"]
+            foreignKeyName: "lead_search_members_search_id_same_workspace"
+            columns: ["tenant_id", "search_id"]
             isOneToOne: false
             referencedRelation: "lead_searches_view"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "lead_search_members_tenant_id_fkey"
@@ -2825,11 +2855,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_searches_thread_id_fkey"
-            columns: ["thread_id"]
+            foreignKeyName: "lead_searches_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
             isOneToOne: false
             referencedRelation: "ask_threads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -3068,11 +3098,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "leads_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "leads_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "leads_tenant_id_fkey"
@@ -3353,18 +3383,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "messages_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "messages_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "messages_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "messages_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "messages_tenant_id_fkey"
@@ -3900,11 +3930,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "person_moments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
+            foreignKeyName: "person_moments_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "person_moments_tenant_id_fkey"
@@ -3984,18 +4014,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "person_notes_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "person_notes_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "person_notes_deal_id_fkey"
-            columns: ["deal_id"]
+            foreignKeyName: "person_notes_deal_id_same_workspace"
+            columns: ["tenant_id", "deal_id"]
             isOneToOne: false
             referencedRelation: "deals"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "person_notes_tenant_id_fkey"
@@ -4020,6 +4050,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      platform_metrics: {
+        Row: {
+          answered: number
+          asks: number
+          brain_p95_ms: number | null
+          day: string
+          messages_in: Json
+          messages_out: Json
+          provider_failures: Json
+          replies_answered: number
+          replies_handed_off: number
+          replies_held: number
+          rolled_at: string
+          tenant_id: string
+          tokens: number
+        }
+        Insert: {
+          answered?: number
+          asks?: number
+          brain_p95_ms?: number | null
+          day: string
+          messages_in?: Json
+          messages_out?: Json
+          provider_failures?: Json
+          replies_answered?: number
+          replies_handed_off?: number
+          replies_held?: number
+          rolled_at?: string
+          tenant_id: string
+          tokens?: number
+        }
+        Update: {
+          answered?: number
+          asks?: number
+          brain_p95_ms?: number | null
+          day?: string
+          messages_in?: Json
+          messages_out?: Json
+          provider_failures?: Json
+          replies_answered?: number
+          replies_handed_off?: number
+          replies_held?: number
+          rolled_at?: string
+          tenant_id?: string
+          tokens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_metrics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       playbooks: {
         Row: {
@@ -4127,11 +4213,11 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "playbooks_list_id_fkey"
-            columns: ["list_id"]
+            foreignKeyName: "playbooks_list_id_same_workspace"
+            columns: ["tenant_id", "list_id"]
             isOneToOne: false
             referencedRelation: "segments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "playbooks_search_same_workspace"
@@ -4148,11 +4234,11 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "playbooks_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "playbooks_template_id_same_workspace"
+            columns: ["tenant_id", "template_id"]
             isOneToOne: false
             referencedRelation: "templates"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "playbooks_tenant_id_fkey"
@@ -4389,53 +4475,53 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reach_out_replies_answered_message_id_fkey"
-            columns: ["answered_message_id"]
+            foreignKeyName: "reach_out_replies_answered_message_id_same_workspace"
+            columns: ["tenant_id", "answered_message_id"]
             isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "reach_out_replies_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "reach_out_replies_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_lead_contact_id_fkey"
-            columns: ["lead_contact_id"]
+            foreignKeyName: "reach_out_replies_lead_contact_id_same_workspace"
+            columns: ["tenant_id", "lead_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "reach_out_replies_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: true
+            foreignKeyName: "reach_out_replies_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
+            isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_replies_send_id_fkey"
-            columns: ["send_id"]
+            foreignKeyName: "reach_out_replies_send_id_same_workspace"
+            columns: ["tenant_id", "send_id"]
             isOneToOne: false
             referencedRelation: "reach_out_sends"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "reach_out_replies_tenant_id_fkey"
@@ -4542,56 +4628,92 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reach_out_sends_broadcast_id_fkey"
-            columns: ["broadcast_id"]
+            foreignKeyName: "reach_out_sends_broadcast_id_same_workspace"
+            columns: ["tenant_id", "broadcast_id"]
             isOneToOne: false
             referencedRelation: "broadcasts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "reach_out_sends_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_domain_id_fkey"
-            columns: ["domain_id"]
+            foreignKeyName: "reach_out_sends_domain_id_same_workspace"
+            columns: ["tenant_id", "domain_id"]
             isOneToOne: false
             referencedRelation: "sending_domains"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "reach_out_sends_lead_id_same_workspace"
+            columns: ["tenant_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_message_id_fkey"
-            columns: ["message_id"]
+            foreignKeyName: "reach_out_sends_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
             isOneToOne: false
             referencedRelation: "messages"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_playbook_id_fkey"
-            columns: ["playbook_id"]
+            foreignKeyName: "reach_out_sends_playbook_id_same_workspace"
+            columns: ["tenant_id", "playbook_id"]
             isOneToOne: false
             referencedRelation: "playbooks"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "reach_out_sends_root_id_fkey"
-            columns: ["root_id"]
+            foreignKeyName: "reach_out_sends_root_id_same_workspace"
+            columns: ["tenant_id", "root_id"]
             isOneToOne: false
             referencedRelation: "playbooks"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "reach_out_sends_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reply_turns: {
+        Row: {
+          claimed_at: string
+          conversation_id: string
+          message_id: string
+          tenant_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          conversation_id: string
+          message_id: string
+          tenant_id: string
+        }
+        Update: {
+          claimed_at?: string
+          conversation_id?: string
+          message_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reply_turns_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "reply_turns_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -4623,18 +4745,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "segment_members_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "segment_members_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
-            foreignKeyName: "segment_members_segment_id_fkey"
-            columns: ["segment_id"]
+            foreignKeyName: "segment_members_segment_id_same_workspace"
+            columns: ["tenant_id", "segment_id"]
             isOneToOne: false
             referencedRelation: "segments"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "segment_members_tenant_id_fkey"
@@ -5096,11 +5218,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_searches_thread_id_fkey"
-            columns: ["thread_id"]
+            foreignKeyName: "lead_searches_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
             isOneToOne: false
             referencedRelation: "ask_threads"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -5164,6 +5286,15 @@ export type Database = {
       }
       ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
+      assemble_broadcast: {
+        Args: {
+          p_recipients: Json
+          p_run: Json
+          p_send_at?: string
+          p_tenant: string
+        }
+        Returns: string
+      }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -5206,6 +5337,7 @@ export type Database = {
           fired_at: string | null
           id: string
           kind: string
+          lane: number | null
           last_error: string | null
           lease_until: string | null
           payload: Json
@@ -5219,6 +5351,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_reply_turn: {
+        Args: { p_conversation: string; p_message: string; p_tenant: string }
+        Returns: boolean
       }
       cold_receipts_owed: {
         Args: { p_from: string; p_to: string }
@@ -5394,6 +5530,10 @@ export type Database = {
       }
       has_permission: {
         Args: { p_permission: string; p_tenant_id: string; p_user: string }
+        Returns: boolean
+      }
+      holds_reply_turn: {
+        Args: { p_conversation: string; p_message: string }
         Returns: boolean
       }
       import_person: {
@@ -6081,6 +6221,9 @@ export type Database = {
       }
       people_list: {
         Args: {
+          p_after_added?: string
+          p_after_at?: string
+          p_after_id?: string
           p_contact_id?: string
           p_limit?: number
           p_offset?: number
@@ -6088,6 +6231,7 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: {
+          added_at: string
           call_count: number
           call_seconds: number
           came_from: string
@@ -6116,6 +6260,7 @@ export type Database = {
           has_backfill: boolean
           has_chat: boolean
           id: string
+          in_touch_at: string
           last_call_at: string
           last_inbound_at: string
           last_inbound_call_at: string
@@ -6144,6 +6289,34 @@ export type Database = {
           step_due_on: string
           step_for_user_id: string
           step_id: string
+          wa_profile_name: string
+        }[]
+      }
+      people_page: {
+        Args: {
+          p_after_added: string
+          p_after_at: string
+          p_after_id: string
+          p_contact_id: string
+          p_limit: number
+          p_offset: number
+          p_query: string
+          p_tenant_id: string
+        }
+        Returns: {
+          added_at: string
+          consent: string
+          consent_source: string
+          consent_updated_at: string
+          display_name: string
+          dnc: boolean
+          email: string
+          id: string
+          in_touch_at: string
+          marketing_consent: string
+          marketing_consent_source: string
+          marketing_consent_updated_at: string
+          phone_e164: string
           wa_profile_name: string
         }[]
       }
@@ -6240,6 +6413,33 @@ export type Database = {
         Returns: Json
       }
       platform_admin_add: { Args: { p_email: string }; Returns: string }
+      platform_answer_silence: {
+        Args: { p_day?: string }
+        Returns: {
+          asks: number
+          name: string
+          tenant_id: string
+        }[]
+      }
+      platform_metrics_read: {
+        Args: { p_days?: number }
+        Returns: {
+          answered: number
+          asks: number
+          brain_p95_ms: number
+          day: string
+          messages_in: Json
+          messages_out: Json
+          name: string
+          provider_failures: Json
+          replies_answered: number
+          replies_handed_off: number
+          replies_held: number
+          tenant_id: string
+          tokens: number
+        }[]
+      }
+      platform_metrics_roll: { Args: { p_day?: string }; Returns: number }
       platform_overview: {
         Args: never
         Returns: {
@@ -6811,6 +7011,7 @@ export type Database = {
           why_it_fits: string
         }[]
       }
+      recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       release_conversation_control: {
         Args: {
           p_by: string
@@ -6829,6 +7030,7 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      request_id_of_caller: { Args: never; Returns: string }
       request_sweep: {
         Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
         Returns: number
@@ -6870,6 +7072,7 @@ export type Database = {
         Args: { p_host: string; p_since: string; p_tenant_id: string }
         Returns: Json
       }
+      session_has_partner_seat: { Args: never; Returns: boolean }
       session_shows_second_factor: { Args: never; Returns: boolean }
       set_contact_consent: {
         Args: {
@@ -7001,6 +7204,69 @@ export type Database = {
         }
         Returns: Json
       }
+      team_change_role: {
+        Args: {
+          p_actor: string
+          p_membership_id: string
+          p_role: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_decision: {
+        Args: {
+          p_actor: string
+          p_payload: Json
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_undo_of: string
+          p_verb: string
+          p_via: string
+        }
+        Returns: Json
+      }
+      team_invite: {
+        Args: {
+          p_actor: string
+          p_email: string
+          p_role: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_invite_withdraw: {
+        Args: { p_invitation_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      team_join: {
+        Args: {
+          p_actor: string
+          p_email: string
+          p_role: string
+          p_tenant_id: string
+          p_user_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_owner_or_refuse: {
+        Args: { p_actor: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      team_remove: {
+        Args: {
+          p_actor: string
+          p_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       team_roster: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -7011,6 +7277,10 @@ export type Database = {
           membership_id: string
           role: string
         }[]
+      }
+      team_take_turn: {
+        Args: { p_actor: string; p_tenant_id: string }
+        Returns: undefined
       }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }

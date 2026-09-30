@@ -45,7 +45,29 @@ export interface PagePorts {
   now?: () => number;
 }
 
+/**
+ * The pages of each key in flight in this instance, one after another. The memory is read, then the page sent, then
+ * stamped: two firings of one condition at the same moment (the ledger's slots run jobs side by side, and two replies
+ * held on one unreadable vault page together) would both read no stamp and both send. In turn, the second reads the
+ * first's stamp and is suppressed; and when the first could not send, the second tries, as the next tick would.
+ */
+const inFlight = new Map<string, Promise<PageOutcome>>();
+
 export async function pageOperator(ports: PagePorts, key: string, subject: string, body: string): Promise<PageOutcome> {
+  const before = inFlight.get(key);
+  const mine = (before ?? Promise.resolve()).then(
+    () => pageOnce(ports, key, subject, body),
+    () => pageOnce(ports, key, subject, body),
+  );
+  inFlight.set(key, mine);
+  try {
+    return await mine;
+  } finally {
+    if (inFlight.get(key) === mine) inFlight.delete(key);
+  }
+}
+
+async function pageOnce(ports: PagePorts, key: string, subject: string, body: string): Promise<PageOutcome> {
   const L = logger();
   const now = ports.now?.() ?? Date.now();
   const send = ports.send ?? post;

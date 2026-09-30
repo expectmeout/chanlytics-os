@@ -1,93 +1,3 @@
-// src/events.ts
-var WRITES = {
-  "billing.paused": { category: "billing", version: 1 },
-  "billing.resumed": { category: "billing", version: 1 },
-  "billing.updated": { category: "billing", version: 1 },
-  "broadcast.sent": { category: "message", version: 1 },
-  "business.recorded": { category: "setup", version: 1 },
-  "channel.connected": { category: "system", version: 1 },
-  "contact.added": { category: "contact", version: 1 },
-  "contact.consent_changed": { category: "contact", version: 1 },
-  "contact.email_suppressed": { category: "contact", version: 1 },
-  "google.connected": { category: "google", version: 1 },
-  "google.disconnected": { category: "google", version: 1 },
-  "google.linked": { category: "google", version: 1 },
-  "google.replied": { category: "google", version: 1 },
-  "google.reply_held": { category: "google", version: 1 },
-  "google.reviews": { category: "google", version: 1 },
-  "google.unlinked": { category: "google", version: 1 },
-  "ingest.allowlist_skip": { category: "ingest", version: 1 },
-  "ingest.unreachable_sender": { category: "ingest", version: 1 },
-  "ingest.unroutable": { category: "ingest", version: 1 },
-  "lead.emailed": { category: "lead", version: 1 },
-  "line.answering": { category: "setup", version: 1 },
-  "line.failed": { category: "setup", version: 1 },
-  "line.forwarding_verified": { category: "setup", version: 1 },
-  "line.released": { category: "setup", version: 1 },
-  "line.texting_approved": { category: "setup", version: 1 },
-  "line.texting_on": { category: "setup", version: 1 },
-  "line.texting_rejected": { category: "setup", version: 1 },
-  "message.send_blocked": { category: "message", version: 1 },
-  "message.send_failed": { category: "message", version: 1 },
-  "message.send_raced_cancel": { category: "message", version: 1 },
-  "message.sent": { category: "message", version: 1 },
-  "platform.acted": { category: "platform", version: 1 },
-  "playbook.run": { category: "message", version: 1 },
-  "policy.changed": { category: "system", version: 1 },
-  "policy.veto_window_skipped": { category: "policy", version: 1 },
-  "sending_domain.added": { category: "setup", version: 1 },
-  "sending_domain.held": { category: "setup", version: 1 },
-  "sending_domain.released": { category: "setup", version: 1 },
-  "sending_domain.removed": { category: "setup", version: 1 },
-  "sending_domain.resumed": { category: "setup", version: 1 },
-  "sending_domain.verified": { category: "setup", version: 1 },
-  "settings.changed": { category: "system", version: 1 },
-  "usage.ask_tokens": { category: "usage", version: 1 },
-  "usage.llm_tokens": { category: "usage", version: 1 },
-  "voice.provisioned": { category: "setup", version: 1 },
-  "webhook.auth": { category: "ingest", version: 1 },
-  "webhook.delivery": { category: "ingest", version: 1 },
-  "workspace.activated": { category: "setup", version: 1 }
-};
-var WABA_WRITE = { category: "system", version: 1 };
-function rowOf(tenantId, kind, subjectType, subjectId, data) {
-  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
-  return {
-    tenant_id: tenantId,
-    kind,
-    category: write.category,
-    version: write.version,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data
-  };
-}
-async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
-  return { error: error?.message ?? null };
-}
-async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
-  if (error) console.error("emit_event_failed", kind, error);
-}
-async function subjectsWith(db, tenantId, kind, subjectIds) {
-  if (!subjectIds.length) return /* @__PURE__ */ new Set();
-  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
-  if (error) throw new Error(`events: ${error.message}`);
-  return new Set((data ?? []).map((r2) => r2.subject_id).filter((id) => typeof id === "string"));
-}
-async function recordActivation(db, tenantId, milestone, via) {
-  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
-  if (error) {
-    console.error("activation_read_failed", milestone, error.message);
-    return false;
-  }
-  if (data && data.length) return false;
-  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
-  if (w.error) console.error("emit_event_failed", "workspace.activated", w.error);
-  return !w.error;
-}
-
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -114,6 +24,8 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 import { z as z25 } from "zod";
+import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -203,6 +115,123 @@ function promptSafeName(name) {
   if (!flat) return null;
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
 }
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var SWEEP_TICK_MS = 5 * MIN_MS;
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -218,12 +247,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -241,7 +270,7 @@ var POLICY_CLASS_WORDS = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var POLICY_COVERS = {
@@ -279,11 +308,6 @@ var PolicyLimitsSchema = z3.object({
 }).strict();
 var ASKED_TO_STOP = "asked to stop receiving messages";
 var OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -619,7 +643,6 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
 });
 var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
 var LEAD_MAX_PLACES = 1e3;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -1337,111 +1360,6 @@ var ASK_MODEL_PROFILES = {
   [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" }
 };
 var ASK_MODEL = MODEL_ROUTES.ask.model;
-var SWEEP_TICK_MS = 5 * MIN_MS;
-var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  {
-    id: "new_week",
-    label: "Welcome",
-    list: "new_week",
-    cls: "campaign",
-    kind: "list",
-    hint: "First contact in the last 7 days"
-  },
-  {
-    id: "phoned_only",
-    label: "Save our number",
-    list: "phoned_only",
-    cls: "reengage",
-    kind: "list",
-    hint: "Only ever phoned, never texted"
-  },
-  {
-    id: "everyone_monthly",
-    label: "The month's offer",
-    list: null,
-    cls: "campaign",
-    kind: "cadence",
-    hint: "Everyone who said yes, on a cadence"
-  },
-  {
-    id: "visit_tomorrow",
-    label: "Visit reminder",
-    list: null,
-    cls: "booking",
-    kind: "visit",
-    hint: "The day before an appointment on the calendar"
-  },
-  {
-    id: "visited",
-    label: "After the visit",
-    list: null,
-    cls: "reengage",
-    kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
-  },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    list: "lapsed",
-    cls: "reengage",
-    kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
-  },
-  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
-  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
-  {
-    id: "saved_list",
-    label: "On a list",
-    list: null,
-    cls: "campaign",
-    kind: "saved",
-    hint: "Everyone on a list: one of People's, or one you keep"
-  },
-  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
-  {
-    id: "proposal_waiting",
-    label: "Proposal follow-up",
-    list: null,
-    cls: "follow_up",
-    kind: "deal",
-    hint: "A proposal waiting with nothing back"
-  },
-  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
-  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
-  {
-    id: "lead_first",
-    label: "Businesses a search found",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "The first email of a reach-out"
-  },
-  {
-    id: "after_step",
-    label: "After the step before",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "A nudge, days after the step before"
-  }
-];
-var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
-  (t) => t.kind !== "reach_out"
-);
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var LEAD_LIST_MAX = 500;
 var LEAD_IMPORT_MAX_BYTES = 2e6;
 var nullableText = (max) => z13.string().trim().max(max).nullable().optional();
@@ -2335,6 +2253,7 @@ var BROADCAST_THROTTLE_WAITS_MS = [
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -2576,7 +2495,12 @@ var DECISION_VERBS = [
   "restore_list",
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
+  "import",
+  /**
+   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording"
 ];
 var BRAIN_INTENTS = [
   "booking",
@@ -2701,6 +2625,50 @@ var RECORDING_NOTE = {
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
 };
+var ANY = CONVERSATION_STATES;
+var CONVERSATION_MOVES = {
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  take_over: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user" }
+  },
+  /** A person's reply claims the thread as a take-over does, and touches it. */
+  reply_claim: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
+  },
+  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
+  /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
+  snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
+  /** A person ends a snooze early. */
+  wake: { from: ["snoozed"], to: "open", sets: { snooze_until: null } },
+  /** Closed, never deleted: released completely. A later message reopens it. */
+  archive: { from: ANY, to: "archived", sets: { paused_until: null, assignee_user_id: null } },
+  /** The receptionist hands the thread to a person (an escalation, a message it cannot read, a call's callback). */
+  hand_off: { from: ANY, to: "needs_human", sets: { paused_until: "until" } },
+  /** The owner answered from the WhatsApp Business app: the receptionist paused under them, the thread touched. */
+  owner_echo: { from: ANY, to: "needs_human", sets: { paused_until: "until", last_message_at: "now" } },
+  /** ingest_inbound: a customer's message reopens a closed or snoozed thread, never one a person has. */
+  reopen: { from: ["archived", "snoozed"], to: "open", sets: { snooze_until: null } },
+  /** expire_stale_pauses: a pause ran out with no escalation still open. */
+  pause_expired: { from: ["needs_human"], to: "open", sets: { paused_until: null, assignee_user_id: null } },
+  /** wake_stale_snoozes: a snooze ran out. */
+  snooze_expired: { from: ["snoozed"], to: "open", sets: { snooze_until: null } }
+};
+function conversationPatch(move, ...input) {
+  const m = CONVERSATION_MOVES[move];
+  const given = input[0] ?? {};
+  const patch = { state: m.to };
+  for (const [column, from] of Object.entries(m.sets)) {
+    const value = from === null ? null : given[from];
+    if (value === void 0) throw new Error(`${move} needs ${from} for ${column}`);
+    patch[column] = value;
+  }
+  return patch;
+}
 function pickCurrentDeal(rows) {
   const sorted = [...rows].sort(
     (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
@@ -2936,6 +2904,31 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+var REACH_OUT_SHEET_WORDS = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
+  slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
+};
 var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -3033,6 +3026,28 @@ var PageVitalsInput = z20.object({
   page: z20.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
   vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+var ClientErrorInput = z21.object({
+  boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z21.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z21.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+});
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -3040,10 +3055,10 @@ var SEARCH_WARN_MS = 12 * HOUR_MS;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z21.string().trim().max(80);
-var SignupSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z21.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z22.string().trim().max(80);
+var SignupSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z22.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -3057,17 +3072,17 @@ var SignupSchema = z21.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z21.string().max(200).optional(),
+  password: z22.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z21.string().trim().min(1).max(64).optional(),
+  timezone: z22.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z21.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
@@ -3080,6 +3095,41 @@ function isTimezone(raw) {
   }
 }
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var SHARED_EVENT_VERSIONS = {
+  "contact.added": 1,
+  "contact.consent_changed": 1,
+  "platform.acted": 1
+};
+var wireText = z23.string();
+var ContactAddedData = z23.looseObject({
+  source: wireText,
+  title: wireText.nullish(),
+  uid: wireText.nullish(),
+  start: wireText.nullish(),
+  by: wireText.nullish(),
+  lead_id: wireText.nullish()
+});
+var ContactConsentChangedData = z23.looseObject({
+  consent: wireText,
+  source: wireText,
+  purpose: wireText.optional(),
+  previous: wireText.nullish(),
+  by: wireText.nullish(),
+  note: wireText.nullish(),
+  channel: wireText.nullish(),
+  message_external_id: wireText.nullish(),
+  message_id: wireText.nullish(),
+  words: wireText.nullish()
+});
+var PlatformActedData = z23.looseObject({
+  action: wireText,
+  by: wireText,
+  by_email: wireText.nullish(),
+  partner_id: wireText.nullish(),
+  standing: wireText.nullish(),
+  status: wireText.nullish(),
+  from: wireText.nullish()
+});
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -3106,11 +3156,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z22.object({
-  code: z22.string().trim().min(1).max(64),
-  terms: z22.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z22.object({ letters: z22.boolean() }).strict();
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -3149,43 +3199,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z22.coerce.number();
-var letterSum = z22.object({ currency: z22.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z22.object({
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z22.array(z22.object({ kind: z22.string(), currency: z22.string(), count: z22.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z22.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z22.array(letterSum).default([]),
-  paid: z22.array(z22.object({ currency: z22.string(), cents: letterCents, reference: z22.string(), sent_at: z22.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z22.array(z22.object({ workspace: z22.string().nullable(), standing: z22.string(), why: z22.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z22.array(z22.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z22.array(z22.string().nullable()).default([]),
-  declined: z22.array(z22.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z22.object({ status: z22.string(), why: z22.string().nullable() }).nullable().default(null),
-  balance: z22.array(
-    z22.object({
-      currency: z22.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z22.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z23.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z23.object({
-  name: z23.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z23.string().trim().max(64).nullish(),
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z23.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -3214,13 +3264,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z24.object({
-  partner_id: z24.string().uuid("That partner does not exist."),
-  why: z24.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 var PARTNER_INVITE_DAYS = 14;
-var PartnerInviteSchema = z25.object({
-  code: z25.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -3244,6 +3294,141 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/observe.ts
+var DB_REQUEST_HEADER = "x-chanlytics-request-id";
+var OBSERVER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.db.observer");
+var observerHolder = globalThis;
+function fallbackLine(level, event, fields = {}) {
+  const text2 = JSON.stringify({ level, event, ...fields });
+  if (level === "error") console.error(text2);
+  else if (level === "warn") console.warn(text2);
+  else console.log(text2);
+}
+var FALLBACK = {
+  log: {
+    info: (event, fields) => fallbackLine("info", event, fields),
+    warn: (event, fields) => fallbackLine("warn", event, fields),
+    error: (event, fields) => fallbackLine("error", event, fields)
+  },
+  requestId: () => null
+};
+function observeDb(observer) {
+  observerHolder[OBSERVER_SLOT] = observer;
+}
+function dbLog() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
+}
+function dbRequestId() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
+}
+function namedFetch(base) {
+  return (input, init) => {
+    const send = base ?? globalThis.fetch;
+    const id = dbRequestId();
+    if (!id) return send(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set(DB_REQUEST_HEADER, id);
+    return send(input, { ...init, headers });
+  };
+}
+
+// src/events.ts
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
+  "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  const requestId = dbRequestId();
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data,
+    ...requestId ? { request_id: requestId } : {}
+  };
+}
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
+}
+async function subjectsWith(db, tenantId, kind, subjectIds) {
+  if (!subjectIds.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
+  if (error) throw new Error(`events: ${error.message}`);
+  return new Set((data ?? []).map((r2) => r2.subject_id).filter((id) => typeof id === "string"));
+}
+async function recordActivation(db, tenantId, milestone, via) {
+  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
+  if (error) {
+    dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
+    return false;
+  }
+  if (data && data.length) return false;
+  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
+  if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
+  return !w.error;
+}
 
 // src/ai-usage.ts
 async function recordModelUsage(db, rows) {
@@ -3295,12 +3480,101 @@ async function usageMonth(db, tenantId, month) {
   }));
 }
 
+// src/ops.ts
+async function migrationHead(db) {
+  const { data, error } = await db.rpc("migration_head");
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return { head: row?.head ?? null, applied: row?.applied ?? 0 };
+}
+
 // src/service-client.ts
 import { createClient } from "@supabase/supabase-js";
+var SERVICE_FETCH_TIMEOUT_MS = 4e4;
+function boundedFetch(ms, base) {
+  return async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes("/rest/v1/")) return base(input, init);
+    const bound = AbortSignal.timeout(ms);
+    try {
+      return await base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, bound]) : bound });
+    } catch (e) {
+      if (!bound.aborted || init?.signal?.aborted) throw e;
+      const said = new Error(`the database did not answer within ${ms} ms (timeout)`, { cause: e });
+      said.name = "AbortError";
+      throw said;
+    }
+  };
+}
 function createServiceClient(cfg) {
   return createClient(cfg.url, cfg.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: boundedFetch(cfg.fetchTimeoutMs ?? SERVICE_FETCH_TIMEOUT_MS, namedFetch(cfg.fetch)) }
   });
+}
+
+// src/tenant-db.ts
+function builderOf(db, table) {
+  return db.from(table);
+}
+var FILTERED = ["select", "update", "delete"];
+var STAMPED = ["insert", "upsert"];
+function stamped(row, tenantId) {
+  if (typeof row !== "object" || row === null) return row;
+  const named = Reflect.get(row, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
+  return { ...row, tenant_id: tenantId };
+}
+function unmoved(patch, tenantId) {
+  if (typeof patch !== "object" || patch === null) return;
+  const named = Reflect.get(patch, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
+}
+function conflictsOnWorkspace(options) {
+  const on = typeof options === "object" && options !== null ? Reflect.get(options, "onConflict") : void 0;
+  const columns = typeof on === "string" ? on.split(",").map((c) => c.trim()) : [];
+  if (!columns.includes("tenant_id")) throw new Error("tenantDb: an upsert must conflict on tenant_id as well");
+}
+function scoped(builder, tenantId) {
+  for (const verb of FILTERED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (...args) => {
+        if (verb === "update") unmoved(args[0], tenantId);
+        const statement = Reflect.apply(build, builder, args);
+        const eq = statement && Reflect.get(statement, "eq");
+        if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
+        const filtered = Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        return filtered;
+      }
+    });
+  }
+  for (const verb of STAMPED) {
+    const build = Reflect.get(builder, verb);
+    if (typeof build !== "function") continue;
+    Object.defineProperty(builder, verb, {
+      value: (rows, ...rest) => {
+        if (verb === "upsert") conflictsOnWorkspace(rest[0]);
+        const statement = Reflect.apply(build, builder, [
+          Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
+          ...rest
+        ]);
+        return statement;
+      }
+    });
+  }
+  return builder;
+}
+function tenantDb(db, tenantId) {
+  if (!tenantId) throw new Error("tenantDb: a workspace is required");
+  return {
+    tenantId,
+    from: (table) => scoped(builderOf(db, table), tenantId)
+  };
+}
+function platformWide(db) {
+  return db;
 }
 
 // src/repositories/ingest.ts
@@ -3339,15 +3613,11 @@ async function ingestInbound(db, p) {
     if (mErr && /p_evidence/.test(mErr.message))
       ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          event: "marketing_consent_write_failed",
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          error: mErr.message
-        })
-      );
+      dbLog().error("marketing_consent_write_failed", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        error: mErr.message
+      });
     }
   }
   return out;
@@ -3446,7 +3716,7 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   if (errorDetail) patch.error = errorDetail;
   const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   if (error && !/monotone|terminal/.test(error.message)) {
-    console.error("record_status_failed", externalId, error.message);
+    dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
   }
 }
 async function recordEchoAndPause(db, p) {
@@ -3455,12 +3725,15 @@ async function recordEchoAndPause(db, p) {
   try {
     contact = await getOrCreateContact(db, p.tenantId, phone);
   } catch (e) {
-    console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
+    dbLog().error("record_echo_contact_failed", {
+      tenant_id: p.tenantId,
+      error: e instanceof Error ? e.message : String(e)
+    });
     return;
   }
   const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
-    console.error("record_echo_conv_failed", verr?.message);
+    dbLog().error("record_echo_conv_failed", { tenant_id: p.tenantId, error: verr?.message ?? "no row" });
     return;
   }
   const { error } = await db.from("messages").insert({
@@ -3476,26 +3749,51 @@ async function recordEchoAndPause(db, p) {
     status: "sent",
     meta: { echo: true }
   });
-  if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error && error.code !== "23505")
+    dbLog().error("record_echo_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: error.message });
   if (error?.code === "23505" && p.externalId) return;
-  const { error: perr } = await db.from("conversations").update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", conv.id).eq("tenant_id", p.tenantId);
-  if (perr) console.error("record_echo_pause_failed", perr.message);
+  const { error: perr } = await db.from("conversations").update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: (/* @__PURE__ */ new Date()).toISOString() })).eq("id", conv.id).eq("tenant_id", p.tenantId);
+  if (perr)
+    dbLog().error("record_echo_pause_failed", { tenant_id: p.tenantId, conversation_id: conv.id, error: perr.message });
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
-  const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
+  const { data, error } = await db.from("conversations").update(conversationPatch("hand_off", { until: pausedUntilIso })).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
   if (error) {
-    console.error("pause_conversation_failed", conversationId, error.message);
+    dbLog().error("pause_conversation_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: error.message
+    });
     return false;
   }
   if (!data || data.length === 0) {
-    console.error("pause_conversation_noop", conversationId);
+    dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }
   let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
   if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
   const { error: wErr } = await withdraw;
-  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
+  if (wErr)
+    dbLog().error("pause_withdraw_drafts_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      error: wErr.message
+    });
   return true;
+}
+async function claimReplyTurn(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.rpc("claim_reply_turn", {
+    p_tenant: tenantId,
+    p_conversation: conversationId,
+    p_message: messageId
+  });
+  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  return data !== false;
+}
+async function holdsReplyTurn(db, conversationId, messageId) {
+  const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  return data !== false;
 }
 
 // src/repositories/email.ts
@@ -3536,8 +3834,7 @@ async function ingestInboundEmail(db, p) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error)
-      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
   }
   return out;
 }
@@ -3548,7 +3845,7 @@ async function sentEmailWithMessageId(db, tenantId, rfcMessageId) {
 }
 async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
-  if (error) console.error("mailbox_stamp_failed", error.message);
+  if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
 }
 async function mailboxOfTenant(db, tenantId) {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
@@ -3612,9 +3909,6 @@ async function stampEmailLeftAs(db, p) {
   });
   if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
   return data === true;
-}
-async function sentEmailRequestOf(db, p) {
-  return (await sentEmailOf(db, p))?.request ?? null;
 }
 async function sentEmailOf(db, p) {
   const { data, error } = await db.from("messages").select("meta").eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound").maybeSingle();
@@ -3804,24 +4098,30 @@ async function namesOfPeople(db, tenantId, ids) {
   }
   return out;
 }
+function peopleCursorOf(row) {
+  return row?.in_touch_at && row.added_at ? { at: row.in_touch_at, added: row.added_at, id: row.id } : null;
+}
 async function peoplePage(db, tenantId, page = {}) {
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
+  const after = page.after ?? null;
   const { data, error } = await db.rpc("people_list", {
     p_tenant_id: tenantId,
     ...page.q ? { p_query: page.q } : {},
     ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {},
+    ...after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}
   });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data ?? [];
 }
 async function everyoneIn(db, tenantId) {
   const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
+  for (let after = null; ; ) {
+    const page = await peoplePage(db, tenantId, after ? { after } : { offset: all.length });
     all.push(...page);
     if (page.length < PEOPLE_PAGE) return all;
+    after = peopleCursorOf(page[page.length - 1]);
   }
 }
 async function erasureDigests(db, tenantId, values) {
@@ -4585,7 +4885,7 @@ async function resolveChannelDetailed(db, kind, externalId) {
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db.from("tenant_channels").select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (error) {
-    console.error("resolve_channel_failed", error.message);
+    dbLog().error("resolve_channel_failed", { kind, error: error.message });
     if (hit?.v) return { channel: hit.v, lookupFailed: false };
     return { channel: null, lookupFailed: true };
   }
@@ -4643,9 +4943,9 @@ async function ingestCall(db, tenantId, n, raw) {
 }
 async function linkCallMessage(db, tenantId, callId, messageId) {
   const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("link_call_message_failed", error.message);
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
 }
 async function callersOf(db, tenantId, ids) {
   const out = [];
@@ -4658,9 +4958,9 @@ async function callersOf(db, tenantId, ids) {
 }
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
-  if (error) console.error("set_call_recording_failed", error.message);
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 async function recordCallNote(db, p) {
   const { data, error } = await db.from("messages").insert({
@@ -4681,7 +4981,7 @@ async function recordCallNote(db, p) {
       const { data: prior } = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.externalId).maybeSingle();
       return prior?.id ?? null;
     }
-    console.error("record_call_note_failed", error.message);
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
     return null;
   }
   return data.id;
@@ -4700,6 +5000,11 @@ async function callerNameOf(db, tenantId, contactId) {
   const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
   if (error) throw new Error(`caller_name: ${error.message}`);
   return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}
+async function isWorkspaceCall(db, tenantId, retellCallId) {
+  const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+  if (error) return null;
+  return data !== null;
 }
 
 // src/repositories/thread.ts
@@ -4934,6 +5239,28 @@ async function keepIdempotencyReceipt(db, p) {
   return (kept.data ?? []).length > 0;
 }
 
+// src/jobs.ts
+async function readJobToRequeue(db, tenantId, jobId) {
+  const { data, error } = await db.from("jobs").select("id, kind, state, payload, created_at").eq("id", jobId).eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`read_job: ${error.message}`);
+  return data;
+}
+async function hasNewerCopy(db, tenantId, job) {
+  const { data, error } = await db.from("jobs").select("id").eq("tenant_id", tenantId).eq("kind", job.kind).filter("payload", "eq", JSON.stringify(job.payload)).neq("state", "failed").gt("created_at", job.created_at).limit(1);
+  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function assembleBroadcast(db, args) {
+  const { data, error } = await db.rpc("assemble_broadcast", {
+    p_tenant: args.tenantId,
+    p_run: args.run,
+    p_recipients: args.recipients,
+    ...args.sendAt ? { p_send_at: args.sendAt.toISOString() } : {}
+  });
+  if (error || !data) throw new Error(error?.message ?? "broadcast not created");
+  return data;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -5026,7 +5353,7 @@ async function workspaceAnswersOnItsOwn(db, tenantId) {
 // src/paged.ts
 var MAX_ROWS = 1e3;
 var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
   const out = [];
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
@@ -5039,7 +5366,7 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
   onCapped(what, cap);
   return out;
 }
-async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => dbLog().error("paged_read_capped", { what: w, cap: c })) {
   const out = [];
   let after = null;
   while (out.length < cap) {
@@ -5277,6 +5604,14 @@ async function getOwnPartner(db) {
     throw new Error(`getOwnPartner: ${error.message}`);
   }
   return data;
+}
+async function sessionHoldsPartnerSeat(db) {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 async function getPartnerBroughtCount(db, partnerId) {
   const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
@@ -5750,6 +6085,7 @@ async function dueCalendars(db, p) {
 }
 export {
   CALL_CONTROL_S,
+  DB_REQUEST_HEADER,
   DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
   IDS_PER_READ,
@@ -5765,6 +6101,7 @@ export {
   applyDomainCheck,
   applyReplyReading,
   archiveList,
+  assembleBroadcast,
   assembleHistory,
   becomePartner,
   callerNameOf,
@@ -5774,6 +6111,7 @@ export {
   claimControl,
   claimIdempotencyKey,
   claimReplyTell,
+  claimReplyTurn,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -5820,13 +6158,16 @@ export {
   getTenantConfig,
   getWorkspacePartner,
   handRun,
+  hasNewerCopy,
   heldNoticeDue,
   heldStale,
+  holdsReplyTurn,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
   invitePartner,
+  isWorkspaceCall,
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
@@ -5846,17 +6187,22 @@ export {
   markReplyDraft,
   markReplyTold,
   messageSenders,
+  migrationHead,
   monthSent,
   moveSend,
+  namedFetch,
   namesOfPeople,
   notesForReceptionist,
+  observeDb,
   outreachFactsOf,
   outreachModeOf,
   parentEmailOf,
   pauseConversation,
+  peopleCursorOf,
   peoplePage,
   personReplyMode,
   platformHoldStands,
+  platformWide,
   playbooksOnList,
   purgeAiUsage,
   putTenantConfig,
@@ -5874,6 +6220,7 @@ export {
   readAllRows,
   readAllRowsByKey,
   readDealForPhone,
+  readJobToRequeue,
   readLeadContext,
   readLeadOne,
   readThreadState,
@@ -5919,8 +6266,8 @@ export {
   sendingDomainOf,
   sendingDomainsOf,
   sentEmailOf,
-  sentEmailRequestOf,
   sentEmailWithMessageId,
+  sessionHoldsPartnerSeat,
   setCallRecording,
   setListRule,
   setPartnerLetters,
@@ -5943,6 +6290,7 @@ export {
   takeIdempotencyKey,
   takeReplyRead,
   templatesFor,
+  tenantDb,
   tenantZoneOf,
   touchIndex,
   touchSendingDomain,

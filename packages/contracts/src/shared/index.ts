@@ -81,6 +81,7 @@ export {
   HOUR_MS,
   DAY_MS,
   WEEK_MS,
+  jittered,
   spanUnits,
   spanLabel,
   waitedLabel,

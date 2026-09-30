@@ -51,8 +51,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 
 - **A set of names is declared once and tested both ways**: everything used is declared, everything declared is used.
   The activity log's kinds are `EVENT_KINDS` (`repo/event-kinds.test.mjs`) and the edge's log names `LOG_EVENTS`
-  (`repo/log-events.test.mjs`); the dashboard's `console` names are in no set yet, and a test that declares them is
-  owed. Event kinds are `domain.verb`; job kinds, log events and notification kinds are snake_case, the domain first
+  (`repo/log-events.test.mjs`); the dashboard's server names are `DASHBOARD_LOG_EVENTS`
+  (`apps/dashboard/src/server/log.ts`), held by the same test, and a line names its workspace `tenant_id`, never
+  `tenant`. Event kinds are `domain.verb`; job kinds, log events and notification kinds are snake_case, the domain first
   (`lead_round_start`). A log or event name never changes once it ships: alerting greps for it, so the four `a2p.*`
   log events keep theirs.
 - **An error code is a code.** It is snake_case and names the failure (`not_found`, `rate_limited`,
@@ -72,7 +73,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 A new table is plural snake_case; a foreign key is named for its table; a new function is
 `<domain>_<verb>[_<object>]` (`lead_set_stage`, `reach_out_claim`); a trigger's function is named for its table and
 what it does (`messages_guard`); every name is under 63 bytes, where Postgres truncates. An applied name is never
-renamed, so today's exceptions stay: singular tables (`tenant_config`, `waitlist`, `lead_platform`, `sweep_status`),
+renamed, so today's exceptions stay: singular tables (`tenant_config`, `waitlist`, `lead_platform`, `sweep_status`, and
+`erasure_keying`, added by 00263 the day after this rule was written: one row that says whether the erased digests
+have been re-keyed, applied in production, and a table is never renamed),
 functions that start with their verb (`create_person`, `set_contact_consent`, the `trigger_*_sweep` clocks), and
 `playbooks.list_id`, which references `segments`. `database/names.db.test.mjs` (owed) reads the catalog and holds
 today's exceptions by name; `database/migrations.test.mjs` holds the file names.

@@ -32,7 +32,7 @@
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import crypto from "node:crypto";
-import { phoneTail } from "../lib/packages/contracts.js";
+import { phoneTail, pauseMsOf } from "../lib/packages/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/whatsapp/waba-events.js";
 import { json, refuse, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
@@ -43,21 +43,20 @@ import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { handleInbound } from "../lib/whatsapp/inbound.js";
 import { pgSafe, IngestFailed } from "../lib/whatsapp/persist.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
-import { PAUSE_MS } from "../lib/packages/core.js";
 import { env } from "../lib/env.js";
-import { logger, errField } from "../lib/log.js";
+import { logger, errField, door } from "../lib/log.js";
 
 const L = logger();
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = door(async function GET(request: Request): Promise<Response> {
   const q = new URL(request.url).searchParams;
   if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === env.WHATSAPP_VERIFY_TOKEN) {
     return text(200, q.get("hub.challenge") || "");
   }
   return text(403, "verification failed");
-}
+});
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
 
   // fail-closed: a missing secret is a config error, never a verification skip
@@ -202,8 +201,7 @@ export async function POST(request: Request): Promise<Response> {
             // paused for a hard-coded day whatever the owner had chosen. One
             // read per echo batch, never per echo.
             const echoRt = db && routedChannel ? await loadTenantRuntime(db, routedChannel) : null;
-            const echoLimits = echoRt?.policy["reply"]?.limits ?? {};
-            const echoPauseMs = echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
+            const echoPauseMs = pauseMsOf(echoRt?.policy["reply"]?.limits);
             for (const echo of v.message_echoes || []) {
               const to = echo.to;
               if (to) {
@@ -242,4 +240,4 @@ export async function POST(request: Request): Promise<Response> {
   // ingest's is_new gate makes the redelivery of the others a no-op.
   if (unrecorded > 0) return json(503, { ok: false, unrecorded });
   return json(200, { ok: true });
-}
+});

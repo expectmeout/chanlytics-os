@@ -20,7 +20,7 @@ export const POST = write({
     const id = requireUuid(ctx.params.id, "workspace");
     const r = await resendHandover(ctx.supabase, id, input.email);
     if (!r.ok) throw handoverRefusal(r);
-    const sent = await sendHandoverInvite(id, r.value.email);
+    const sent = await sendHandoverInvite(id, r.value.email, ctx.userId);
     return { email: r.value.email, expiresAt: r.value.expiresAt, sent };
   },
 });

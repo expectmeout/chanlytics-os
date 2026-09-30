@@ -8,6 +8,10 @@
  * model makes run through the registry over the database in memory, from a table (the refusal in the model's words and
  * nothing read, or the card); then each card walked end to end -- built, approved through the palette's commit walk and
  * undone -- against the real routes it names, run over the same world with doors modelled on the migrations.
+ *
+ * And where a person stands (defect 16): one rule, the People row's (contracts personStateFor), which people.search and
+ * people.get each say for the member asking, over a table of made-up people in each of the seven states and on a
+ * thread a teammate holds.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -15,17 +19,21 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   PEOPLE_LISTS,
+  PERSON_STATE_LABELS,
   asListRule,
   dealPaceOf,
   dealsAreOn,
   listRuleParts,
   listUnknownWords,
+  personStateFor,
   pipelineOf,
   poolRowOf,
   ruleNeeds,
+  toPersonRowVM,
   unmetNeed,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { ROW_NOW, ROW_TZ, daysAgo, personDto } from "../consent/_person-row.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1077,4 +1085,141 @@ test("REGRESSION: a details card with a name and an address another person here 
     [[`PUT /api/v1/contacts/${ROSA}/details`, { name: "Rosa Díaz", email: "quinn@example.com" }]],
   );
   assert.ok(!tab.events.includes("surface:clients"), "nothing landed, nothing said");
+});
+
+/* ------------------------------------------------- where a person stands, one rule (defect 16) */
+
+/** The member asking, and a teammate. */
+const ME = USER;
+const TEAMMATE = "u2";
+const STATE_NOW = new Date(ROW_NOW);
+const PAUSED_TO = new Date(ROW_NOW + 6 * HOUR).toISOString();
+
+/** A thread flagged for a person, the receptionist paused on it, and who has it. */
+const flagged = (assignee) => ({
+  needs_human: true,
+  latest_state: "needs_human",
+  latest_paused_until: PAUSED_TO,
+  latest_assignee_user_id: assignee,
+});
+
+/** Made-up people, one per state and one on a teammate's thread, and the state the People row gives each. */
+const STANDING = [
+  ["asked for a person, nobody has it", "Needs you", { ...flagged(null), open_escalation_reason: "asked_for_human" }],
+  ["held by the member asking, and they wrote last", "Waiting on you", flagged(ME)],
+  ["held by a teammate", "Active", flagged(TEAMMATE)],
+  ["new this week", "New", { first_contact_at: daysAgo(2), earliest_row_at: daysAgo(2), last_inbound_at: daysAgo(2) }],
+  ["quiet for forty days", "Quiet", { last_inbound_at: daysAgo(40), last_message_at: daysAgo(40) }],
+  ["opted out", "Opted out", { consent: "opted_out" }],
+  [
+    "never heard from",
+    "Not heard from",
+    { last_inbound_at: null, last_message_direction: "outbound", last_message_sender: "human" },
+  ],
+  ["active", "Active", {}],
+].map(([who, label, over], i) => {
+  const n = String(i + 1).padStart(2, "0");
+  return {
+    who,
+    label,
+    row: personDto({
+      id: `abababab-abab-4aba-8aba-0000000000${n}`,
+      display_name: `Person ${n}`,
+      phone_e164: `+1305555010${i}`,
+      latest_conversation_id: `cccccccc-cccc-4ccc-8ccc-0000000000${n}`,
+      ...over,
+    }),
+  };
+});
+
+/** The workspace: its config, the people as contacts, and each person's one thread as their row says it. */
+function stateWorld() {
+  const t = {
+    memberships: [
+      { user_id: ME, tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+    ],
+    tenants: [{ id: A, name: "Harbor", timezone: ROW_TZ }],
+    tenant_config: [
+      {
+        tenant_id: A,
+        config: {
+          brain: {
+            business_name: "Harbor Moving",
+            system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+            fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          },
+        },
+        version: 1,
+      },
+    ],
+    contacts: STANDING.map(({ row }) => ({
+      id: row.id,
+      tenant_id: A,
+      display_name: row.display_name,
+      wa_profile_name: null,
+      phone_e164: row.phone_e164,
+      email: null,
+      consent: row.consent,
+      dnc: false,
+      erased_at: null,
+      merged_into_contact_id: null,
+    })),
+    conversations: STANDING.map(({ row }) => ({
+      id: row.latest_conversation_id,
+      tenant_id: A,
+      contact_id: row.id,
+      state: row.latest_state,
+      paused_until: row.latest_paused_until,
+      snooze_until: null,
+      assignee_user_id: row.latest_assignee_user_id,
+      last_message_at: row.last_message_at,
+      contacts: { display_name: row.display_name, phone_e164: row.phone_e164 },
+    })),
+  };
+  const rows = STANDING.map(({ row }) => row);
+  const rpcs = {
+    people_list: (a) =>
+      a.p_tenant_id !== A
+        ? []
+        : a.p_contact_id
+          ? rows.filter((r) => r.id === a.p_contact_id)
+          : rows.filter((r) => !a.p_query || r.display_name.includes(a.p_query)),
+  };
+  const ctx = { supabase: fakeDb(t, {}, rpcs), userId: ME, email: "ada@example.com", params: {} };
+  return newToolContext(ctx, A, "operator", ROW_TZ, STATE_NOW);
+}
+
+async function askAbout(input) {
+  const out = await runTool(stateWorld(), { name: "people", input });
+  assert.equal(out.isError, false, out.result);
+  return JSON.parse(out.result);
+}
+
+test("the table is the seven states and a teammate's thread: the People row gives each person the state named", () => {
+  assert.deepEqual(
+    new Set(STANDING.map((p) => p.label)),
+    new Set(Object.values(PERSON_STATE_LABELS)),
+    "every one of the seven states is in the table",
+  );
+  for (const { who, label, row } of STANDING) {
+    assert.equal(PERSON_STATE_LABELS[personStateFor(row, ROW_NOW, ROW_TZ, ME)], label, who);
+    assert.equal(toPersonRowVM(row, ROW_TZ, STATE_NOW, ME).stateLabel, label, `${who}: the row draws it`);
+  }
+});
+
+test("REGRESSION (defect 16): people.get says where a person stands as their People row does, for every state and a teammate's thread; it said none, and an answer read a held thread's stored needs_human as Needs you", async () => {
+  for (const { who, label, row } of STANDING) {
+    const said = await askAbout({ action: "get", contact_id: row.id });
+    assert.equal(said.state, label, `${who}: Ask's profile says the People row's state`);
+    assert.equal(said.state_detail, toPersonRowVM(row, ROW_TZ, STATE_NOW, ME).stateDetail || null, `${who}: its line`);
+  }
+});
+
+test("people.search says the People row's state, for every state and a teammate's thread", async () => {
+  for (const { who, label, row } of STANDING) {
+    const said = await askAbout({ action: "search", query: row.display_name });
+    const line = said.people.find((p) => p.contact_id === row.id);
+    assert.ok(line, `${who} is found`);
+    assert.equal(line.state, label, `${who}: Ask's search says the People row's state`);
+  }
 });

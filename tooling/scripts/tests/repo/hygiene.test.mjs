@@ -16,6 +16,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw, stripComments } from "../_source.mjs";
+import { repoFiles, parse, importsOf } from "../_ast.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -201,30 +202,74 @@ test("every bridge request goes through the typed client", () => {
   assert.deepEqual(offenders, [], "a request outside api() re-implements the envelope, the sign-out and the refresh");
 });
 
+/**
+ * The files of packages/core that are adapters by design, each with the reason and the only modules it may import
+ * beyond what a verb may (a file on this list is not free to import anything else). Every other module of core is a
+ * verb or a rule: it takes the world through its ports.
+ */
+const CORE_WALL_EXCEPTIONS = {
+  // The one send door (CLAUDE.md): it writes the outbound ledger and puts a message on the wire, so it holds db's
+  // writers and channels' senders. Ends when the send door takes a ledger port and a wire port.
+  "deliver.ts": {
+    reason: "the one send door, over db's writers and channels' senders",
+    may: ["@chanlytics/db", "@chanlytics/channels", "@supabase/supabase-js"],
+  },
+  // deliver's wire half, split out of deliver.ts for its length (#1327): channels' senders. The edge and the jobs
+  // call them too, for a wire that is not a customer's message.
+  "wire-senders.ts": { reason: "deliver's wire half, over channels' senders", may: ["@chanlytics/channels"] },
+  // The lead runner starts Apify's runs through a port typed as Apify's own client, and asks it for the run-end
+  // webhook Apify's names. Ends when Apify's actors move behind the lead port (the scorecard's domain step).
+  "leads/runner/check.ts": {
+    reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
+    may: ["@chanlytics/channels"],
+  },
+  "leads/runner/start.ts": {
+    reason: "Apify's run-end webhook names, until Apify moves behind the lead port",
+    may: ["@chanlytics/channels"],
+  },
+};
+
+/**
+ * The one value a verb may take from channels: the platform's own logger (packages/channels/src/log). What it could
+ * not write is a line in the request's log, not a provider.
+ */
+const LOG_NAMES = new Set(["errField", "logger"]);
+
+/**
+ * Whether core may import this: its own modules, contracts, the types (never a value) of db and channels, and
+ * channels' logger.
+ */
+const coreMayImport = ({ specifier, typeOnly, names = [] }) =>
+  specifier.startsWith(".") ||
+  specifier === "@chanlytics/contracts" ||
+  // The normalised inbound message is the channels package's shape and the inbound verb speaks it, so the TYPE
+  // crosses. A VALUE from channels would be a provider inside a verb, which is a port, not a widening.
+  (typeOnly && (specifier === "@chanlytics/db" || specifier === "@chanlytics/channels")) ||
+  (specifier === "@chanlytics/channels" && names.length > 0 && names.every((name) => LOG_NAMES.has(name)));
+
 test("a core verb knows no database, framework, provider or environment", () => {
-  // A verb takes the world through its ports; the adapter in
-  // apps/dashboard/src/server/ports/core-ports.ts is where the tables are. Its
-  // imports are contracts, db types, and each other.
+  // A verb takes the world through its ports; the adapter in apps/dashboard/src/server/ports/core-ports.ts is where
+  // the tables are. The wall is all of packages/core/src, but the files named above.
   const offenders = [];
-  for (const group of ["conversations", "messages", "campaigns", "inbound"]) {
-    const dir = path.join(here, `../../../../packages/core/src/${group}`);
-    for (const f of fs.readdirSync(dir)) {
-      // Prettier prints a long import over several lines, so each import
-      // statement is flattened to one line before it is judged.
-      for (const stmt of readCode(`packages/core/src/${group}/${f}`).matchAll(/^import\s[\s\S]*?;$/gm)) {
-        const line = stmt[0].replace(/\s+/g, " ");
-        const ok =
-          /from "\.\.?\//.test(line) ||
-          /from "@chanlytics\/contracts"/.test(line) ||
-          /^import type .* from "@chanlytics\/db"/.test(line) ||
-          // The normalised inbound message is the channels package's shape
-          // and the inbound verb speaks it, so the TYPE crosses. A VALUE
-          // from channels would be a provider inside a verb, which is a
-          // port, not a widening.
-          /^import type .* from "@chanlytics\/channels"/.test(line);
-        if (!ok) offenders.push(`${group}/${f}: ${line.trim()}`);
-      }
+  const walled = [];
+  const excepted = [];
+  for (const file of repoFiles(["packages/core/src"])) {
+    const rel = file.slice("packages/core/src/".length);
+    const bad = importsOf(parse(file)).filter((i) => !coreMayImport(i));
+    const exception = CORE_WALL_EXCEPTIONS[rel];
+    if (exception) {
+      excepted.push(rel);
+      if (bad.length === 0) offenders.push(`${rel}: keeps the wall now; take it off CORE_WALL_EXCEPTIONS`);
+      for (const i of bad.filter((b) => !exception.may.includes(b.specifier)))
+        offenders.push(
+          `${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}, which its exception (${exception.reason}) does not cover`,
+        );
+      continue;
     }
+    walled.push(rel);
+    for (const i of bad) offenders.push(`${rel}: ${i.typeOnly ? "type" : "value"} from ${i.specifier}`);
   }
+  assert.deepEqual(excepted.sort(), Object.keys(CORE_WALL_EXCEPTIONS).sort(), "every exception is a file that exists");
+  assert.ok(walled.length > 60, "the wall walks every module of core, not a few folders");
   assert.deepEqual(offenders, [], "a verb takes the world through its ports; core-ports.ts is where the tables are");
 });

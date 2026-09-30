@@ -4,10 +4,12 @@ import { read, write, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { people } from "@/server/readers/people";
 import { dbRefusal } from "@/server/with-route";
+import { peopleCursorParam } from "@/server/people/people";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
   offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  after: z.string().min(1).max(200).optional(),
 });
 
 /**
@@ -21,8 +23,13 @@ const Query = z.object({
  * A page at a time: `?q=` matches a name, a WhatsApp name or three digits
  * of the number; `?offset=` reads the next thousand under the same order.
  * `page` says how many there are in all and whether more follow, so the
- * page can stop at nothing and keep its counts right (00112). The body is
- * its reader's (readers/people.ts), which Ask's people.search reads too.
+ * page can stop at nothing and keep its counts right (00112). Once the rows
+ * carry their place in the order (00276), `page.next` is where the next
+ * page starts: handed back as `?after=`, beside the offset that counts what
+ * the page holds, it reads just past the last row, so nobody who writes in
+ * between is read twice (0021). A cursor this route did not give is refused.
+ * The body is its reader's (readers/people.ts), which Ask's people.search
+ * reads too.
  */
 export const GET = read({
   scope: workspace,
@@ -30,7 +37,10 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const q = input?.q?.trim() || null;
     const offset = input?.offset ?? 0;
-    return (await load(readerContext(ctx, member), people, { q, offset })).data;
+    const after = input?.after ? peopleCursorParam(input.after) : null;
+    if (input?.after && !after)
+      throw new AppError("validation", "That page of People cannot be read. Open People again.");
+    return (await load(readerContext(ctx, member), people, { q, offset, after })).data;
   },
 });
 

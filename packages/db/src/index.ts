@@ -1,9 +1,19 @@
-/** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+/**
+ * Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
+ *
+ * Workspace scope: the package's barrel names each export and holds no statement; each repository keeps its own scope.
+ */
 export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
 export type { EmittedKind, EventData } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
 export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export { migrationHead } from "./ops";
+export type { MigrationHead } from "./ops";
 export { createServiceClient } from "./service-client";
+export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";
+export type { DbLog, DbObserver } from "./observe";
+export { tenantDb, platformWide } from "./tenant-db";
+export type { TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
@@ -15,6 +25,8 @@ export {
   recordStatusByExternalId,
   recordEchoAndPause,
   pauseConversation,
+  claimReplyTurn,
+  holdsReplyTurn,
 } from "./repositories/ingest";
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./repositories/ingest";
 export {
@@ -28,7 +40,6 @@ export {
   answeredReachOutEmail,
   stampEmailSent,
   stampEmailLeftAs,
-  sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,
   recordEmailNo,
@@ -171,6 +182,7 @@ export {
   claimCallNotification,
   claimCallActivity,
   callerNameOf,
+  isWorkspaceCall,
 } from "./repositories/calls";
 export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
 export {
@@ -192,6 +204,8 @@ export {
   keepIdempotencyReceipt,
 } from "./repositories/idempotency";
 export type { IdempotencyHold, IdempotencyClaim } from "./repositories/idempotency";
+export { readJobToRequeue, hasNewerCopy, assembleBroadcast } from "./jobs";
+export type { JobToRequeue } from "./jobs";
 export { claimControl, releaseControl, CALL_CONTROL_S } from "./repositories/control";
 export type { ControlHolder, ControlOutcome } from "./repositories/control";
 export { templatesFor } from "./repositories/templates";
@@ -211,9 +225,11 @@ export {
   IDS_PER_READ,
   namesOfPeople,
   peoplePage,
+  peopleCursorOf,
   everyoneIn,
   erasureDigests,
 } from "./repositories/people";
+export type { PeopleCursor } from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,
@@ -235,6 +251,7 @@ export { yesesSince } from "./repositories/deals";
 export type { YesRow } from "./repositories/deals";
 export {
   getOwnPartner,
+  sessionHoldsPartnerSeat,
   getPartnerBroughtCount,
   getPartnerBalance,
   getPartnerLetters,

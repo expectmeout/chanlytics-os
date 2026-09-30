@@ -8,6 +8,7 @@ export type {
   RecipientMark,
   BroadcastBatchPorts,
   BroadcastBatchCommand,
+  BatchCarry,
 } from "./ports";
 export { sendQueued, SEND_RETRY_WAITS_MS } from "./send";
 export type { SendQueuedCommand } from "./send";
@@ -25,4 +26,4 @@ export type {
   DraftState,
   DraftMark,
 } from "./reply-read";
-export { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS } from "./broadcast";
+export { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS, BROADCAST_STALLS_MAX } from "./broadcast";

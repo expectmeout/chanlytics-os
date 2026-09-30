@@ -60,6 +60,7 @@
     },
     "POST billing/checkout": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "billing",
@@ -74,6 +75,7 @@
     },
     "POST billing/portal": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "billing",
@@ -81,13 +83,7 @@
     },
     "POST billing/resume": {
       "kind": "write",
-      "scope": "workspace",
-      "role": "owner",
-      "rate": "billing",
-      "spend": false
-    },
-    "POST billing/start-now": {
-      "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "billing",
@@ -98,6 +94,14 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "POST billing/start-now": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "billing",
       "spend": false
     },
     "POST billing/sync": {
@@ -119,6 +123,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "broadcast",
+      "spend": false
+    },
+    "POST broadcasts/[id]/recheck": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
       "spend": false
     },
     "GET broadcasts/[id]": {
@@ -247,6 +258,13 @@
       "rate": null,
       "spend": false
     },
+    "POST client-errors": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "client_errors",
+      "spend": false
+    },
     "GET consent/qr": {
       "kind": "read",
       "scope": "workspace",
@@ -261,13 +279,6 @@
       "rate": "consent",
       "spend": false
     },
-    "PUT contacts/[id]/details": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "person_edit",
-      "spend": false
-    },
     "POST contacts/[id]/deal": {
       "kind": "write",
       "scope": "row",
@@ -275,11 +286,18 @@
       "rate": "person_edit",
       "spend": false
     },
-    "POST contacts/[id]/notes": {
+    "PUT contacts/[id]/details": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
       "rate": "person_edit",
+      "spend": false
+    },
+    "PUT contacts/[id]/marketing-consent": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "consent",
       "spend": false
     },
     "POST contacts/[id]/notes/decide": {
@@ -303,11 +321,11 @@
       "rate": "person_edit",
       "spend": false
     },
-    "PUT contacts/[id]/marketing-consent": {
+    "POST contacts/[id]/notes": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
-      "rate": "consent",
+      "rate": "person_edit",
       "spend": false
     },
     "PUT contacts/[id]/receptionist": {
@@ -326,6 +344,7 @@
     },
     "DELETE contacts/[id]": {
       "kind": "write",
+      "fresh": true,
       "scope": "row",
       "role": "owner",
       "rate": "erase",
@@ -340,6 +359,7 @@
     },
     "GET contacts/export": {
       "kind": "read",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "export",
@@ -466,6 +486,7 @@
     },
     "GET export": {
       "kind": "read",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "export",
@@ -555,6 +576,21 @@
       "rate": "google_search",
       "spend": false
     },
+    "POST handovers/[id]/accept": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "account",
+      "role": null,
+      "rate": "handover_answer",
+      "spend": false
+    },
+    "POST handovers/[id]/decline": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "handover_answer",
+      "spend": false
+    },
     "POST lead-operations/[id]/undo": {
       "kind": "write",
       "scope": "workspace",
@@ -611,20 +647,6 @@
       "rate": "lead_member",
       "spend": false
     },
-    "GET lead-searches": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST lead-searches": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "lead_search",
-      "spend": true
-    },
     "POST lead-searches/chosen": {
       "kind": "write",
       "scope": "workspace",
@@ -633,6 +655,20 @@
       "spend": false
     },
     "POST lead-searches/import": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "lead_search",
+      "spend": true
+    },
+    "GET lead-searches": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST lead-searches": {
       "kind": "write",
       "scope": "workspace",
       "role": "partner",
@@ -690,6 +726,7 @@
     },
     "DELETE leads/[id]": {
       "kind": "write",
+      "fresh": true,
       "scope": "row",
       "role": "owner",
       "rate": "erase",
@@ -718,6 +755,7 @@
     },
     "GET leads/export": {
       "kind": "read",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "export",
@@ -786,20 +824,6 @@
       "rate": "settings",
       "spend": false
     },
-    "DELETE me": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "profile_set",
-      "spend": false
-    },
-    "PUT me": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "profile_set",
-      "spend": false
-    },
     "PUT me/devices": {
       "kind": "write",
       "scope": "account",
@@ -812,6 +836,21 @@
       "scope": "account",
       "role": null,
       "rate": "device_register",
+      "spend": false
+    },
+    "PUT me": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "profile_set",
+      "spend": false
+    },
+    "DELETE me": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "account",
+      "role": null,
+      "rate": "profile_set",
       "spend": false
     },
     "POST messages/[id]/cancel-send": {
@@ -842,13 +881,6 @@
       "rate": "aggregate",
       "spend": false
     },
-    "GET usage": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": "owner",
-      "rate": "aggregate",
-      "spend": false
-    },
     "GET notifications": {
       "kind": "read",
       "scope": "workspace",
@@ -861,6 +893,27 @@
       "scope": "workspace",
       "role": "viewer",
       "rate": "notify_mark",
+      "spend": false
+    },
+    "POST partner/invitations/[id]/accept": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_invite_answer",
+      "spend": false
+    },
+    "POST partner/invitations/[id]/decline": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_invite_answer",
+      "spend": false
+    },
+    "GET partner/invitations": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET partner": {
@@ -884,6 +937,13 @@
       "rate": "partner_letters",
       "spend": false
     },
+    "POST partner/workspaces/[id]/resend": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_handover",
+      "spend": false
+    },
     "GET partner/workspaces": {
       "kind": "read",
       "scope": "account",
@@ -898,46 +958,11 @@
       "rate": "partner_handover",
       "spend": false
     },
-    "POST partner/workspaces/[id]/resend": {
+    "POST platform/jobs/requeue": {
       "kind": "write",
-      "scope": "account",
+      "scope": "platform",
       "role": null,
-      "rate": "partner_handover",
-      "spend": false
-    },
-    "GET partner/invitations": {
-      "kind": "read",
-      "scope": "account",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST partner/invitations/[id]/accept": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "partner_invite_answer",
-      "spend": false
-    },
-    "POST partner/invitations/[id]/decline": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "partner_invite_answer",
-      "spend": false
-    },
-    "POST handovers/[id]/accept": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "handover_answer",
-      "spend": false
-    },
-    "POST handovers/[id]/decline": {
-      "kind": "write",
-      "scope": "account",
-      "role": null,
-      "rate": "handover_answer",
+      "rate": "platform_job_requeue",
       "spend": false
     },
     "POST platform/lines/refile": {
@@ -949,6 +974,7 @@
     },
     "POST platform/lines/release": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_line_release",
@@ -975,18 +1001,20 @@
       "rate": null,
       "spend": false
     },
-    "GET platform/tenants/[id]": {
-      "kind": "read",
-      "scope": "platform",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
     "POST platform/partners/payout": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_partner_payout",
+      "spend": false
+    },
+    "POST platform/partners/second-factor": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_partner_second_factor",
       "spend": false
     },
     "POST platform/partners/standing": {
@@ -1003,11 +1031,11 @@
       "rate": "platform_partner_status",
       "spend": false
     },
-    "POST platform/partners/second-factor": {
-      "kind": "write",
+    "GET platform/tenants/[id]": {
+      "kind": "read",
       "scope": "platform",
       "role": null,
-      "rate": "platform_partner_second_factor",
+      "rate": null,
       "spend": false
     },
     "POST platform/waitlist/invited": {
@@ -1066,6 +1094,90 @@
       "rate": "settings",
       "spend": false
     },
+    "POST reach-out-replies/[id]/undo": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET reach-out-replies": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-out-sends/[id]/decide": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET reach-outs/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PUT reach-outs/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "DELETE reach-outs/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-outs/leads/[id]/stop": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET reach-outs/leads": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-outs/preview": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "reach_out_preview",
+      "spend": true
+    },
+    "GET reach-outs/reach": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET reach-outs": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-outs": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "GET reports/campaigns": {
       "kind": "read",
       "scope": "workspace",
@@ -1101,6 +1213,13 @@
       "rate": "lists",
       "spend": false
     },
+    "POST segments/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
     "GET segments": {
       "kind": "read",
       "scope": "workspace",
@@ -1115,11 +1234,39 @@
       "rate": "lists",
       "spend": false
     },
-    "POST segments/draft": {
+    "POST sending-domains/[id]/check": {
       "kind": "write",
       "scope": "workspace",
-      "role": "operator",
-      "rate": "ask",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST sending-domains/[id]/resume": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE sending-domains/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST sending-domains": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST settings/receptionist": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "GET settings": {
@@ -1130,13 +1277,6 @@
       "spend": false
     },
     "PUT settings": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST settings/receptionist": {
       "kind": "write",
       "scope": "workspace",
       "role": "partner",
@@ -1159,6 +1299,7 @@
     },
     "PATCH team/[id]": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "team",
@@ -1166,6 +1307,7 @@
     },
     "DELETE team/[id]": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "team",
@@ -1173,6 +1315,7 @@
     },
     "POST team/invite": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "invite",
@@ -1187,6 +1330,7 @@
     },
     "POST team/partner": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "partner_invite",
@@ -1194,6 +1338,7 @@
     },
     "DELETE team/partner": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "partner_invite",
@@ -1262,6 +1407,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET usage": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "aggregate",
+      "spend": false
+    },
     "PUT views/[page]": {
       "kind": "write",
       "scope": "workspace",
@@ -1302,125 +1454,6 @@
       "scope": "workspace",
       "role": "partner",
       "rate": null,
-      "spend": false
-    },
-    "POST sending-domains": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "DELETE sending-domains/[id]": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST sending-domains/[id]/check": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST sending-domains/[id]/resume": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "partner",
-      "rate": "settings",
-      "spend": false
-    },
-    "POST broadcasts/[id]/recheck": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "GET reach-out-replies": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST reach-out-replies/[id]/undo": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "POST reach-out-sends/[id]/decide": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "GET reach-outs/[id]": {
-      "kind": "read",
-      "scope": "row",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "PUT reach-outs/[id]": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "DELETE reach-outs/[id]": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "POST reach-outs/preview": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "operator",
-      "rate": "reach_out_preview",
-      "spend": true
-    },
-    "GET reach-outs/reach": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "GET reach-outs/leads": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST reach-outs/leads/[id]/stop": {
-      "kind": "write",
-      "scope": "row",
-      "role": "operator",
-      "rate": "playbook",
-      "spend": false
-    },
-    "GET reach-outs": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
-    "POST reach-outs": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "operator",
-      "rate": "playbook",
       "spend": false
     }
   }

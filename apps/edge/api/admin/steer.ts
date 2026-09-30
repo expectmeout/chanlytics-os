@@ -13,13 +13,14 @@
  * back, so two drafts never race to the customer. A rewrite that quotes a
  * price is refused and the old draft is left alone.
  *
- * Internal endpoint — x-diag-key, called by the dashboard's steer route after
- * RLS has proved the draft belongs to the operator's workspace and the role
- * door has been checked there. Body: { message_id, text }.
+ * Internal endpoint -- the per-call token, called by the dashboard's steer
+ * route after RLS has proved the draft belongs to the operator's workspace and
+ * the role door has been checked there. The token names that workspace, and a
+ * draft of another is refused. Body: { message_id, text }.
  */
 import { json, refuse } from "../../lib/http.js";
+import { authorizeAdmin, tokenWorkspace } from "../../lib/admin-auth.js";
 import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead } from "../../lib/packages/db.js";
@@ -37,7 +38,7 @@ import { cancelJobsFor } from "../../lib/packages/jobs.js";
 import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { queueDraft } from "../../lib/receptionist/draft-queue.js";
 import { env } from "../../lib/env.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, adminDoor } from "../../lib/log.js";
 
 const MAX_CHARS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -72,11 +73,25 @@ function rewriteBlocked(text: string, messageId: string): boolean {
   return true;
 }
 
-export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+/**
+ * The message the door was named, for the workspace the token names. A token minted for one workspace opens only that
+ * workspace's drafts: another's is a draft that is not there, the answer a made-up id gets, so the door cannot be
+ * used to find out which ids exist. A knock that names none (a preview's key) reads the id as it always did.
+ */
+function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
+  const draft = db
+    .from("messages")
+    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
+    .eq("id", messageId);
+  return (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
+}
+
+export const POST = adminDoor(async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
-  const auth = authorizeAdmin(request, "/api/admin/steer");
+  const auth = await authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
+  const workspace = tokenWorkspace(auth, "/api/admin/steer");
 
   const body = await readBody<{ message_id?: string; text?: string }>(request);
   const messageId = String(body.message_id || "");
@@ -87,21 +102,16 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const { data: m, error: mErr } = await db
-    .from("messages")
-    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
-    .eq("id", messageId)
-    .maybeSingle();
+  const { data: m, error: mErr } = await draftOf(db, messageId, workspace);
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
-  // A token minted for one workspace opens only that workspace's drafts.
-  if (auth.workspace && m.tenant_id !== auth.workspace) return refuse(403, "workspace_mismatch");
   if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
 
   const { data: conv } = await db
     .from("conversations")
     .select("id, contacts (phone_e164)")
     .eq("id", m.conversation_id)
+    .eq("tenant_id", m.tenant_id)
     .maybeSingle();
   const phone = conv?.contacts?.phone_e164 ?? null;
   if (!phone) return refuse(409, "no_phone");
@@ -205,6 +215,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .from("messages")
     .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
     .eq("id", m.id)
+    .eq("tenant_id", m.tenant_id)
     .eq("status", "queued")
     .select("id");
   if (cancelErr || !retired?.length) {
@@ -214,6 +225,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       .from("messages")
       .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
       .eq("id", newId)
+      .eq("tenant_id", m.tenant_id)
       .eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
     return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");
@@ -237,4 +249,4 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     escalate: r.escalate,
     delay_ms: delayMs,
   });
-}
+});

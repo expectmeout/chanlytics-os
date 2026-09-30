@@ -268,7 +268,7 @@ test(
 );
 
 test(
-  "the order is whole: people alike in everything it reads come back by id, so a page never repeats or skips one",
+  "the order is whole: people alike in everything it reads come back by id, falling, so a page never repeats or skips one",
   { skip },
   async () => {
     const t = await tenant("came-from-order");
@@ -279,7 +279,11 @@ test(
         .insert([1, 2, 3, 4, 5].map((i) => ({ tenant_id: t, display_name: `Tie ${i}`, phone_e164: `+155501490${i}` })))
         .select("id"),
     );
-    const byId = made.map((m) => m.id).sort();
+    // Falling, as person_moments_order holds it (00276).
+    const byId = made
+      .map((m) => m.id)
+      .sort()
+      .reverse();
     const all = ok(await db.rpc("people_list", { p_tenant_id: t }));
     assert.deepEqual(
       all.map((r) => r.id),

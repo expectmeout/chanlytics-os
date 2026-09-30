@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ASK_MODEL, ASK_MODELS, ASK_MODEL_PROFILES, askModelProfile } from "@chanlytics/contracts";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -53,7 +54,10 @@ test("the dashboard picks by environment: unset is the default, a name in the li
   const was = process.env.ASK_MODEL;
   const warned = [];
   const warn = console.warn;
-  console.warn = (name, rest) => warned.push([name, rest]);
+  console.warn = (...args) => {
+    const line = logLineOf(args);
+    if (line) warned.push(line);
+  };
   try {
     delete process.env.ASK_MODEL;
     assert.equal(askModel().id, ASK_MODEL);
@@ -62,7 +66,10 @@ test("the dashboard picks by environment: unset is the default, a name in the li
     process.env.ASK_MODEL = "claude-9";
     assert.equal(askModel().id, ASK_MODEL);
     askModel();
-    assert.equal(warned.filter(([n]) => n === "ask_model_unknown").length, 1, "said once, not on every turn");
+    const unknown = warned.filter((l) => l.event === "ask_model_unknown");
+    assert.equal(unknown.length, 1, "said once, not on every turn");
+    assert.equal(unknown[0].level, "warn");
+    assert.deepEqual(fieldsOf(unknown[0]), { name: "claude-9", ran: ASK_MODEL }, "the name asked for and the one run");
   } finally {
     console.warn = warn;
     if (was === undefined) delete process.env.ASK_MODEL;

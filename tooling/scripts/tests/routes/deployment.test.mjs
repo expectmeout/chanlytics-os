@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { deploymentFrom } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/deployment.ts")).href);
+const { deploymentFrom } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/env.ts")).href);
 
 test("production is live; a preview or a laptop is not, unless it says so", () => {
   assert.deepEqual(deploymentFrom({ VERCEL_ENV: "production" }), { env: "production", providersLive: true });

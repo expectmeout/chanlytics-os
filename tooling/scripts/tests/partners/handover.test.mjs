@@ -183,7 +183,8 @@ test("the four doors declare their policy: on the account, no role to name, each
   const w = (rate) => ({ kind: "write", scope: "account", role: null, rate, spend: false });
   assert.deepEqual(partnerWorkspaces.POST.policy, w("partner_handover"));
   assert.deepEqual(resend.POST.policy, w("partner_handover"));
-  assert.deepEqual(accept.POST.policy, w("handover_answer"));
+  // Accepting hands the workspace over to a new owner: it asks the Auth server whether the session is still live.
+  assert.deepEqual(accept.POST.policy, { ...w("handover_answer"), fresh: true });
   assert.deepEqual(decline.POST.policy, w("handover_answer"));
   assert.ok(RATE.partner_handover && RATE.handover_answer, "both buckets exist");
 });
@@ -374,7 +375,7 @@ const edgeCall = (status = 200) => {
 test("a new address gets the platform's own invitation, as a teammate's does; the edge is not asked", async () => {
   const { svc, seen } = svcWith();
   const edge = edgeCall();
-  assert.equal(await sendHandoverInvite(A, "owner@luna.example", { svc, fetch: edge.fetch, live: true }), true);
+  assert.equal(await sendHandoverInvite(A, "owner@luna.example", USER, { svc, fetch: edge.fetch, live: true }), true);
   assert.deepEqual(seen.rpc, [["lookup_user_for_invite", { p_tenant_id: A, p_email: "owner@luna.example" }]]);
   assert.deepEqual(seen.invited, ["owner@luna.example"]);
   assert.deepEqual(edge.calls, []);
@@ -383,7 +384,7 @@ test("a new address gets the platform's own invitation, as a teammate's does; th
 test("an account gets the edge's letter, which carries the workspace and never the address; off production, none", async () => {
   const { svc, seen } = svcWith({ known: USER });
   const edge = edgeCall();
-  assert.equal(await sendHandoverInvite(A, "owner@luna.example", { svc, fetch: edge.fetch, live: true }), true);
+  assert.equal(await sendHandoverInvite(A, "owner@luna.example", USER, { svc, fetch: edge.fetch, live: true }), true);
   assert.deepEqual(seen.invited, [], "the platform sends nothing to an account that exists");
   assert.equal(edge.calls.length, 1);
   assert.match(edge.calls[0].url, /\/api\/admin\/handover-invite$/);
@@ -391,19 +392,22 @@ test("an account gets the edge's letter, which carries the workspace and never t
   assert.ok(edge.calls[0].headers["x-edge-token"], "a token minted for this door");
 
   const preview = edgeCall();
-  assert.equal(await sendHandoverInvite(A, "owner@luna.example", { svc, fetch: preview.fetch, live: false }), false);
+  assert.equal(
+    await sendHandoverInvite(A, "owner@luna.example", USER, { svc, fetch: preview.fetch, live: false }),
+    false,
+  );
   assert.deepEqual(preview.calls, []);
 
   const race = svcWith({ inviteError: { message: "A user with this email address has already been registered" } });
   const late = edgeCall();
   assert.equal(
-    await sendHandoverInvite(A, "owner@luna.example", { svc: race.svc, fetch: late.fetch, live: true }),
+    await sendHandoverInvite(A, "owner@luna.example", USER, { svc: race.svc, fetch: late.fetch, live: true }),
     true,
   );
   assert.equal(late.calls.length, 1, "made between the lookup and the invitation: the edge writes instead");
 
   const down = edgeCall(502);
-  assert.equal(await sendHandoverInvite(A, "owner@luna.example", { svc, fetch: down.fetch, live: true }), false);
+  assert.equal(await sendHandoverInvite(A, "owner@luna.example", USER, { svc, fetch: down.fetch, live: true }), false);
 });
 
 /* ------------------------------------------------------------ the edge's door */

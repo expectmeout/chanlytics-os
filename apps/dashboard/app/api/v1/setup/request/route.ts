@@ -36,7 +36,9 @@ export const POST = write({
       !Array.isArray(data) &&
       (data as { already?: unknown }).already === true
     );
-    const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);
+    const told = already
+      ? false
+      : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);
     return { request: data, told };
   },
 });

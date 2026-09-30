@@ -8,15 +8,51 @@
  * the jobs sweep passed every such test and a full CI run before a single real
  * row in production found it. This is the missing half.
  *
- * It is a DOUBLE, not a database: no RLS, no types, no constraints, and the
- * comparisons are the handful the callers actually use. Its one real
- * responsibility is to make an unfaithful test fail loudly — any builder method
- * it does not model throws by name rather than returning undefined and letting
- * a chain quietly evaluate to nothing.
+ * It is a DOUBLE, not a database: no RLS, no triggers, and the comparisons are
+ * the handful the callers actually use. Its one real responsibility is to make
+ * an unfaithful test fail loudly — any builder method it does not model throws
+ * by name rather than returning undefined and letting a chain quietly evaluate
+ * to nothing.
+ *
+ * It does know the schema (_schema.mjs, generated from the migrations), and
+ * refuses what PostgREST and Postgres refuse, with their codes, instead of
+ * taking any row it is handed: a table, column or function the database does
+ * not have (PGRST205, 42703, PGRST204, PGRST202), an embed with no key between
+ * the two (PGRST200), a NOT NULL left empty (23502), a value outside a CHECK's
+ * set (23514), a second row on a unique key (23505), an upsert whose conflict
+ * target no key matches (42P10), and a request line past the gateway's 8 KiB
+ * (414: about 208 uuids in one `.in()`). A read answers at most max_rows
+ * (1,000) and only the columns it named; a write travels as JSON, so a bulk
+ * insert's missing key is NULL and an undefined one is not sent; a write with
+ * no `.select()` answers no rows. Rows a fixture seeds are taken as they are:
+ * only what the code under test sends is judged. What it still does not know:
+ * triggers, which the `*.db.test.mjs` suites meet on the replayed stack, other
+ * CHECKs, defaults beyond `id`, `created_at` and the ones a unique key's
+ * predicate reads (jobs.state is 'scheduled'), and foreign keys.
  */
 
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { localHour, runDueNow } from "@chanlytics/contracts";
+import {
+  schemaOf,
+  unknownRelation,
+  unknownColumn,
+  selectOf,
+  asSent,
+  onTheWire,
+  refusedRow,
+  unknownWrittenColumn,
+  uniqueKeysOf,
+  conflictUnmatched,
+  unknownFunction,
+  requestLine,
+  REQUEST_LINE_LIMIT,
+  URI_TOO_LONG,
+  MAX_ROWS,
+} from "./_schema.mjs";
+
+const SCHEMA = await schemaOf();
 
 /**
  * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
@@ -47,34 +83,6 @@ function cell(row, col) {
   return row[col];
 }
 
-/**
- * A select that names a JSON path the way PostgREST spells one there -- `alias:column->key`, or `column->key`, named
- * for its key -- answers with exactly the columns it names: a path's value under its name, null where the row holds no
- * such key, as `->` answers. Modelled for Ask's thread read (store.ts readThread), which reads each key of a turn it
- * draws and never the turn as the model was sent it (content.raw). A select that names no path answers whole rows, as
- * it always has here; any other spelling beside a path is refused by name. Null when the select names no path.
- * Not modelled: a column the table does not have, which PostgREST refuses with a 400; here it reads as undefined, or
- * as null through a path.
- */
-function projectionOf(columns) {
-  if (typeof columns !== "string" || !columns.includes("->")) return null;
-  const picks = columns
-    .split(",")
-    .map((c) => c.trim())
-    .filter(Boolean)
-    .map((spec) => {
-      const m = /^(?:(\w+):)?(\w+)(?:->(\w+))?$/.exec(spec);
-      if (!m) throw new Error(`fakeDb: select(${spec}) is not modelled`);
-      const [, alias, column, key] = m;
-      if (key === undefined) return [alias ?? column, (row) => row[column]];
-      return [
-        alias ?? key,
-        (row) => (row[column] && typeof row[column] === "object" ? (row[column][key] ?? null) : null),
-      ];
-    });
-  return (row) => Object.fromEntries(picks.map(([name, read]) => [name, read(row)]));
-}
-
 /** jsonb's order for an object's keys: the shorter first, then by their bytes. */
 const byJsonbKey = (a, b) =>
   Buffer.byteLength(a) - Buffer.byteLength(b) || Buffer.compare(Buffer.from(a), Buffer.from(b));
@@ -98,29 +106,50 @@ function asJsonb(value) {
 }
 
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
-function matches(row, filters) {
+/**
+ * `eq`: a column equals a value. A json column asked with the value's JSON text (`.filter("payload", "eq", JSON.stringify(x))`,
+ * how PostgREST is asked for jsonb equality) is equal when it holds the same JSON, whatever the order of its keys.
+ */
+function equalsCell(have, val) {
+  if (have !== null && typeof have === "object" && typeof val === "string") {
+    try {
+      return isDeepStrictEqual(have, JSON.parse(val));
+    } catch {
+      return false;
+    }
+  }
+  return have === val;
+}
+
+function matches(row, filters, defaults = {}) {
+  // A column a row leaves out has its default in the database (jobs.state is 'scheduled'), and a filter reads that.
+  const read = (r, col) => {
+    const v = cell(r, col);
+    return v === undefined ? defaults[col] : v;
+  };
   return filters.every(([op, col, val]) =>
     op === "eq"
-      ? cell(row, col) === val
+      ? equalsCell(read(row, col), val)
       : op === "lt"
-        ? cell(row, col) != null && cell(row, col) < val
+        ? read(row, col) != null && read(row, col) < val
         : // PostgREST's `.is(col, null)`: the only way to ask for NULL, and what
           // every "not erased", "not accepted", "not revoked" read in this codebase
           // is written with. `eq` would not do -- SQL NULL is not equal to anything.
           op === "is"
           ? val === null
-            ? cell(row, col) == null
-            : cell(row, col) === val
+            ? read(row, col) == null
+            : read(row, col) === val
           : op === "gt"
-            ? cell(row, col) != null && cell(row, col) > val
+            ? read(row, col) != null && read(row, col) > val
             : op === "gte"
-              ? cell(row, col) != null && cell(row, col) >= val
+              ? read(row, col) != null && read(row, col) >= val
               : op === "lte"
-                ? cell(row, col) != null && cell(row, col) <= val
-                : op === "neq"
-                  ? cell(row, col) !== val
+                ? read(row, col) != null && read(row, col) <= val
+                : // SQL's <>: a NULL is not unequal to anything, so a row whose cell is NULL is not selected.
+                  op === "neq"
+                  ? read(row, col) != null && read(row, col) !== val
                   : op === "in"
-                    ? val.includes(cell(row, col))
+                    ? val.includes(read(row, col))
                     : // PostgREST's `.contains(col, value)`, jsonb's @> for a flat object: every
                       // key the value names holds that value in the column. Modelled for the voice
                       // booking link's daily cap, which counts the sends whose meta carries its
@@ -129,7 +158,7 @@ function matches(row, filters) {
                       // modelled, and says so.
                       op === "contains"
                       ? (() => {
-                          const have = cell(row, col);
+                          const have = read(row, col);
                           // jsonb's @> for an array of flat objects, as `.contains(col, '[{...}]')` sends it: each
                           // element named is in the column, key for key. Modelled for the proposal follow-ups' runs
                           // (packages/db followUpTouchesSince), whose values carry a proposal's link.
@@ -159,16 +188,19 @@ function matches(row, filters) {
                         op === "not"
                         ? (() => {
                             const [o, v] = val;
-                            if (o === "is") return v === null ? cell(row, col) != null : cell(row, col) !== v;
-                            if (o === "eq") return cell(row, col) !== v;
+                            if (o === "is") return v === null ? read(row, col) != null : read(row, col) !== v;
+                            if (o === "eq") return read(row, col) != null && read(row, col) !== v;
                             // PostgREST's `.not(col, "like", "usage.%")`: modelled for the activity
                             // log, which leaves the evidence families out unless asked by name.
                             if (o === "like")
-                              return !new RegExp(
-                                `^${String(v)
-                                  .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-                                  .replace(/%/g, ".*")}$`,
-                              ).test(String(cell(row, col) ?? ""));
+                              return (
+                                read(row, col) != null &&
+                                !new RegExp(
+                                  `^${String(v)
+                                    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                                    .replace(/%/g, ".*")}$`,
+                                ).test(String(read(row, col)))
+                              );
                             throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
                           })()
                         : // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
@@ -208,23 +240,48 @@ function matches(row, filters) {
  * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
  * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
  * door's read, that refuses the second insert -- and a retry's compare-and-swap beside a live line the same way.
- * Rows a fixture seeded are taken as they are; only what the code under test writes is judged.
+ * Rows a fixture seeded are taken as they are; only what the code under test writes is judged. So is a key only when
+ * the write reaches it: an update that changes no column the key or its predicate reads (`changed`, the columns whose
+ * value the write moved, per candidate or for all) makes no new entry on it, as in Postgres, where a row that satisfied
+ * the key before still does -- a fixture that seeds five live lines in one workspace is not made a refusal by touching
+ * one line's `state_since`, or by saying its state again.
  */
-function uniqueViolation(indexes, table, candidates, others) {
+function uniqueViolation(indexes, table, candidates, others, changed = null) {
+  const touches = (ix, i) => {
+    const cols = Array.isArray(changed) ? changed[i] : changed;
+    return !cols || !ix.reads || ix.reads.some((c) => cols.has(c));
+  };
   for (const ix of indexes.filter((i) => i.table === table)) {
-    const held = others.filter((r) => ix.where(r));
     // An index on expressions (`key`: the row's key, as a string) rather than columns: jobs_reply_read_once is on the
-    // payload's message and stage (00222).
-    const same = ix.key ? (a, b) => ix.key(a) === ix.key(b) : (a, b) => ix.columns.every((c) => a[c] === b[c]);
-    for (const row of candidates) {
-      if (!ix.where(row)) continue;
-      if (held.some((r) => same(r, row)))
-        return { code: "23505", message: `duplicate key value violates unique constraint "${ix.name}"` };
-      held.push(row);
+    // payload's message and stage (00222). A key that reads null is a row the index never holds twice: a NULL part,
+    // where NULLs are distinct (the schema's keys, uniqueKeysOf).
+    const keyOf = ix.key ?? ((r) => JSON.stringify(ix.columns.map((c) => r[c] ?? null)));
+    const held = new Set(
+      others
+        .filter((r) => ix.where(r))
+        .map(keyOf)
+        .filter((k) => k != null),
+    );
+    for (const [i, row] of candidates.entries()) {
+      if (!touches(ix, i) || !ix.where(row)) continue;
+      const k = keyOf(row);
+      if (k == null) continue;
+      if (held.has(k))
+        return {
+          code: "23505",
+          message: `duplicate key value violates unique constraint "${ix.name}"`,
+          details: "Key already exists.",
+          hint: null,
+        };
+      held.add(k);
     }
   }
   return null;
 }
+
+/** The columns a write moves on a row: those it names whose value is not the one the row holds. */
+const movedBy = (row, values) =>
+  new Set(Object.keys(values).filter((c) => JSON.stringify(row[c] ?? null) !== JSON.stringify(values[c] ?? null)));
 
 /** The words `to_tsvector('simple', ...)` makes of a text, in order: lower-cased runs of letters and digits. */
 const lexemesOf = (text) =>
@@ -443,6 +500,41 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
         .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
+    // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
+    // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
+    session_has_partner_seat: () => false,
+    // A broadcast assembled whole (00282): the run, its people and its send job as one write, the way the database
+    // makes them. Who may call it, and whose templates, playbooks and people it accepts, are SQL's, proved on a stack
+    // in broadcasts/assemble-broadcast.db.test.mjs.
+    assemble_broadcast: ({ p_tenant, p_run, p_recipients, p_send_at }) => {
+      const at = stampOf(tables);
+      const id = crypto.randomUUID();
+      const run = Object.fromEntries(Object.entries(p_run).filter(([, v]) => v !== null));
+      (tables.broadcasts ??= []).push(written("broadcasts", { id, created_at: at, tenant_id: p_tenant, ...run }));
+      for (const r of p_recipients ?? [])
+        (tables.broadcast_recipients ??= []).push(
+          written("broadcast_recipients", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            broadcast_id: id,
+            contact_id: r.contact_id,
+            tenant_id: p_tenant,
+            ...(r.facts ? { facts: r.facts } : {}),
+          }),
+        );
+      if (p_send_at)
+        (tables.jobs ??= []).push(
+          written("jobs", {
+            id: crypto.randomUUID(),
+            created_at: at,
+            tenant_id: p_tenant,
+            kind: "broadcast_send",
+            due_at: p_send_at,
+            payload: { broadcast_id: id },
+          }),
+        );
+      return id;
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
@@ -513,6 +605,28 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     return row;
   };
 
+  /** The row an insert makes: what was sent, and the two defaults the double fills, where the table has the column. */
+  const made = (table, sent, at) => {
+    const cols = SCHEMA.relations[table].columns;
+    return written(table, {
+      ...(cols.id && !("id" in sent) ? { id: crypto.randomUUID() } : {}),
+      ...(cols.created_at && !("created_at" in sent) ? { created_at: at } : {}),
+      ...sent,
+    });
+  };
+
+  /**
+   * Every unique key a write to `table` must keep: the schema's (_schema.mjs), and what a suite names itself --
+   * `opts.uniqueIndexes` for a key it models by hand, `opts.unique` for a table whose `id` it holds once.
+   */
+  const keysOf = (table) => [
+    ...uniqueKeysOf(SCHEMA, table),
+    ...(opts.uniqueIndexes ?? []),
+    ...((opts.unique ?? []).includes(table)
+      ? [{ table, name: `${table}_pkey`, columns: ["id"], where: () => true }]
+      : []),
+  ];
+
   const from = (table) => {
     const q = {
       table,
@@ -520,6 +634,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       values: null,
       filters: [],
       columns: null,
+      selected: false,
+      head: false,
       limit: null,
       order: null,
       orders: [],
@@ -527,39 +643,73 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     };
     const rows = () => (tables[table] ??= []);
 
+    /** The columns a request's filters and orders name, each judged against the relation. */
+    const namedColumns = () => [
+      ...q.filters.flatMap(([op, col, val]) =>
+        op === "or"
+          ? String(val)
+              .split(",")
+              .filter((c) => !/^(and|or|not)\(/.test(c))
+              .map((c) => c.split(".")[0])
+          : [col],
+      ),
+      ...q.orders.map((o) => o.col),
+    ];
+
+    /** What PostgREST refuses before a statement runs, or null. */
+    const refused = () => {
+      const unknown = unknownRelation(SCHEMA, table);
+      if (unknown) return unknown;
+      for (const col of namedColumns()) {
+        const bad = unknownColumn(SCHEMA, table, col);
+        if (bad) return bad;
+      }
+      if (q.op === "select" || q.selected) {
+        const s = selectOf(SCHEMA, table, q.columns);
+        if (s.error) return s.error;
+      }
+      if (["select", "update", "delete"].includes(q.op) && requestLine(table, q).length > REQUEST_LINE_LIMIT)
+        return URI_TOO_LONG;
+      if (q.op === "insert" || q.op === "upsert") {
+        if (q.op === "upsert" && SCHEMA.uniques[table]) {
+          const bad = conflictUnmatched(SCHEMA, table, q.conflict);
+          if (bad) return bad;
+        }
+        for (const row of asSent(q.values)) {
+          const bad = refusedRow(SCHEMA, table, row, { insert: true });
+          if (bad) return bad;
+        }
+      }
+      // An update's values are judged against the rows it matches (below): one that matches none writes none.
+      if (q.op === "update") return unknownWrittenColumn(SCHEMA, table, onTheWire(q.values));
+      return null;
+    };
+
+    /** A row as the request's select draws it: the columns it named, or the whole row for `*`. A copy, always. */
+    const drawn = () => selectOf(SCHEMA, table, q.columns).draw;
+
     const run = () => {
       seen.push({ ...q, filters: [...q.filters] });
       const fault = faults[`${table}.${q.op}`];
       if (fault) return { data: null, error: fault };
+      const refusal = refused();
+      if (refusal) return { data: null, error: refusal, count: null };
 
       // An insert appends copies with an id and a stamp when the caller gave
-      // none, and answers with them -- `.select()` after an insert reads back
-      // what was written, as PostgREST does.
+      // none, and answers with them when it asks -- `.select()` after an insert
+      // reads back what was written, as PostgREST does; no select, no rows.
       if (q.op === "insert") {
         const at = stampOf(tables);
-        const made = q.values.map((v) =>
-          written(table, {
-            id: crypto.randomUUID(),
-            created_at: at,
-            ...v,
-          }),
-        );
-        // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
-        // as Postgres fails it (23505). Modelled for a writer whose row's id is derived, so a second write of the same
-        // email is the same row, never a second one.
-        if ((opts.unique ?? []).includes(table) && made.some((m) => rows().some((r) => r.id === m.id)))
-          return {
-            data: null,
-            error: { code: "23505", message: `duplicate key value violates unique constraint "${table}_pkey"` },
-          };
-        const clash = uniqueViolation(opts.uniqueIndexes ?? [], table, made, rows());
+        const fresh = asSent(q.values).map((v) => made(table, v, at));
+        // Judged before anything is written: Postgres refuses the whole statement.
+        const clash = uniqueViolation(keysOf(table), table, fresh, rows());
         if (clash) return { data: null, error: clash };
-        rows().push(...made);
-        return { data: made.map((r) => ({ ...r })), error: null };
+        rows().push(...fresh);
+        return { data: q.selected ? fresh.map(drawn()) : null, error: null };
       }
 
       if (q.op === "select") {
-        let out = rows().filter((r) => matches(r, q.filters));
+        let out = rows().filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
         if (q.orders.length) {
           // Sentinels of the SAME TYPE as the values, because the columns this
           // orders on hold ISO timestamps: comparing -Infinity against a string
@@ -583,24 +733,25 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         const matched = out.length;
         if (q.limit != null) out = out.slice(0, q.limit);
         if (q.range) out = out.slice(q.range[0], q.range[1] + 1);
-        // PostgREST's max_rows (`opts.maxRows`, supabase config): a select answers at most that many rows, after its
-        // limit and its range, whatever it asked for. The Inbox asked for 4,000 messages and got 1,000, silently.
-        if (opts.maxRows != null) out = out.slice(0, opts.maxRows);
+        // PostgREST's max_rows (supabase/config.toml, 1,000; `opts.maxRows` for a suite that proves a page at a small
+        // size): a select answers at most that many rows, after its limit and its range, whatever it asked for. The
+        // Inbox asked for 4,000 messages and got 1,000, silently.
+        out = out.slice(0, opts.maxRows ?? MAX_ROWS);
+        // `{ head: true }` asks for the count alone: PostgREST answers no rows.
+        if (q.head) return { data: null, error: null, count: q.counted ? matched : null };
         // Deliberately a copy: the sweep must not be able to mutate the ledger
-        // by holding on to a row it read. A select that names a JSON path answers
-        // the columns it names (projectionOf).
-        const project = projectionOf(q.columns) ?? ((r) => ({ ...r }));
-        return { data: out.map(project), error: null, count: q.counted ? matched : null };
+        // by holding on to a row it read. It holds the columns the select named.
+        return { data: out.map(drawn()), error: null, count: q.counted ? matched : null };
       }
 
       // A delete removes what matches, in place, and counts it when asked:
       // `.delete({ count: "exact" })` is how a route knows it removed nothing.
       if (q.op === "delete") {
         const all = rows();
-        const hit = all.filter((r) => matches(r, q.filters));
+        const hit = all.filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
         for (const r of hit) all.splice(all.indexOf(r), 1);
         return {
-          data: q.columns ? hit.map((r) => ({ ...r })) : null,
+          data: q.selected ? hit.map(drawn()) : null,
           error: null,
           count: q.counted ? hit.length : null,
         };
@@ -610,61 +761,73 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // that is already there instead (or leaves it alone with
       // ignoreDuplicates), as PostgREST does. Modelled for the person's
       // receptionist mode and a list's members, whose whole point is that
-      // saying it twice makes one row.
+      // saying it twice makes one row. A NULL in a conflict column matches no
+      // row, as NULL equals nothing: that row is inserted.
       if (q.op === "upsert") {
-        const made = [];
         const at = stampOf(tables);
-        for (const v of q.values) {
-          const existing = rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
-          if (existing) {
-            // ON CONFLICT DO NOTHING answers with nothing for the row it left
-            // alone, as PostgREST does: a claim on a unique row learns it lost
-            // by getting no row back. A merging upsert answers with the row.
-            if (q.ignoreDuplicates) continue;
-            Object.assign(existing, written(table, v));
-            made.push(existing);
-            continue;
-          }
-          const r = written(table, { id: crypto.randomUUID(), created_at: at, ...v });
-          rows().push(r);
-          made.push(r);
+        const plan = [];
+        for (const v of asSent(q.values)) {
+          const existing = q.conflict.some((c) => v[c] == null)
+            ? undefined
+            : rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
+          // ON CONFLICT DO NOTHING answers with nothing for the row it left
+          // alone, as PostgREST does: a claim on a unique row learns it lost
+          // by getting no row back. A merging upsert answers with the row.
+          if (existing && q.ignoreDuplicates) continue;
+          const sent = written(table, v);
+          plan.push(existing ? { existing, sent, row: { ...existing, ...sent } } : { row: made(table, v, at) });
         }
-        return { data: q.columns ? made.map((r) => ({ ...r })) : null, error: null };
+        // Judged before anything is written: Postgres refuses the whole statement.
+        const touched = plan.filter((x) => x.existing).map((x) => x.existing);
+        const clash = uniqueViolation(
+          keysOf(table),
+          table,
+          plan.map((x) => x.row),
+          rows().filter((r) => !touched.includes(r)),
+          plan.map((x) => (x.existing ? movedBy(x.existing, x.sent) : null)),
+        );
+        if (clash) return { data: null, error: clash };
+        const out = [];
+        for (const x of plan) {
+          if (x.existing) Object.assign(x.existing, x.sent);
+          else rows().push(x.row);
+          out.push(x.existing ?? x.row);
+        }
+        return { data: q.selected ? out.map(drawn()) : null, error: null };
       }
 
       // The update is the interesting one. It applies to whatever matches the
       // filters AT THE MOMENT IT RUNS, which is what makes a compare-and-swap
       // testable: a second caller whose filters name a value the first one has
       // already replaced matches nothing and comes back empty.
-      const hit = rows().filter((r) => matches(r, q.filters));
+      const values = onTheWire(q.values);
+      const hit = rows().filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
+      const refusedValue = hit.length ? refusedRow(SCHEMA, table, values, { insert: false }) : null;
+      if (refusedValue) return { data: null, error: refusedValue, count: null };
       // Judged before anything is written: Postgres refuses the whole statement.
       const clash = uniqueViolation(
-        opts.uniqueIndexes ?? [],
+        keysOf(table),
         table,
-        hit.map((r) => ({ ...r, ...q.values })),
+        hit.map((r) => ({ ...r, ...values })),
         rows().filter((r) => !hit.includes(r)),
+        hit.map((r) => movedBy(r, values)),
       );
       if (clash) return { data: null, error: clash };
-      for (const r of hit) Object.assign(r, written(table, q.values));
+      for (const r of hit) Object.assign(r, written(table, values));
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
-      // it just wrote avoids a second round trip. No select at all answers with ids.
-      const cols =
-        typeof q.columns === "string" && q.columns !== "*"
-          ? q.columns
-              .split(",")
-              .map((c) => c.trim())
-              .filter(Boolean)
-          : null;
-      const back = (r) =>
-        q.columns === "*" ? { ...r } : cols ? Object.fromEntries(cols.map((c) => [c, r[c]])) : { id: r.id };
-      return { data: hit.map(back), error: null };
+      // it just wrote avoids a second round trip, and how a permission-sensitive
+      // update counts what it changed. No select at all answers no rows.
+      return { data: q.selected ? hit.map(drawn()) : null, error: null };
     };
 
     const builder = {
+      // `.select()` with no list is `*`, as postgrest-js sends it; on a write it asks for the rows written back.
       select(columns, opts) {
-        q.columns = columns;
+        q.columns = columns ?? "*";
+        q.selected = true;
         q.counted = opts?.count === "exact";
+        q.head = opts?.head === true;
         return proxy;
       },
       update(values) {
@@ -685,28 +848,33 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       upsert(values, opts) {
         q.op = "upsert";
         q.values = Array.isArray(values) ? values : [values];
-        q.conflict = String(opts?.onConflict ?? "id").split(",");
+        // PostgREST's default target is the primary key.
+        q.conflict = opts?.onConflict
+          ? String(opts.onConflict)
+              .split(",")
+              .map((c) => c.trim())
+          : primaryKeyOf(table);
         q.ignoreDuplicates = opts?.ignoreDuplicates === true;
         return proxy;
       },
       eq(col, val) {
-        q.filters.push(["eq", col, val]);
+        q.filters.push(["eq", col, sent(val)]);
         return proxy;
       },
       gt(col, val) {
-        q.filters.push(["gt", col, val]);
+        q.filters.push(["gt", col, sent(val)]);
         return proxy;
       },
       gte(col, val) {
-        q.filters.push(["gte", col, val]);
+        q.filters.push(["gte", col, sent(val)]);
         return proxy;
       },
       neq(col, val) {
-        q.filters.push(["neq", col, val]);
+        q.filters.push(["neq", col, sent(val)]);
         return proxy;
       },
       in(col, vals) {
-        q.filters.push(["in", col, vals]);
+        q.filters.push(["in", col, vals.map(sent)]);
         return proxy;
       },
       contains(col, val) {
@@ -718,11 +886,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         return proxy;
       },
       lt(col, val) {
-        q.filters.push(["lt", col, val]);
+        q.filters.push(["lt", col, sent(val)]);
         return proxy;
       },
       lte(col, val) {
-        q.filters.push(["lte", col, val]);
+        q.filters.push(["lte", col, sent(val)]);
         return proxy;
       },
       or(expr) {
@@ -779,6 +947,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
 
     const one = (r, strict) => {
       if (r.error) return r;
+      // A write that asked for no rows back answers none, and `.single()` on it has nothing to object to.
+      if (q.op !== "select" && !q.selected) return { data: null, error: null };
       const rows = r.data ?? [];
       if (rows.length === 1) return { data: rows[0], error: null };
       if (rows.length === 0)
@@ -815,8 +985,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
      *   its second argument: it may answer some calls itself and defer the rest.
      */
     rpc(name, args) {
+      // A function the database does not have, or one called by argument names it does not take, is refused as
+      // PostgREST refuses it, whatever a suite models: a renamed parameter fails in production and must fail here.
+      const missing = unknownFunction(SCHEMA, name, args);
       const fn = rpcs[name] ?? derived[name];
-      if (!fn) throw new Error(`fakeDb: rpc(${name}) is not modelled; add it to fakeDb's third argument`);
+      if (!fn && !missing) throw new Error(`fakeDb: rpc(${name}) is not modelled; add it to fakeDb's third argument`);
       seen.push({ rpc: name, args });
       // The ENVELOPE, not the value. supabase-js hands back { data, error } and
       // callers destructure it; returning the bare value makes every caller
@@ -827,6 +1000,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // `code` the test put on the error, since a route maps the function's own
       // codes (22023, 54000) to the wire.
       const run = () => {
+        if (missing) return { data: null, error: missing };
         try {
           return { data: fn(args, derived[name]), error: null };
         } catch (e) {
@@ -855,6 +1029,17 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     /** Every query that reached the double, in order. */
     seen,
   };
+}
+
+/**
+ * A filter's value as postgrest-js writes it into the URL: `eq.${value}`, so an undefined is the word "undefined",
+ * which matches no row (and a uuid column refuses), never "the rows without this column".
+ */
+const sent = (v) => (v === undefined ? "undefined" : v);
+
+/** The columns of a table's primary key, PostgREST's conflict target when an upsert names none. */
+function primaryKeyOf(table) {
+  return uniqueKeysOf(SCHEMA, table).find((k) => k.primary)?.columns ?? ["id"];
 }
 
 /** A Logger that keeps its lines instead of printing them. */

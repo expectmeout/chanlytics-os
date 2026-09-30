@@ -47,7 +47,7 @@ export const GET = read({
         ...(await addPeopleSeen(ctx, member.tenantId, s.parsed.items, s.serviceNames, people, rc.now).catch(
           (e: unknown) => {
             log.error("calendar_people_seen_failed", {
-              tenant: member.tenantId,
+              tenant_id: member.tenantId,
               error: e instanceof Error ? e.message : String(e),
             });
             return [];

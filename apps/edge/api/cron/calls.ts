@@ -1,39 +1,57 @@
 /**
- * Call reconciliation: close out calls the webhook never told us had ended.
+ * Call reconciliation: close out calls the webhook never told us had ended, and finish what a call leaves behind.
  *
- * `calls.status = 'ongoing'` is written from Retell's own call_status and is
- * only ever cleared by a LATER webhook. So a single lost `call_ended` — a
- * deploy mid-call, a provider blip, a 500 on our side — leaves that row
- * 'ongoing' forever. `isLiveCall()` stops a phantom being RENDERED after
- * CALL_HEARTBEAT_MS, but the row itself stays wrong: metrics count it, the
- * partial index carries it, and anyone querying status directly still sees a
- * call in progress that hung up last week.
+ * `calls.status = 'ongoing'` is written from Retell's own call_status and is only ever cleared by a LATER webhook. So
+ * a single lost `call_ended` (a deploy mid-call, a provider blip, a 500 on our side) leaves that row 'ongoing'
+ * forever. `isLiveCall()` stops a phantom being RENDERED after CALL_HEARTBEAT_MS, but the row itself stays wrong:
+ * metrics count it, the partial index carries it, and anyone querying status directly still sees a call in progress
+ * that hung up last week. This is the half that makes the row honest. The provider is the authority on whether a call
+ * is still up, so we ask it (getCall) rather than inferring, and re-ingest what it reports (ingestCall over the
+ * ingest_call upsert, so a lost or repeated request finds the same rows next tick).
  *
- * This is the half that makes the row honest. The provider is the authority on
- * whether a call is still up, so we ask it rather than inferring.
+ * Deliberately NOT time-based on its own. A sweep that guessed "ongoing for more than N minutes means ended" would
+ * eventually mark a genuinely long call as finished and file a summary for a conversation still in progress. A call is
+ * asked about once nobody has heard from it for SETTLE_MS, or when it has run past OVERLONG_MS: the Live page says such
+ * a call is being checked, and this is what makes that true.
  *
- * Called by pg_cron via pg_net (migration 00020), same shape and same Vault
- * secret as the deadman sweep. Since 00149 the request is recorded, so this
- * answer is judged by sweep_health(): anything but a 2xx inside 65 s is a
- * sweep that is not working. Idempotent by construction: it re-ingests
- * whatever Retell reports, and ingest_call is an upsert — a lost or duplicated
- * request finds the same candidates next tick.
+ * And only the provider's WORD counts. A read it could not answer -- an outage, a rate limit, a key it refuses -- is
+ * not its word on any row: the row is left as it was and asked about next tick, and a refused key is a 503 from this
+ * sweep, which is how sweep_health() hears it. It used to read as "no record" for every row asked, and three ticks of
+ * that marked every pending recording failed for good while this sweep answered 200. Once the provider has said wait
+ * (Retry-After), answered a rate limit, not answered at all or refused the key, the tick stops asking; a 5xx that did
+ * answer may be one row's own, so the next row is still asked.
  *
- * Deliberately NOT time-based on its own. A sweep that guessed "ongoing for
- * more than N minutes means ended" would eventually mark a genuinely long call
- * as finished and file a summary for a conversation still in progress.
+ * One tick runs four bounded legs, so a backlog drains over successive runs:
+ *   1. Recordings past RECORDING_RETENTION_DAYS are removed from the media bucket and their rows marked purged
+ *      (purgeExpiredRecordings). It runs before the provider is asked because it needs the bucket, not Retell: a
+ *      deployment without the key still keeps the promise the privacy page makes. A removal that fails marks nothing
+ *      and stops no other leg; the answer is then a 500 (purge_failed) in the bucket's own words.
+ *   2. The stale ongoing calls, oldest first, are put to the provider and written as it answers: closed, still live
+ *      (re-ingested, which refreshes updated_at), unknown to it (left alone, counted and warned about: rising numbers
+ *      mean our call ids and theirs have diverged), or deferred.
+ *   3. A recording still `pending` after the webhook's short first copy is fetched again with a fresh URL from the
+ *      provider (copyRecording). Every real try is counted on the row and after RECORDING_MAX_ATTEMPTS it is marked
+ *      failed and stops being a candidate; a provider, CDN or bucket that could not answer spends none until
+ *      RECORDING_DEFER_LIMIT_MS after the call ended.
+ *   4. A call that ended, or errored, with no analysis still gets its line in the customer's thread (recordCallNote,
+ *      once per call, linked back by linkCallMessage) after NOTE_GRACE_MS, which is the webhook's time to write it
+ *      with the summary.
  *
- * And only the provider's WORD counts. A read it could not answer -- an
- * outage, a rate limit, a key it refuses -- is not its word on any row: the
- * row is left as it was and asked about next tick, and a refused key is a 503
- * from this sweep, which is how sweep_health() hears it. It used to read as
- * "no record" for every row asked, and three ticks of that marked every
- * pending recording failed for good while this sweep answered 200.
+ * Called by pg_cron every five minutes ('call-reconcile', 00020) through trigger_call_reconcile, which since 00149
+ * wakes the edge only when the calls table owes one of those four things, through request_sweep with the Vault sweep
+ * key in x-cron-key (authorizeCron), waiting 65 s, past this function's own 60. The request is recorded in
+ * sweep_status and sweep_health() judges the edge's answer (registered in 00107): anything but a 2xx is an unhealthy
+ * clock, a quiet line is not.
+ *
+ * Its lines carry `sweep: "calls"`. The provider's state is said once a tick (calls_sweep_provider_unavailable,
+ * calls_sweep_provider_refused_key), never once per row, and the tick ends in one calls_sweep_done with the counts.
+ *
+ * Cross-workspace: the calls sweep visits every workspace's calls; each write carries the row's own tenant_id.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField, type Logger } from "../../lib/log.js";
+import { logger, errField, type Logger, door } from "../../lib/log.js";
 import {
   getCall,
   normalizeCall,
@@ -263,7 +281,7 @@ async function retryRecordings(leg: ProviderLeg) {
   return recordings;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "calls" });
   const db = pg();
   if (!db) {
@@ -408,4 +426,4 @@ export async function POST(request: Request): Promise<Response> {
       purge,
     });
   return json(200, { ok: true, ...counts, purge });
-}
+});

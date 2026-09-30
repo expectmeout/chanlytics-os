@@ -33,7 +33,7 @@ export const GET = read({
     const who = personLabel(call.contact) !== "Unknown" ? personLabel(call.contact) : (call.from_e164 ?? "caller");
     log.info("export.call", {
       user: userId,
-      tenant: member.tenantId,
+      tenant_id: member.tenantId,
       call: id,
       turns: call.transcript_object?.length ?? 0,
     });

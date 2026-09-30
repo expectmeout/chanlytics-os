@@ -6,7 +6,7 @@
  * The dashboard's partner routes call it after create_workspace_for_business or partner_handover_resend, from
  * production only, and treat a failure as a shrug the partner is told of: the handover is on record and can be sent
  * again. The address is the one the handover holds, read here, never one the call carries, so this door writes to
- * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Diagnostic-key
+ * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Signed admin token
  * only; the address is never logged.
  */
 import { json } from "../../lib/http.js";
@@ -14,15 +14,15 @@ import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { platformFrom, post } from "../../lib/ops/notify.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, adminDoor } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { getHandoverInvite } from "../../lib/packages/db.js";
 import { handoverInviteEmail } from "../../lib/packages/contracts.js";
 
 const L = logger();
 
-export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/handover-invite");
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
+  const auth = await authorizeAdmin(request, "/api/admin/handover-invite");
   if (!auth.ok) return auth.response;
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });
@@ -52,6 +52,6 @@ export async function POST(request: Request): Promise<Response> {
     signInUrl: `${dashboardOrigin()}/login?email=${encodeURIComponent(invite.email)}`,
   });
   const sent = await post(from, [invite.email], message.subject, message.body);
-  L.info("handover_invite_sent", { tenant: tenantId, sent });
+  L.info("handover_invite_sent", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
-}
+});

@@ -402,9 +402,6 @@
   "apps/edge/api/admin/voice-provision.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/edge/api/admin/whatsapp/signup-config.ts": {
-    "@typescript-eslint/require-await": 1
-  },
   "apps/edge/api/admin/whatsapp/templates-create.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },
@@ -562,7 +559,7 @@
     "@typescript-eslint/only-throw-error": 1
   },
   "packages/db/src/repositories/email.ts": {
-    "@typescript-eslint/no-redundant-type-constituents": 2
+    "@typescript-eslint/no-redundant-type-constituents": 1
   },
   "packages/db/src/repositories/partner.ts": {
     "@typescript-eslint/no-base-to-string": 13

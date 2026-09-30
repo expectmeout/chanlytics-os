@@ -28,8 +28,10 @@ import {
   dealsAreOn,
   FIRST_RUN_HELPERS,
   hoursLines,
+  MEMBERSHIP_ROLES,
   pipelineOf,
   resolveFacts,
+  roleAtLeast,
   toPersonRowVM,
   toPersonVM,
   MAX_CLOSURES,
@@ -146,6 +148,40 @@ test("the page's fixture publishes the tab's globals through the same contracts 
   // Nothing the fixture publishes can write: a spec that pressed a Save is refused on the page.
   assert.equal((await w.__saveSettings()).ok, false);
   assert.equal((await w.__workspace.setTimezone("America/Chicago")).ok, false);
+});
+
+test("the role store the mockup makes is completed with the shell's own reading, so an owner's items are offered", async () => {
+  // Since the shell took its role from identity.ts, a page asks `ST_STORE.mayAtLeast(rung)` for what only an owner may
+  // press (client-profile.jsx's "Delete person", the receptionist row's act), and the mockup's store never defined it: the
+  // harness showed none of them, and three of the style-equality recorder's scenes could not find what they press.
+  const { installRoles } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
+  for (const name of SCENARIOS.filter((n) => n !== "kit")) {
+    const w = await publishedGlobals(name);
+    // The fixture runs before settings.jsx, so it makes no store of its own (the mockup's `|| {…}` would then keep it).
+    assert.equal(w.ST_STORE, undefined, `${name}: the fixture leaves the store to the mockup`);
+    // settings.jsx's own line, with its own myRole (the mockup's reading, which the shell replaces).
+    const mockup = { viewAsRole: null, myRole: () => "mockup", set() {} };
+    w.ST_STORE = w.ST_STORE || mockup;
+    assert.equal(w.ST_STORE, mockup, `${name}: the mockup's store is the store, not a copy of it`);
+    assert.equal(typeof mockup.set, "function", `${name}: what the mockup put in the store is still there`);
+    assert.equal(w.ST_STORE.myRole(), "owner", `${name}: the harness signs in as the workspace's owner`);
+    // For every role acting and every rung asked, the answer is the shell's own, over the ladder contracts holds.
+    for (const acting of MEMBERSHIP_ROLES) {
+      const shell = { __ME: { role: "owner" }, ST_STORE: { viewAsRole: acting === "owner" ? null : acting } };
+      installRoles(shell);
+      mockup.viewAsRole = acting === "owner" ? null : acting;
+      for (const least of MEMBERSHIP_ROLES) {
+        const expected = roleAtLeast(acting, least);
+        assert.equal(w.ST_STORE.mayAtLeast(least), expected, `${name}: ${acting} asking for ${least}`);
+        assert.equal(
+          shell.ST_STORE.mayAtLeast(least),
+          expected,
+          `${name}: the shell's own, ${acting} asking for ${least}`,
+        );
+      }
+      assert.equal(w.ST_STORE.myRole(), shell.ST_STORE.myRole(), `${name}: who is acting, previewing ${acting}`);
+    }
+  }
 });
 
 test("the messages the fixture publishes are the scenario's own, and the nightly has none", async () => {

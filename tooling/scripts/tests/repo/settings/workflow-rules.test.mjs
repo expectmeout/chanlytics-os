@@ -71,13 +71,17 @@ test("a rolling issue closes only the issues its own titles opened, never one a 
   assert.ok(workflow("migration-ledger.yml").includes(`--match "Production's migrations disagree with main's"`));
 });
 
-test("the landed job reads pushes only, opens its issue once, and the Auckland leg does not fail the run until its tests are fixed", () => {
+test("the landed job reads pushes only, opens its issue once, and the Auckland leg fails the run like any other", () => {
   const y = workflow("ci.yml");
   const landed = y.slice(y.indexOf("  landed:"));
   assert.ok(landed.includes("if: github.event_name == 'push'"));
   assert.ok(landed.includes("grep -qxF") && landed.includes("gh issue list"), "a re-run finds its issue open");
   const auckland = y.slice(y.indexOf("  auckland:"), y.indexOf("  # The title check above"));
-  assert.ok(auckland.includes("continue-on-error: true"));
+  assert.ok(!auckland.includes("continue-on-error: true"), "green since the tests lane: a red leg is a red run");
+  assert.ok(
+    auckland.includes("if: github.event_name != 'merge_group'"),
+    "a merge queue's commit runs the required checks",
+  );
   assert.ok(
     auckland.includes("TZ: Pacific/Auckland") && auckland.includes("TEST_TZ: Pacific/Auckland"),
     "node's zone and the launcher's",

@@ -232,7 +232,7 @@ export async function calendarSources(
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now, { fresh: !!opts.fresh });
   } catch (e) {
-    log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses.
@@ -344,7 +344,7 @@ export async function calendarWeek(
     people.push(
       ...(await addPeopleSeen(ctx, tenantId, s.parsed.items, s.serviceNames, people, now).catch((e: unknown) => {
         log.error("calendar_people_seen_failed", {
-          tenant: tenantId,
+          tenant_id: tenantId,
           error: e instanceof Error ? e.message : String(e),
         });
         return [];

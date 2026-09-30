@@ -34,7 +34,7 @@
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { lineProviderFromEnv } from "../../lib/lines/lines.js";
 import { notify } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
@@ -56,7 +56,7 @@ import { env } from "../../lib/env.js";
  */
 const MAX_PER_TICK = 2;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "lines" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -139,4 +139,4 @@ export async function POST(request: Request): Promise<Response> {
     return json(503, { ok: false, error: "no_workspace_readable", stuck: result.stuck });
   }
   return json(200, { ok: true, ...result, release: ended });
-}
+});

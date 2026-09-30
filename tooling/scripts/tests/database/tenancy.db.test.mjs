@@ -292,6 +292,8 @@ before(async () => {
   });
   // The check's model spend per UTC day (00197): the service role's alone.
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
+  // A thread's reply turn (00284): the inbound path's bookkeeping, the service role's alone.
+  await seed("reply_turns", { conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message }, null);
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
     "reach_out_replies",
@@ -327,6 +329,7 @@ before(async () => {
   await seed("lead_preferences", { tenant_id: A, kind: "chain" }, null);
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
+  await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
 
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
@@ -601,6 +604,8 @@ const TENANT_TABLES = {
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
   idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
   jobs: ["none", () => ({ tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} })],
+  // A thread's reply turn (00284): read and written by the inbound path's service role, by no member.
+  reply_turns: ["none", () => ({ conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message })],
   // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.
@@ -655,6 +660,8 @@ const TENANT_TABLES = {
   lead_preferences: ["member", () => ({ tenant_id: A, kind: "too_far" })],
   lead_suppressions: ["member", () => ({ tenant_id: A, kind: "email", hash: "stranger", what: "email_opt_out" })],
   lead_suggestions: ["member", () => ({ tenant_id: A, business_line: "a stranger line" })],
+  // One UTC day of a workspace, counted (00277): the back office reads it through platform_metrics_read; no member does.
+  platform_metrics: ["none", () => ({ tenant_id: A, day: "2026-09-27" })],
   // A partner (0012): who brought the workspace, what they earned from it, and the card it pays with. Only the
   // service role writes any of them; the partner themselves included.
   partner_tenants: ["brought", () => ({ tenant_id: A, partner_id: ctx.partner, code_used: "stranger" })],

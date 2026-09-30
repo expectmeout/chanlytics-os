@@ -7,10 +7,13 @@
  * secret, and the release steps (docs/runbook.md, Deploy) read it with curl beside the dashboard's.
  */
 import { env } from "../lib/env.js";
+import { door } from "../lib/log.js";
 
-export function GET(): Response {
-  return new Response(JSON.stringify({ sha: env.VERCEL_GIT_COMMIT_SHA ?? "dev" }), {
-    status: 200,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
-  });
-}
+export const GET = door(function GET(): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify({ sha: env.VERCEL_GIT_COMMIT_SHA ?? "dev" }), {
+      status: 200,
+      headers: { "content-type": "application/json", "cache-control": "no-store" },
+    }),
+  );
+});
