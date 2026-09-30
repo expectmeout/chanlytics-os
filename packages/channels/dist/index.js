@@ -1,148 +1,3 @@
-// src/provider-fetch.ts
-var BREAKER_FAILURES = 5;
-var BREAKER_OPEN_MS = 3e4;
-var RETRY_BASE_MS = 250;
-var RETRY_WAIT_CAP_MS = 2e3;
-var breakers = /* @__PURE__ */ new Map();
-function breakerOf(provider, now = Date.now()) {
-  const b = breakers.get(provider);
-  return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
-}
-function resetBreakers() {
-  breakers.clear();
-}
-var NEVER_LEFT = /* @__PURE__ */ new Set([
-  "ECONNREFUSED",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "ENETUNREACH",
-  "EHOSTUNREACH",
-  "UND_ERR_CONNECT_TIMEOUT"
-]);
-function outcomeOfStatus(status) {
-  if (status >= 200 && status < 300) return "ok";
-  if (status === 408 || status === 429) return "retryable";
-  if (status >= 500) return "unknown";
-  return "refused";
-}
-function outcomeOfThrow(e) {
-  const err = e instanceof Error ? e : new Error(String(e));
-  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
-  const cause = err.cause;
-  const code = typeof cause?.code === "string" ? cause.code : err.code;
-  const words2 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
-  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words2 };
-}
-function retryAfterOf(header, now = Date.now()) {
-  if (!header) return null;
-  const secs = Number(header);
-  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
-  const at = Date.parse(header);
-  return Number.isFinite(at) ? Math.max(0, at - now) : null;
-}
-var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
-function note(provider, a, now) {
-  if (a.error === "breaker_open") return;
-  if (!isFault(a)) {
-    breakers.delete(provider);
-    return;
-  }
-  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
-  b.failures += 1;
-  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
-  breakers.set(provider, b);
-}
-async function once(provider, url, call2, deps, tries) {
-  const now = deps.now();
-  const b = breakers.get(provider);
-  if (b && b.openUntil > now && call2.breaker !== "count") {
-    const held = {
-      outcome: "retryable",
-      status: 0,
-      text: "",
-      json: null,
-      body: null,
-      headers: null,
-      retryAfterMs: b.openUntil - now,
-      error: "breaker_open",
-      tries: tries - 1
-    };
-    return held;
-  }
-  const init = {
-    method: call2.method,
-    headers: call2.headers,
-    body: call2.body,
-    cache: call2.cache,
-    redirect: call2.redirect
-  };
-  let a;
-  const bound = AbortSignal.timeout(call2.timeoutMs);
-  try {
-    const r2 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
-    if (call2.stream && r2.ok && r2.body) {
-      a = {
-        outcome: "ok",
-        status: r2.status,
-        text: "",
-        json: null,
-        body: r2.body,
-        headers: r2.headers,
-        retryAfterMs: null,
-        error: null,
-        tries
-      };
-      note(provider, a, deps.now());
-      return a;
-    }
-    const text = await r2.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    a = {
-      outcome: outcomeOfStatus(r2.status),
-      status: r2.status,
-      text,
-      json,
-      body: null,
-      headers: r2.headers,
-      retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
-      error: null,
-      tries
-    };
-  } catch (e) {
-    const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
-  }
-  note(provider, a, deps.now());
-  return a;
-}
-async function providerFetch(provider, url, call2, deps = {}) {
-  const d = {
-    fetch: deps.fetch ?? globalThis.fetch,
-    now: deps.now ?? Date.now,
-    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
-  };
-  const started = d.now();
-  const max = Math.max(1, Math.floor(call2.tries ?? 1));
-  for (let n = 1; ; n++) {
-    const a = await once(provider, url, call2, d, n);
-    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
-    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
-    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
-    const wait = a.retryAfterMs ?? RETRY_BASE_MS * 2 ** (n - 1);
-    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
-    if (wait + call2.timeoutMs > left) return a;
-    await d.sleep(wait);
-  }
-}
-function answerObject(a) {
-  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
-}
-
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -341,6 +196,10 @@ var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
@@ -3389,6 +3248,152 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/provider-fetch.ts
+var BREAKER_FAILURES = 5;
+var BREAKER_OPEN_MS = 3e4;
+var RETRY_BASE_MS = 250;
+var RETRY_WAIT_CAP_MS = 2e3;
+var breakers = /* @__PURE__ */ new Map();
+function breakerOf(provider, now = Date.now()) {
+  const b = breakers.get(provider);
+  return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
+}
+function resetBreakers() {
+  breakers.clear();
+}
+var NEVER_LEFT = /* @__PURE__ */ new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT"
+]);
+function outcomeOfStatus(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 408 || status === 429) return "retryable";
+  if (status >= 500) return "unknown";
+  return "refused";
+}
+function outcomeOfThrow(e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
+  const cause = err.cause;
+  const code = typeof cause?.code === "string" ? cause.code : err.code;
+  const words2 = typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
+  return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words2 };
+}
+function retryAfterOf(header, now = Date.now()) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1e3);
+  const at = Date.parse(header);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
+function note(provider, a, now) {
+  if (a.error === "breaker_open") return;
+  if (!isFault(a)) {
+    breakers.delete(provider);
+    return;
+  }
+  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
+  b.failures += 1;
+  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
+  breakers.set(provider, b);
+}
+async function once(provider, url, call2, deps, tries) {
+  const now = deps.now();
+  const b = breakers.get(provider);
+  if (b && b.openUntil > now && call2.breaker !== "count") {
+    const held = {
+      outcome: "retryable",
+      status: 0,
+      text: "",
+      json: null,
+      body: null,
+      headers: null,
+      retryAfterMs: b.openUntil - now,
+      error: "breaker_open",
+      tries: tries - 1
+    };
+    return held;
+  }
+  const init = {
+    method: call2.method,
+    headers: call2.headers,
+    body: call2.body,
+    cache: call2.cache,
+    redirect: call2.redirect
+  };
+  let a;
+  const bound = AbortSignal.timeout(call2.timeoutMs);
+  try {
+    const r2 = await deps.fetch(url, { ...init, signal: call2.signal ? AbortSignal.any([bound, call2.signal]) : bound });
+    if (call2.stream && r2.ok && r2.body) {
+      a = {
+        outcome: "ok",
+        status: r2.status,
+        text: "",
+        json: null,
+        body: r2.body,
+        headers: r2.headers,
+        retryAfterMs: null,
+        error: null,
+        tries
+      };
+      note(provider, a, deps.now());
+      return a;
+    }
+    const text = await r2.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    a = {
+      outcome: outcomeOfStatus(r2.status),
+      status: r2.status,
+      text,
+      json,
+      body: null,
+      headers: r2.headers,
+      retryAfterMs: retryAfterOf(r2.headers.get("retry-after"), deps.now()),
+      error: null,
+      tries
+    };
+  } catch (e) {
+    const { outcome, error } = outcomeOfThrow(e);
+    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
+  }
+  note(provider, a, deps.now());
+  return a;
+}
+async function providerFetch(provider, url, call2, deps = {}) {
+  const d = {
+    fetch: deps.fetch ?? globalThis.fetch,
+    now: deps.now ?? Date.now,
+    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+    random: deps.random ?? Math.random
+  };
+  const started = d.now();
+  const max = Math.max(1, Math.floor(call2.tries ?? 1));
+  for (let n = 1; ; n++) {
+    const a = await once(provider, url, call2, d, n);
+    const again = a.outcome === "retryable" || a.outcome === "unknown" && call2.idempotent === true;
+    if (!again || n >= max || a.error === "breaker_open" || a.error === "timeout") return a;
+    if (a.retryAfterMs !== null && a.retryAfterMs > RETRY_WAIT_CAP_MS) return a;
+    const wait = a.retryAfterMs ?? jittered(RETRY_BASE_MS * 2 ** (n - 1), d.random);
+    const left = call2.deadlineMs === void 0 ? Infinity : call2.deadlineMs - (d.now() - started);
+    if (wait + call2.timeoutMs > left) return a;
+    await d.sleep(wait);
+  }
+}
+function answerObject(a) {
+  return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
+}
 
 // src/models/anthropic.ts
 var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";

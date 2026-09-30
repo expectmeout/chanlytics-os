@@ -458,6 +458,10 @@ var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function spanUnits(ms2) {
   const gap = Math.max(0, ms2);
@@ -10039,20 +10043,26 @@ var BROADCAST_FAILURE_WORDS = {
   template_not_approved: "WhatsApp no longer approves its template",
   wire_unavailable: "WhatsApp could not be reached",
   run_interrupted: "its send stopped partway and did not start again",
-  throttled: "WhatsApp kept limiting how fast this number may send"
+  throttled: "WhatsApp kept limiting how fast this number may send",
+  stalled: "its people or its number's credentials could not be read for half an hour",
+  after_hours: "the day's sending hours ran out while it waited"
 };
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
-  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later."
+  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
+  stalled: "Nobody got it. Nothing is wrong with the number; send it again later.",
+  after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours."
 };
 var BROADCAST_FAILURE_FIX_AFTER = {
   paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
   wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  stalled: (n) => `The first ${n === 1 ? "one" : n} got it, then its reads failed. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  after_hours: (n) => `The first ${n === 1 ? "one" : n} got it before the day's sending hours ran out. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 function broadcastFailureFix(failure, reached = 0) {
   if (!failure) return null;
@@ -25608,6 +25618,7 @@ var ROUTE_KEYS = [
   "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
+  "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
   "POST platform/lines/replace",
@@ -30882,6 +30893,7 @@ export {
   isWaitRefusal,
   isYes,
   itemFocus,
+  jittered,
   jobNewsWords,
   judgeAsked,
   judgeDomain,
