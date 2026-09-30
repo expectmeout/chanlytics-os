@@ -33,7 +33,7 @@ import {
   unmetNeed,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
-import { ROW_NOW, ROW_TZ, daysAgo, personDto } from "../_person-row.mjs";
+import { ROW_NOW, ROW_TZ, daysAgo, personDto } from "../consent/_person-row.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

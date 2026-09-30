@@ -13,8 +13,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { OUT } from "../../gen/unique-keys.mjs";
-import { ROOT } from "../_source.mjs";
+import { OUT } from "../../../gen/unique-keys.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

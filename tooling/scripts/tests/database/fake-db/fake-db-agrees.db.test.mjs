@@ -1,6 +1,6 @@
 /**
  * The in-memory database (_fake-db.mjs) and the real one answer the same requests the same way. The double refuses what
- * PostgREST and Postgres refuse (database/fake-db-schema.test.mjs proves it does, against the schema read from the
+ * PostgREST and Postgres refuse (database/fake-db/fake-db-schema.test.mjs proves it does, against the schema read from the
  * migrations); this proves the refusals it makes are the database's: each case below is sent to the replayed stack and
  * to the double, and the two must agree on whether it was refused, with what code, and in what words. A double that
  * drifts from the database is a test that lies, and this is what fails when it does.
@@ -11,8 +11,8 @@ import { test, before, after } from "node:test";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { fakeDb } from "../_fake-db.mjs";
-import { rows } from "../_rows.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { rows } from "../../_rows.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

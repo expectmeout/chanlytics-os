@@ -1,13 +1,13 @@
 /**
  * The row factories (_rows.mjs) make rows the database holds: every column the table has, each value one the schema
- * takes, so a fixture that uses one cannot lie about the table's shape. database/fake-db-agrees.db.test.mjs inserts
+ * takes, so a fixture that uses one cannot lie about the table's shape. database/fake-db/fake-db-agrees.db.test.mjs inserts
  * the same rows into the replayed stack.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeDb } from "../_fake-db.mjs";
-import { rows, TENANT } from "../_rows.mjs";
-import { schemaOf } from "../_schema.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { rows, TENANT } from "../../_rows.mjs";
+import { schemaOf } from "../../_schema.mjs";
 
 const SCHEMA = await schemaOf();
 const TABLES = {

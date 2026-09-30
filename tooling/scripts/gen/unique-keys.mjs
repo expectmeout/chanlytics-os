@@ -14,7 +14,7 @@
  *
  *   supabase start
  *   corepack pnpm gen:db-types                     writes this file too, after the types
- *   node tooling/scripts/gen/unique-keys.mjs --check  exit 1 if the file is stale (database/unique-keys.db.test.mjs runs it)
+ *   node tooling/scripts/gen/unique-keys.mjs --check  exit 1 if the file is stale (database/generated/unique-keys.db.test.mjs runs it)
  *                                                     --file <path> checks or writes that file instead of the committed one
  *
  * SUPABASE_CLI names the binary when `supabase` is not on PATH; the stack is the one supabase/config.toml names.

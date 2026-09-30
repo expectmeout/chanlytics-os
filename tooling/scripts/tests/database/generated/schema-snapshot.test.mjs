@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { containerOf, functionChangesIn, normalise } from "../../gen/schema-snapshot.mjs";
+import { containerOf, functionChangesIn, normalise } from "../../../gen/schema-snapshot.mjs";
 
 /** A pg_dump of `public` in miniature, in the order and shape pg_dump writes one. */
 function dump({ months = ["2026m09", "2026m10"], key = "Abc123" } = {}) {

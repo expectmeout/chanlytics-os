@@ -28,7 +28,7 @@
  *
  * The same stack also writes tooling/scripts/tests/_unique-keys.generated.json (unique-keys.mjs) when this writes the
  * types: every unique index and primary key, which the tests' in-memory database (_fake-db.mjs) refuses a duplicate
- * on. database/unique-keys.db.test.mjs, in the replay's database suites, holds that file to the migrations.
+ * on. database/generated/unique-keys.db.test.mjs, in the replay's database suites, holds that file to the migrations.
  *
  * Exit codes: 0 current, 1 stale, 2 the CLI could not be run or did not
  * produce types -- a check that cannot run must not pass. SUPABASE_CLI names

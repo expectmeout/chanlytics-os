@@ -2,15 +2,15 @@
  * The in-memory database refuses what PostgREST and Postgres refuse, with their codes (_fake-db.mjs, over the schema
  * _schema.mjs reads from the migrations' generated files). Before 29 Sep 2026 it took any row it was handed: no
  * columns, no NOT NULL, no CHECK, no unique key but the ones a suite named, no limit on an `.in()` or a read, and
- * #1100's writer passed every test it had while production refused it. database/fake-db-agrees.db.test.mjs sends the
+ * #1100's writer passed every test it had while production refused it. database/fake-db/fake-db-agrees.db.test.mjs sends the
  * same requests to the replayed stack and holds the two to one answer.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeDb } from "../_fake-db.mjs";
-import { rows } from "../_rows.mjs";
-import { uniqueKeysOf } from "../_schema.mjs";
-import { keyOf, render } from "../../gen/unique-keys.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { rows } from "../../_rows.mjs";
+import { uniqueKeysOf } from "../../_schema.mjs";
+import { keyOf, render } from "../../../gen/unique-keys.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const U = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

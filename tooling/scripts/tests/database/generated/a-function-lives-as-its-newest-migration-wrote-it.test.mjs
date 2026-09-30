@@ -18,9 +18,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { OUT, functionChangesIn } from "../../gen/schema-snapshot.mjs";
+import { OUT, functionChangesIn } from "../../../gen/schema-snapshot.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const DIR = path.join(ROOT, "supabase", "migrations");
 const read = (file) => fs.readFileSync(file, "utf8").split("\r\n").join("\n");
 const folded = (body) => (body ?? "").replace(/\s+/g, " ").trim();

@@ -218,11 +218,11 @@ write moves a column it reads, as Postgres does), an upsert whose conflict targe
 line past the gateway's 8 KiB (about 208 uuids in one `.in()`), and reads at most 1,000 rows. It knows no trigger and
 no foreign key: a state machine's writers are run through the real guard by one `*.db.test.mjs` each (a broadcast
 through both guards, an escalation, a job's claim to its end, a message from queued to read, a line's voice, the lead
-money lock). `database/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
+money lock). `database/fake-db/fake-db-agrees.db.test.mjs` sends the same requests to the replayed stack and to the double and
 fails when the two answer differently. A fixture makes its rows with `tooling/scripts/tests/_rows.mjs`, one factory
 per table for the ten the suite seeds most: every column the table has, so a migration that adds a NOT NULL column
 breaks one factory, not forty fixtures. After a migration, `corepack pnpm gen:db-types` writes the types and the unique
-keys from the stack, and `database/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
+keys from the stack, and `database/generated/unique-keys.db.test.mjs` fails a stale file. The database suites run in parallel
 processes against one database, and each makes its own workspace; the few rows that are the platform's (the lead finder's
 switch list, the jobs ledger) are behind a file lock (`tooling/scripts/tests/_file-lock.mjs`) that a suite writing or
 counting them takes for its whole file. `partners/partner.db.test.mjs` writes ledger rows that outlive their workspace

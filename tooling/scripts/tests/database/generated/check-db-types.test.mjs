@@ -16,9 +16,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { compare, normalise, postgrestVersion, OUT, FIX } from "../../gen/db-types.mjs";
+import { compare, normalise, postgrestVersion, OUT, FIX } from "../../../gen/db-types.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const SCRIPT = path.join(ROOT, "tooling/scripts/gen/db-types.mjs");
 
 /**

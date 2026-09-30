@@ -12,9 +12,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { FIX, OUT } from "../../gen/schema-snapshot.mjs";
+import { FIX, OUT } from "../../../gen/schema-snapshot.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const SCRIPT = path.join(ROOT, "tooling/scripts/gen/schema-snapshot.mjs");
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
