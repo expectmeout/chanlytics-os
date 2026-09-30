@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { MIN_MS } from "@chanlytics/contracts";
 import { reportClientError } from "@/client/client-error";
-import { hashRoute } from "@/legacy-bridge/app-bridge";
+import { routeOnScreen } from "@/legacy-bridge/workspace";
 
 const CHUNK_ERROR = /ChunkLoadError|Loading chunk|dynamically imported module|Failed to fetch/i;
 /** Two chunk failures closer together than this are a loop, not a new deploy. */
@@ -14,7 +14,7 @@ const LOOP_MS = MIN_MS;
  *  Either way the error is told to the server (client-error.ts), once. */
 export default function OsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    reportClientError("os", error, hashRoute(window.location.hash), error.digest ?? null);
+    reportClientError("os", error, routeOnScreen(), error.digest ?? null);
     if (CHUNK_ERROR.test(error.message)) {
       try {
         // A TIMESTAMP, not a flag. The flag was only ever cleared on this line

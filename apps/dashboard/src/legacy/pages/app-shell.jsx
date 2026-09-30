@@ -115,7 +115,7 @@ class ShellErrorBoundary extends React.Component {
   // Said, not only drawn: the bridge's host hears this and sends it to the server (src/client/client-error.ts).
   componentDidCatch(e) {
     try {
-      window.dispatchEvent(new CustomEvent("chanlytics:shell-error", { detail: { error: e, page: (window.location.hash || "").replace(/^#\/?/, "") } }));
+      window.dispatchEvent(new CustomEvent("chanlytics:shell-error", { detail: { error: e, page: window.CHANLY.address.route() } }));
     } catch { /* a report lost, never a second error */ }
   }
   render() {
