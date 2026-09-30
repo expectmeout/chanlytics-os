@@ -173,16 +173,20 @@ test(
 );
 
 /**
- * The rows of `supabase db query --output-format json`. The CLI may print a notice beside the object (the runner's CLI
- * did, once, and this parse read the notice as part of the JSON), so the answer is the object that carries `rows`,
- * whatever surrounds it.
+ * The rows of `supabase db query --output-format json`. The CLI prints them as a bare array on the runner and inside
+ * an object (with a boundary and a warning) in an agent's shell, and may print a notice beside either, so the answer
+ * is the first slice that parses as an array of rows or as an object carrying them.
  */
 function rowsOf(out) {
-  for (let start = out.indexOf("{"); start >= 0; start = out.indexOf("{", start + 1)) {
-    for (let end = out.lastIndexOf("}"); end > start; end = out.lastIndexOf("}", end - 1)) {
+  const opens = [...out.matchAll(/[[{]/g)].map((m) => m.index);
+  const closes = [...out.matchAll(/[\]}]/g)].map((m) => m.index).reverse();
+  for (const start of opens) {
+    for (const end of closes) {
+      if (end < start) break;
       try {
         const parsed = JSON.parse(out.slice(start, end + 1));
-        if (Array.isArray(parsed?.rows)) return parsed.rows;
+        const rows = Array.isArray(parsed) ? parsed : parsed?.rows;
+        if (Array.isArray(rows)) return rows;
       } catch {
         // Not this slice: try the next.
       }
