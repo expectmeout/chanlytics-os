@@ -135,6 +135,27 @@ export async function queueReply(
 export { IngestFailed };
 
 /**
+ * The thread's reply turn (00282; the verb's rule is core inbound/turn.ts), through its two SQL doors. A call that
+ * failed throws, and the verb reads that as a turn held: a reply is never lost to this bookkeeping.
+ */
+export const replyTurn = {
+  async claim(db: SupabaseClient<Database>, tenantId: string, conversationId: string, messageId: string) {
+    const { data, error } = await db.rpc("claim_reply_turn", {
+      p_tenant: tenantId,
+      p_conversation: conversationId,
+      p_message: messageId,
+    });
+    if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+    return data !== false;
+  },
+  async holds(db: SupabaseClient<Database>, conversationId: string, messageId: string) {
+    const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
+    if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+    return data !== false;
+  },
+};
+
+/**
  * Persist first. Null when there is no database or no tenant to record for,
  * which is a fact about the deployment and by design. A write that FAILED is
  * IngestFailed: the caller says so to the provider, which retries, rather

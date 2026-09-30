@@ -96,6 +96,7 @@ function world(over = {}) {
     pages: [],
     pauses: [],
     processed: 0,
+    usage: [],
     unreachable: 0,
     media: 0,
     purposes: [],
@@ -155,7 +156,9 @@ function world(over = {}) {
           seen.pauses.push(iso);
           memory.pausedUntil = Date.parse(iso);
         },
-        usage: async () => {},
+        usage: async (u) => {
+          seen.usage.push(u);
+        },
         escalate: async (reason, details) => {
           seen.escalations.push({ reason, details });
           return "opened";
@@ -166,6 +169,8 @@ function world(over = {}) {
         },
       }),
       queueReply: async () => false,
+      // The thread's reply turn (00282), when a case models one.
+      ...(over.turn ? { turn: over.turn } : {}),
     },
     alertStaff: async (thread, userText, botText, reason, ctx) => {
       seen.alerts.push({
@@ -865,4 +870,89 @@ test("REGRESSION (S5): the holding message is filled as it goes out, whether the
     failed.seen.sent.map((s) => s.body),
     ["Sorry — Harbor Nails will reply here soon."],
   );
+});
+
+/* ------------------------------------------ one reply per thread at a time (00282, category 15) */
+
+const sure = { intent: "hours", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+const answers = (words) => ({
+  brain: async () => ({
+    generateReply: async () => ({ text: words, escalate: false, meta: sure, usage: { input_tokens: 40 } }),
+  }),
+});
+const modelWorld = (turn) => world({ env: { modelKey: "sk-test" }, turn });
+
+test("a message whose thread's turn a newer message holds is handled and answered by that one: the model is not asked, nothing is sent", async () => {
+  const claims = [];
+  const w = modelWorld({
+    claim: async (_db, tenant, conversation, message) => {
+      claims.push([tenant, conversation, message]);
+      return false;
+    },
+    holds: async () => {
+      throw new Error("a turn that was never held is not asked again");
+    },
+  });
+  await w.run(text("when do you open?"), {
+    brain: async () => {
+      throw new Error("the model must not be asked for a message a newer one answers");
+    },
+  });
+  assert.deepEqual(claims, [["t1", "conv1", "m-in"]], "claimed for this message, in its thread");
+  assert.equal(w.seen.sent.length, 0);
+  assert.equal(w.seen.escalations.length, 0, "the newer message answers both: nobody is handed a thread for this");
+  assert.equal(w.seen.processed, 1, "handled, so a redelivery is the duplicate it is");
+});
+
+test("a turn a newer message took while the model was answering: the words are not sent, the tokens are counted as spent", async () => {
+  const w = modelWorld({ claim: async () => true, holds: async () => false });
+  await w.run(text("when do you open?"), answers("We open at 9."));
+  assert.equal(w.seen.sent.length, 0, "the newer message's reply goes; this one's does not go after it");
+  assert.equal(w.seen.processed, 1);
+  assert.equal(w.seen.usage.length, 1, "the model was asked, and says so");
+  assert.equal(w.seen.usage[0].held, "superseded", "a reply that did not go out, so no first-reply milestone");
+  assert.equal(w.seen.usage[0].input_tokens, 40);
+  assert.deepEqual(
+    w.thread().history.map((h) => h.role),
+    ["user"],
+    "the unsent words are not remembered as said",
+  );
+});
+
+test("a message that holds its thread's turn is answered as it always was", async () => {
+  const held = [];
+  const w = modelWorld({
+    claim: async () => true,
+    holds: async (_db, conversation, message) => {
+      held.push([conversation, message]);
+      return true;
+    },
+  });
+  await w.run(text("when do you open?"), answers("We open at 9."));
+  assert.deepEqual(held, [["conv1", "m-in"]], "asked again once the model had answered, before the words went out");
+  assert.deepEqual(
+    w.seen.sent.map((m) => m.body),
+    ["We open at 9."],
+  );
+});
+
+test("the turn's bookkeeping never costs a reply: a claim or a check that cannot be read, or an adapter with none, is a turn held", async () => {
+  const broken = modelWorld({
+    claim: async () => {
+      throw new Error("claim_reply_turn: connection reset");
+    },
+    holds: async () => {
+      throw new Error("holds_reply_turn: connection reset");
+    },
+  });
+  await broken.run(text("when do you open?"), answers("We open at 9."));
+  assert.deepEqual(
+    broken.seen.sent.map((m) => m.body),
+    ["We open at 9."],
+  );
+  assert.equal(broken.seen.processed, 1);
+
+  const none = modelWorld(undefined);
+  await none.run(text("when do you open?"), answers("We open at 9."));
+  assert.equal(none.seen.sent.length, 1);
 });

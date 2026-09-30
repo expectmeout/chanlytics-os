@@ -292,6 +292,8 @@ before(async () => {
   });
   // The check's model spend per UTC day (00197): the service role's alone.
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
+  // A thread's reply turn (00282): the inbound path's bookkeeping, the service role's alone.
+  await seed("reply_turns", { conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message }, null);
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
     "reach_out_replies",
@@ -601,6 +603,8 @@ const TENANT_TABLES = {
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
   idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
   jobs: ["none", () => ({ tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} })],
+  // A thread's reply turn (00282): read and written by the inbound path's service role, by no member.
+  reply_turns: ["none", () => ({ conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message })],
   // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.

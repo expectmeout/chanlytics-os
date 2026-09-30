@@ -250,6 +250,15 @@ export interface InboundPorts {
       channel?: InboundChannel,
       wire?: Wire,
     ): InboundSink;
+    /**
+     * The thread's reply turn (00282, ./turn.ts): `claim` takes it for this message before the model is asked, and
+     * withdraws the drafts an older turn left waiting; `holds` asks again before the words go out. False when a newer
+     * message of the thread holds it. Absent in an adapter that has none: the turn is then always held.
+     */
+    turn?: {
+      claim(db: InboundDb, tenantId: string, conversationId: string, messageId: string): Promise<boolean>;
+      holds(db: InboundDb, conversationId: string, messageId: string): Promise<boolean>;
+    };
     /** The reply written as a DRAFT and scheduled to fire; null when it could not be queued. */
     queueReply(
       db: InboundDb | null,

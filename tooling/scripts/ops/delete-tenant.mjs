@@ -121,6 +121,7 @@ const TABLES = [
   "reach_out_check_spend",
   "reach_out_replies",
   "reach_out_sends",
+  "reply_turns",
   "segment_members",
   "segments",
   "sending_domains",

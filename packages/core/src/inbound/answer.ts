@@ -14,9 +14,11 @@
  * receptionist may not read (./unreadable.ts); its age, a yes to confirm, the
  * thread's pause and the day's cap, the token budget, the billing pause and
  * the mode in force (./reply-gates.ts). Past the gates a photo's bytes are
- * fetched (./unreadable.ts), the brain composes and layer two checks the
- * words (./model-turn.ts, over steps.ts), and the reply goes out now or waits
- * in the hold window (./dispatch.ts). Every branch reports through the sink
+ * fetched (./unreadable.ts), the message claims the thread's reply turn, the
+ * brain composes and layer two checks the words (./model-turn.ts, over
+ * steps.ts), the turn is asked again (./turn.ts: a newer message of the thread
+ * answers both), and the reply goes out now or waits in the hold window
+ * (./dispatch.ts). Every branch reports through the sink
  * and tells a person where one is needed, both of them ports (./ports.ts). In
  * the phases' comments, "above" and "below" mean earlier and later in this
  * order.
@@ -33,6 +35,7 @@ import { seeingOf, unreadableGate, wordsOf, photoOf } from "./unreadable";
 import { lateOrConfirmed, heldForThePerson } from "./reply-gates";
 import { modelTurn } from "./model-turn";
 import { planTheHold, heldOrKept, sendNow } from "./dispatch";
+import { claimTheTurn, stillOurs } from "./turn";
 // TYPES ONLY: the normalised message is the channels package's shape and this
 // verb speaks it. A VALUE from channels would be a provider inside a verb —
 // that is a port, not a widening (hygiene.test.mjs).
@@ -88,7 +91,9 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   if ((await heldForThePerson(at, bodyText)) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;
+  if ((await claimTheTurn(at)) !== GO) return;
   const turn = await modelTurn(at, bodyText, shown.photo);
+  if ((await stillOurs(at, turn)) !== GO) return;
   const hold = await planTheHold(at, turn);
   if ((await heldOrKept(at, turn, hold, bodyText)) !== GO) return;
   await sendNow(at, turn, hold, bodyText);
