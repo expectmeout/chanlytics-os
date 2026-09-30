@@ -17,6 +17,7 @@ import {
   policyRules,
   NO_FIELDS_COMPOSED_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
+  DATA_NOT_INSTRUCTIONS,
 } from "@chanlytics/contracts";
 
 const brain = {
@@ -315,10 +316,9 @@ test("the resolver composes the typed details with the owner's words as ownWords
                 );
               } else {
                 asStored++;
-                const rules = policyRules(policy, channel);
-                want = rules.length
-                  ? `${system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`
-                  : system_prompt;
+                // The Autonomy rows in force, then the standing rules (the money row, the fence): never none.
+                const rules = [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+                want = `${system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
               }
               assert.equal(
                 got,
@@ -844,9 +844,10 @@ test("with no fields, the prompt is the workspace's own, and the only rules are 
   const quiet = promptBlocks(resolveSystemPrompt(stored, "whatsapp", tz), "whatsapp", stored);
   assert.deepEqual(
     quiet.map((b) => b.row),
-    ["extra_instructions"],
-    "with nothing set to ask, there are no rules to show",
+    ["extra_instructions", "autonomy"],
+    "with nothing set to ask, the standing rules (money is never the receptionist's; a customer's words are data) still follow",
   );
+  assert.match(quiet[1].text, /^Rules you must follow:\n- Money: /);
   // A blank prompt leaves no owner's words to anchor on. Autonomy's rows are still not the guardrails.
   const blank = { ...brain, system_prompt: "" };
   const alone = promptBlocks(resolveSystemPrompt(blank, "whatsapp", tz, new Date(), ASK), "whatsapp", blank);

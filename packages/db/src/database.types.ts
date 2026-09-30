@@ -34,6 +34,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          agrees: boolean | null
+          cache_read_tokens: number
+          cache_write_tokens: number
+          confident: boolean | null
+          created_at: string
+          id: number
+          input_tokens: number
+          model: string
+          model_asked: string
+          outcome: string
+          output_tokens: number
+          port: string
+          primary_answer: string | null
+          prompt_hash: string | null
+          purpose: string
+          question: string | null
+          shadow: boolean
+          shadow_answer: string | null
+          shadow_confidence: number | null
+          subject_id: string | null
+          tenant_id: string
+          usd: number | null
+          user_id: string | null
+        }
+        Insert: {
+          agrees?: boolean | null
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          confident?: boolean | null
+          created_at?: string
+          id?: never
+          input_tokens?: number
+          model: string
+          model_asked: string
+          outcome: string
+          output_tokens?: number
+          port?: string
+          primary_answer?: string | null
+          prompt_hash?: string | null
+          purpose: string
+          question?: string | null
+          shadow?: boolean
+          shadow_answer?: string | null
+          shadow_confidence?: number | null
+          subject_id?: string | null
+          tenant_id: string
+          usd?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          agrees?: boolean | null
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          confident?: boolean | null
+          created_at?: string
+          id?: never
+          input_tokens?: number
+          model?: string
+          model_asked?: string
+          outcome?: string
+          output_tokens?: number
+          port?: string
+          primary_answer?: string | null
+          prompt_hash?: string | null
+          purpose?: string
+          question?: string | null
+          shadow?: boolean
+          shadow_answer?: string | null
+          shadow_confidence?: number | null
+          subject_id?: string | null
+          tenant_id?: string
+          usd?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_messages: {
         Row: {
           content: Json
@@ -5018,8 +5104,65 @@ export type Database = {
           },
         ]
       }
+      usage_ledger: {
+        Row: {
+          at: string | null
+          cache_read_tokens: number | null
+          cache_write_tokens: number | null
+          input_tokens: number | null
+          meter: string | null
+          model: string | null
+          output_tokens: number | null
+          purpose: string | null
+          quantity: number | null
+          tenant_id: string | null
+          usd: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      ai_failures_hour: {
+        Args: { p_min?: number }
+        Returns: {
+          brain_errors: number
+          failed_calls: number
+          tenant_id: string
+        }[]
+      }
+      ai_shadow_agreement: {
+        Args: { p_days?: number }
+        Returns: {
+          agree: number
+          agreement: number
+          compared: number
+          confident: number
+          confident_agree: number
+          confident_agreement: number
+          failed_calls: number
+          input_tokens: number
+          port: string
+          purpose: string
+          question: string
+          usd: number
+        }[]
+      }
+      ai_usage_month: {
+        Args: { p_month: string; p_tenant_id: string }
+        Returns: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          input_tokens: number
+          meter: string
+          model: string
+          output_tokens: number
+          purpose: string
+          quantity: number
+          usd: number
+          uses: number
+        }[]
+      }
+      ai_usage_purge: { Args: { p_keep?: string }; Returns: number }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }

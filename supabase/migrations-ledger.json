@@ -29,7 +29,13 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
+    "00270": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00271": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00272": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00273": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00274": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)",
+    "00275": "held for the other road-to-ten lanes in flight on 29 September 2026 (the controller numbers their migrations when the lanes land, and re-records this ledger)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",

@@ -316,9 +316,6 @@
   "apps/edge/lib/leads/lead-db.ts": {
     "unknownAs": 3
   },
-  "apps/edge/lib/leads/lead-wires.ts": {
-    "unknownAs": 1
-  },
   "apps/edge/lib/lines/line-release.ts": {
     "unknownAs": 2
   },
@@ -341,9 +338,6 @@
     "unknownAs": 2
   },
   "apps/edge/lib/reach-out/sender.ts": {
-    "unknownAs": 1
-  },
-  "apps/edge/lib/receptionist/brain.ts": {
     "unknownAs": 1
   },
   "apps/edge/lib/receptionist/unfinished.ts": {
@@ -401,9 +395,6 @@
   },
   "packages/contracts/src/email/sending-domains.ts": {
     "nonNull": 2
-  },
-  "packages/contracts/src/google/review-reply.ts": {
-    "nonNull": 1
   },
   "packages/contracts/src/leads/lead-first-day.ts": {
     "nonNull": 1

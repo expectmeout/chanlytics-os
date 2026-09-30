@@ -22,6 +22,8 @@ import {
   slugTemplateName,
   templateComponents,
   validateTemplateDraft,
+  MODEL_ROUTES,
+  MODELS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
@@ -187,7 +189,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
   assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
   const svc = readCode("apps/dashboard/src/server/campaigns/templates.ts");
-  assert.ok(svc.includes('export const DRAFT_MODEL = "claude-sonnet-5";'));
+  assert.equal(MODEL_ROUTES.template_draft.model, MODELS.SONNET_5, "the draft asks the registry's model for it");
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
   assert.ok(

@@ -35,7 +35,7 @@ import { layerTwo } from "../packages/core.js";
 import type { JobContext } from "../packages/jobs.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
-import { generateReply } from "../receptionist/brain.js";
+import { brainCallOf, generateReply } from "../receptionist/brain.js";
 import { recordTokens, tokensLast24h } from "../receptionist/budget.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
 
@@ -91,6 +91,10 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
         "",
         ask.note,
         describeNow(rt.timezone, at, rt.brain.profile?.closures),
+        undefined,
+        undefined,
+        // The usage ledger's row: a draft's spend told apart from the receptionist's answers.
+        brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
       ),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("reply_draft: the receptionist ran past the job's deadline")), ms);

@@ -1,20 +1,22 @@
 /**
  * The reach-out check's clock, run: POST /api/cron/reach-out-check over a database in memory, the model answered by the
- * test through the platform's one transport (lib/model.ts setModelClient). Its own clock (R1): who may knock; with no
+ * test through the platform's one transport (lib/model.ts, over a scripted API). Its own clock (R1): who may knock; with no
  * ANTHROPIC_API_KEY nothing is touched and a waiting send says 503 (R4); with no cold lane nothing is checked, since
  * nothing checked could leave (R2); a tick where every call failed is a 503 (R4); a tick that checks says what it did.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { MODEL_ROUTES } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { answering } from "../ai/_model-world.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-doors-world.mjs";
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { setModelClient } = await import(at("apps/edge/lib/model.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out-check.ts"));
 after(() => {
   setPg(null);
-  setModelClient(null);
+  setModelFetch(null);
 });
 
 const MIN = 60_000;
@@ -118,23 +120,20 @@ function world({ sends = [send()] } = {}) {
 /** The model's client, answering the writer and the reader by their prompts; or failing every call. */
 function model(mode = "answers") {
   const asked = [];
-  setModelClient({
-    messages: {
-      create: async (body, options) => {
-        asked.push({ body, options });
-        if (mode === "down") throw Object.assign(new Error("overloaded"), { status: 529 });
-        const writer = String(body.system).includes("You write");
-        const answer = writer
-          ? { opening: "A 4.9 from 16 reviews says people find you.", angle: "their reviews", facts_used: ["rating"] }
-          : { backed: true, unbacked: "", pitch: false, language: "en" };
-        return {
-          content: [{ type: "text", text: JSON.stringify(answer) }],
-          stop_reason: "end_turn",
-          usage: { input_tokens: 50, output_tokens: 10 },
-        };
-      },
-    },
+  const api = answering(async (body, init) => {
+    asked.push({ body, init });
+    if (mode === "down") throw Object.assign(new Error("overloaded"), { status: 529 });
+    const writer = String(body.system).includes("You write");
+    const answer = writer
+      ? { opening: "A 4.9 from 16 reviews says people find you.", angle: "their reviews", facts_used: ["rating"] }
+      : { backed: true, unbacked: "", pitch: false, language: "en" };
+    return {
+      content: [{ type: "text", text: JSON.stringify(answer) }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 50, output_tokens: 10 },
+    };
   });
+  setModelFetch(api.fetch);
   return asked;
 }
 const knockWith = (env) => withEnv(env, async () => answer(await knock(POST, "reach-out-check")));
@@ -174,10 +173,8 @@ test("a tick checks: the opening written and read, each call with its own deadli
   );
   assert.equal(asked.length, 2);
   for (const a of asked) {
-    assert.equal(a.body.model, "claude-haiku-4-5-20251001");
-    assert.equal(a.options.maxRetries, 0);
-    assert.ok(a.options.signal instanceof AbortSignal, "a deadline on every call");
-    assert.ok(a.options.timeout <= 8_000);
+    assert.equal(a.body.model, MODEL_ROUTES.reach_out_check.model);
+    assert.ok(a.init.signal instanceof AbortSignal, "a deadline on every call");
   }
 });
 

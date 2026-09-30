@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { isUuid, LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import { recordActivation, type Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
+import { serviceDb } from "@/server/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import { load, readerContext } from "@/server/readers";
 import { searches } from "@/server/readers/searches";
@@ -60,6 +61,13 @@ export const POST = write({
     const a = answerOf(data);
     const refused = refusalOf(a);
     if (refused) throw refused;
+    // The workspace's first search: the funnel's third milestone, written as the service role (the ledger's writer). An
+    // analytics row never costs a search: nothing here may throw.
+    try {
+      await recordActivation(serviceDb(), member.tenantId, "first_lead_search", ctx.via === "ask" ? "ask" : "people");
+    } catch {
+      /* the milestone is written by the next search */
+    }
     return { search_id: a.search_id, round_id: a.round_id };
   },
 });

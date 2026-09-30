@@ -72,7 +72,7 @@ test("layer two: a price blocks the send; under ask a link is taken back and an 
   };
   const price = layerTwo({ ...base, replyText: "A blowout is $45 today.", intent: "pricing" });
   assert.equal(price.priceBlocked, true);
-  assert.match(price.replyText, /Pricing is quoted at your consult/);
+  assert.match(price.replyText, /^Good question! A member of our team will follow up here with the details shortly\./);
   assert.equal(
     price.escalationReason,
     "policy_ask",
@@ -148,7 +148,7 @@ test("layer two: the urgent line names the number the facts resolve to, and a wo
   assert.deepEqual(
     bare,
     [
-      "Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly.",
+      "Good question! A member of our team will follow up here with the details shortly.",
       "A member of our team will confirm your booking with you shortly.",
       "A member of our team will get back to you with the details shortly.",
     ],

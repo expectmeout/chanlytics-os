@@ -5,10 +5,11 @@
  * a person's answer posted (`replyOnProfile`). The model's draft itself is
  * review-reply.ts.
  */
-import { emitEvent, listPolicies, workspaceAnswersOnItsOwn } from "../packages/db.js";
+import { emitEvent, listPolicies, subjectsWith, workspaceAnswersOnItsOwn } from "../packages/db.js";
 import { replyToReview, reviewParent, type PlacesHttp } from "../packages/channels.js";
 import {
   autoReplyCandidates,
+  autoReplyHold,
   parseTenantConfig,
   reviewReplyModeOf,
   type EdgeRefusal,
@@ -61,12 +62,16 @@ export async function draftFor(
   if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
-  const d = await draftReviewReply(facts, {
-    rating: review.data.rating,
-    author: review.data.author,
-    text: review.data.body,
-    written_at: review.data.published_at,
-  });
+  const d = await draftReviewReply(
+    facts,
+    {
+      rating: review.data.rating,
+      author: review.data.author,
+      text: review.data.body,
+      written_at: review.data.published_at,
+    },
+    { tenantId, reviewId: review.data.id },
+  );
   return d.ok ? { ok: true, text: d.text } : { ok: false, error: d.error, detail: d.detail };
 }
 
@@ -103,16 +108,34 @@ async function answerNewReviews(
   const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return [];
   const facts = await reviewFacts(db, conn.tenant_id);
+  // A reply once held for naming a price or money is the owner's now: not drafted again every hour.
+  const held = await subjectsWith(
+    db,
+    conn.tenant_id,
+    "google.reply_held",
+    picks.map((r) => r.id),
+  );
   const answered: Array<{ id: string; author: string | null; text: string }> = [];
   for (const r of picks) {
-    const d = await draftReviewReply(facts, {
-      rating: r.rating,
-      author: r.author,
-      text: r.body,
-      written_at: r.published_at,
-    });
+    if (held.has(r.id)) continue;
+    const d = await draftReviewReply(
+      facts,
+      { rating: r.rating, author: r.author, text: r.body, written_at: r.published_at },
+      { tenantId: conn.tenant_id, reviewId: r.id },
+    );
     if (!d.ok) {
       L.warn("google_auto_reply_undrafted", { id: r.id, error: d.error });
+      continue;
+    }
+    // Layer two for a reply posted in public (the charter): a price or money in it is never the receptionist's to say,
+    // whatever the prompt asked. It is not posted; the review waits for its owner, who can ask for a draft in Reports.
+    const hold = autoReplyHold(d.text);
+    if (hold) {
+      L.warn("google_auto_reply_held", { id: r.id, why: hold });
+      await emitEvent(db, conn.tenant_id, "google.reply_held", "review", r.id, {
+        review_id: r.review_id,
+        why: hold,
+      }).catch(() => {});
       continue;
     }
     let reply;

@@ -48,7 +48,7 @@
   "apps/edge/lib/model.ts": 2,
   "apps/edge/lib/ops/apns.ts": 3,
   "apps/edge/lib/ops/notify.ts": 1,
-  "apps/edge/lib/ops/page-operator.ts": 4,
+  "apps/edge/lib/ops/page-operator.ts": 3,
   "apps/edge/lib/ops/push.ts": 4,
   "apps/edge/lib/ops/sweep-health.ts": 1,
   "apps/edge/lib/paged.ts": 1,

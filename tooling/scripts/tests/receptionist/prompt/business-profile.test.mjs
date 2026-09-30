@@ -22,6 +22,7 @@ import {
   hasProfile,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
+import { withStanding } from "../_prompt-rules.mjs";
 
 const brain = {
   business_name: "Marisa's Beauty Salon",
@@ -55,16 +56,16 @@ test("a config written before profiles existed is still valid", () => {
   assert.equal(parseTenantConfigResult({ brain }).ok, true);
 });
 
-test("a workspace WITHOUT a profile keeps its prompt byte for byte", () => {
+test("a workspace WITHOUT a profile keeps its own words byte for byte, and the standing rules follow them", () => {
   // A migration that changed what the pilot's receptionist says the moment the code
   // deployed would be a behaviour change nobody asked for.
-  assert.equal(resolveSystemPrompt(brain, "whatsapp"), brain.system_prompt);
+  assert.equal(resolveSystemPrompt(brain, "whatsapp"), withStanding(brain.system_prompt));
 });
 
 test("an EMPTY profile object is not a profile", () => {
   assert.equal(hasProfile({}), false);
   assert.equal(hasProfile(undefined), false);
-  assert.equal(resolveSystemPrompt({ ...brain, profile: {} }), brain.system_prompt);
+  assert.equal(resolveSystemPrompt({ ...brain, profile: {} }), withStanding(brain.system_prompt));
 });
 
 test("a filled profile takes over", () => {
@@ -214,7 +215,7 @@ test("REGRESSION: seven closed days is not a profile", () => {
   // address — strictly worse than the hand-written one it replaced.
   const allClosed = { mon: {}, tue: {}, wed: {}, thu: {}, fri: {}, sat: {}, sun: {} };
   assert.equal(hasProfile({ hours: allClosed }), false);
-  assert.equal(resolveSystemPrompt({ ...brain, profile: { hours: allClosed } }), brain.system_prompt);
+  assert.equal(resolveSystemPrompt({ ...brain, profile: { hours: allClosed } }), withStanding(brain.system_prompt));
   // One real opening time is enough to mean it.
   assert.equal(hasProfile({ hours: { ...allClosed, mon: { open: "09:00", close: "17:00" } } }), true);
 });

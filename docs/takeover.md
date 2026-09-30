@@ -42,7 +42,7 @@ window publishers                   443   sites in 164 files
 copies                               52   of 14 names
 as unknown as                       188
 as never                             13
-non-null assertions, x!             131
+non-null assertions, x!             130
 index reads the compiler lets pass  450   in 113 files
 table names outside packages/db     521
 unnamed durations                    69   in 36 files

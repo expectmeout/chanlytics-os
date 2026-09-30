@@ -842,6 +842,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET usage": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET notifications": {
       "kind": "read",
       "scope": "workspace",

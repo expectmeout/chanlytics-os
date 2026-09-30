@@ -7,6 +7,12 @@
  * schema-sets.ts holds every hand-kept list to it at compile time.
  */
 export const SCHEMA_SETS = {
+  "ai_usage.outcome": ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"],
+  "ai_usage.port": ["anthropic", "typesafe"],
+  "ai_usage.purpose": [
+    "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
+    "note_suggest", "reach_out_check", "reply_read",
+  ],
   "ask_messages.role": ["user", "assistant"],
   "billing_accounts.mode": ["stripe", "direct"],
   "billing_accounts.status": [

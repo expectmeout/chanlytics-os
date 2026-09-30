@@ -43,6 +43,7 @@ export {
   cleanDraft,
   autoReplyCandidates,
   autoReplyBell,
+  autoReplyHold,
   reviewReplyWords,
   REVIEW_REPLY_MAX_WORDS,
   REVIEW_REPLY_MAX_CHARS,

@@ -111,7 +111,7 @@ test("the correction is honest about who is speaking, and is never read out", ()
 
 test("ONE rule: what layerTwo blocks on a text is what spokenBreach finds on a call", () => {
   const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/x" };
-  for (const said of [QUOTE, "That runs 60 dollars.", "Son 300 pesos.", "$ 20 deposit."]) {
+  for (const said of [QUOTE, "That runs 60 dollars.", "Son 300 pesos.", "$ 20 for the trim."]) {
     assert.equal(violatesNoPrices(said), true, said);
     const text = layerTwo({
       replyText: said,

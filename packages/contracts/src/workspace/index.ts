@@ -83,6 +83,7 @@ export {
   receptionistOn,
   billingDoorOpen,
   maySpend,
+  mayUseModels,
   whyCannotSpend,
   tenantStatusFor,
   planBilling,
@@ -227,3 +228,5 @@ export type {
   WorkspacePartnerState,
   WorkspacePartnerVM,
 } from "./partner-invite";
+export { ACTIVATION_MILESTONES } from "./activation";
+export type { ActivationMilestone } from "./activation";

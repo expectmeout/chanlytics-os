@@ -101,7 +101,10 @@ export async function previewOne(
     checkWorkspaceOf(db, i.tenantId),
   ]);
   if (!record) return none;
-  const c = await checkOne(checkInputOf(record, i.words, workspace.opening, i.language), ask, budget);
+  const c = await checkOne(checkInputOf(record, i.words, workspace.opening, i.language), ask, budget, {
+    tenantId: i.tenantId,
+    subjectId: lead.lead_id,
+  });
   const checked = c.kind === "checked" ? c : null;
   const opening = checked?.opening?.opening ?? null;
   const r = reachOutRequest({

@@ -6,8 +6,8 @@
  * The transport is lib/model.ts, the one the reach-out check asks through too. A look is taken once -- note_candidates stamps what it hands over -- so a failure
  * here costs that one look, never a retry storm. What is suggested waits on the person's page for Keep or Dismiss.
  *
- * The model's tokens are logged with each look (notes_looked), not written as usage rows: the smallest model, a few
- * looks a day, and none of it the receptionist's daily reply budget.
+ * The model's tokens are logged with each look (notes_looked), and the model port writes each call to the usage ledger
+ * (ai_usage, purpose note_suggest) for the look's workspace: none of it the receptionist's daily reply budget.
  */
 import {
   NOTE_SUGGEST_LIMITS,
@@ -21,9 +21,6 @@ import {
 } from "./packages/contracts.js";
 import { askJson } from "./model.js";
 import type { Logger } from "./log.js";
-
-/** How long the model may take to suggest a note. */
-const SUGGEST_TIMEOUT_MS = 20_000;
 
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
@@ -43,6 +40,7 @@ interface NoteCandidate {
 type AskNote = (
   system: string,
   user: string,
+  forWhom: { tenantId: string; subjectId: string },
 ) => Promise<{ answer: unknown; tokens: { input: number; output: number } } | null>;
 
 /** The database the sweep needs: the batch, and the one door a suggestion goes through. */
@@ -51,16 +49,15 @@ interface NotesDb {
 }
 
 /** The smallest model, in its schema, through the platform's one JSON-model transport (lib/model.ts). */
-export const askNoteModel: AskNote = (system, user) =>
+export const askNoteModel: AskNote = (system, user, forWhom) =>
   askJson({
-    model: NOTE_SUGGEST_MODEL,
+    purpose: "note_suggest",
     system,
     user,
     schema: NOTE_SUGGEST_SCHEMA,
     maxTokens: 300,
     plainJsonHint: "Answer with only a JSON object with the keys worth, kind, text and quote.",
-    timeoutMs: SUGGEST_TIMEOUT_MS,
-    maxRetries: 1,
+    for: forWhom,
   });
 
 interface NotesSweepOutcome {
@@ -115,7 +112,10 @@ export async function suggestNotes(deps: {
     }
     let asked;
     try {
-      asked = await ask(noteSuggestSystemPrompt("local business"), noteSuggestUserContent(turns, known));
+      asked = await ask(noteSuggestSystemPrompt("local business"), noteSuggestUserContent(turns, known), {
+        tenantId: c.tenant_id,
+        subjectId: c.contact_id,
+      });
     } catch (e) {
       L.warn("notes_model_failed", {
         tenant_id: c.tenant_id,

@@ -9,11 +9,12 @@
  * a human, for the same reason the deadman alert lives in the edge — notify()
  * owns who may be told what.
  *
- * It also pages the platform for three conditions no sweep row can show: due
+ * It also pages the platform for four conditions no sweep row can show: due
  * jobs nobody is claiming, WhatsApp messages Meta accepted that have had no
- * receipt for six hours (lib/receipts-watch.ts), and the mail domain no longer
- * being verified (lib/mail-domain.ts) -- the one of the three that our own
- * rows cannot show at all.
+ * receipt for six hours (lib/receipts-watch.ts), the mail domain no longer
+ * being verified (lib/mail-domain.ts) -- the one that our own rows cannot show
+ * at all -- and a workspace whose model calls or receptionist turns keep
+ * failing (lib/ops/model-watch.ts, which also keeps the usage ledger).
  *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
@@ -35,6 +36,7 @@ import {
   describeMailDomainTrouble,
 } from "../../lib/email/mail-domain.js";
 import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
+import { watchModels } from "../../lib/ops/model-watch.js";
 import { env } from "../../lib/env.js";
 
 export async function POST(request: Request): Promise<Response> {
@@ -144,6 +146,9 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
+  const models = await watchModels(db);
+
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
     alerted: delivered ? plan.alert.length : 0,
@@ -151,6 +156,8 @@ export async function POST(request: Request): Promise<Response> {
     unreceipted,
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
     cold_reply_trouble: coldTrouble,
+    model_failures_paged: models.paged,
+    ai_usage_purged: models.purged,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

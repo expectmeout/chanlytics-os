@@ -56,6 +56,8 @@ export interface GatewayUsage {
   type: "usage";
   /** The API's own id for the message; the next request's cache diagnostics name it (the Phase 6 plan, D2). */
   messageId: string | null;
+  /** The model that answered, in the API's own name: a fallback's when the edge asked one (the turn's stamp). */
+  model: string | null;
   /**
    * Why this request missed the cache the one it named had written (message.diagnostics): the API's type
    * (`system_changed`, `tools_changed`, `messages_changed`, `model_changed`, `previous_message_not_found`,
@@ -121,9 +123,10 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * The cache diagnostics' verdict on message_start (the Phase 6 plan, D2): null when the response carries none (no
  * divergence, or nothing named to compare), "pending" when the comparison was still running, else the miss's type.
  */
-function messageOf(message: { id?: unknown; diagnostics?: unknown } | undefined) {
+function messageOf(message: { id?: unknown; model?: unknown; diagnostics?: unknown } | undefined) {
   return {
     messageId: typeof message?.id === "string" ? message.id : null,
+    model: typeof message?.model === "string" ? message.model : null,
     cacheMiss: cacheMissOf(message?.diagnostics),
   };
 }

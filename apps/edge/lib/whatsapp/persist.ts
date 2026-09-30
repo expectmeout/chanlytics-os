@@ -15,6 +15,7 @@ import {
   markProcessed,
   pauseConversation,
   emitEvent,
+  recordActivation,
   readThreadState,
   type IngestResult,
 } from "../packages/db.js";
@@ -202,6 +203,20 @@ const MIME_EXT: Record<string, string> = {
   "application/pdf": "pdf",
 };
 
+/**
+ * What a reply's usage event writes: its tokens and quality signal, and, for the receptionist's first answer to a customer
+ * (not a held draft), the funnel's second milestone.
+ */
+async function recordUsage(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  conversationId: string,
+  u: Record<string, unknown>,
+): Promise<void> {
+  await recordTokens(db, tenantId, conversationId, u);
+  if (u.held == null) await recordActivation(db, tenantId, "first_reply", "receptionist");
+}
+
 /** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
 /**
  * `rt` is threaded in so the media download uses the TENANT's credentials.
@@ -344,7 +359,7 @@ export function pgSink(
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
-      on ? pgSafe("usage", () => recordTokens(db, tenantId, ing.conversation_id, u)) : Promise.resolve(),
+      on ? pgSafe("usage", () => recordUsage(db, tenantId, ing.conversation_id, u)) : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can
      *  alert once per hold rather than once per message. Undefined when
