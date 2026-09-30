@@ -446,6 +446,35 @@ test("REGRESSION: a price in the model's answer is never a draft, and its tokens
   });
 });
 
+test("REGRESSION: named money in the model's answer is never a draft, as a price is not, and its tokens are counted", async () => {
+  // The money charter (the AI lane's namesMoney, which its body left for this door to wire): a refund, a discount, a
+  // deposit or a payment plan is the owner's to offer in their own words, never a draft's, in English or Spanish.
+  await withEnv(KEY, async () => {
+    const ask = { ...ASK, deadline: Date.now() + 40_000 };
+    for (const text of [
+      "We can refund the deposit if you change your mind.\n\nSam",
+      "I can offer you a discount on the first move.\n\nSam",
+      "Podemos ofrecerle un reembolso completo.\n\nSam",
+    ]) {
+      edge.answer = { text, escalate: false, usage: { input_tokens: 90, output_tokens: 30 } };
+      const w = edge();
+      assert.deepEqual(await w.draft(w.tenant, ask), { why: "not_drafted" }, text);
+      assert.equal(w.tables.events.filter((e) => e.kind === "usage.llm_tokens").length, 1, "the tokens were spent");
+    }
+    // A draft that names no money is still a draft.
+    edge.answer = {
+      text: "We can be there at 9 on Saturday, with a free parking spot for the truck.\n\nSam",
+      escalate: false,
+      usage: { input_tokens: 90, output_tokens: 30 },
+    };
+    const fine = edge();
+    assert.deepEqual(await fine.draft(fine.tenant, ask), {
+      text: "We can be there at 9 on Saturday, with a free parking spot for the truck.\n\nSam",
+    });
+    edge.answer = undefined;
+  });
+});
+
 test("layer two's price rule alone reaches a draft: a class held for a person does not swap a draft's words", async () => {
   // Autonomy's ask holds what the receptionist itself sends; a draft is sent by nobody but the owner, so a booking or
   // service question is still drafted where those classes are on ask, and its words are the brain's own.

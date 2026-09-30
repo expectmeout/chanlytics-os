@@ -10,15 +10,17 @@
  *   - The brain is the receptionist's (generateReply) over the workspace's own prompt, the thread, and the lead note.
  *     Its holding words are never a draft: an answer that hands off, refuses or fails is not drafted.
  *   - Layer two (core layerTwo, Blueprint section 6) reads the answer as it reads the receptionist's own: a price in it
- *     is refused outright, so no draft a person may send as written names one. Not drafted, never the holding words in
- *     its place. Only that rule applies here: the classes a workspace holds for a person (Autonomy's ask) are about what
- *     the receptionist itself sends, and nothing here sends.
+ *     is refused outright, so no draft a person may send as written names one, and neither does one that names money
+ *     (namesMoney: a refund, a discount, a deposit, a payment plan). Not drafted, never the holding words in its
+ *     place. Only those two rules apply here: the classes a workspace holds for a person (Autonomy's ask) are about
+ *     what the receptionist itself sends, and nothing here sends.
  *   - Its tokens are written through the one writer (recordTokens), so the day's budget counts them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   describeNow,
   draftRefusal,
+  namesMoney,
   resolveSystemPrompt,
   tokenBudgetSpent,
   tokenCapOf,
@@ -123,6 +125,9 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       L.warn("policy_block_price", { conversation: ask.conversationId });
       return said("not_drafted");
     }
+    // The money charter, as Ask's reply card keeps it: a refund, a discount, a deposit or a payment plan is the owner's
+    // to offer in their own words, so a draft that names one is not drafted either (said() writes the line).
+    if (namesMoney(r.text)) return said("not_drafted");
     L.info("reach_out_reply_draft", { conversation: ask.conversationId, drafted: true, chars: r.text.length });
     return { text: r.text };
   };
