@@ -29,7 +29,6 @@ import {
   OPENING_SCHEMA,
   READING_SCHEMA,
   REACH_OUT_CHECKS_PER_DAY,
-  REACH_OUT_MODEL,
   REACH_OUT_MONTH_EMAILS,
   chainOf,
   checkOpening,
@@ -63,7 +62,7 @@ import {
   type ReachOutSendRow,
   type UncheckedSend,
 } from "../packages/db.js";
-import { askJson, type JsonAnswer } from "../model.js";
+import { askJson, type JsonAnswer, type ModelCallFor } from "../model.js";
 import { checkedWordsOf } from "./request.js";
 import { noticeHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../log.js";
@@ -101,20 +100,26 @@ export type AskModel = (
   schema: object,
   maxTokens: number,
   signal: AbortSignal,
+  /** Who the call is for: the usage ledger's row (the send's workspace, and the send). */
+  forWhom: ModelCallFor,
 ) => Promise<JsonAnswer | null>;
 
-/** Haiku, through the platform's one JSON-model transport, with no retry of its own: a failure is the check's to count. */
-export const askReachOutModel: AskModel = (system, user, schema, maxTokens, signal) =>
+/**
+ * Haiku (the registry's reach_out_check route), through the platform's one JSON-model transport, with no retry of its
+ * own on "not now": a failure is the check's to count. An overload is asked once of the route's fallback when the
+ * call's deadline leaves room.
+ */
+export const askReachOutModel: AskModel = (system, user, schema, maxTokens, signal, forWhom) =>
   askJson({
-    model: REACH_OUT_MODEL,
+    purpose: "reach_out_check",
     system,
     user,
     schema,
     maxTokens,
     plainJsonHint: "Answer with only a JSON object in the shape asked.",
     timeoutMs: CHECK_CALL_MS,
-    maxRetries: 0,
     signal,
+    for: forWhom,
   });
 
 /** When a caller's calls stop, and each call's deadline. */
@@ -175,8 +180,13 @@ function timedOut(e: unknown): boolean {
   return name === "TimeoutError" || name === "AbortError" || /timed? ?out|aborted/i.test(String(e));
 }
 
-/** One send's check, over an injectable model. */
-export async function checkOne(i: CheckInput, ask: AskModel, budget: CheckBudget): Promise<CheckOutcome> {
+/** One send's check, over an injectable model; `forWhom` is the usage ledger's row for each call. */
+export async function checkOne(
+  i: CheckInput,
+  ask: AskModel,
+  budget: CheckBudget,
+  forWhom: ModelCallFor = { tenantId: null },
+): Promise<CheckOutcome> {
   const tokens: Tokens = { input: 0, output: 0 };
   let calls = 0;
   const call = async (
@@ -189,7 +199,7 @@ export async function checkOne(i: CheckInput, ask: AskModel, budget: CheckBudget
     calls += 1;
     let a: JsonAnswer | null;
     try {
-      a = await ask(system, user, schema, maxTokens, budget.signal());
+      a = await ask(system, user, schema, maxTokens, budget.signal(), forWhom);
     } catch (e) {
       return { failed: timedOut(e) ? "timeout" : "error" };
     }
@@ -501,7 +511,7 @@ export async function checkSends(p: {
         await gate(u, "day_spent");
         return;
       }
-      const c = await checkOne(input, ask, budget);
+      const c = await checkOne(input, ask, budget, { tenantId: s.tenant_id, subjectId: s.id });
       out.calls += c.calls;
       out.tokens.input += c.tokens.input;
       out.tokens.output += c.tokens.output;

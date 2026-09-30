@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{ call_id: unknown }>(request);
+  const body = await readBody<{ call_id?: string }>(request);
   const callId = String(body.call_id || "");
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId)) return refuse(400, "bad_request", "call_id required");
   const notYours = await refusedCall(auth, AUD, callId);

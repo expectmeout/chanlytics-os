@@ -1,9 +1,19 @@
 import "server-only";
 import { deployment } from "../env";
-import { callEdge, edgeAnswered } from "../edge";
+import type { EdgeAnswerCode } from "@chanlytics/contracts";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeAnswer, type EdgeReason } from "../edge";
 
 /** A live call waits on nobody: the edge's own call to the provider is bounded at 8 s (voice-retell), this just above. */
 const LIVE_CALL_TIMEOUT_MS = 15_000;
+
+/** Why a live call was not reached: the edge's code, with the provider's status when the door gave one ("provider 404"). */
+type LiveCallOutcome = { ok: true } | { ok: false; reason: EdgeReason | `${EdgeAnswerCode} ${number}` };
+
+function unreached(r: EdgeAnswer): LiveCallOutcome {
+  const status = typeof r.body?.status === "number" ? r.body.status : null;
+  const reason = edgeReasonOf(r);
+  return { ok: false, reason: status && r.body?.error ? `${r.body.error} ${status}` : reason };
+}
 
 /**
  * Who asks, for which workspace: the token names both, and the edge acts only on a call of that workspace. The
@@ -25,7 +35,7 @@ export async function whisperLiveCall(
   retellCallId: string,
   whisper: { text: string; trigger: boolean },
   asker: LiveCallAsker,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/whisper",
@@ -33,8 +43,7 @@ export async function whisperLiveCall(
     { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return unreached(r);
 }
 
 /**
@@ -43,10 +52,7 @@ export async function whisperLiveCall(
  * customer's call -- and a reason instead of a throw, so the route answers
  * in a sentence.
  */
-export async function stopLiveCall(
-  retellCallId: string,
-  asker: LiveCallAsker,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function stopLiveCall(retellCallId: string, asker: LiveCallAsker): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/stop-call",
@@ -54,8 +60,7 @@ export async function stopLiveCall(
     { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return unreached(r);
 }
 
 /**
@@ -67,7 +72,7 @@ export async function handOverLiveCall(
   retellCallId: string,
   line: string,
   asker: LiveCallAsker,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<LiveCallOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge(
     "/api/admin/hand-over",
@@ -75,6 +80,5 @@ export async function handOverLiveCall(
     { ...asker, timeoutMs: LIVE_CALL_TIMEOUT_MS },
   );
   if (edgeAnswered(r)) return { ok: true };
-  const j = (r.body ?? {}) as { error?: string; status?: number };
-  return { ok: false, reason: j.error ? `${j.error}${j.status ? ` ${j.status}` : ""}` : `edge ${r.status}` };
+  return unreached(r);
 }

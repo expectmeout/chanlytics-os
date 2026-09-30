@@ -309,14 +309,10 @@ test("provision, the workspace: a token naming one refuses a body naming another
     assert.equal(status, 200, "no body: the token's workspace, a dry run");
     assert.deepEqual(body.tenant, { id: A, slug: "harbor-moving", name: "Harbor Moving" });
     assert.equal((await knockRaw("not even json")).status, 200, "a body that is not JSON is no body");
-    // REPORTED, not fixed here: a body of exactly `null` is valid JSON, so the
-    // parse succeeds, `body` becomes null, and the first property read on it
-    // throws -- an unhandled exception (a Vercel 500) where a 400 belongs.
-    // Only null does this: a JSON string, number, boolean or array all read as
-    // undefined and land on the door's own 400. The same
-    // `let body = {}; try { body = JSON.parse(...) } catch {}` shape is in the
-    // steer, whisper, connect and eval doors, so all five share it.
-    await assert.rejects(knockRaw("null"), TypeError);
+    // JSON that is not an object is no body either. A body of exactly `null` used to throw here, the first property
+    // read on it, an unhandled exception (a Vercel 500) where a 400 belongs; every admin door reads its body through
+    // admin-door.ts now (edge/every-door-reads-its-body-once.test.mjs holds them all).
+    for (const raw of ["null", "[]", "5", '"x"', "true"]) assert.equal((await knockRaw(raw)).status, 200, raw);
   } finally {
     net.restore();
   }

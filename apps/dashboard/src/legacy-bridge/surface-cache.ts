@@ -42,15 +42,26 @@ interface CacheBlob {
   surfaces: Record<string, Record<string, unknown>>;
 }
 
-function readCacheBlob(): CacheBlob | null {
+/**
+ * The slot as this tab last read or wrote it, kept parsed. A snapshot builds on what is cached, and each one used to
+ * parse the whole slot again, up to 2 MB, on every read of every surface once the boot's write had gone. The slot is
+ * this tab's own, so what it holds is what was last written here: it is read again (a string, compared) but parsed only
+ * when it is not that.
+ */
+let parsedCopy: { raw: string; blob: CacheBlob | null } | null = null;
+
+/** The slot, parsed; `own` for a copy of its own, which the page's globals may take and change. */
+function readCacheBlob(own = false): CacheBlob | null {
   try {
     const raw = sessionStorage.getItem(CACHE_NAME);
     if (!raw) return null;
-    const blob = JSON.parse(raw) as CacheBlob;
+    if (!own && parsedCopy?.raw === raw) return parsedCopy.blob;
+    const parsed = JSON.parse(raw) as CacheBlob;
     // A deploy can change a viewmodel's shape; restoring the old shape would
     // render garbage or throw inside a legacy component. Build-keyed, so a
     // new deploy simply starts cold.
-    if (!blob || blob.build !== BUILD || !blob.surfaces) return null;
+    const blob = parsed && parsed.build === BUILD && parsed.surfaces ? parsed : null;
+    if (!own) parsedCopy = { raw, blob };
     return blob;
   } catch {
     return null; // private mode, quota, corrupt entry — behave as a cold boot
@@ -77,6 +88,7 @@ function write(blob: CacheBlob): void {
       raw = JSON.stringify(blob);
     }
     sessionStorage.setItem(CACHE_NAME, raw);
+    parsedCopy = { raw, blob };
   } catch {
     /* quota or private mode — caching is an optimisation, never a requirement */
   }
@@ -87,6 +99,13 @@ let pending: CacheBlob | null = null;
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let waitingSince = 0;
 let hideHeard = false;
+/**
+ * Signing out closed the cache: nothing this page reads from now on is kept. A sign-out clears the rows and then posts
+ * the form, inside the app after up to two seconds for the phone to be forgotten, while the runner still runs; a read
+ * landing in between was written back by the next snapshot, and the next person to sign in on that tab was painted the
+ * last one's rows before the tenant guard could look (defect 52). Closed for the page's life: a sign-out leaves it.
+ */
+let sealed = false;
 
 function current(): CacheBlob | null {
   return pending ?? readCacheBlob();
@@ -102,6 +121,7 @@ export function flushSurfaceCache(): void {
 }
 
 function keep(blob: CacheBlob): void {
+  if (sealed) return;
   const now = Date.now();
   if (!pending) waitingSince = now;
   pending = blob;
@@ -124,7 +144,8 @@ function keep(blob: CacheBlob): void {
  *  not show a loading state. */
 export function hydrateSurfaceCache(): Set<string> {
   const restored = new Set<string>();
-  const blob = current();
+  // A copy of its own: the pages change what they are handed in place, and the kept copy stays what was written.
+  const blob = pending ?? readCacheBlob(true);
   if (!blob) return restored;
   const w = window as unknown as Record<string, unknown>;
   for (const [key, globals] of Object.entries(blob.surfaces)) {
@@ -158,21 +179,22 @@ export function snapshotSurface(
   tenant: string | null,
   trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
 ): void {
-  if (!globals.length) return;
-  const blob = current() ?? { build: BUILD, tenant, surfaces: {} };
-  blob.build = BUILD;
-  if (tenant) blob.tenant = tenant;
+  if (!globals.length || sealed) return;
+  const was = current();
   const snap = globalsNow(globals);
-  blob.surfaces[key] = trim ? trim(snap) : snap;
-  keep(blob);
+  // A new object over the one kept, never the kept one changed: what was written stays what it says.
+  keep({
+    build: BUILD,
+    tenant: tenant || (was?.tenant ?? tenant),
+    surfaces: { ...was?.surfaces, [key]: trim ? trim(snap) : snap },
+  });
 }
 
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
 export function resnapshotSurface(key: string, globals: string[], tenant: string | null): void {
   const blob = current();
-  if (!blob || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
-  blob.surfaces[key] = globalsNow(globals);
-  keep(blob);
+  if (sealed || !blob || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
+  keep({ ...blob, surfaces: { ...blob.surfaces, [key]: globalsNow(globals) } });
 }
 
 export function cachedTenant(): string | null {
@@ -196,4 +218,10 @@ export function clearSurfaceCache(): void {
   // And every read the pages kept, the people this tab opened among them, in memory and in the tab (read-cache.ts):
   // outside the try, so storage refusing its own slot still lets go of what is in memory.
   clearReadCaches();
+}
+
+/** Signing out: the cache cleared, and closed for the rest of this page's life, so no read can put rows back. */
+export function sealSurfaceCache(): void {
+  clearSurfaceCache();
+  sealed = true;
 }

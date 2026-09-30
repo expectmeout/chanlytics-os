@@ -197,7 +197,7 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   assert.deepEqual(
     r.variables.caller_context.split("\n"),
     [
-      "Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
+      "Name on record: <profile_name>Rosa</profile_name>. No email address on file. Returning contact. Last in touch today.",
       VISITS,
       "Recent interactions on this number (calls and messages):",
       "Customer: Are you open Saturday?",

@@ -28,11 +28,17 @@ const ahMicBlocked = async () => {
 // Nothing is recorded or uploaded. Where the browser can say whether the
 // microphone is blocked, the press waits for that answer first, and a press
 // released before it starts nothing (`wantRef`); elsewhere it starts at once.
+// What the words are for is the Line on screen as listening began: the element that had focus then (the field, the
+// mic). Closing Ask takes the Line off the page (AskReal draws nothing closed) and stopped only the reading aloud, so
+// the recogniser went on and its end asked what it had heard in a Line that was gone (G:0). Words heard for a Line
+// that is gone are dropped, and a word arriving after it stops the recogniser.
+const ahLineGone = (el) => !!el && el.isConnected === false;
 const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
   const [listening, setListening] = useAhState(false);
   const recRef = useAhRef(null);
   const heardRef = useAhRef("");
   const wantRef = useAhRef(false);
+  const forRef = useAhRef(null);
   const canTalk = !!ahRecognizer();
   const begin = (SR) => {
     if (!wantRef.current || recRef.current) return;
@@ -42,7 +48,9 @@ const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
     rec.interimResults = true;
     rec.continuous = true;
     heardRef.current = "";
+    forRef.current = typeof document !== "undefined" ? document.activeElement || null : null;
     rec.onresult = (ev) => {
+      if (ahLineGone(forRef.current)) { heardRef.current = ""; try { rec.stop(); } catch { /* already stopped */ } return; }
       let finals = "";
       let interim = "";
       for (let i = 0; i < ev.results.length; i++) {
@@ -63,7 +71,7 @@ const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
       recRef.current = null;
       const heard = heardRef.current;
       heardRef.current = "";
-      if (heard) onHeard(heard, null);
+      if (heard && !ahLineGone(forRef.current)) onHeard(heard, null);
     };
     recRef.current = rec;
     setListening(true);

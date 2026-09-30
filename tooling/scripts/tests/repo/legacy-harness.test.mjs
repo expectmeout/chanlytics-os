@@ -222,24 +222,47 @@ const namesRead = (sf) => {
   return { bare: [...bare].filter((n) => !declared.has(n)), onWindow: [...onWindow] };
 };
 
-test("a file every workspace loads names nothing the demo alone defines, but the four forks' seeds, through window", () => {
+test("a file every workspace loads names nothing the demo alone defines, but the four forks' seeds and the demo's data, through window", () => {
   // A real workspace never loads the demo's files, so a bare name only they define is a ReferenceError there: the
   // route table named the Agents pages, Content, the Deal board and the seeded Lists bare until the demo left the
   // manifest, and draws them by name through demoPage now. The four real pages that draw their seeded twin where
   // the bridge has not fed them (calendar, broadcasts, outbound, live-monitor) read it off window at the draw, and
   // draw nothing where it is absent; a fifth would be a page asking for the demo's data on a real workspace.
+  // The demo's data (demo/data/: the Agents roster and store, the seeded Today, calendar, deals, calls and trust
+  // table) left every workspace's boot on 29 September; what a real file still reads of it is read off window where
+  // the demo draws it, and reads as nothing where it is absent, as the forks do. Never bare.
   const own = new Set(manifest.filter((f) => f !== STUBS).flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]));
   const demoOnly = new Set(
     demoManifest.flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]).filter((n) => !own.has(n)),
   );
   const FORKS = new Set(["CalendarSeed", "BroadcastsSeed", "OutboundSeed", "LiveMonitorSeed"]);
+  const DEMO_DATA = new Set(
+    demoManifest.filter((f) => f.startsWith("demo/data/")).flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]),
+  );
   const reads = [];
   for (const f of manifest.filter((x) => x !== STUBS)) {
     const { bare, onWindow } = namesRead(parseTs(`${LEGACY}/${f}`));
     for (const n of bare) if (demoOnly.has(n)) reads.push(`${f}: ${n}`);
-    for (const n of onWindow) if (demoOnly.has(n) && !FORKS.has(n)) reads.push(`${f}: window.${n}`);
+    for (const n of onWindow)
+      if (demoOnly.has(n) && !FORKS.has(n) && !DEMO_DATA.has(n)) reads.push(`${f}: window.${n}`);
   }
   assert.deepEqual(reads, []);
+  // And none of the demo's data is what the boot gate waits for: LegacyApp's REQUIRED names only a workspace's own.
+  const required = [];
+  const visit = (n) => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "REQUIRED") {
+      const list = ts.isAsExpression(n.initializer) ? n.initializer.expression : n.initializer;
+      for (const e of list.elements) required.push(e.text);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(parseTs("apps/dashboard/src/legacy-bridge/LegacyApp.tsx"));
+  assert.ok(required.includes("ChanlyticsApp"), `the boot gate is read: ${required}`);
+  assert.deepEqual(
+    required.filter((n) => DEMO_DATA.has(n)),
+    [],
+    "a real workspace would stop at 'didn't finish loading'",
+  );
 });
 
 test("every page the route table draws through demoPage is one a file of the demo publishes", () => {

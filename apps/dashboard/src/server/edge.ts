@@ -17,7 +17,7 @@
  * or not at all.
  */
 import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels";
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, type EdgeAnswerBody, type EdgeAnswerCode } from "@chanlytics/contracts";
 import { env, isProduction } from "./env";
 import { requestId } from "./log";
 
@@ -52,7 +52,7 @@ export function edgeConfigured(): boolean {
  * support reads rides in `detail`; a refusal with no words, or blank ones, falls back to its code, as the platform's
  * page reads one (legacy-bridge/platform.ts).
  */
-export function edgeRefusalWords(body: Record<string, unknown> | null | undefined): string | null {
+export function edgeRefusalWords(body: EdgeAnswerBody | null | undefined): string | null {
   const detail = typeof body?.detail === "string" ? body.detail.trim() : "";
   if (detail) return detail;
   return typeof body?.error === "string" ? body.error : null;
@@ -76,14 +76,28 @@ export function edgeHeaders(
   return h;
 }
 
-/** What an edge door answered: its status and its JSON body, or the status this side gave a call that got none. */
+/**
+ * What an edge door answered: its status and its JSON body, or the status this side gave a call that got none. The
+ * body's `error` is read as a code of contracts' union (EdgeAnswerBody), never as any string.
+ */
 export interface EdgeAnswer {
   status: number;
-  body: Record<string, unknown> | null;
+  body: EdgeAnswerBody | null;
 }
 
 /** How long a call to the edge waits unless its caller says: a door that calls a provider bounds its own calls under it. */
 const EDGE_CALL_TIMEOUT_MS = 20_000;
+
+/**
+ * Why an edge call did not do its work, as a caller carries it on: the answer's code, or its status when it gave none
+ * (a door that answered no JSON). A caller that compares one compares codes a set names, or it does not compile.
+ */
+export type EdgeReason = EdgeAnswerCode | `edge ${number}`;
+
+/** The reason an answer carries: its code, else its status. */
+export function edgeReasonOf(a: EdgeAnswer): EdgeReason {
+  return typeof a.body?.error === "string" ? a.body.error : `edge ${a.status}`;
+}
 
 /** Whether the door said yes on the wire: a 2xx. What it said inside is the caller's to read. */
 export const edgeAnswered = (a: EdgeAnswer): boolean => a.status >= 200 && a.status < 300;
@@ -119,10 +133,7 @@ export async function callEdge(
     const parsed: unknown = await r.json().catch(() => null);
     return {
       status: r.status,
-      body:
-        parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-          ? (parsed as Record<string, unknown>)
-          : null,
+      body: parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as EdgeAnswerBody) : null,
     };
   } catch (e) {
     const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");

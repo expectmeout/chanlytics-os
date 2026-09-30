@@ -172,5 +172,24 @@ export const EDGE_ERROR_CODES = [
 
 export type EdgeErrorCode = (typeof EDGE_ERROR_CODES)[number];
 
+/**
+ * The codes the dashboard's own side of an edge call answers with when no door answered: the call was never made
+ * (`no_edge_credential`, this deployment holds nothing the edge honours; `preview`, a preview never calls a live
+ * provider) or never came back (`edge_timeout`, `edge_unreachable`; apps/dashboard/src/server/edge.ts callEdge). No
+ * edge door answers one, so they are not EDGE_ERROR_CODES; they are named here so the dashboard reads every code an
+ * answer can carry from one union.
+ */
+export type EdgeCallCode = "edge_timeout" | "edge_unreachable" | "no_edge_credential" | "preview";
+
+/** What an edge answer's `error` can be, as the dashboard reads it: a door's code, or the call's own. */
+export type EdgeAnswerCode = EdgeErrorCode | EdgeCallCode;
+
+/**
+ * An edge answer's JSON body as the dashboard reads it: its code is one of the union, so a comparison with a code no
+ * set names does not compile, and a code the edge renames fails the dashboard's typecheck at every place that reads
+ * it; the other fields are each door's own.
+ */
+export type EdgeAnswerBody = { error?: EdgeAnswerCode; detail?: string; [field: string]: unknown };
+
 /** An edge door's refusal: the code a caller compares, and the words for a person or for support when there are any. */
 export type EdgeRefusal = { ok: false; error: EdgeErrorCode; detail?: string };

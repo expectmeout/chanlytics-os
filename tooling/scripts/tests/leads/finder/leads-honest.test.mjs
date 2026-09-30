@@ -14,6 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../../_legacy-react.mjs";
 import { LEAD_WORDS, ROLE_PERMS, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
@@ -413,14 +414,22 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+// The bridge's hook (surface-status.ts), as a record of the surfaces a page names: what moves a named surface, and so
+// draws the page again, is proved in shell/surfaces.
+const namedSurfaces = new Set();
+globalThis.useSurface = (names) => {
+  for (const k of [names].flat()) namedSurfaces.add(k);
+  return 0;
+};
 globalThis.window.React = globalThis.React;
 // The tab's one store for what pages keep, as LegacyApp installs it before the pages mount.
 const { installTabMemory, clearTabMemory } =
   await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
 installTabMemory(globalThis.window);
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
+installRoleStore();
 // Menus and questions as their props, hookless: what the page hands them is what these tests press.
 const menus = [];
 const confirms = [];
@@ -449,6 +458,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
@@ -743,6 +754,8 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM" },
     __csvCell: (s) => String(s ?? ""),
   });
+  // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
+  installRoleStore();
 };
 
 /** A page with the surface landed and nothing drawn yet. */
@@ -776,6 +789,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   asks.length = 0;
   uploads.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
+  namedSurfaces.clear();
   globalThis.document.activeElement = null;
   overlayOpen = null;
   globalThis.__phone = false;
@@ -1443,7 +1457,7 @@ test("People and Leads are two components: each keeps its own state, and People 
   peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
   assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
   assert.equal(listeners["surface:leads"]?.size ?? 0, 0, "a Leads refresh does not draw People again");
-  assert.equal(listeners["surface:clients"]?.size, 1);
+  assert.ok(namedSurfaces.has("people") && !namedSurfaces.has("leads"), "People draws from People's surface alone");
   assert.equal(listeners.keydown?.size, 1, "one keyboard listener, People's");
   // Leads drawn over the same cells: its words are its own, and People's are where they were.
   assert.equal(leadsBox(draw()).props.value, "", "REGRESSION: one component, so one box for both scopes");
@@ -1451,11 +1465,7 @@ test("People and Leads are two components: each keeps its own state, and People 
   fresh();
   draw();
   assert.equal(listeners["surface:leads"]?.size, 1, "Leads listens for its own surface");
-  assert.equal(
-    listeners["surface:clients"]?.size,
-    1,
-    "and for People's, which carries the workspace's copy of its view",
-  );
+  assert.ok(namedSurfaces.has("people"), "and for People's, which carries the workspace's copy of its view");
   assert.equal(listeners.keydown?.size, 1, "one keyboard listener, Leads'");
 });
 

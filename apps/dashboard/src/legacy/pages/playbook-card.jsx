@@ -62,7 +62,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   return (
     <section id={`pb-${p.id}`} className={`pb-row${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
       {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
-      <div className="pb-row-line" onClick={window.cmRowPress}>
+      <div className="pb-row-line" role="presentation" onClick={window.cmRowPress}>
         <button type="button" className="pb-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="pb-open">
           <span className="mark pb-row-mark" aria-hidden="true"><Icon name={pbIcon(p.trigger)} size={13} /></span>
           <span className="pb-row-titles">

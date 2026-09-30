@@ -52,6 +52,8 @@ export type GatewayRefusal =
   | { kind: "preview" }
   | { kind: "budget"; used: number; cap: number }
   | { kind: "no_key" }
+  /** The workspace is paused, ended or its plan is over: the edge spends nothing (402 payment_required). */
+  | { kind: "paused" }
   | { kind: "bad_request"; message: string }
   | { kind: "unreachable"; message: string };
 
@@ -78,55 +80,77 @@ function serverTiming(header: string | null): { gatewayMs: number | null; modelM
 }
 
 /**
+ * What an answer that is not a stream means: the budget, the key, a paused workspace, a model that could not be
+ * reached (a 429 that is not the budget, any 5xx: the model was never heard, so it never "refused"), or the API's
+ * refusal of the request itself, whose words the loop reads to drop what the model would not take.
+ */
+async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
+  // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
+  // is an object with a message.
+  const j = (await res.json().catch(() => ({}))) as {
+    error?: EdgeErrorCode | { message?: string };
+    detail?: string;
+    used?: number;
+    cap?: number;
+    message?: string;
+  };
+  if (res.status === 429 && j.error === "ask_budget") return { kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 };
+  if (res.status === 503 && j.error === "no_model_key") return { kind: "no_key" };
+  if (res.status === 402) return { kind: "paused" };
+  const err =
+    typeof j.detail === "string"
+      ? j.detail
+      : j.error && typeof j.error === "object"
+        ? j.error.message
+        : typeof j.error === "string"
+          ? j.error
+          : j.message;
+  const message = `${res.status} ${err ?? "model refused"}`;
+  return res.status === 429 || res.status >= 500 ? { kind: "unreachable", message } : { kind: "bad_request", message };
+}
+
+/** The breath before the one retry of a model that could not be reached: a throttled or busy one is not asked again in the same instant. */
+const RETRY_PAUSE_MS = 400;
+
+/**
  * Open one model round and yield its events as they arrive.
  *
  * Throws GatewayRefused before the first event when the edge would not run
- * it (a preview deployment, the budget, the key, a bad request); after the
- * stream starts, a broken connection surfaces as an "error" event.
+ * it (a preview deployment, the budget, the key, a paused workspace, a bad
+ * request, a model that could not be reached); after the stream starts, a
+ * broken connection surfaces as an "error" event. A model that could not be
+ * reached is asked once more before the refusal is said (the edge has already
+ * asked the route's fallback model), unless the turn's own time is up.
  */
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
   if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
-  let res: Response;
-  const sentAt = Date.now();
-  try {
-    const body = JSON.stringify({
-      tenant_id: call.tenantId,
-      user_id: call.userId,
-      purpose: call.purpose ?? "ask",
-      request: call.request,
-    });
-    res = await fetch(`${edgeUrl()}/api/admin/llm`, {
-      method: "POST",
-      headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId, body }),
-      body,
-      signal: call.signal,
-    });
-  } catch (e) {
-    throw new GatewayRefused({ kind: "unreachable", message: e instanceof Error ? e.message : String(e) });
-  }
-  if (!res.ok || !res.body) {
-    // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
-    // is an object with a message.
-    const j = (await res.json().catch(() => ({}))) as {
-      error?: EdgeErrorCode | { message?: string };
-      detail?: string;
-      used?: number;
-      cap?: number;
-      message?: string;
-    };
-    if (res.status === 429 && j.error === "ask_budget")
-      throw new GatewayRefused({ kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 });
-    if (res.status === 503 && j.error === "no_model_key") throw new GatewayRefused({ kind: "no_key" });
-    const err =
-      typeof j.detail === "string"
-        ? j.detail
-        : j.error && typeof j.error === "object"
-          ? j.error.message
-          : typeof j.error === "string"
-            ? j.error
-            : j.message;
-    throw new GatewayRefused({ kind: "bad_request", message: `${res.status} ${err ?? "model refused"}` });
+  const body = JSON.stringify({
+    tenant_id: call.tenantId,
+    user_id: call.userId,
+    purpose: call.purpose ?? "ask",
+    request: call.request,
+  });
+  let res: (Response & { body: ReadableStream<Uint8Array> }) | null = null;
+  let sentAt = Date.now();
+  for (let attempt = 0; !res; attempt++) {
+    sentAt = Date.now();
+    let refusal: GatewayRefusal | null = null;
+    try {
+      const r = await fetch(`${edgeUrl()}/api/admin/llm`, {
+        method: "POST",
+        headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId, body }),
+        body,
+        signal: call.signal,
+      });
+      if (r.ok && r.body) res = r as Response & { body: ReadableStream<Uint8Array> };
+      else refusal = await gatewayRefusalOf(r);
+    } catch (e) {
+      refusal = { kind: "unreachable", message: e instanceof Error ? e.message : String(e) };
+    }
+    if (refusal && (refusal.kind !== "unreachable" || attempt > 0 || call.signal?.aborted))
+      throw new GatewayRefused(refusal);
+    if (refusal) await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
   }
   yield { type: "timing", ...serverTiming(res.headers.get("server-timing")), headersMs: Date.now() - sentAt };
   const reader = res.body.getReader();

@@ -58,21 +58,6 @@ window.crStep = crStep;
 // A phone opens on the agenda: a week grid is four times a phone's width.
 const crPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 
-// Tab and Shift+Tab walk an open appointment's own controls and wrap round:
-// focus never leaves the dialog for the board behind it.
-const CR_FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-const crTrapTab = (e, box) => {
-  if (!box || !box.querySelectorAll) return;
-  const els = Array.from(box.querySelectorAll(CR_FOCUSABLE));
-  if (!els.length) { e.preventDefault(); return; }
-  const first = els[0];
-  const last = els[els.length - 1];
-  const at = document.activeElement;
-  if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
-};
-window.crTrapTab = crTrapTab;
-
 // The range opens the browser's own date picker: a click on a date field only focuses its first number. A touch
 // opens the picker by itself, and a browser that will not open it still takes a typed date.
 const crOpenPicker = (e) => {
@@ -153,21 +138,17 @@ const crNotesWorth = (desc, person, contacts) => {
   return /[a-z0-9]/i.test(rest) ? desc : null;
 };
 
-// Published like crStep and crTrapTab are, so the decisions can be run in a test rather than read.
+// Published like crStep is, so the decisions can be run in a test rather than read.
 window.crDur = crDur;
 window.crWhen = crWhen;
 window.crNotesWorth = crNotesWorth;
 
 const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose }) => {
-  // A dialog: focus goes into it as it opens and back to what opened it as it
-  // closes, Tab stays inside, and Escape (the page's key handler) closes it.
-  // It was a borrowed modal with none of that, over a board the arrows moved.
+  // A dialog: focus goes into it as it opens and back to what opened it as it closes, and Tab stays inside (data-bits
+  // trapFocus: the one helper every modal takes); Escape (the page's key handler) closes it. It was a borrowed modal
+  // with none of that, over a board the arrows moved.
   const boxRef = React.useRef(null);
-  React.useEffect(() => {
-    const opener = document.activeElement;
-    if (boxRef.current) boxRef.current.focus();
-    return () => { if (opener && typeof opener.focus === "function" && opener.isConnected !== false) opener.focus(); };
-  }, []);
+  React.useEffect(() => window.trapFocus(boxRef.current), []);
   // The person's deal is People's (0008), which can land after the dialog opens and moves when a proposal is recorded:
   // the dialog draws again whenever People does.
   const [, peopleMoved] = React.useReducer((n) => n + 1, 0);
@@ -206,8 +187,8 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
     window.CHANLY.nav(window.CHANLY.R.thread(b.person.threadId));
   };
   return (
-    <div className="ask-overlay" onClick={onClose} ref={window.leaving ? window.leaving("cal-ev") : undefined}>
-      <div ref={boxRef} className="ask-modal cal-ev" role="dialog" aria-modal="true" aria-labelledby="cal-panel-title" tabIndex={-1} onKeyDown={(e) => { if (e.key === "Tab") crTrapTab(e, boxRef.current); }} onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
+    <div className="ask-overlay" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} ref={window.leaving ? window.leaving("cal-ev") : undefined}>
+      <div ref={boxRef} className="ask-modal cal-ev" role="dialog" aria-modal="true" aria-labelledby="cal-panel-title" tabIndex={-1} data-testid="cal-panel">
         <section className="st-modal-section">
           <div className="st-modal-name" id="cal-panel-title">{b.title}</div>
           <div className="cal-ev-when" data-testid="cal-panel-when">

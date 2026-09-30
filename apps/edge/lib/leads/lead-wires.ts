@@ -10,7 +10,6 @@
  * so the token is made once at creation (its sha256 on the row), never
  * rewritten (E1), and any later job of ours can rebuild the URL it sent.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
 import {
   apifyClient,
@@ -18,11 +17,14 @@ import {
   LEAD_JUDGE_DEFAULT_MODEL,
   type ApifyClient,
   type LeadJudge,
+  type LeadJudgeAnswer,
   type LeadJudgeClient,
 } from "../packages/channels.js";
-import { JUDGE_TIMEOUT_MS } from "../packages/core.js";
+import { judgeShadowSpecs } from "../packages/contracts.js";
 import { env, httpsOriginOf } from "../env.js";
 import { edgeOrigin } from "../dashboard-origin.js";
+import { callModel } from "../model.js";
+import { startShadow } from "../shadow.js";
 import { imageBytes, pageText } from "./lead-marks.js";
 
 export interface LeadWires {
@@ -57,19 +59,63 @@ function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): b
   return !(v === "off" || v === "0" || v === "false");
 }
 
-// output_config and fallbacks predate the SDK pin's types; the API accepts them (brain.ts:54).
-// No retry of the SDK's own: a second try doubles the window the runner's
-// JUDGE_MARGIN_MS guards, and a slow answer is the ledger's retry to make, not
-// the client's inside a job that is about to be killed.
-const realJudgeClient = (): LeadJudgeClient =>
-  new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
+/**
+ * The judge's client over the model port (lib/model.ts): the registry's route for the judge (its bound, no retry and no
+ * fallback of its own: a slow or overloaded answer is the jobs ledger's retry to make, inside JUDGE_MARGIN_MS), each call
+ * written to the usage ledger for the search's workspace. The API's refusal of the request (a 400 naming the beta or the
+ * format) is thrown with its status, so the judge asks again without the beta, as it did over the SDK; any other call
+ * that got no answer throws, and the job retries.
+ */
+const portJudgeClient = (): LeadJudgeClient => ({
+  beta: {
+    messages: {
+      async create(params, call) {
+        const { model, betas, ...body } = params as { model?: string; betas?: string[] } & Record<string, unknown>;
+        const r = await callModel(
+          { purpose: "lead_judge", body, ...(typeof model === "string" ? { model } : {}), ...(betas ? { betas } : {}) },
+          { tenantId: call?.tenantId ?? null },
+        );
+        if (!r || r.outcome === "held") throw new Error("lead judge: no model to ask");
+        if (r.outcome !== "ok") throw Object.assign(new Error(r.error), { status: r.status });
+        return r.message;
+      },
+    },
+  },
+});
+
+/** The judge's answer to one criterion of one place, as a label; null when it gave none. */
+function judgedLabel(out: LeadJudgeAnswer | undefined, ref: string, criterion: string): string | null {
+  if (!out || !("answers" in out)) return null;
+  const place = out.answers.find((a) => String(a.ref) === ref);
+  return place?.criteria.find((c) => c.key === criterion)?.answer ?? null;
+}
+
+/**
+ * The judge, with each place's criteria also put to a second model in shadow when it is on (decision 0023): one call a
+ * place, its answers compared with the judge's and kept, never read by the run. The judge's own answer, its refusals
+ * and its throws pass through as they were.
+ */
+function shadowed(inner: LeadJudge): LeadJudge {
+  return {
+    async judge(plan, places, tenantId) {
+      const shadow = startShadow("lead_judge", { tenantId: tenantId ?? null }, () => judgeShadowSpecs(plan, places));
+      let out: LeadJudgeAnswer | undefined;
+      try {
+        out = await inner.judge(plan, places, tenantId);
+        return out;
+      } finally {
+        await shadow?.settle((ref, criterion) => judgedLabel(out, ref, criterion));
+      }
+    },
+  };
+}
 
 export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
     apify: apifyClient(fetchImpl, token),
-    judge: leadJudge(realJudgeClient(), leadJudgeModel(), leadJudgeFallbacks()),
+    judge: shadowed(leadJudge(portJudgeClient(), leadJudgeModel(), leadJudgeFallbacks())),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
     fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),

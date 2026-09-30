@@ -50,9 +50,54 @@ export interface SurfaceOverride {
   refreshWhen?: (change: RealtimeChange) => boolean;
   /** Debounce for realtime-triggered re-applies (default 400ms). */
   debounceMs?: number;
+  /**
+   * Which view of the surface a read is of, for a surface whose view the page picks through the seam (Reports'
+   * period, the Calendar's days): reads of one view take their turn (activateOverride), and a read of another view
+   * starts at once, the surface dropping the answer for a view it has left.
+   */
+  view?: () => string;
 }
 
-export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
+/** A surface's read under way, and the one read asked for while it was out, which everyone asking meanwhile shares. */
+interface Reading {
+  readonly landed: Promise<unknown>;
+  next: Promise<boolean> | null;
+}
+const reading = new Map<string, Reading>();
+
+/**
+ * Read a surface and publish what it answered: one read at a time for each surface, so the newest read is the one
+ * that lands last.
+ *
+ * A surface is read by its boot, by the live feed, after a write (refresh-map.ts), by a return to the tab and by
+ * Retry, and nothing ordered them: a read asked for second could answer first, and the first, landing after it, wrote
+ * the older rows over the newer ones until something read it again (a write's refresh and a feed's, or a return pass
+ * beside a debounced event). Now a read asked for while one is out starts when that one has landed, and everyone who
+ * asks meanwhile shares it: each caller is answered by a read that started after it asked.
+ */
+export function activateOverride(o: SurfaceOverride): Promise<boolean> {
+  // A surface whose view the page picks through the seam queues each view's reads apart: a pick never waits behind a
+  // read of the view it left, whose answer the surface drops itself.
+  const slot = o.view ? `${o.key}|${o.view()}` : o.key;
+  const out = reading.get(slot);
+  if (!out) return startReading(o, slot);
+  out.next ??= out.landed.then(() => startReading(o, slot));
+  return out.next;
+}
+
+function startReading(o: SurfaceOverride, slot: string): Promise<boolean> {
+  const read = readAndPublish(o);
+  const mine: Reading = { landed: read.catch(() => undefined), next: null };
+  reading.set(slot, mine);
+  // Registered before any caller's wait on `landed`, so it runs first: with a read queued behind it, the queue's own
+  // start takes the slot; with none, the slot is let go.
+  void mine.landed.then(() => {
+    if (reading.get(slot) === mine && !mine.next) reading.delete(slot);
+  });
+  return read;
+}
+
+async function readAndPublish(o: SurfaceOverride): Promise<boolean> {
   try {
     await o.apply();
     for (const e of o.events ?? []) window.dispatchEvent(new CustomEvent(e));

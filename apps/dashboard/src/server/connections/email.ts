@@ -33,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
-import type { RouteContext } from "../with-route";
+import { dbRefusal, type RouteContext } from "../with-route";
 import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
 import { env } from "../env";
 
@@ -177,11 +177,6 @@ export async function emailSetupFor(supabase: SupabaseClient<Database>, tenantId
   return { ready: true, domain, mailbox: mailboxDto(row, domain), sending: domains ? { ready, domains } : null };
 }
 
-/** A door's refusal, as the envelope says it: the door's own sentence, under the code its SQLSTATE means. */
-function doorRefusal(e: { code?: string; message: string }): AppError {
-  return new AppError(e.code === "23505" ? "conflict" : e.code === "42501" ? "forbidden" : "validation", e.message);
-}
-
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */
 export async function createMailbox(
   ctx: RouteContext,
@@ -197,7 +192,7 @@ export async function createMailbox(
     p_local_part: normalizeLocalPart(input.localPart),
     p_from_name: input.fromName.trim(),
   });
-  if (error) throw doorRefusal(error);
+  if (error) throw dbRefusal(error);
   const row = await mailboxOfTenant(ctx.supabase, tenantId);
   if (!row) throw new Error("create_mailbox answered and the mailbox cannot be read back");
   return mailboxDto(row, domain);
@@ -217,6 +212,6 @@ export async function renameMailbox(
   const mine = await mailboxOfTenant(ctx.supabase, tenantId);
   if (!mine || mine.id !== mailboxId) throw new AppError("not_found", "That email address is not this workspace's.");
   const { error } = await ctx.supabase.rpc("rename_mailbox", { p_mailbox_id: mailboxId, p_from_name: fromName.trim() });
-  if (error) throw doorRefusal(error);
+  if (error) throw dbRefusal(error);
   return mailboxDto({ ...mine, from_name: fromName.trim() }, domain);
 }

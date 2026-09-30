@@ -25,7 +25,7 @@
  * back to a per-instance count that a burst across instances walks past --
  * a ceiling on spend that cannot be held is not a ceiling.
  */
-import { AppError, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
+import { AppError, MIN_MS, HOUR_MS, waitWords } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProduction } from "@/server/env";
@@ -328,12 +328,6 @@ function activeStore(): RateStore {
   return store;
 }
 
-function human(seconds: number): string {
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
-  const m = Math.ceil(seconds / 60);
-  return `${m} minute${m === 1 ? "" : "s"}`;
-}
-
 /**
  * Count this request against the bucket, or refuse it.
  *
@@ -353,7 +347,7 @@ export async function takeRate(
   if (!verdict.allowed) {
     throw new AppError(
       "rate_limited",
-      `Too many ${rule.noun} in a short time — try again in ${human(verdict.retryAfterS)}.`,
+      `Too many ${rule.noun} in a short time — try again in ${waitWords(verdict.retryAfterS)}.`,
       429,
       { retry_after_s: verdict.retryAfterS },
     );

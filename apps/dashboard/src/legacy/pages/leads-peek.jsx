@@ -219,7 +219,7 @@ const LeadLightbox = ({ vm, onClose }) => {
   const W = window.__LEAD_WORDS;
   return (
     <>
-      <div className="ld-lightbox-backdrop" onClick={onClose} />
+      <div className="ld-lightbox-backdrop" role="presentation" onClick={onClose} />
       <div className="ld-lightbox pl-peek" role="dialog" aria-label={`${W.photos}: ${vm.name}`} data-testid="lead-lightbox" ref={window.leaving ? window.leaving("lead-lightbox") : undefined}>
         <div className="ld-lb-head">
           <div className="ld-lb-titles">

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
+import { dbRefusal } from "@/server/with-route";
 
 /** Any field alone; an empty string clears it. */
 const Body = z
@@ -73,8 +74,8 @@ export const PUT = write({
         p_contact_id: id,
         p_email: email ?? "",
       });
-      // 23505 is the door's own word for "another person here already has that address".
-      if (doorErr) throw new AppError(doorErr.code === "23505" ? "conflict" : "validation", doorErr.message);
+      // 23505 is the door's own word for "another person here already has that address" (dbRefusal: a conflict).
+      if (doorErr) throw dbRefusal(doorErr);
       out.email = ((data ?? {}) as { email?: string | null }).email ?? null;
     }
     if (hasName) {
@@ -82,7 +83,7 @@ export const PUT = write({
         p_contact_id: id,
         p_name: name ?? "",
       });
-      if (doorErr) throw new AppError("validation", doorErr.message);
+      if (doorErr) throw dbRefusal(doorErr);
       out.name = ((data ?? {}) as { name?: string | null }).name ?? null;
     }
     if (hasNotes) {
@@ -90,7 +91,7 @@ export const PUT = write({
         p_contact_id: id,
         p_notes: notes ?? "",
       });
-      if (doorErr) throw new AppError("validation", doorErr.message);
+      if (doorErr) throw dbRefusal(doorErr);
       out.notes = ((data ?? {}) as { notes?: string | null }).notes ?? null;
     }
     if (input.proposal !== undefined) {
@@ -101,7 +102,7 @@ export const PUT = write({
         p_contact_id: id,
         p_url: url ?? "",
       });
-      if (doorErr) throw new AppError("validation", doorErr.message);
+      if (doorErr) throw dbRefusal(doorErr);
       out.proposal_url = ((data ?? {}) as { proposal_url?: string | null }).proposal_url ?? null;
     }
     return out;

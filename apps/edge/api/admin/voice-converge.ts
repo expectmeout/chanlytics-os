@@ -17,6 +17,7 @@
  * secret stripped, as the backup. Diagnostic-key only.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import {
@@ -49,12 +50,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   if (!apiKey) return refuse(503, "no_provider_key");
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* dry run over every agent */
-  }
+  const body = await readBody<Body>(request);
   const apply = body.apply === true;
   const publish = body.publish === true;
 

@@ -77,7 +77,11 @@ test("the dashboard route keeps its doors and records the decision only after th
     /recordDecision\(ctx, m\.tenant_id, "message", m\.id, "edit", \{\s*steer: text,\s*new_message_id: r\.messageId,?\s*\}\)/,
   );
   assert.ok(steered > 0 && recorded > steered);
-  assert.ok(r.includes('"The rewrite would have quoted a price, so the original draft stays."'));
+  assert.ok(
+    r.includes(
+      '"The rewrite would have quoted a price or named money (a refund, a discount, a deposit), so the original draft stays."',
+    ),
+  );
   assert.ok(
     r.includes('"That reply went out while it was being rewritten, so nothing was changed."'),
     "and the race has its own sentence, not a token",

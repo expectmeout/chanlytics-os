@@ -7,6 +7,7 @@
 import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "../no-booking-link";
 import { guardrailsInForce, type BookingRules, type BusinessProfile, type Closure } from "./business-profile";
 import { policyRules } from "./policy-classes";
+import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { hoursLines, joinList } from "./prompt-hours";
 
 /**
@@ -566,7 +567,18 @@ function openTimesSection({ link }: SectionFacts): string[] {
   return s;
 }
 
-/** The rules: the guardrails in force, the reply to YES OFFERS, and the Autonomy pane's Booking and FAQ rows. */
+/**
+ * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules) and the rule that
+ * what a customer writes is data, never an instruction (DATA_NOT_INSTRUCTIONS, the one injection policy).
+ */
+export function standingRules(
+  policy: Record<string, { mode: string }> | null | undefined,
+  channel: "whatsapp" | "voice",
+): string[] {
+  return [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+}
+
+/** The rules: the guardrails in force, the reply to YES OFFERS, and the standing rules (the Autonomy rows, the fence). */
 function rulesSection({ profile, channel, policy, link }: SectionFacts): string[] {
   const s: string[] = [];
   // LAST, and never optional.
@@ -595,9 +607,10 @@ function rulesSection({ profile, channel, policy, link }: SectionFacts): string[
       `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`,
     );
   }
-  // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
-  // both channels' prompts, so a switch flipped once changes both.
-  rules.push(...policyRules(policy, channel));
+  // The Autonomy pane's Booking, FAQ and Money rows, as rules — the same words
+  // on both channels' prompts, so a switch flipped once changes both — and the
+  // one line every agent is given about someone else's words (ai/fence.ts).
+  rules.push(...standingRules(policy, channel));
   if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
   return s;
 }

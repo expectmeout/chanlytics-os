@@ -34,6 +34,8 @@ export function turnMeter(t0: number) {
     tokens: { input: 0, cache_read: 0, cache_creation: 0, output: 0 },
     capHits: 0,
     messageIds: [] as Array<string | null>,
+    /** The model that answered the last round that said so: a fallback's when the edge asked one. */
+    answeredBy: null as string | null,
     cacheMiss: [] as Array<string | null>,
     hopMs: null as number | null,
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
@@ -41,6 +43,7 @@ export function turnMeter(t0: number) {
       meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
       if (meter.messageIds.length === 0) meter.hopMs = r.timing?.hopMs ?? null;
       meter.messageIds.push(r.usage?.messageId ?? null);
+      meter.answeredBy = r.usage?.model ?? meter.answeredBy;
       meter.cacheMiss.push(r.usage?.cacheMiss ?? null);
       if (r.timing) {
         if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
@@ -95,6 +98,8 @@ interface TurnSoFar {
   questionAt: number;
   /** Whether the turn replayed its thread's chain (replayFor), as its last request did. */
   live: boolean;
+  /** The first 16 hex of the sha256 of the turn's system blocks: what the answer was written from. */
+  promptHash: string;
 }
 
 /**
@@ -112,6 +117,8 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   const shape: AskTurnShape = {
     v: 1,
     model: model.id,
+    answered_by: soFar.meter.answeredBy,
+    prompt_hash: soFar.promptHash,
     effort: model.effort,
     surface: input.surface,
     scope_kind: input.scope?.kind ?? null,

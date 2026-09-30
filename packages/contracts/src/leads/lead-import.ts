@@ -8,7 +8,7 @@
  * The doors (00242 lead_search_import, lead_search_choose) read every row again.
  */
 import { z } from "zod";
-import { parseCsv } from "../shared/csv";
+import { COLUMN_SHARE, columnShare, isHeaderRow, parseCsv, phoneShaped } from "../shared/csv";
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone } from "../shared/phone";
 import { plural } from "../shared/words";
@@ -21,6 +21,13 @@ import type { LeadSearchRoundDto } from "./lead-dtos";
 
 /** The most rows a file may bring, and leads one press may choose: one checker run's batch (CHECK_BATCH, J5). */
 export const LEAD_LIST_MAX = 500;
+
+/**
+ * The largest file the sheet reads (G:1): a list of 500 rows with every column a business has fits in a fraction of it.
+ * The sheet read and parsed any file whole on the main thread before the row cap applied, so an export of tens of
+ * megabytes froze the tab; one past this is refused before it is read.
+ */
+export const LEAD_IMPORT_MAX_BYTES = 2_000_000;
 
 /** The two ways a search is a list of the owner's own (J1). */
 export const LEAD_LIST_VIAS = ["import", "chosen"] as const satisfies readonly LeadSearchVia[];
@@ -55,8 +62,6 @@ const WORDS: Record<keyof LeadImportColumns, RegExp> = {
 /** The order a header's words are tried in: an email's column first, the name last, as People's import does. */
 const ORDER: (keyof LeadImportColumns)[] = ["email", "phone", "website", "city", "region", "category", "name"];
 
-const phoneShaped = (v: string): boolean => /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
-
 /** A website's host from what a file holds: "https://www.Example.com/about" is example.com; anything else, null. */
 export function websiteHostOf(raw: string | null | undefined): string | null {
   const s = String(raw ?? "")
@@ -78,18 +83,6 @@ export function regionOf(raw: string | null | undefined): string | null {
   return US_STATES[s.toLowerCase()] ?? null;
 }
 
-function share(rows: string[][], col: number, is: (v: string) => boolean): number {
-  let seen = 0;
-  let hit = 0;
-  for (const r of rows) {
-    const v = (r[col] ?? "").trim();
-    if (!v) continue;
-    seen += 1;
-    if (is(v)) hit += 1;
-  }
-  return seen ? hit / seen : 0;
-}
-
 /**
  * Where a business's facts are. The first row is a header when none of its cells is an address or a number; a header
  * names its columns by their words, and a column no header names is known by what it holds (six in ten of its filled
@@ -99,7 +92,7 @@ function share(rows: string[][], col: number, is: (v: string) => boolean): numbe
 export function leadImportColumns(rows: string[][]): { columns: LeadImportColumns; header: boolean } {
   const first = rows[0] ?? [];
   const width = rows.reduce((w, r) => Math.max(w, r.length), 0);
-  const header = first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+  const header = isHeaderRow(first);
   const body = header ? rows.slice(1) : rows;
   const columns: LeadImportColumns = {
     name: null,
@@ -118,14 +111,17 @@ export function leadImportColumns(rows: string[][]): { columns: LeadImportColumn
     });
   for (let i = 0; i < width; i++) {
     if (taken(i)) continue;
-    if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share(body, i, phoneShaped) >= 0.6) columns.phone = i;
-    else if (columns.website === null && share(body, i, (v) => websiteHostOf(v) !== null) >= 0.6) columns.website = i;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
+    else if (columns.website === null && columnShare(body, i, (v) => websiteHostOf(v) !== null) >= COLUMN_SHARE)
+      columns.website = i;
   }
   if (columns.name === null)
     for (let i = 0; i < width; i++) {
       if (taken(i)) continue;
-      if (share(body, i, (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null) >= 0.6) {
+      const words = (v: string) => /\p{L}/u.test(v) && normalizeEmail(v) === null && websiteHostOf(v) === null;
+      if (columnShare(body, i, words) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }
@@ -243,6 +239,8 @@ export const LEAD_IMPORT_WORDS = {
   askedHint: "A line about them for the emails, like “gyms I met at the Austin expo”. Leave it and the name is used.",
   costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
   tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
+  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1_000_000} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
+  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",

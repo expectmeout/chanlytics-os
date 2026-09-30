@@ -35,7 +35,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{ call_id: unknown; text: unknown; trigger: unknown }>(request);
+  const body = await readBody<{ call_id?: string; text?: string; trigger?: boolean }>(request);
   const callId = String(body.call_id || "");
   const text = String(body.text || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !text || text.length > MAX_CHARS) {

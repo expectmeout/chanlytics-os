@@ -9,6 +9,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { signEdgeToken } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { answering } from "../ai/_model-world.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
@@ -16,11 +17,11 @@ process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
 for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { setModelClient } = await import(at("apps/edge/lib/model.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
 const door = await import(at("apps/edge/api/admin/reach-out-preview.ts"));
 after(() => {
   setPg(null);
-  setModelClient(null);
+  setModelFetch(null);
 });
 
 const AUD = "/api/admin/reach-out-preview";
@@ -116,25 +117,20 @@ function world({ config = CONFIG(), events = [] } = {}) {
 
 /** The writer and the reader, by their prompts. */
 function model({ language = "en", down = false } = {}) {
-  const calls = [];
-  setModelClient({
-    messages: {
-      create: async (body) => {
-        calls.push(body);
-        if (down) throw Object.assign(new Error("overloaded"), { status: 529 });
-        const writer = String(body.system).includes("You write");
-        const a = writer
-          ? { opening: "A 4.9 from 16 reviews says people find you.", angle: "their reviews", facts_used: ["rating"] }
-          : { backed: true, unbacked: "", pitch: false, language };
-        return {
-          content: [{ type: "text", text: JSON.stringify(a) }],
-          stop_reason: "end_turn",
-          usage: { input_tokens: 1, output_tokens: 1 },
-        };
-      },
-    },
+  const api = answering(async (body) => {
+    if (down) throw Object.assign(new Error("overloaded"), { status: 529 });
+    const writer = String(body.system).includes("You write");
+    const a = writer
+      ? { opening: "A 4.9 from 16 reviews says people find you.", angle: "their reviews", facts_used: ["rating"] }
+      : { backed: true, unbacked: "", pitch: false, language };
+    return {
+      content: [{ type: "text", text: JSON.stringify(a) }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    };
   });
-  return calls;
+  setModelFetch(api.fetch);
+  return api.calls;
 }
 
 test("a token for this door's full path previews the n-th business, its email as it would read, checked", async () => {

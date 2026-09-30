@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-202 handlers in 44 domains.
+203 handlers in 45 domains.
 
 ## activity
 
@@ -1554,6 +1554,16 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/today/route.ts`).
+
+## usage
+
+### `GET /api/v1/usage`
+
+Reads; for a member of the workspace the request names, owner or above; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `month` | string | no | matches `^\d{4}-(0[1-9]\|1[0-2])$` |
 
 ## views
 

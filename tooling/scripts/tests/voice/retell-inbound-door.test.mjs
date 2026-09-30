@@ -368,7 +368,7 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
     assert.deepEqual(
       v.caller_context.split("\n"),
       [
-        "Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
+        "Name on record: <profile_name>Rosa</profile_name>. No email address on file. Returning contact. Last in touch today.",
         "Recent interactions on this number (calls and messages):",
         "Customer: Are you open Saturday?",
         "Business: Yes, 9 to 5.",
@@ -489,7 +489,7 @@ test("routed with no persona: 200 with no facts and a greeting that names nobody
       "told there are no facts rather than told nothing, and no line to dial",
     );
     assert.ok(
-      v.caller_context.startsWith("Name on record: Rosa."),
+      v.caller_context.startsWith("Name on record: <profile_name>Rosa</profile_name>."),
       "the caller is still this workspace's to recognise",
     );
     assert.deepEqual(log.said("inbound_facts_missing"), [

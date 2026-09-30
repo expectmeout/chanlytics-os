@@ -146,7 +146,7 @@ const RecordRow = ({
   const tall = top || !!hint || !!disputed || !!wrong || kids;
   return (
     <div
-      className={`rec-row${tall ? " rec-row-top" : ""}`}
+      className={`rec-row${tall ? " rec-row-top" : ""}`} role="presentation"
       data-empty={isEmpty ? "true" : "false"}
       data-state={wrong || (disputed && disputed.severity === "serious") ? "warn" : undefined}
       data-act={act ? "true" : undefined}

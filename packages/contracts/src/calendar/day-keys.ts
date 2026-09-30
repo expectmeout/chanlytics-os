@@ -53,10 +53,10 @@ export function shiftMonth(key: string, n: number): string {
   return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
-/** "September 2026" */
+/** "September 2026": the key's month for every viewer, its first's UTC noon said in UTC (calendar-words.ts says why). */
 export function monthLabelOf(key: string): string {
   const { y, m } = keyParts(key);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, 1, 12)),
   );
 }

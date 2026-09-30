@@ -77,6 +77,7 @@ export const ROUTES = {
   "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
   "GET today": { method: "GET", path: "/api/v1/today" },
+  "GET usage": { method: "GET", path: "/api/v1/usage" },
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
@@ -283,6 +284,7 @@ export type Routes = {
   "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
   "GET today": typeof import("../../app/api/v1/today/route").GET;
+  "GET usage": typeof import("../../app/api/v1/usage/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;

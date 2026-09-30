@@ -12,6 +12,9 @@ import { buildEmailRequest, hostedIdentity, ownDomainIdentity } from "@chanlytic
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { emailWireFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/email/email.ts")).href);
+const { deliver, isWireUnavailable, isWireUnavailableError } = await import(
+  pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href
+);
 process.env.EMAIL_DOMAIN = "mail.chanlytics.com";
 process.env.RESEND_API_KEY = "platform-key";
 after(() => {
@@ -82,7 +85,7 @@ test("the hosted mailbox leaves on the platform's key, a verified own domain on 
   }
 });
 
-test("without the cold key no own domain is a route; a domains read that fails keeps the hosted route; no mailbox, no line", async () => {
+test("without the cold key no own domain is a route; no mailbox, no line", async () => {
   const tables = { mailboxes: [MAILBOX], sending_domains: [domain("getharbor.com", "verified")] };
   const net = provider();
   try {
@@ -90,15 +93,88 @@ test("without the cold key no own domain is a route; a domains read that fails k
     const out = await noCold("owner@example.com", { body: "x", email: own("getharbor.com"), purpose: "outreach" });
     assert.equal(out.errorBody, "request_leaves_as_another_sender");
 
-    process.env.RESEND_COLD_API_KEY = "cold-key";
-    const broken = await emailWireFor(
+    assert.equal(await emailWireFor(fakeDb({ mailboxes: [], sending_domains: tables.sending_domains }), T), null);
+    assert.deepEqual(net.keys, [], "nothing reached a provider");
+  } finally {
+    net.restore();
+    delete process.env.RESEND_COLD_API_KEY;
+  }
+});
+
+test("REGRESSION: a domains read that fails is the wire not bound, so a cold email waits instead of failing at a wire built without its route", async () => {
+  process.env.RESEND_COLD_API_KEY = "cold-key";
+  process.env.RESEND_COLD_WEBHOOK_SECRET = "whsec_cold";
+  const tables = { mailboxes: [MAILBOX], sending_domains: [domain("getharbor.com", "verified")] };
+  const net = provider();
+  try {
+    const wire = await emailWireFor(
       fakeDb(tables, { "sending_domains.select": { message: "the database went away" } }),
       T,
     );
-    assert.equal((await broken("owner@example.com", { body: "x", email: hosted() })).ok, true, "replies still leave");
-    assert.deepEqual(net.keys, ["Bearer platform-key"]);
+    // Not a sender at all: a wire built without getharbor.com's route would have refused a cold email frozen with its
+    // address as leaving as another sender (status 0, recorded failed), and its lead's step would be lost for the run.
+    assert.equal(isWireUnavailable(wire), true, "unavailable, not a wire without the workspace's routes");
+    assert.match(wire.error, /the database went away/);
 
-    assert.equal(await emailWireFor(fakeDb({ mailboxes: [], sending_domains: tables.sending_domains }), T), null);
+    // Through the send door: the queued row stays queued and nothing is recorded as failed or sent, so the caller asks again.
+    const conversation = {
+      id: "c1",
+      tenant_id: T,
+      paused_until: null,
+      contacts: {
+        consent: "opted_in",
+        dnc: false,
+        marketing_consent: "opted_out",
+        erased_at: null,
+        email: "owner@example.com",
+        email_suppressed_at: null,
+      },
+      tenants: { status: "active" },
+    };
+    const queued = {
+      id: "m1",
+      tenant_id: T,
+      conversation_id: "c1",
+      contact_id: "k1",
+      channel: "email",
+      direction: "outbound",
+      sender: "human",
+      status: "queued",
+      body: "Saw your shop on the map.",
+      created_at: "2026-09-10T09:59:00.000Z",
+    };
+    const world = { conversations: [conversation], messages: [queued], events: [] };
+    await assert.rejects(
+      deliver(
+        { db: fakeDb(world), wire: { email: wire }, now: () => Date.parse("2026-09-10T10:00:00.000Z") },
+        {
+          tenantId: T,
+          conversationId: "c1",
+          contactId: "k1",
+          to: "owner@example.com",
+          channel: "email",
+          sender: "human",
+          purpose: "conversational",
+          proactive: false,
+          body: "Saw your shop on the map.",
+          email: hosted(),
+          messageId: "m1",
+        },
+      ),
+      isWireUnavailableError,
+    );
+    assert.equal(world.messages[0].status, "queued", "left for the next try");
+    assert.deepEqual(world.events, [], "nothing said to have failed");
+    assert.deepEqual(net.keys, [], "nothing reached a provider");
+
+    // The same workspace once the read works: the wire has its route, and the cold email leaves on the cold key.
+    const bound = await emailWireFor(fakeDb(tables), T);
+    assert.equal(isWireUnavailable(bound), false);
+    assert.equal(
+      (await bound("owner@example.com", { body: "x", email: own("getharbor.com"), purpose: "outreach" })).ok,
+      true,
+    );
+    assert.deepEqual(net.keys, ["Bearer cold-key"]);
   } finally {
     net.restore();
     delete process.env.RESEND_COLD_API_KEY;

@@ -7,11 +7,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
-import type { LineSecrets, ProviderAccount, SendResult } from "../packages/channels.js";
+import type { LineSecrets, ProviderAccount, ProviderReply, SendResult } from "../packages/channels.js";
 import { answerObject, smsStatusUrl, smsRefusalOf, twilioRequest } from "../packages/channels.js";
 import { lineProviderFromEnv } from "../lines/lines.js";
 import { edgeFnUrl } from "../dashboard-origin.js";
-import { logger, errField } from "../log.js";
+import { logger, errField, type Logger } from "../log.js";
 import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
 import { wireUnavailable, type WireUnavailable } from "../packages/core.js";
 
@@ -62,6 +62,45 @@ export async function lineAccount(db: Db, line: SmsLine): Promise<ProviderAccoun
 }
 
 /**
+ * What a failed read of a subaccount says, by what the call came to (provider-fetch's four outcomes) and never by
+ * "it was not ok": a 401 or 403 is the one answer that means the platform's own credentials are wrong, and an operator
+ * is sent to the master key for it and for nothing else. A 503, a 429, a timeout or a breaker held is the provider not
+ * answering just now, which the next tick asks again; any other 4xx is the provider's no about this one subaccount.
+ */
+function refreshRefusal(L: Logger, r: ProviderReply): EdgeRefusal {
+  if (r.outcome === "refused" && (r.status === 401 || r.status === 403)) {
+    // The MASTER credentials are wrong, which is a different and worse fault:
+    // nothing can be provisioned either. Said in those words so whoever reads
+    // the log is not sent looking at the subaccount.
+    L.error("line_token_refresh_refused", {
+      status: r.status,
+      note: "the platform's own Twilio credentials were refused",
+    });
+    return {
+      ok: false,
+      error: "provider_unauthorized",
+      detail: `the provider refused the platform's credentials (HTTP ${r.status})`,
+    };
+  }
+  if (r.outcome === "refused") {
+    L.error("line_token_refresh_failed", { status: r.status, outcome: r.outcome });
+    return {
+      ok: false,
+      error: "provider_refused",
+      detail: `the provider would not give this line's subaccount token (HTTP ${r.status})`,
+    };
+  }
+  // Nothing says the platform's key is wrong: the read got no answer, or a gateway's. The next check asks again.
+  L.warn("line_token_refresh_failed", { status: r.status, outcome: r.outcome, reason: r.error });
+  const heard = r.status ? `HTTP ${r.status}` : (r.error ?? "no answer");
+  return {
+    ok: false,
+    error: "unavailable",
+    detail: `the provider could not be asked just now (${heard}); the next check asks again`,
+  };
+}
+
+/**
  * Re-read a line's subaccount token from the provider and put it back in the Vault.
  *
  * A subaccount's auth token can be rotated in the Twilio console at any moment,
@@ -95,20 +134,7 @@ export async function refreshLineToken(
       timeoutMs: SUBACCOUNT_READ_TIMEOUT_MS,
     },
   );
-  if (r.outcome !== "ok") {
-    // The MASTER credentials are wrong, which is a different and worse fault:
-    // nothing can be provisioned either. Said in those words so whoever reads
-    // the log is not sent looking at the subaccount.
-    L.error("line_token_refresh_refused", {
-      status: r.status,
-      note: "the platform's own Twilio credentials were refused",
-    });
-    return {
-      ok: false,
-      error: "provider_unauthorized",
-      detail: `the provider refused the platform's credentials (HTTP ${r.status})`,
-    };
-  }
+  if (r.outcome !== "ok") return refreshRefusal(L, r);
   const body = answerObject(r) as { auth_token?: unknown } | null;
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
   if (!token)

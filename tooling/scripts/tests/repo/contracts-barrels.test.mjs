@@ -284,16 +284,7 @@ const URL_TREES = ["apps/dashboard/app", "apps/edge/api", "apps/mobile/src/app"]
  * The exceptions: a folder of one module that a program in flight owns, the day it was granted, the program it waits
  * on, and why it is excepted rather than moved.
  */
-const EXCEPTIONS = {
-  "tooling/scripts/evals": {
-    since: "28 September 2026",
-    waitsOn: "Ask Rewired and Reach out",
-    why:
-      "Reach out's live eval of a reply's reading (reply-intents.mjs, #1197). The evals gather in this folder once " +
-      "Ask Rewired and Reach out close: the root's eval-*.mjs, Ask Rewired's eval-ask*.mjs among them, join it " +
-      "then. Moved to the root now, it would only come back with them.",
-  },
-};
+const EXCEPTIONS = {};
 
 /**
  * Every module in the trees, as the tree-shape ratchet counts one (_measures.mjs reads `repoFiles` the same way): its

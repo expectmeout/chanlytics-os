@@ -30,11 +30,12 @@ import {
   describeNow,
   frameSteer,
   violatesNoPrices,
+  namesMoney,
   replyDelayMs,
   fallbackMessages,
 } from "../../lib/packages/contracts.js";
 import { cancelJobsFor } from "../../lib/packages/jobs.js";
-import { generateReply } from "../../lib/receptionist/brain.js";
+import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { queueDraft } from "../../lib/receptionist/draft-queue.js";
 import { env } from "../../lib/env.js";
 import { logger, errField } from "../../lib/log.js";
@@ -57,6 +58,21 @@ export interface BrainPort {
   generateReply?: typeof generateReply;
 }
 
+/**
+ * Whether a rewrite may not go out: a price never goes out, nor money a person decides (a refund, a discount, a
+ * deposit). Both are refused as policy_block_price, the one code the two apps read whichever deploys first; the log
+ * line says which, and never the words.
+ */
+function rewriteBlocked(text: string, messageId: string): boolean {
+  if (violatesNoPrices(text)) {
+    L.warn("steer_policy_block_price", { message_id: messageId });
+    return true;
+  }
+  if (!namesMoney(text)) return false;
+  L.warn("steer_policy_block_money", { message_id: messageId });
+  return true;
+}
+
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   const auth = await authorizeAdmin(request, "/api/admin/steer");
@@ -64,7 +80,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth, "/api/admin/steer");
 
-  const body = await readBody<{ message_id: unknown; text: unknown }>(request);
+  const body = await readBody<{ message_id?: string; text?: string }>(request);
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {
@@ -73,7 +89,6 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-
   const { data: m, error: mErr } = await db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
@@ -145,17 +160,14 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
       undefined,
       frameSteer(text),
+      brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
     );
   } catch (e) {
     L.error("steer_brain_failed", { error: errField(e) });
     return refuse(502, "brain_failed");
   }
-  // The same second door the handler keeps: a price never goes out, and a
-  // rewrite that would say one leaves the original draft where it was.
-  if (violatesNoPrices(r.text)) {
-    L.warn("steer_policy_block_price", { message_id: messageId });
-    return refuse(409, "policy_block_price");
-  }
+  // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
+  if (rewriteBlocked(r.text, messageId)) return refuse(409, "policy_block_price");
 
   const delayMs =
     typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"

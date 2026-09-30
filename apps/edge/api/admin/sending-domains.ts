@@ -15,7 +15,7 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { bodyOf } from "../../lib/admin-door.js";
+import { readBody } from "../../lib/admin-door.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { env } from "../../lib/env.js";
@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
   // Read once, as text: the token's body hash is checked over these bytes, and a body that is not an object (null
   // included) is an empty one, validated below.
   const raw = await request.text();
-  const body: Body = bodyOf<Body>(raw);
+  const body = await readBody<Body>(raw);
   // The platform lifts a second hold with its key and never with a token (D16, the runbook): that one op is the
   // key's on an edge that holds the secret too. Every other op is a dashboard's and carries a token; the key alone
   // is refused before a row is read.

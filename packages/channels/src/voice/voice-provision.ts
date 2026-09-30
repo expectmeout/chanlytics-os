@@ -24,11 +24,11 @@ import {
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
 } from "./voice-shell";
-import { E164, HOUR_MS } from "@chanlytics/contracts";
+import { E164, HOUR_MS, RETELL_MODELS } from "@chanlytics/contracts";
 
-/** The model behind the shell. Temperature 0: the facts are read, not improvised. */
+/** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
 export const VOICE_LLM_DEFAULTS = {
-  model: "claude-4.5-haiku",
+  model: RETELL_MODELS.llm,
   model_temperature: 0,
   start_speaker: "agent",
 } as const;
@@ -50,7 +50,7 @@ export const VOICE_AGENT_DEFAULTS = {
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
-  post_call_analysis_model: "gpt-4.1",
+  post_call_analysis_model: RETELL_MODELS.analysis,
   allow_user_dtmf: true,
 } as const;
 

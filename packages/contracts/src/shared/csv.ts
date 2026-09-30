@@ -114,14 +114,23 @@ const EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo ele
  * A cell LOOKS like a phone number: digits (and the usual punctuation) with at least 10 of them. Stricter than
  * normalizePhone's 8-digit floor on purpose — this decides which COLUMN is the phone column, and the looser floor
  * (meant for a value already known to be a phone) would let a Birthday, a Zip+4 or a visit count win it instead.
- * normalizePhone still decides the stored value once the column is found.
+ * normalizePhone still decides the stored value once the column is found. People's import and a list of leads
+ * (leads/lead-import.ts) both find their columns with these rules.
  */
-function phoneShaped(v: string): boolean {
+export function phoneShaped(v: string): boolean {
   return /^\+?[\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 10;
 }
 
+/** A file's first row is a header when none of its cells is a number or an address. */
+export function isHeaderRow(first: readonly string[]): boolean {
+  return first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+}
+
+/** A column no header names is known by what it holds: this share of its filled cells. */
+export const COLUMN_SHARE = 0.6;
+
 /** The share of a column's non-empty cells that `is` accepts. */
-function share(rows: string[][], col: number, is: (v: string) => boolean): number {
+export function columnShare(rows: string[][], col: number, is: (v: string) => boolean): number {
   let seen = 0;
   let hit = 0;
   for (const r of rows) {
@@ -142,7 +151,7 @@ function share(rows: string[][], col: number, is: (v: string) => boolean): numbe
 export function matchColumns(rows: string[][]): { columns: ImportColumns; header: boolean } {
   const first = rows[0] ?? [];
   const width = rows.reduce((w, r) => Math.max(w, r.length), 0); // not Math.max(...spread): overflows near 150k rows
-  const header = first.length > 0 && !first.some((c) => phoneShaped(c) || normalizeEmail(c) !== null);
+  const header = isHeaderRow(first);
   const body = header ? rows.slice(1) : rows;
   const columns: ImportColumns = { name: null, last: null, phone: null, email: null };
   if (header) {
@@ -156,13 +165,15 @@ export function matchColumns(rows: string[][]): { columns: ImportColumns; header
   }
   for (let i = 0; i < width; i++) {
     if (Object.values(columns).includes(i)) continue;
-    if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
-    else if (columns.phone === null && share(body, i, phoneShaped) >= 0.6) columns.phone = i;
+    if (columns.email === null && columnShare(body, i, (v) => normalizeEmail(v) !== null) >= COLUMN_SHARE)
+      columns.email = i;
+    else if (columns.phone === null && columnShare(body, i, phoneShaped) >= COLUMN_SHARE) columns.phone = i;
   }
   if (columns.name === null) {
     for (let i = 0; i < width; i++) {
       if (Object.values(columns).includes(i)) continue;
-      if (share(body, i, (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null) >= 0.6) {
+      const words = (v: string) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null;
+      if (columnShare(body, i, words) >= COLUMN_SHARE) {
         columns.name = i;
         break;
       }

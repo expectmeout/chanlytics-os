@@ -1,6 +1,8 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export { emitEvent, recordEvent } from "./events";
+export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
 export type { EmittedKind, EventData } from "./events";
+export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
+export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { createServiceClient } from "./service-client";
 export { tenantDb, platformWide } from "./tenant-db";
 export type { TenantDb } from "./tenant-db";
@@ -204,6 +206,7 @@ export {
   setPolicyMode,
   personReplyMode,
   setPersonReplyMode,
+  workspaceAnswersOnItsOwn,
 } from "./repositories/control-plane";
 export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
 export {

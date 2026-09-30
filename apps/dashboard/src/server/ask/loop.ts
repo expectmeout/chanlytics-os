@@ -40,7 +40,7 @@ import {
   type ToolContext,
   type ToolRun,
 } from "./tools";
-import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
+import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
@@ -205,6 +205,10 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
         : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
     case "no_key":
       return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "paused":
+      return es
+        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
@@ -333,10 +337,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
   // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
-  const system = [
-    { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
-    ...(shape ? [{ type: "text", text: shape, cache_control: { type: "ephemeral" } }] : []),
-  ];
+  const system = systemBlocks(stableSystem(input.facts), shape);
   const pageBlocks: SearchResultBlock[] = [
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
@@ -408,6 +409,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       proposals,
       questionAt,
       live,
+      promptHash: systemHash(system),
     });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */

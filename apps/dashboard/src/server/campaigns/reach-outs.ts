@@ -50,7 +50,7 @@ import type { Database, Json } from "@chanlytics/db";
 import { runPlaybookNow, type RunPlaybookOutcome } from "@/server/campaigns/playbook-run";
 import { serviceDb } from "@/server/service-db";
 import { deployment } from "@/server/env";
-import { callEdge, edgeAnswered } from "@/server/edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "@/server/edge";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 const PREVIEW_TIMEOUT_MS = 35_000;
@@ -410,9 +410,7 @@ async function saveReachOut(
   return { data, error };
 }
 
-type ReachOutPreviewOutcome =
-  | { ok: true; preview: unknown }
-  | { ok: false; reason: "preview" | "edge_unreachable" | "ask_budget" | "bad_request" | string };
+type ReachOutPreviewOutcome = { ok: true; preview: unknown } | { ok: false; reason: EdgeReason };
 
 /**
  * One business's email as the chain would write it (the edge's reach-out-preview door, R11): the model is asked, and
@@ -430,8 +428,8 @@ export async function previewReachOut(
     { workspace: tenantId, user: userId, timeoutMs: PREVIEW_TIMEOUT_MS },
   );
   if (r.status === 503 && r.body?.error === "edge_unreachable") return { ok: false, reason: "edge_unreachable" };
-  const j = (r.body ?? {}) as { ok?: boolean; preview?: unknown; error?: string };
+  const j = (r.body ?? {}) as { ok?: boolean; preview?: unknown };
   return edgeAnswered(r) && j.ok && j.preview
     ? { ok: true, preview: j.preview }
-    : { ok: false, reason: j.error ?? `edge ${r.status}` };
+    : { ok: false, reason: edgeReasonOf(r) };
 }

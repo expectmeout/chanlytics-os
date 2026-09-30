@@ -2576,8 +2576,8 @@ test("registrations: a line the vault holds no token for is written to (last_err
   assert.equal(healed.lines[0].last_error, null, "read, and nothing wrong with it");
   assert.equal(
     healed.lines[1].last_error,
-    "could not read the registration: the provider refused the platform's credentials (HTTP 404)",
-    "a master-credential fault is named as itself, so nobody is sent looking at the subaccount",
+    "could not read the registration: the provider would not give this line's subaccount token (HTTP 404)",
+    "a subaccount the parent does not know is the provider's no about that line, said as that: nobody is sent to the platform's key for it (a 401 at the parent is the platform's credentials, and is worded so)",
   );
 });
 
