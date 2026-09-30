@@ -109,8 +109,12 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
   const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));
   const running: Promise<void>[] = [];
-  // Set by the first claim that throws; every slot stops claiming, and the tick throws once what runs has finished.
+  // Set by the first thing that throws out of a slot; every slot stops claiming, and the tick throws once what runs has
+  // finished. A slot never rejects, so no promise of the tick is left unobserved.
   const halt: { stopped: boolean; error: unknown } = { stopped: false, error: null };
+  const stop = (e: unknown) => {
+    if (!halt.stopped) Object.assign(halt, { stopped: true, error: e });
+  };
 
   const slot = async (): Promise<void> => {
     for (let now = ports.now(); now - started < opts.claimForMs && !halt.stopped; now = ports.now()) {
@@ -121,18 +125,25 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
       try {
         job = await ports.claim(opts.leaseSeconds);
       } catch (e) {
-        if (!halt.stopped) Object.assign(halt, { stopped: true, error: e });
+        stop(e);
         return;
       }
       if (!job) return;
-      c.claimed += 1;
-      noteLate(c, job, now);
-      // The job starts before anything else is asked of the ledger (runOne's first step is synchronous up to the
-      // handler's own call). Work was due, so more may be: another slot opens beside this one, and it too claims only
-      // what it is about to run.
-      const run = runOne(ports, job, deadlineFor(job.kind), c);
-      if (running.length < slots) running.push(slot());
-      await run;
+      try {
+        c.claimed += 1;
+        noteLate(c, job, now);
+        // The job starts before anything else is asked of the ledger (runOne's first step is synchronous up to the
+        // handler's own call). Work was due, so more may be: another slot opens beside this one, and it too claims only
+        // what it is about to run.
+        const run = runOne(ports, job, deadlineFor(job.kind), c);
+        if (running.length < slots) running.push(slot());
+        await run;
+      } catch (e) {
+        // Everything per job is caught inside runOne; a throw that still gets out (a logger that throws while saying
+        // what happened) is not hidden: no slot claims more, what runs is recorded, and the tick throws.
+        stop(e);
+        return;
+      }
     }
   };
   running.push(slot());

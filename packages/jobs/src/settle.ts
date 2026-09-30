@@ -16,6 +16,7 @@
  * a job whose outcome is unknown.
  */
 import { isCampaignEmail } from "@chanlytics/contracts";
+import { carriedBy, nextBatch } from "./broadcast-send";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
@@ -332,7 +333,9 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
         tenantId: job.tenant_id,
         kind: "broadcast_send",
         dueAt: new Date(),
-        payload: { broadcast_id: broadcastId, resumes: resumes + 1 },
+        // What the run had waited through goes with it, so a resumed run still looks at the day's sending hours
+        // and still counts its stalls toward the cap.
+        payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 },
       });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e) {

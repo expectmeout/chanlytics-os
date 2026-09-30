@@ -95,13 +95,13 @@ async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow, cmd: Broadc
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
-    await stall(ports, b, cmd, "credentials");
+    const stopped = (await stall(ports, b, cmd, "credentials")) === "stopped";
     // The platform hears it, as a reply's wait is heard (sendQueued): a store that stays unreadable is its condition.
     await ports
       .page?.(
         `wire_unavailable:${BROADCAST_CHANNEL}`,
         `${BROADCAST_CHANNEL}: a workspace's credentials could not be read`,
-        `Broadcast ${b.id} waits, everyone still queued: ${unbound}.`,
+        `Broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`,
       )
       ?.catch(() => undefined);
     return false;
@@ -427,12 +427,12 @@ async function stall(
   b: { id: string; name: string },
   cmd: BroadcastBatchCommand,
   what: "credentials" | "people",
-): Promise<void> {
+): Promise<"waits" | "stopped"> {
   const stalls = (cmd.stalls ?? 0) + 1;
   if (stalls <= BROADCAST_STALLS_MAX) {
     const at = new Date(ports.now() + jittered(BROADCAST_STALL_RETRY_MS, ports.random));
     await ports.scheduleNext(b.id, at, { ...(cmd.waits ? { waits: cmd.waits } : {}), stalls });
-    return;
+    return "waits";
   }
   // The tally is best effort: a database that has not answered for half an hour may not answer for it either.
   const sent = await ports.tally(b.id).then(
@@ -453,6 +453,7 @@ async function stall(
       .filter(Boolean)
       .join(" "),
   });
+  return "stopped";
 }
 
 /** A run that waited and woke outside the day's sending hours stops there, and the owner is told. */

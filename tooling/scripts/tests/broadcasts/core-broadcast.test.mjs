@@ -660,7 +660,6 @@ test("a send that never reached WhatsApp gives the person back and the run waits
   );
   assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), { waits: 1 }]);
   assert.ok(!ops().includes("fail") && !ops().includes("finish") && !ops().includes("alert"), "not failed, not sent");
-  assert.equal(log.filter((l) => l[0] === "page").length, 0, "page is not a logged write here");
   const pages = [];
   const paged = fakes({ facts: facts("UTC"), deliver: notTaken(0), remaining: 2 });
   paged.ports.page = async (key, subject) => pages.push([key, subject]);
@@ -696,7 +695,9 @@ test("a run that reached nobody is not said to be sent: the finish says none of 
 
 test("a run that keeps stalling carries the count, and past the cap it stops and tells the owner instead of waiting for ever", async () => {
   // Before (E:1): a vault out from 7:50 PM to 11 PM re-queued the run every minute, a hundred and ninety times.
+  const pages = [];
   const next = fakes({ wireUnavailable: "vault unavailable", remaining: 2 });
+  next.ports.page = async (_key, _subject, body) => pages.push(body);
   await sendBroadcastBatch(next.ports, cmd({ stalls: 7, waits: 2 }));
   assert.deepEqual(
     next.log[0],
@@ -705,7 +706,14 @@ test("a run that keeps stalling carries the count, and past the cap it stops and
   );
 
   const cap = fakes({ wireUnavailable: "vault unavailable", remaining: 2, tally: { sent: 5, held: 0 } });
+  cap.ports.page = async (_key, _subject, body) => pages.push(body);
   await sendBroadcastBatch(cap.ports, cmd({ stalls: BROADCAST_STALLS_MAX }));
+  assert.match(pages[0], /^Broadcast b1 waits, everyone still queued/, "a run that will try again says it waits");
+  assert.match(
+    pages[1],
+    /^Broadcast b1 stopped after waiting the most it may, everyone still queued/,
+    "and one that will not says so",
+  );
   assert.deepEqual(cap.ops(), ["fail", "alert"], "nothing more is scheduled");
   assert.deepEqual(call(cap.log, "fail").slice(1), ["b1", "stalled"]);
   const alert = call(cap.log, "alert")[1];

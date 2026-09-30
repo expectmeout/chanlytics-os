@@ -363,6 +363,39 @@ test("a claim that throws in one slot stops every slot claiming; the jobs alread
   assert.equal(asked, 3, "and nothing more was claimed after the ledger failed");
 });
 
+test("a throw that gets out of a job's own bookkeeping stops the slots, and the jobs beside it are still recorded before the tick throws", async () => {
+  // complete fails and the log that would say so is down too: runOne cannot catch what it cannot report.
+  const w = held([job("a"), job("b"), job("c")]);
+  w.ports.complete = async (j) => {
+    w.calls.complete.push(j.id);
+    if (j.id === "a") throw new Error("connection reset");
+    return true;
+  };
+  w.ports.log.error = () => {
+    throw new Error("the log is down");
+  };
+  const tick = runTick(w.ports, { ...OPTS, slots: 2 });
+  const outcome = tick.then(
+    () => "returned",
+    (e) => e.message,
+  );
+  await w.settle();
+  w.release.get("a")();
+  await w.settle();
+  w.release.get("b")();
+  assert.equal(
+    await outcome,
+    "the log is down",
+    "the tick throws, so the route answers 503 and sweep_health() sees it",
+  );
+  assert.deepEqual(w.calls.complete.sort(), ["a", "b"], "b, which was running beside it, was recorded");
+  assert.deepEqual(
+    w.queue.map((j) => j.id),
+    ["c"],
+    "and nothing more was claimed once it threw",
+  );
+});
+
 test("a send whose run died is never run a second time", async () => {
   for (const kind of ["outbound_send", "broadcast_send"]) {
     const { ports, calls } = fakes([job("a", kind, 2)]);

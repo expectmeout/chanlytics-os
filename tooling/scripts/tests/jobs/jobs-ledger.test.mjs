@@ -322,6 +322,23 @@ test("a broadcast still in flight is handed to a fresh run, with what it reached
   assert.equal(jobs.length, 2);
 });
 
+test("a fresh run carries what the dying one had waited through, so it still looks at the sending hours and still counts toward the cap", async () => {
+  const broadcasts = [sending()];
+  const broadcast_recipients = peopleOf("b1", ["sent", "queued"]);
+  const jobs = [];
+  const db = fakeDb({ broadcasts, broadcast_recipients, jobs });
+  await settleJob(db, ranAndDied({ broadcast_id: "b1", waits: 2, stalls: 7, resumes: 1 }), false);
+  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1", waits: 2, stalls: 7, resumes: 2 });
+
+  const junk = [];
+  await settleJob(
+    fakeDb({ broadcasts: [sending()], broadcast_recipients, jobs: junk }),
+    ranAndDied({ broadcast_id: "b1", waits: "x", stalls: -1 }),
+    false,
+  );
+  assert.deepEqual(junk[0].payload, { broadcast_id: "b1", resumes: 1 }, "anything but a count is none");
+});
+
 test("a broadcast whose dying run already scheduled the next batch is not handed a SECOND run", async () => {
   // The dying run may have scheduled its own next batch before it failed to
   // report back, and that chain has been working the queue for the ninety
