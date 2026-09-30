@@ -956,3 +956,23 @@ test("the turn's bookkeeping never costs a reply: a claim or a check that cannot
   await none.run(text("when do you open?"), answers("We open at 9."));
   assert.equal(none.seen.sent.length, 1);
 });
+
+test("a message with a photo the receptionist looks at takes no part in the turn: its picture is seen by its own model turn only, so a newer text does not answer for it", async () => {
+  const refuses = (what) => async () => {
+    throw new Error(`a photo must not ${what} the thread's turn`);
+  };
+  const w = world({
+    env: { modelKey: "sk-test" },
+    rt: runtime({ features: { vision: true } }),
+    media: { mime: "image/jpeg", bytes: new Uint8Array([1, 2, 3]) },
+    turn: { claim: refuses("claim"), holds: refuses("ask for") },
+  });
+  await w.run(photo("wamid.pic9", "is this shade too dark?"), answers("A little, yes."));
+  assert.equal(w.seen.media, 1, "the picture was fetched for the model");
+  assert.deepEqual(
+    w.seen.sent.map((m) => m.body),
+    ["A little, yes."],
+    "and answered, whoever else holds the thread",
+  );
+  assert.equal(w.seen.processed, 1);
+});

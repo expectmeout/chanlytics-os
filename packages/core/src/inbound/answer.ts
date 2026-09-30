@@ -91,9 +91,9 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   if ((await heldForThePerson(at, bodyText)) !== GO) return;
   const shown = await photoOf(at, seen);
   if (!shown) return;
-  if ((await claimTheTurn(at)) !== GO) return;
+  if ((await claimTheTurn(at, shown.photo)) !== GO) return;
   const turn = await modelTurn(at, bodyText, shown.photo);
-  if ((await stillOurs(at, turn)) !== GO) return;
+  if ((await stillOurs(at, turn, shown.photo)) !== GO) return;
   const hold = await planTheHold(at, turn);
   if ((await heldOrKept(at, turn, hold, bodyText)) !== GO) return;
   await sendNow(at, turn, hold, bodyText);

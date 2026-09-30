@@ -13,9 +13,22 @@
 --                                them all. When the turn moves from an older message, the receptionist's drafts that
 --                                older turn left waiting (its veto window, its confidence hold) are withdrawn, as
 --                                superseded: a reply not yet sent does not go after the newer one. True when held.
---   holds_reply_turn(...)        whether this message still holds its thread's turn.
+--   holds_reply_turn(...)        whether this message may still send: true unless a NEWER message of the thread has taken
+--                                the turn from it. It mirrors the claim's rule rather than reading only the row, so a
+--                                thread nobody claimed (a claim that could not be made, a row from before this
+--                                migration) and a turn an older message still names are this message's to answer:
+--                                the bookkeeping fails open and never costs a reply.
 --
--- A thread with no row is anybody's: the first message to claim it takes it. Re-runnable.
+-- A thread with no row is anybody's: the first message to claim it takes it. A message that carries a photo the
+-- receptionist looks at takes no part (core inbound/turn.ts): the picture reaches only its own model turn, never the
+-- memory a newer message's reply is written from.
+--
+-- The order is by when each message was recorded (created_at, the transaction's start), then by id. Two ingests of one
+-- identity are serialised by an advisory lock (00110), but the lock is taken inside the transaction, after now() was
+-- read, so two messages within a millisecond of each other can commit in the opposite order to their created_at; the
+-- newer-by-time one may then have read its memory before the other was recorded. It needs two messages from one
+-- customer inside a millisecond, which no provider delivers; the cost is that the older-committed one is not answered
+-- on its own. Re-runnable.
 
 set local lock_timeout = '3s';
 
@@ -91,11 +104,17 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (
-    select 1 from public.reply_turns t where t.conversation_id = p_conversation and t.message_id = p_message
+  select not exists (
+    select 1
+      from public.reply_turns t
+      join public.messages h on h.id = t.message_id
+      join public.messages m on m.id = p_message
+     where t.conversation_id = p_conversation
+       and t.message_id <> p_message
+       and (h.created_at, h.id) > (m.created_at, m.id)
   )
 $$;
 revoke execute on function public.holds_reply_turn(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.holds_reply_turn(uuid, uuid) to service_role;
 comment on function public.holds_reply_turn(uuid, uuid) is
-  'Whether this message still holds its thread''s reply turn (claim_reply_turn).';
+  'Whether this message may still send: false only when a newer message of the thread (by created_at, then id) has taken the turn from it. A thread with no row, or one an older message names, is this message''s: the claim''s own rule, so a claim that failed open is not turned into a dropped reply.';

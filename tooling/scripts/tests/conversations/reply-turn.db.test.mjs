@@ -93,7 +93,11 @@ test("the first message of a thread takes its turn, and asking again is the same
   if (skip) return t.skip(skip);
   const th = await thread();
   const m1 = await message(th);
-  assert.equal((await holds(th, m1)).data, false, "a thread with no claim is nobody's yet");
+  assert.equal(
+    (await holds(th, m1)).data,
+    true,
+    "a thread with no claim is anybody's: a claim that was never made drops no reply",
+  );
   assert.deepEqual(await claim(th, m1).then((r) => [r.error, r.data]), [null, true]);
   assert.equal((await claim(th, m1)).data, true, "claimed again by the same message: still its turn");
   assert.equal((await holds(th, m1)).data, true);
@@ -112,6 +116,35 @@ test("the newest message takes the turn from an older one, and an older one that
 
   assert.equal((await claim(th, older)).data, false, "an older message that comes to claim after the newer holds it");
   assert.equal((await holds(th, newer)).data, true, "and does not take it back");
+});
+
+test("holds_reply_turn is the claim's own rule: only a NEWER message that has taken the turn makes it false", async (t) => {
+  if (skip) return t.skip(skip);
+  const th = await thread();
+  const older = await message(th);
+  const newer = await message(th);
+  // The claim failed open for the newer message (the edge could not reach the database): the row names the older one.
+  assert.equal((await claim(th, older)).data, true);
+  assert.equal(
+    (await holds(th, newer)).data,
+    true,
+    "the older message's row is no reason to drop the newer one's reply",
+  );
+  assert.equal((await holds(th, older)).data, true, "and the older one, whose turn nobody has taken, still holds it");
+  // A message the database does not know is nobody's to drop.
+  assert.equal(
+    (await holds(th, "00000000-0000-4000-8000-000000000000")).data,
+    true,
+    "asking about a message it cannot find fails open",
+  );
+  // Now the newer message does take it.
+  assert.equal((await claim(th, newer)).data, true);
+  assert.equal((await holds(th, older)).data, false);
+  assert.equal((await holds(th, newer)).data, true);
+  // And when the message that held it is gone (erased), the turn is nobody's again.
+  const gone = await db.from("messages").delete().eq("id", newer);
+  assert.equal(gone.error, null, gone.error?.message);
+  assert.equal((await holds(th, older)).data, true);
 });
 
 test("moving the turn withdraws the receptionist's drafts the older turn left waiting, and nothing else", async (t) => {
@@ -192,5 +225,6 @@ test("the turn is the service role's alone: no session, signed in or not, may ta
   assert.ok(c.error && h.error, "both doors refuse a caller that is not the service role");
   const rows = await anon.from("reply_turns").select("*");
   assert.ok(rows.error || (rows.data ?? []).length === 0, "and the table shows nothing to a session");
-  assert.equal((await holds(th, m)).data, false, "the refused claim took nothing");
+  const held = await db.from("reply_turns").select("message_id").eq("conversation_id", th.conversation);
+  assert.deepEqual(held.data, [], "the refused claim took nothing");
 });
