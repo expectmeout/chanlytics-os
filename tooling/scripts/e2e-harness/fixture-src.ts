@@ -25,6 +25,7 @@
  */
 import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
+import { installRoles } from "@/legacy-bridge/identity";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
 import { peopleOverride } from "@/legacy-bridge/surfaces/people";
@@ -82,6 +83,24 @@ w.__ME = {
   platform_admin: false,
 };
 installClock();
+
+/* ---- the role store: the shell's own reading of who is acting (legacy-bridge/identity.ts installRoles) ---- */
+// Every gate asks the role store (`ST_STORE.myRole()`, `.mayAtLeast()`), which the mockup makes when settings.jsx runs
+// (`window.ST_STORE = window.ST_STORE || {…}`) -- after this script -- and the app completes right after its manifest
+// makes it. The page's owner-only items (the person page's "Delete person", the receptionist row's act) ask
+// `mayAtLeast`, which the mockup's store never defines, so a store the harness leaves as the mockup made it shows
+// none of them. So the store is completed by the module the app completes it with, the moment it is assigned:
+// the same two functions over this window's `__ME` and the store's own View-as, and no second copy of the ladder.
+let roleStore: unknown;
+Object.defineProperty(w, "ST_STORE", {
+  configurable: true,
+  enumerable: true,
+  get: () => roleStore,
+  set: (store) => {
+    roleStore = store;
+    installRoles(window);
+  },
+});
 w.__chrome = {
   themes: C.THEME_OPTIONS,
   looks: C.LOOK_OPTIONS,

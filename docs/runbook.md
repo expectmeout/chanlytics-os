@@ -244,7 +244,11 @@ the config's own 45s. Green here is not a green nightly.
 walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
-`e2e-harness/server.mjs`.
+`e2e-harness/server.mjs`. The harness signs in as the workspace's owner, and the
+role store the mockup makes (`window.ST_STORE`, in `settings.jsx`) is completed
+by the shell's own `installRoles` (`legacy-bridge/identity.ts`) the moment it is
+assigned, so `myRole()`, `mayAtLeast()` and View-as answer as they do in the app
+and an owner-only item (a person's "Delete person") is offered.
 
 One flake to know about, in the product and not in the harness: the week's copy
 menu is an `escape` `MoreMenu`, which closes on any captured scroll event
