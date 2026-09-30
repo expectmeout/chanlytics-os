@@ -16,9 +16,10 @@
  * Diagnostic-key only: the dashboard is the sole caller, as for steer.
  */
 import { json, refuse } from "../../../lib/http.js";
+import { readBody } from "../../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
-import { emitEvent } from "../../../lib/packages/db.js";
+import { emitEvent, recordActivation } from "../../../lib/packages/db.js";
 import type { Json } from "../../../lib/packages/db.js";
 import {
   alreadyRegistered,
@@ -35,6 +36,35 @@ import {
 import { env } from "../../../lib/env.js";
 import { logger, adminDoor } from "../../../lib/log.js";
 
+interface ConnectBody {
+  tenant_id?: string;
+  user_id?: string;
+  code?: string;
+  phone_number_id?: string;
+  waba_id?: string;
+}
+
+/**
+ * The connection told to the platform's own record: the event that a number was connected, and the workspace's first line
+ * that answers, the funnel's first milestone (a phone line is the other door). Best effort: the connection stands either way.
+ */
+async function connected(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: string,
+  channelId: string,
+  n: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string },
+): Promise<void> {
+  await emitEvent(db, tenantId, "channel.connected", "channel", channelId, {
+    kind: "whatsapp",
+    phone_number_id: n.phoneNumberId,
+    waba_id: n.wabaId,
+    number_e164: n.e164,
+    verified_name: n.name,
+    by: n.by,
+  }).catch(() => {});
+  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
@@ -45,12 +75,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   const appSecret = env.META_APP_SECRET;
   if (!appId || !appSecret) return refuse(503, "no_app_credentials");
 
-  let body: { tenant_id?: string; user_id?: string; code?: string; phone_number_id?: string; waba_id?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<ConnectBody>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -212,14 +237,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
     return refuse(500, "credentials_failed");
   }
 
-  await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
-    kind: "whatsapp",
-    phone_number_id: phoneNumberId,
-    waba_id: wabaId,
-    number_e164: e164,
-    verified_name: config.verified_name,
-    by: userId,
-  }).catch(() => {});
+  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId });
   L.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration });
   return json(200, {
     ok: true,

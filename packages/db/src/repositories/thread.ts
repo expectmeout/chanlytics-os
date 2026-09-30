@@ -18,6 +18,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  fencedInline,
+  promptSafeName,
   type DealFacts,
   clockDate,
   DAY_MS,
@@ -438,7 +440,10 @@ export function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "
 export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): string {
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
-  bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  // A name may be one the person gave themselves (a WhatsApp profile name): capped, one line, and fenced as their words,
+  // so it can say nothing to the model (contracts ai/fence.ts; the one injection policy).
+  const name = promptSafeName(lead.name);
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
   // Whether an address is on file, so the receptionist asks for one only when there is none (booking rule ask_email);
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");

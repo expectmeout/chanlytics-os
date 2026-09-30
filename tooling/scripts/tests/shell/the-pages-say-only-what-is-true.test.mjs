@@ -259,6 +259,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 globalThis.document = {
   body: {},
   addEventListener() {},

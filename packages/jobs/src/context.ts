@@ -102,8 +102,16 @@ export interface JobContext {
    * not supply one; a reply_read job in a runtime without it fails loudly rather than guessing.
    */
   replies?: {
-    /** The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past `deadline`. */
-    ask: (system: string, user: string, deadline: number) => Promise<unknown>;
+    /**
+     * The reader's answer, unparsed; null when it answered nothing usable. Throws on a failed call. No call runs past
+     * `deadline`. `forWhom` is the usage ledger's row: the reply's workspace and message.
+     */
+    ask: (
+      system: string,
+      user: string,
+      deadline: number,
+      forWhom: { tenantId: string; subjectId: string },
+    ) => Promise<unknown>;
     /** One read taken, or why not: no model, a workspace that may not spend, the day's reads spent. */
     mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
     /** Tell the workspace once (notifyOnce): true only when the owner was told. */

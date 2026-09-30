@@ -9,6 +9,7 @@
  * address; no customer content exists yet. Diagnostic-key only.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify } from "../../lib/ops/notify.js";
@@ -28,12 +29,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<Body>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;

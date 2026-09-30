@@ -11,6 +11,7 @@ import {
   SECOND_FACTOR_WORDS,
   type BillingMode,
   type BillingStatus,
+  type ErrorCode,
   type Role,
   type SpendWords,
 } from "@chanlytics/contracts";
@@ -314,6 +315,35 @@ export function requireRole(member: MemberContext, atLeast: Role): void {
       { needs },
     );
   }
+}
+
+/**
+ * The SQLSTATEs a definer door raises on purpose, each with the words it wrote for the person, and the answer each is:
+ * a thing that is not there (P0002), a second of what only one may exist (23505), who may not (42501), and what it
+ * cannot take (22023). A rule a door keeps with a bare `raise exception` (P0001) is answered as the route says.
+ */
+const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number }>> = {
+  P0002: { code: "not_found", status: 404 },
+  "23505": { code: "conflict", status: 409 },
+  "42501": { code: "forbidden", status: 403 },
+  "22023": { code: "validation", status: 400 },
+};
+
+/**
+ * A database failure, as a route answers it. A door's own refusal keeps the door's words, at the status its SQLSTATE
+ * says (a bare raise, P0001, at the one the route gives, validation unless it says). Anything else (a timeout, a lost
+ * connection, a constraint no door named, a fault) is the database's own text, never a person's to read: it is logged
+ * with its code, and the answer is `internal` 503 in the envelope's catch-all words, which the client says as a
+ * try-again (contracts' refusalOf). The raw text used to reach the browser as a 400 "validation" at fifteen sites.
+ */
+export function dbRefusal(
+  e: { code?: string | null; message: string },
+  raised: { code: ErrorCode; status: number } = { code: "validation", status: 400 },
+): AppError {
+  const door = e.code === "P0001" ? raised : e.code ? DOOR_REFUSALS[e.code] : undefined;
+  if (door) return new AppError(door.code, e.message, door.status);
+  log.error("db_failed", { code: e.code ?? null, error: e.message });
+  return new AppError("internal", "Something went wrong.", 503);
 }
 
 /**

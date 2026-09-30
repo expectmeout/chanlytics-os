@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mailboxOfTenant, sendingDomainsOf, type Database } from "../packages/db.js";
-import { emailSender, type EmailRoute, type Sender } from "../packages/core.js";
+import { emailSender, wireUnavailable, type EmailRoute, type Sender, type WireUnavailable } from "../packages/core.js";
 import { fetchReceivedEmail, sendsAs, sendsAsOwnDomain } from "../packages/channels.js";
 import { emailDomainOf } from "../packages/contracts.js";
 import type { JobContext } from "../packages/jobs.js";
@@ -67,7 +67,10 @@ export function coldReplyDomains(): string[] {
 /**
  * One workspace's email wire. undefined: no email on this runtime. null: email
  * is on and this workspace cannot send, because the deployment holds no
- * provider key or the workspace has no mailbox. Otherwise a wire that sends
+ * provider key or the workspace has no mailbox. A WireUnavailable: the
+ * workspace's own domains could not be read just now, so which routes it has is
+ * not known; a send waits for the next try (core deliver) rather than meet a
+ * wire built without its routes. Otherwise a wire that sends
  * only as that workspace's addresses: the provider keys are shared by every
  * workspace, so what keeps one business's email from leaving as another's is
  * this binding, the way the WhatsApp wire is bound to the tenant's own
@@ -76,7 +79,7 @@ export function coldReplyDomains(): string[] {
  * when this deployment holds its key. Replies to either come back to the
  * mailbox, so a workspace with no mailbox has no email line at all.
  */
-export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined> {
+export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined | WireUnavailable> {
   const domain = emailDomain();
   if (!domain) return undefined;
   const apiKey = env.RESEND_API_KEY;
@@ -90,9 +93,10 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
   // Cold mail leaves only while its receipts can be read: without the cold account's webhook secret every bounce and
   // complaint would be refused at the door (email-ingress.ts), and no domain would ever be held for them.
   if (coldKey && env.RESEND_COLD_WEBHOOK_SECRET) {
-    // This wire is built for every job the workspace runs, a text's and a WhatsApp's too: a domains read that fails
-    // costs cold email its routes for this tick (its sends fail at the wire, and a cold failure is recorded on its
-    // row, send.ts), never every other job.
+    // A domains read that fails is the wire not bound (WireUnavailable), never a wire built without the workspace's
+    // own routes: a cold email frozen with its domain's address would be refused at such a wire as leaving as another
+    // sender, recorded failed, and its lead's step lost for the run although nothing left. The send waits instead.
+    // The tick binds each channel's wire on its own (api/jobs/tick.ts), so a text's and a WhatsApp's are not held.
     try {
       for (const d of await sendingDomainsOf(db, tenantId)) {
         // Answered on the cold reply domains when they are set (D17), and on the mail domain still: an email
@@ -103,6 +107,7 @@ export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | n
       }
     } catch (e) {
       logger({ tenant_id: tenantId }).error("email_own_domains_unread", { error: errField(e) });
+      return wireUnavailable(errField(e));
     }
   }
   return emailSender(routes, held);

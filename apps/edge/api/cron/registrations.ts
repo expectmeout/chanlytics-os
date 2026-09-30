@@ -65,8 +65,13 @@ export const POST = door(async function POST(request: Request): Promise<Response
       const r = await syncRegistration(db, line);
       if (!r.ok) {
         // We could not ask: the provider refused the credentials (the platform's, or the line's after a refresh), or
-        // the line has none on file.
-        if (r.error === "provider_unauthorized" || r.error === "no_line_credentials") {
+        // refused to give this line's subaccount at all, or the line has none on file. A provider that could not be
+        // asked just now (unavailable) is not that: the next tick asks again.
+        if (
+          r.error === "provider_unauthorized" ||
+          r.error === "provider_refused" ||
+          r.error === "no_line_credentials"
+        ) {
           unreadable++;
           L.error("registration_unreadable", { line_id: line.id, error: r.error, detail: r.detail });
         }

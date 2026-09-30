@@ -22,6 +22,7 @@
  * Diagnostic-key only.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { edgeFnUrl } from "../../lib/lines/lines.js";
 import { pg } from "../../lib/pg.js";
@@ -141,12 +142,7 @@ async function checkProvisionKnock(request: Request): Promise<ProvisionKnock | R
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<Body>(request);
   const apply = body.apply === true;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;

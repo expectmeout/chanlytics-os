@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm, EmptyState, FailedRead */
+/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm, EmptyState, FailedRead, mayAtLeast */
 // Chanlytics — Client profile page.
 // The last approval surface wired into the decide engine: Aisha's queue
 // approves through IX_STORE (toast + undo), overlays live decisions, and
@@ -260,7 +260,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
             <StatCell label="LTV" value={`$${(c.ltv ?? 0).toLocaleString()}`} meta={`$${Math.round((c.ltv ?? 0) / Math.max(1, c.visits ?? 1))} avg visit`} />
             <StatCell label="Sessions left" value={c.sessionsLeft} meta={c.sessionsLeft === 0 ? "no active package" : "current pkg"} />
             <StatCell label="Last visit" value={c.lastVisit} valueSize={14} meta={`last contact ${c.lastContact}`} />
-            <span className="cl-prof-next" onClick={() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar")} title={appt ? "Open this appointment in Calendar" : "Open Calendar"} style={{ cursor: "pointer", display: "block" }}>
+            <span className="cl-prof-next" role="button" tabIndex={0} onKeyDown={window.keyPress(() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar"))} onClick={() => window.CHANLY.nav(appt ? window.CHANLY.R.appt(appt.id) : "calendar")} title={appt ? "Open this appointment in Calendar" : "Open Calendar"} style={{ cursor: "pointer", display: "block" }}>
               <StatCell label="Next visit" value={c.nextAppt ? c.nextAppt.split(" · ")[0] : "—"} valueSize={14} meta={c.nextAppt ? c.nextAppt.split(" · ")[1] || "booked" : "none booked"} metaTone={c.nextAppt ? "" : "neg"} />
             </span>
             <StatCell label="Cadence" value={cadence.value} valueSize={14} meta={cadence.meta} metaTone={cadence.meta === "slowing" ? "neg" : ""} />
@@ -486,7 +486,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
             />
             <div className="cl-prof-ask-chips">
               {[c.temp < 0.5 ? "Why the cooling?" : "What keeps them coming back?", "Compare to similar clients", c.temp < 0.5 ? "Best re-engagement" : "Upsell timing"].map(q => (
-                <span key={q} className="cl-prof-ask-chip" onClick={() => window.askAbout({ prompt: `${q} (about ${c.name})` })}>{q}</span>
+                <span key={q} className="cl-prof-ask-chip" role="button" tabIndex={0} onKeyDown={window.keyPress(() => window.askAbout({ prompt: `${q} (about ${c.name})` }))} onClick={() => window.askAbout({ prompt: `${q} (about ${c.name})` })}>{q}</span>
               ))}
             </div>
           </div>
@@ -1385,9 +1385,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const peopleRow = window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((r) => r.id === id) : null;
   const dealP = peopleRow && peopleRow.followUp ? { ...p, followUp: peopleRow.followUp } : p;
   const tone = p.rightNow.tone;
-  const isOwner = !!(window.__ME && window.__ME.role === "owner");
-  // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
-  const canRecord = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
+  const isOwner = mayAtLeast("owner");
+  // The roles ROLE_PERMS gives `approve`: operator, the partner (0012) and the owner.
+  const canRecord = mayAtLeast("operator");
   const digitsOf = (x) => String(x || "").replace(/\D/g, "");
   const typedMatches =
     del.typed.trim() === p.name ||

@@ -32,6 +32,7 @@ async function proposeThreadVerb(
     .from("conversations")
     .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164, email)")
     .eq("id", id)
+    .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
@@ -43,14 +44,16 @@ async function proposeThreadVerb(
     "this person";
   let escalationId: string | null = null;
   if (verb === "resolve") {
-    const { data: esc } = await t.ctx.supabase
+    const { data: esc, error: escErr } = await t.ctx.supabase
       .from("escalations")
       .select("id")
       .eq("conversation_id", id)
+      .eq("tenant_id", t.tenantId)
       .eq("state", "open")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (escErr) throw new Error(escErr.message);
     if (!esc) return refuse("no open escalation on that thread; nothing to resolve");
     escalationId = esc.id;
   }

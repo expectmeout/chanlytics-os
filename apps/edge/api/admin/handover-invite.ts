@@ -10,6 +10,7 @@
  * only; the address is never logged.
  */
 import { json } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { platformFrom, post } from "../../lib/ops/notify.js";
@@ -28,12 +29,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
 
-  let body: { tenant_id?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<{ tenant_id?: string }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";

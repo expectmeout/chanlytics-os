@@ -1,7 +1,16 @@
 /**
- * A place as the collect takes it: the next batch of a page's items, where the round measures from, and the member
- * the commit writes, its class decided by code. The collect is collect.ts; the re-judging (rejudge.ts) makes its
- * members here too.
+ * A place as the collect takes it (collect.ts; rejudge.ts makes its members here too): what a page's items become before
+ * the judge and after it.
+ *
+ *   - takeBatch: the next batch of a page's items from a cursor, at most LEAD_JUDGE_BATCH places the judge must see,
+ *     each item cleaned (clean.ts) and marked when a rule settles it before judging (closed for good: left out; no
+ *     location: Needs review), with the items around them.
+ *   - centerOf / nearbyFor: where the round measures from (the plan's centre, or for a city ask the median of the probe's
+ *     places, E7) and where to look next when a round ran dry (the three nearest ZIP centres past the area, D3).
+ *   - memberOf: the member and the lead's columns the commit writes for one place, its class decided by code from the
+ *     judge's answers (contracts classify, §0.1) or by the rule that kept it from the judge, a left-out place keeping none
+ *     of its candidate emails or listing detail (PRD §0.4, §15).
+ *   - askedOf: what each key asked under a plan, worked out once per plan (judgeAsked hashes every question).
  */
 
 import {

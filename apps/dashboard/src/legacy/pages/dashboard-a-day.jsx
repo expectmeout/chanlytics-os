@@ -1,4 +1,4 @@
-/* global React, Icon, FailedRead, AgendaItem, AgendaItems, AgendaOpen */
+/* global React, Icon, FailedRead, AgendaItem, AgendaItems, AgendaOpen, useSurface */
 // The day: today and tomorrow from the calendar the receptionist reads — who
 // is coming and when, what is open, what is closed — and the visit
 // playbooks' line. Reads the calendar and playbooks surfaces the page already
@@ -16,15 +16,6 @@
 // or gone, the oldest first, three at most and a line to People's Steps due
 // for the rest (contracts todaySteps, TODAY_STEPS_MAX). In every workspace,
 // calendar or not: with no day to draw, the panel is the steps alone.
-const useTdTick = (key) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    const names = key.split(",");
-    names.forEach((n) => window.addEventListener(n, bump));
-    return () => names.forEach((n) => window.removeEventListener(n, bump));
-  }, [key]);
-};
-
 // The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
 const tdSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
 
@@ -54,7 +45,7 @@ const TodaySteps = ({ vm, nav }) => (
 );
 
 const TodayDay = () => {
-  useTdTick("surface:calendar,surface:playbooks,surface:clients");
+  useSurface(["calendar", "playbooks", "people"]);
   const C = tdSurface("__CALENDAR");
   const P = tdSurface("__PLAYBOOKS");
   const people = tdSurface("__PEOPLE");

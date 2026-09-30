@@ -2,7 +2,7 @@
  * The dashboard's chrome: its words and hotkeys, the tone vocabulary, a refusal in the owner's words, who is signed
  * in, and how fast its pages are.
  */
-export { refusalOf, roleGate, NEEDS_TITLE, PERM_DOING } from "./refusal";
+export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING } from "./refusal";
 export type { RefusalInput, Refusal, RolePerm } from "./refusal";
 export {
   personInitials,

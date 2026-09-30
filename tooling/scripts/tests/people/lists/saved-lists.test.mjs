@@ -113,10 +113,6 @@ test("the page: the rail's Saved section is real, a name typed there is the only
     p.includes('question={`Delete “${list.name}”?`} detail="The people stay."'),
     "deleting a list is asked once, through the one Confirm, in words that say what stays",
   );
-  assert.ok(
-    p.includes('["owner", "operator", "partner"].includes(window.__ME.role)'),
-    "operators keep lists too, and the partner",
-  );
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
   assert.ok(

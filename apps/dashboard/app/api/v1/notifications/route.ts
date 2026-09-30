@@ -4,6 +4,7 @@ import { read, write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { notifications } from "@/server/readers/notifications";
+import { dbRefusal } from "@/server/with-route";
 
 /**
  * GET /api/v1/notifications — the workspace's kept notifications of the last
@@ -36,7 +37,7 @@ export const PUT = write({
     const tenantId = member.tenantId;
     if (body.seen === true) {
       const { data, error } = await ctx.supabase.rpc("notifications_seen", { p_tenant_id: tenantId });
-      if (error) throw new AppError("validation", error.message);
+      if (error) throw dbRefusal(error);
       return { seen_at: ((data ?? {}) as { seen_at?: string }).seen_at ?? null };
     }
     if (typeof body.id !== "string")
@@ -50,7 +51,7 @@ export const PUT = write({
       ...(read !== undefined ? { p_read: read } : {}),
       ...(dismissed !== undefined ? { p_dismissed: dismissed } : {}),
     });
-    if (error) throw new AppError("validation", error.message);
+    if (error) throw dbRefusal(error);
     return { notification_id: id, read, dismissed };
   },
 });

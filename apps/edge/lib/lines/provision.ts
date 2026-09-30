@@ -15,7 +15,7 @@
  * in the same words.
  */
 import { notify, recordNotification } from "../ops/notify.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, recordActivation } from "../packages/db.js";
 import { formatPhoneDisplay, lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../packages/contracts.js";
 import { runLineSaga, type LineRow } from "../packages/channels.js";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
@@ -116,6 +116,8 @@ export async function provisionLine(
       agent_id: result.line.retell_agent_id,
       by,
     }).catch(() => {});
+    // The workspace's first line that answers: the funnel's first milestone (a WhatsApp connection is the other door).
+    await recordActivation(db, tenant.id, "line_live", "phone").catch(() => false);
   } else {
     await reportLineFailed(db, choice.name, tenant, result.line, result.step, result.error, by);
   }

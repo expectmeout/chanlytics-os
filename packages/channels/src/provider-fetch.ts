@@ -1,5 +1,5 @@
 /**
- * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo): bounded, never
+ * The one way a call leaves for a provider (Meta, Twilio, Retell, Resend, Google, Apify, Expo, Anthropic, TypeSafe): bounded, never
  * throwing, and said as one of four outcomes a caller can act on without reading the provider's answer itself.
  *
  * Before it, each adapter had its own fetch. Sixteen calls had no bound at all, and one hung connection held a
@@ -40,7 +40,17 @@
 import { logger } from "./log/logger";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
-export const PROVIDERS = ["meta", "twilio", "retell", "resend", "google", "apify", "expo"] as const;
+export const PROVIDERS = [
+  "meta",
+  "twilio",
+  "retell",
+  "resend",
+  "google",
+  "apify",
+  "expo",
+  "anthropic",
+  "typesafe",
+] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 /** What a call to a provider came to (the header says each). */
@@ -54,6 +64,8 @@ export interface ProviderReply {
   text: string;
   /** The body parsed as JSON, or null. */
   json: unknown;
+  /** A 2xx answer's body, unread, when the call asked for it (`stream`); null otherwise. */
+  body: ReadableStream<Uint8Array> | null;
   headers: Headers | null;
   /** How long the provider asked us to wait (Retry-After), in ms, when it said. */
   retryAfterMs: number | null;
@@ -74,6 +86,13 @@ export interface ProviderCall extends Omit<RequestInit, "signal"> {
   deadlineMs?: number;
   /** "count": always made, its faults counted, never held by an open breaker (a send to a person). Default "hold". */
   breaker?: "hold" | "count";
+  /** The caller's own end, beside each try's bound: a call it abandons ends as a timeout does. */
+  signal?: AbortSignal;
+  /**
+   * Hand a 2xx answer's body back unread (`body`), for a caller that forwards it as it arrives (a model's event
+   * stream). Each try's bound still ends the body; any other answer is read as usual.
+   */
+  stream?: boolean;
 }
 
 /** What a test hands in instead of the network and the clock. */
@@ -207,6 +226,7 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
       status: 0,
       text: "",
       json: null,
+      body: null,
       headers: null,
       retryAfterMs: b.openUntil - now,
       error: "breaker_open",
@@ -222,8 +242,24 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
     redirect: call.redirect,
   };
   let a: ProviderReply;
+  const bound = AbortSignal.timeout(call.timeoutMs);
   try {
-    const r = await deps.fetch(url, { ...init, signal: AbortSignal.timeout(call.timeoutMs) });
+    const r = await deps.fetch(url, { ...init, signal: call.signal ? AbortSignal.any([bound, call.signal]) : bound });
+    if (call.stream && r.ok && r.body) {
+      a = {
+        outcome: "ok",
+        status: r.status,
+        text: "",
+        json: null,
+        body: r.body,
+        headers: r.headers,
+        retryAfterMs: null,
+        error: null,
+        tries,
+      };
+      note(provider, a, deps.now());
+      return a;
+    }
     // Read inside the bound: a body that stalls past it is no answer at all, as a request that did.
     const text = await r.text();
     let json: unknown = null;
@@ -237,6 +273,7 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
       status: r.status,
       text,
       json,
+      body: null,
       headers: r.headers,
       retryAfterMs: retryAfterOf(r.headers.get("retry-after"), deps.now()),
       error: null,
@@ -244,7 +281,7 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
     };
   } catch (e) {
     const { outcome, error } = outcomeOfThrow(e);
-    a = { outcome, status: 0, text: "", json: null, headers: null, retryAfterMs: null, error, tries };
+    a = { outcome, status: 0, text: "", json: null, body: null, headers: null, retryAfterMs: null, error, tries };
   }
   note(provider, a, deps.now());
   return a;

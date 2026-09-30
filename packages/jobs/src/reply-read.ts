@@ -100,7 +100,7 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
         return row ? keptReadingOf(row) : null;
       },
       mayRead: (tenantId, at) => replies.mayRead(tenantId, new Date(at)),
-      ask: (system, user) => replies.ask(system, user, ctx.deadline),
+      ask: (system, user) => replies.ask(system, user, ctx.deadline, { tenantId: job.tenant_id, subjectId: messageId }),
       apply: (tenantId, id, p) =>
         applyReplyReading(db, {
           ...where(tenantId, id),

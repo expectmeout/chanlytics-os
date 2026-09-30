@@ -104,7 +104,8 @@ function tab(answer = null) {
         body: init.body ? JSON.parse(init.body) : undefined,
         via: init.headers["x-via"],
         undoOf: init.headers["x-undo-of"],
-        // Only the reply sends one (D8); every other call is held to having none by the deep-equals below.
+        // Every card's call goes under a key of the card's own: its proposal id, and a suffix for its second call or
+        // its undo (commit.ts send), so a double press is one change.
         ...(init.headers["idempotency-key"] ? { idem: init.headers["idempotency-key"] } : {}),
       });
       if (answer) return answer(key, init);
@@ -328,6 +329,7 @@ test("a person's mode: the owner's route, the people surface told, the previous 
     body: { mode: "never" },
     via: "ask",
     undoOf: undefined,
+    idem: "p-1",
   });
   assert.ok(t.events.includes("event:surface:clients"));
   const bare = tab();
@@ -364,6 +366,7 @@ test("a deal: the card's body to the person's deal route without the card's own 
     body: { stage: "won", deal_id: DEAL1, version: 3, amount_cents: 250000, per: "month" },
     via: "ask",
     undoOf: undefined,
+    idem: "p-1",
   });
   assert.ok(t.events.includes("event:surface:clients"));
   assert.deepEqual(
@@ -422,12 +425,13 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     undo: null,
   });
   assert.deepEqual(t.sent, [
-    { key: deal, body: { stage: "won", deal_id: DEAL1, version: 3 }, via: "ask", undoOf: undefined },
+    { key: deal, body: { stage: "won", deal_id: DEAL1, version: 3 }, via: "ask", undoOf: undefined, idem: "p-1" },
     {
       key: notes,
       body: { body: "Send the onboarding form", due_on: "2026-09-18", team_only: true, deal_id: DEAL1 },
       via: "ask",
       undoOf: undefined,
+      idem: "p-1:then",
     },
   ]);
   assert.ok(t.events.indexOf("event:surface:clients") < t.events.indexOf("event:note:saved"), "People, then the page");
@@ -548,6 +552,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
     body: { class: "reply", mode: "auto", minConfidence: 0.6 },
     via: "ask",
     undoOf: undefined,
+    idem: "p-1:undo",
   });
   assert.deepEqual(
     await undoProposal(

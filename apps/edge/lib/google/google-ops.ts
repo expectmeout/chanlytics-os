@@ -208,7 +208,11 @@ export function draftAnswer(
   if (!r.ok) {
     return {
       log: { event: "google_review_draft_failed", fields: { id, error: r.error } },
-      answer: { status: r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : 502, body: r },
+      answer: {
+        status:
+          r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : r.error === "payment_required" ? 402 : 502,
+        body: r,
+      },
     };
   }
   return {

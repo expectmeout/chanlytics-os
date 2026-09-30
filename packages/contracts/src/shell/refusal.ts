@@ -118,8 +118,8 @@ const UNCONFIRMED_WRITE =
 const READ_AGAIN = "Chanlytics couldn't read this just now — try again in a moment.";
 const OUT_OF_DATE = "This page is out of date — reload it and try again.";
 
-/** A wait, in the words the rate limiter's own refusals use. */
-function waitWords(seconds: number): string {
+/** A wait, in words: "40 seconds", "2 minutes". The rate limiter's refusal says it, and so does its retry hint here. */
+export function waitWords(seconds: number): string {
   if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
   const m = Math.ceil(seconds / 60);
   return `${m} minute${m === 1 ? "" : "s"}`;

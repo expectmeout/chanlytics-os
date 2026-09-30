@@ -54,6 +54,7 @@ export const env = {
   get META_ES_CONFIG_ID() {
     return trimmedEnv(process.env.META_ES_CONFIG_ID);
   },
+  /** Switch: limits who the environment's own pilot number answers; empty answers everyone. */
   get WHATSAPP_TEST_ALLOWLIST() {
     return trimmedEnv(process.env.WHATSAPP_TEST_ALLOWLIST);
   },
@@ -68,6 +69,7 @@ export const env = {
   get RETELL_FN_SECRET() {
     return trimmedEnv(process.env.RETELL_FN_SECRET);
   },
+  /** Switch: '1' makes Retell's signature the only key to the voice doors. */
   get RETELL_DOORS_SIGNED() {
     return trimmedEnv(process.env.RETELL_DOORS_SIGNED);
   },
@@ -80,9 +82,11 @@ export const env = {
   get TWILIO_PRIMARY_PROFILE_SID() {
     return trimmedEnv(process.env.TWILIO_PRIMARY_PROFILE_SID);
   },
+  /** Switch: '1' uses the dry line provider (fake SIDs) on a preview or a laptop. */
   get LINES_DRY_RUN() {
     return trimmedEnv(process.env.LINES_DRY_RUN);
   },
+  /** Switch: unset reports ended workspaces' numbers; set warns, then releases them after that many days. */
   get LINE_RELEASE_AFTER_DAYS() {
     return trimmedEnv(process.env.LINE_RELEASE_AFTER_DAYS);
   },
@@ -162,7 +166,7 @@ export const env = {
   get APNS_BUNDLE_ID() {
     return trimmedEnv(process.env.APNS_BUNDLE_ID);
   },
-  /** 'on' sends to Apple's sandbox: a development build's tokens are the sandbox's. */
+  /** Switch: 'on' sends to Apple's sandbox: a development build's tokens are the sandbox's. */
   get APNS_SANDBOX() {
     return trimmedEnv(process.env.APNS_SANDBOX);
   },
@@ -171,7 +175,15 @@ export const env = {
   get ANTHROPIC_API_KEY() {
     return trimmedEnv(process.env.ANTHROPIC_API_KEY);
   },
-  /** The receptionist's note suggestions (0007 phase 2): on unless 'off'. */
+  /** TypeSafe's key for the second model asked in shadow (decision 0023): never a literal, never logged. */
+  get TYPESAFE_API_KEY() {
+    return trimmedEnv(process.env.TYPESAFE_API_KEY);
+  },
+  /** Switch: '1' asks the second model beside the primary for every workspace, a comma-separated list of workspace ids for those alone, with its key set; anything else asks nothing. */
+  get TYPESAFE_SHADOW() {
+    return trimmedEnv(process.env.TYPESAFE_SHADOW);
+  },
+  /** Switch: the receptionist's note suggestions (0007 phase 2), on unless 'off'. */
   get NOTE_SUGGESTIONS() {
     return trimmedEnv(process.env.NOTE_SUGGESTIONS);
   },
@@ -180,9 +192,11 @@ export const env = {
   get APIFY_TOKEN() {
     return trimmedEnv(process.env.APIFY_TOKEN);
   },
+  /** Switch: another Claude model for the lead judge; empty is the registry's. */
   get LEAD_JUDGE_MODEL() {
     return trimmedEnv(process.env.LEAD_JUDGE_MODEL);
   },
+  /** Switch: the judge's server-side fallback on a refusal (decision 14), on unless 'off'. */
   get LEAD_JUDGE_FALLBACKS() {
     return trimmedEnv(process.env.LEAD_JUDGE_FALLBACKS);
   },

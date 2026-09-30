@@ -83,6 +83,7 @@ export {
   receptionistOn,
   billingDoorOpen,
   maySpend,
+  mayUseModels,
   whyCannotSpend,
   tenantStatusFor,
   planBilling,
@@ -227,5 +228,7 @@ export type {
   WorkspacePartnerState,
   WorkspacePartnerVM,
 } from "./partner-invite";
+export { ACTIVATION_MILESTONES } from "./activation";
+export type { ActivationMilestone } from "./activation";
 export { PLATFORM_DAYS_READ, platformDaysWords } from "./platform-days";
 export type { PlatformDayRowDto, PlatformDayLineVM, PlatformDaysVM } from "./platform-days";

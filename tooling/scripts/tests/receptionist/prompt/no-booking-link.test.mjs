@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 import {
   bookingLinkOptional,
   composeSystemPrompt,
@@ -134,12 +135,12 @@ test("the prompt says what it does instead, on both channels, wherever it would 
   assert.ok(held.includes("Say a member of the team will call or text them to confirm, and take their name."));
 });
 
-test("a receptionist answered from its own stored prompt is told there is no link too, first among the rules after it; one with a link keeps its prompt byte for byte", () => {
+test("a receptionist answered from its own stored prompt is told there is no link too, first among the rules after it; one with a link keeps its own words byte for byte, and only the standing rules follow", () => {
   for (const channel of ["whatsapp", "voice"]) {
     const told = resolveSystemPrompt(QUOTES, channel);
     assert.ok(told.startsWith(`${QUOTES.system_prompt}\n\nRules you must follow:\n- `), told);
     assert.ok(told.includes("no booking link"), channel);
-    assert.equal(resolveSystemPrompt(BOOKS, channel), BOOKS.system_prompt, channel);
+    assert.equal(resolveSystemPrompt(BOOKS, channel), withStanding(BOOKS.system_prompt, channel), channel);
   }
   assert.ok(
     resolveSystemPrompt(QUOTES, "voice").includes("never use send_booking_link"),

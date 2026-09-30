@@ -11,6 +11,9 @@ import { log } from "@/server/log";
    every query to it by hand — the service role bypasses RLS, so the scoping
    discipline lives here instead. */
 
+/** The one sentence for a change that would leave the workspace with no owner: team_change_role's and team_remove's refusal (last_owner), and 00271's trigger's behind it. */
+const ONLY_OWNER = "This is the only owner. Promote someone else first.";
+
 interface TeamMember {
   membershipId: string;
   userId: string;
@@ -61,8 +64,7 @@ type TeamCtx = { userId: string; via?: "ask"; undoOf?: string };
 function teamRefusal(error: { code?: string; message: string }): Error {
   if (error.message === "forbidden") return new AppError("forbidden", "Only an owner can do this.", 403);
   if (error.message === "not_found") return new AppError("not_found", "That person is not on this team.", 404);
-  if (error.message === "last_owner")
-    return new AppError("conflict", "This is the only owner. Promote someone else first.", 409);
+  if (error.message === "last_owner") return new AppError("conflict", ONLY_OWNER, 409);
   if (error.message === "self_remove")
     return new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
   return new Error(error.message);

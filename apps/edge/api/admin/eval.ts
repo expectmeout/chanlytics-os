@@ -14,12 +14,13 @@
  * text, history? }] } where history is prior turns [{ role, content }].
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/packages/contracts.js";
 import type { RoutedChannel } from "../../lib/packages/db.js";
-import { generateReply } from "../../lib/receptionist/brain.js";
+import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { env } from "../../lib/env.js";
 import { logger, adminDoor } from "../../lib/log.js";
 
@@ -56,12 +57,7 @@ export const POST = adminDoor(async function POST(request: Request, brain?: Brai
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
-  let body: { tenant_id?: string; cases?: EvalCase[] } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{ tenant_id?: string; cases?: EvalCase[] }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -108,17 +104,17 @@ export const POST = adminDoor(async function POST(request: Request, brain?: Brai
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
-
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
   const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
   // The holding message as a customer would get it, its details filled as they are now (S5).
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const started = Date.now();
+  const call = brainCallOf(tenantId, rt);
   const results = [];
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote);
+      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote, undefined, undefined, call);
       results.push({
         id: c.id,
         ok: true,

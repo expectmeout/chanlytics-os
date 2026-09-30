@@ -116,9 +116,9 @@ export function installBilling(win: Window = window): void {
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async startNow() {
+      // The client reads Billing and Setup again before it answers (refresh-map.ts).
       const r = await api()("POST billing/start-now", { body: {} });
       if (!r.ok) return { ok: false, message: r.message };
-      await refreshSurfaces([billingOverride, setupOverride]);
       return r.data.status === "active" ? { ok: true, message: "" } : { ok: false, message: START_PLAN_WORDS.unpaid };
     },
     startWords: START_PLAN_WORDS,

@@ -1,6 +1,13 @@
 import "server-only";
 import { z } from "zod";
-import { contactName, isHeldDraft, replyWindow, violatesNoPrices } from "@chanlytics/contracts";
+import {
+  contactName,
+  isHeldDraft,
+  mayMessageFor,
+  namesMoney,
+  replyWindow,
+  violatesNoPrices,
+} from "@chanlytics/contracts";
 import { replyChannelOf } from "../../../verbs";
 import {
   UUID,
@@ -29,6 +36,7 @@ async function draftReply(
       "id, tenant_id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)",
     )
     .eq("id", id)
+    .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
@@ -43,11 +51,19 @@ async function draftReply(
       dnc: false,
     },
   } as Parameters<typeof contactName>[0]);
-  if (conv.contacts?.dnc) return refuse(`${who} opted out; nothing can be sent to them`);
+  // The one consent rule (mayMessageFor): a person who texted STOP (consent opted_out) is refused as a do-not-contact is,
+  // here at the draft, not at the commit (defect 32). A reply answers them, so it is conversational.
+  const may = mayMessageFor(
+    { consent: conv.contacts?.consent ?? null, dnc: conv.contacts?.dnc ?? null },
+    "conversational",
+  );
+  if (!may.ok) return refuse(`${who} opted out; nothing can be sent to them`);
   // The window the reply route will enforce, on the channel it will send on:
   // a texting thread has none, and this card used to call one closed.
   const win = replyWindow(await replyChannelOf(t.ctx, conv), conv.last_wa_inbound_at, t.now);
-  const price = violatesNoPrices(text);
+  // Layer two, said on the card: a price or money (a refund, a discount, a payment term) in a reply is the person's to
+  // send knowingly, never the receptionist's to promise (the charter).
+  const price = violatesNoPrices(text) || namesMoney(text);
   noteRow(t, "thread", id, who, `inbox/th-${id}`);
   return propose({
     kind: "reply",
@@ -69,6 +85,7 @@ async function proposeSteer(
     .from("messages")
     .select("id, conversation_id, sender, status, body, type, direction, created_at")
     .eq("id", id)
+    .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!m) return refuse("no such message in this workspace");

@@ -80,6 +80,7 @@ export const ROUTE_KEYS = [
   "GET team/partner",
   "GET templates",
   "GET today",
+  "GET usage",
   "GET views",
   "GET workspaces",
   "PATCH lead-searches/[id]",

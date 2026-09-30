@@ -184,6 +184,49 @@ test("an import the door refuses says so by the Save, and a file over the limit 
   );
 });
 
+test("REGRESSION (G:1): a file past the sheet's size is refused before it is read, and a file that cannot be read says so", () => {
+  // The browser's reader, as far as the sheet uses it: each read recorded, and its answer given when the test says.
+  const readers = [];
+  W.FileReader = class {
+    readAsText(f) {
+      this.file = f;
+      readers.push(this);
+    }
+  };
+  try {
+    world();
+    fresh();
+    const draw = () => W.React.createElement(W.LeadImportSheet, { onClose: () => {} });
+    const problem = (tree) =>
+      all(all(tree, (n) => n.type === W.RecordSheet)[0].props.foot, (n) => n.type === W.FieldError)[0]?.props.message;
+    let tree = again(draw);
+    const choose = (file) => byTestId(tree, "lead-import-file").props.onChange({ target: { files: [file] } });
+    choose({ name: "export.csv", size: contracts.LEAD_IMPORT_MAX_BYTES + 1 });
+    tree = again(draw);
+    assert.equal(
+      readers.length,
+      0,
+      "REGRESSION: a file of tens of megabytes was read and parsed whole, freezing the tab",
+    );
+    assert.equal(problem(tree), contracts.LEAD_IMPORT_WORDS.tooBig);
+
+    choose({ name: "gyms.csv", size: 2_048 });
+    assert.equal(readers.length, 1, "a file of a list's size is read");
+    readers[0].onerror();
+    tree = again(draw);
+    assert.equal(problem(tree), contracts.LEAD_IMPORT_WORDS.unreadable, "REGRESSION: a failed read said nothing");
+
+    choose({ name: "gyms.csv", size: 2_048 });
+    readers[1].result = CSV;
+    readers[1].onload();
+    tree = again(draw);
+    assert.equal(problem(tree), undefined, "read again: the rows, and no word of the failure");
+    assert.equal(all(tree, (n) => n.type === W.RecordSheet)[0].props.onSave !== null, true);
+  } finally {
+    delete W.FileReader;
+  }
+});
+
 /** The page's hook, drawn in a component of its own; its node is what it draws. */
 const hooked = () => {
   let got;
