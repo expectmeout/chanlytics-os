@@ -7,9 +7,11 @@
     "repo/ops-hygiene.test.mjs",
     "edge/runtime-freshness.test.mjs",
     "repo/event-kinds.test.mjs",
-    "repo/legacy-harness.test.mjs"
+    "repo/legacy-harness.test.mjs",
+    "ai/flag-registry.test.mjs"
   ],
   "counts": {
+    "ai/flag-registry.test.mjs": 4,
     "ask/ask.test.mjs": 53,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
@@ -61,7 +63,7 @@
     "playbooks/playbooks.test.mjs": 22,
     "playbooks/visit-playbooks.test.mjs": 5,
     "public/business-page.test.mjs": 10,
-    "receptionist/brain-v2.test.mjs": 8,
+    "receptionist/brain-v2.test.mjs": 7,
     "receptionist/eval-harness.test.mjs": 7,
     "receptionist/policies/policy-classes.test.mjs": 6,
     "receptionist/policies/policy-veto-option.test.mjs": 2,

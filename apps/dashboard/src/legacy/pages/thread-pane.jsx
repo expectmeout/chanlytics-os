@@ -1,4 +1,4 @@
-/* global React, InboxThread, EmptyState */
+/* global React, InboxThread, EmptyState, useSurface */
 // ThreadPane — the conversation, wherever it opens (docs/plans/2026-09-21-one-thread.md).
 //
 // The Inbox drew a conversation with InboxThread and Conversations drew the same one with CvViewer: two headers, two
@@ -180,10 +180,10 @@ const ThreadPane = ({ thread: given = null, threadId = null, onBack = null, onOp
       redraw();
     };
     window.addEventListener("surface:inbox", onSwap);
-    // A call's card reads the calls Conversations holds (inbox-thread.jsx tlCallFor): drawn again when they are read.
-    window.addEventListener("surface:conversations", redraw);
-    return () => { window.removeEventListener("surface:inbox", onSwap); window.removeEventListener("surface:conversations", redraw); };
+    return () => window.removeEventListener("surface:inbox", onSwap);
   }, []);
+  // A call's card reads the calls Conversations holds (inbox-thread.jsx tlCallFor): drawn again when they are read.
+  useSurface("conversations");
 
   // Alone, the pane keeps its own draft's countdown and looks again at zero. Inside the Inbox, the list's tick draws
   // it and the list looks again for every thread it holds.

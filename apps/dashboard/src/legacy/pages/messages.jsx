@@ -249,7 +249,7 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
   return (
     <div className={`msg-row${open ? " is-open" : ""}${attn ? " is-attn" : ""}${dim ? " is-dim" : ""}${row && row.hidden_at ? " is-hidden" : ""}`} data-template={gName || undefined} data-testid={g.starter ? "starter-row" : "custom-row"}>
       {/* A press anywhere on the line that is not one of its controls opens it (cmRowPress), as a person's row does. */}
-      <div className="msg-row-line" onClick={window.cmRowPress}>
+      <div className="msg-row-line" role="presentation" onClick={window.cmRowPress}>
         {/* The press that opens it covers the mark and the words -- the part of a
             row that is not already something you can press. What sends it is its
             own act, in its own cell; the languages are the open row's. */}

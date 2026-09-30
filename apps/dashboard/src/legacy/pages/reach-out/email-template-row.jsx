@@ -34,7 +34,7 @@ const EmailTemplateRow = ({ t, open = false, onOpen }) => {
   const oneLine = String(t.body || "").replace(/\s+/g, " ").trim();
   return (
     <div className={`msg-row msg-row-email${open ? " is-open" : ""}`} data-testid="template-email">
-      <div className="msg-row-line" onClick={window.cmRowPress}>
+      <div className="msg-row-line" role="presentation" onClick={window.cmRowPress}>
         <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="template-email-open">
           <span className="mark msg-row-mark" data-kind="email" aria-hidden="true"><Icon name="mail" size={13} /></span>
           <span className="msg-row-said">

@@ -163,7 +163,7 @@ const LeadReachOut = ({ lead, flash }) => {
 
 /* ------------------------------------------------------------ a list of your own (Part 7) */
 
-const { useState: useLlState } = React;
+const { useState: useLlState, useMemo: useLlMemo } = React;
 
 // Rows drawn before the import, as a taste of what was read.
 const LL_TASTE = 5;
@@ -230,7 +230,8 @@ const LeadImportSheet = ({ onClose, onDone = null, flash = null }) => {
   const [busy, setBusy] = useLlState(false);
   const [error, setError] = useLlState(null);
   const [result, setResult] = useLlState(null);
-  const ready = plan ? plan.rows.filter(L.ready) : [];
+  // Filtered once for each reading of the file, not on every draw of the sheet.
+  const ready = useLlMemo(() => (plan ? plan.rows.filter(L.ready) : []), [plan, L]);
   const tooMany = ready.length > L.max;
   const read = (t, fileName) => {
     setPlan(L.planOf(t));
@@ -238,11 +239,15 @@ const LeadImportSheet = ({ onClose, onDone = null, flash = null }) => {
     setError(null);
     if (!name.trim()) setName(L.nameOf(fileName));
   };
+  // A file past the sheet's size is refused before it is read, and one that cannot be read says so (G:1): any file was
+  // read and parsed whole before the row cap applied, and a failed read left the sheet as it was, with no word.
   const onFile = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
+    if (L.maxBytes && f.size > L.maxBytes) { setPlan(null); setResult(null); setError(W.tooBig); return; }
     const r = new FileReader();
     r.onload = () => { setFile(f.name); read(String(r.result || ""), f.name); };
+    r.onerror = () => { setPlan(null); setError(W.unreadable); };
     r.readAsText(f);
   };
   const run = async () => {

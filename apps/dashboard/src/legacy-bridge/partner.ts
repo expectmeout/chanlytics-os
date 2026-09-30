@@ -26,7 +26,7 @@ import {
   type PartnerWorkspacesVM,
   type WorkspacePartnerVM,
 } from "@chanlytics/contracts";
-import { switchWorkspace, workspaceOverride, type SurfaceOverride, type Workspace } from "./surface-data";
+import { switchWorkspace, type SurfaceOverride, type Workspace } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { createClient } from "../lib/supabase/client";
@@ -217,10 +217,10 @@ export function installPartner(win: Window = window): void {
         const r = await api()("POST partner/invitations/[id]/decline", { params: { id: workspaceId } });
         return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
       }
-      const r = await api()("POST partner/invitations/[id]/accept", { params: { id: workspaceId } });
+      // The switcher reads its list again behind the answer, so the workspace just joined is there to open, and the
+      // pane its count (refresh-map.ts).
+      const r = await api()("POST partner/invitations/[id]/accept", { params: { id: workspaceId }, refresh: "behind" });
       if (!r.ok) return { ok: false, message: r.message };
-      // The switcher reads its list again, so the workspace just joined is there to open, and the pane its count.
-      void refreshSurfaces([workspaceOverride, partnerOverride]).catch(() => {});
       return { ok: true, message: partnerJoinedWords(r.data.workspace.name, r.data.earns) };
     },
     team: {

@@ -29,7 +29,9 @@
  * every round; no sampling parameter is sent; the round ceiling is one number
  * the edge also clamps to (ASK_MAX_TOKENS).
  */
-export const ASK_MODELS = ["claude-opus-5-5", "claude-sonnet-5"] as const;
+import { MODELS, MODEL_ROUTES } from "../ai/models";
+
+export const ASK_MODELS = [MODEL_ROUTES.ask.model, MODEL_ROUTES.ask.fallback] as const;
 export type AskModelId = (typeof ASK_MODELS)[number];
 
 export interface AskModelProfile {
@@ -51,12 +53,12 @@ export interface AskModelProfile {
 }
 
 export const ASK_MODEL_PROFILES: Record<AskModelId, AskModelProfile> = {
-  "claude-opus-5-5": { id: "claude-opus-5-5", effort: "low", forcedToolChoice: false, thinking: "always" },
-  "claude-sonnet-5": { id: "claude-sonnet-5", effort: "low", forcedToolChoice: true, thinking: "adaptive" },
+  [MODELS.OPUS_5_5]: { id: MODELS.OPUS_5_5, effort: "low", forcedToolChoice: false, thinking: "always" },
+  [MODELS.SONNET_5]: { id: MODELS.SONNET_5, effort: "low", forcedToolChoice: true, thinking: "adaptive" },
 };
 
-/** The default: the profile a deployment runs when its environment names none. */
-export const ASK_MODEL: AskModelId = "claude-opus-5-5";
+/** The default: the profile a deployment runs when its environment names none (the registry's, ai/models.ts). */
+export const ASK_MODEL: AskModelId = MODEL_ROUTES.ask.model;
 
 /** The profile a name picks: one of the list, else the default. Never a throw: a misspelt variable runs the default. */
 export function askModelProfile(name: string | null | undefined): AskModelProfile {

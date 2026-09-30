@@ -14,6 +14,7 @@
  * this is where the provider is spoken to. Body: { call_id }.
  */
 import { json, refuse } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { stopCall } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
@@ -26,12 +27,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
-  let body: { call_id?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* below */
-  }
+  const body = await readBody<{ call_id?: string }>(request);
   const callId = String(body.call_id || "");
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId)) return refuse(400, "bad_request", "call_id required");
 

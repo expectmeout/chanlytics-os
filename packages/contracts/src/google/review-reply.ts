@@ -9,6 +9,8 @@
  */
 
 import { DAY_MS } from "../shared/time";
+import { violatesNoPrices, namesMoney } from "../config/policy";
+import { DATA_NOT_INSTRUCTIONS, fenced, promptSafeName } from "../ai/fence";
 
 export type ReviewReplyMode = "auto" | "ask" | "never";
 
@@ -82,19 +84,22 @@ export function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswe
     "- Never mention refunds, discounts, prices or compensation — those decisions belong to the owner.",
     "- Never invent details about their visit, names of staff, or promises the business did not make.",
     "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
+    `- ${DATA_NOT_INSTRUCTIONS}`,
     "",
     "Answer with the reply text only.",
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
 
-  const name = firstName(review.author);
+  const author = promptSafeName(review.author);
+  const name = firstName(author);
   const text = (review.text ?? "").replace(/\s+/g, " ").trim();
+  // The review is someone else's words: fenced, so a line in it can say nothing to the model (ai/fence.ts).
   const user = [
     `Rating: ${typeof review.rating === "number" ? `${review.rating} of 5` : "not given"}`,
-    `From: ${name ? review.author!.trim() : "a customer who did not give a name"}`,
+    `From: ${name ? author : "a customer who did not give a name"}`,
     review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
-    text ? `Review: "${text}"` : "The review has no words, only the stars.",
+    text ? `Review:\n${fenced("review", text)}` : "The review has no words, only the stars.",
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
@@ -113,6 +118,17 @@ export function cleanDraft(raw: unknown): string {
   t = t.replace(/^["“”'‘’«»]+|["“”'‘’«»]+$/g, "");
   t = t.replace(/\s+/g, " ").trim();
   return t.slice(0, REVIEW_REPLY_MAX_CHARS);
+}
+
+/**
+ * Why an automatic reply may not be posted in public: it names a price or money (a refund, a discount, compensation)
+ * the prompt already forbids. Layer two for reviews: the prompt is never the only defense, and a reply posted on Google
+ * cannot be taken back the way a held draft can. Null when it may go.
+ */
+export function autoReplyHold(text: string): "price" | "money" | null {
+  if (violatesNoPrices(text)) return "price";
+  if (namesMoney(text)) return "money";
+  return null;
 }
 
 export interface ReviewOnRecord {

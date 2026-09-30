@@ -4,6 +4,7 @@
  * enforcement lives in RLS + the DB triggers + requireRole at the routes.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { receptionistOn, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -183,4 +184,21 @@ export async function setPersonReplyMode(
       { onConflict: "tenant_id,class,subject_type,subject_id" },
     );
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
+ * public reply): not while the workspace is paused (tenants.status: billing stopped it, or a person did), not once its
+ * last member has left (ended, 00262: left_empty_at), and not while a plan billed through Stripe is in a state that
+ * stops the receptionist (contracts receptionistOn). A read that fails throws: "we could not check" is not "yes".
+ */
+export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
+  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.data?.status === "paused" || tenant.data?.left_empty_at) return false;
+  return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status as BillingStatus));
 }

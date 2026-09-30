@@ -25,6 +25,8 @@ export interface RoundBlock {
 /** What the round cost, as the API said it on the stream (sse.ts GatewayUsage plus the stop's output side). */
 export interface RoundUsage {
   messageId: string | null;
+  /** The model that answered, in the API's own name (sse.ts GatewayUsage.model). */
+  model: string | null;
   /** Why the round missed the cache the message it named had written (sse.ts GatewayUsage.cacheMiss). */
   cacheMiss: string | null;
   inputTokens: number;
@@ -114,6 +116,7 @@ export async function runRound(
       case "usage":
         usage = {
           messageId: ev.messageId,
+          model: ev.model,
           cacheMiss: ev.cacheMiss,
           inputTokens: ev.inputTokens,
           cacheReadTokens: ev.cacheReadTokens,

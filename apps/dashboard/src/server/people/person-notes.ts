@@ -1,5 +1,5 @@
 import { AppError, NOTE_REFUSALS, type PersonNoteDto, type PersonNoteTeamDto } from "@chanlytics/contracts";
-import type { RouteContext } from "@/server/with-route";
+import { dbRefusal, type RouteContext } from "@/server/with-route";
 import { log } from "@/server/log";
 
 type NoteRow = {
@@ -123,9 +123,9 @@ export async function noteOn(ctx: RouteContext, contactId: string, noteId: strin
 export function noteAnswer(
   door: string,
   data: unknown,
-  error: { message: string } | null,
+  error: { code?: string; message: string } | null,
 ): { note?: NoteRow; removed?: string } {
-  if (error) throw new AppError("validation", error.message);
+  if (error) throw dbRefusal(error);
   const r = (data ?? {}) as { error?: string; note?: NoteRow; removed?: string };
   if (r.note || r.removed) return { note: r.note, removed: r.removed };
   if (!(r.error && NOTE_REFUSALS[r.error])) {

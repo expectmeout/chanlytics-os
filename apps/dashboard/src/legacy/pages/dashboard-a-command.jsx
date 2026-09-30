@@ -1,4 +1,4 @@
-/* global React, Icon, EmptyState, FailedRead */
+/* global React, Icon, EmptyState, FailedRead, useSurface */
 // Today's queue: everything that asks for a person, in one row grammar (attention-bits.jsx AttnRow), the longest
 // wait first: WhatsApp handoffs, callers who need a call back, reply windows closing, calls worth an ear (contracts
 // today.ts queue), and the playbook runs that wait for a word or sit under a Stop (the broadcasts surface). A call in
@@ -8,26 +8,18 @@
 // It was Agent Command: a seeded bar with Now/Soon buckets, an insight line, decision rows with Approve/Decline, and
 // a count badge over a list that already says its count. The seed left with the mockup's stand-in: the mockup draws
 // this page from its sample (legacy-bridge/today-sample.ts).
-const useSurfaceTick = (name) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener(name, bump);
-    return () => window.removeEventListener(name, bump);
-  }, [name]);
-};
-
 // The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
 const tqSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
 
 const AgentCommand = () => {
-  useSurfaceTick("surface:today");
+  useSurface("today");
   return window.TODAY_DATA ? <TodayQueue vm={window.TODAY_DATA} /> : null;
 };
 
 const tqClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 const LiveRail = ({ nav }) => {
-  useSurfaceTick("surface:live");
+  useSurface("live");
   const [nowMs, setNowMs] = React.useState(Date.now());
   const L = tqSurface("__LIVE");
   // The heartbeat rule, re-applied between refreshes, the way the Live page does.
@@ -158,7 +150,7 @@ const runRows = (nav, flash, verbKind, room) => {
 };
 
 const TodayQueue = ({ vm }) => {
-  useSurfaceTick("surface:broadcasts");
+  useSurface("broadcasts");
   const [toastNode, ppFlash] = window.usePPToast();
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const verb = async (r, which) => {

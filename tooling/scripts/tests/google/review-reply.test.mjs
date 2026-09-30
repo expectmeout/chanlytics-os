@@ -22,6 +22,8 @@ import {
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
   toGoogleVM,
+  MODEL_ROUTES,
+  MODELS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
@@ -94,7 +96,7 @@ test("the prompt: the business as the system, the charter's rules, the review as
   assert.ok(p.system.endsWith("Answer with the reply text only."));
   assert.equal(
     p.user,
-    'Rating: 5 of 5\nFrom: Maria Lopez\nWritten: 2026-09-05\nReview: "Best balayage in Queens, Marisa is a magician."',
+    "Rating: 5 of 5\nFrom: Maria Lopez\nWritten: 2026-09-05\nReview:\n<review>\nBest balayage in Queens, Marisa is a magician.\n</review>",
   );
 });
 
@@ -243,14 +245,18 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
     "the facts are the brain's profile",
   );
-  const model = readCode("apps/edge/lib/google/review-reply.ts");
-  assert.ok(
-    model.includes('export const REVIEW_REPLY_MODEL = "claude-sonnet-5";') &&
-      model.includes("const DRAFT_TIMEOUT_MS = 15_000;") &&
-      model.includes("timeout: DRAFT_TIMEOUT_MS, maxRetries: 1") &&
-      model.includes("max_tokens: 300"),
+  // The model, its bound, its retry and its cap are the registry's (contracts ai/models.ts), asked through the port.
+  assert.deepEqual(
+    [
+      MODEL_ROUTES.review_reply.model,
+      MODEL_ROUTES.review_reply.timeoutMs,
+      MODEL_ROUTES.review_reply.retries,
+      MODEL_ROUTES.review_reply.maxTokens,
+    ],
+    [MODELS.SONNET_5, 15_000, 1, 300],
   );
-  assert.ok(model.includes('if (!env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };'));
+  const model = readCode("apps/edge/lib/google/review-reply.ts");
+  assert.ok(model.includes('if (!r) return { ok: false, error: "no_model_key" };'), "no key: no draft, said so");
   // The draft op -- Never refused before the review is read, the no-model
   // path -- runs in google-door.test.mjs.
 

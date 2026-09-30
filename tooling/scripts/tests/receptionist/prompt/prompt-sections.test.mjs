@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composeSystemPrompt } from "@chanlytics/contracts";
+import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS } from "@chanlytics/contracts";
 
 /** A Monday: the salon's September closure has passed and is not said; its December one is ahead and is. */
 const NOW = new Date("2026-09-28T15:00:00Z");
@@ -193,6 +193,8 @@ const SALON_WHATSAPP = [
       "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
       "- Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
       "- Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.",
+      "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.",
+      `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
   ],
 ];
@@ -254,6 +256,8 @@ const SALON_VOICE = [
       "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
       "- Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
       "- Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.",
+      "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
+      `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
   ],
 ];
@@ -295,6 +299,8 @@ const MOVER_WHATSAPP = [
       "- Never promise or confirm an appointment yourself. Booking happens with staff.",
       "- If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
       "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+      "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.",
+      `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
   ],
 ];
@@ -336,6 +342,8 @@ const MOVER_VOICE = [
       "- Never promise or confirm an appointment yourself. Booking happens with staff.",
       "- If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
       "- If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.",
+      "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
+      `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
   ],
 ];

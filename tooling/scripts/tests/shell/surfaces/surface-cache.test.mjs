@@ -341,3 +341,39 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
     mock.timers.reset();
   }
 });
+
+test("a snapshot after the write builds on the copy the tab keeps parsed: each one parsed the whole slot again, up to 2 MB, on every read", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const parse = JSON.parse;
+  let parses = 0;
+  try {
+    clearSurfaceCache();
+    globalThis.window.__PARSE_PROBE = { rows: [1, 2, 3] };
+    snapshotSurface("today", ["__PARSE_PROBE"], TID);
+    flushSurfaceCache();
+    JSON.parse = (...a) => {
+      parses += 1;
+      return parse(...a);
+    };
+    for (let i = 0; i < 5; i++) {
+      globalThis.window.__PARSE_PROBE = { rows: [i] };
+      snapshotSurface("today", ["__PARSE_PROBE"], TID);
+      flushSurfaceCache();
+    }
+    assert.equal(parses, 0, "REGRESSION: every snapshot after a write parsed the slot");
+    assert.equal(cachedTenantNow(), TID);
+    JSON.parse = parse;
+    assert.deepEqual(JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces.today.__PARSE_PROBE, { rows: [4] });
+    // A slot written by anything else is read as it is: parsed again, never the copy.
+    globalThis.sessionStorage.setItem(
+      CACHE,
+      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", tenant: "t-other", surfaces: {} }),
+    );
+    assert.equal(cachedTenantNow(), "t-other");
+  } finally {
+    JSON.parse = parse;
+    delete globalThis.window.__PARSE_PROBE;
+    mock.timers.reset();
+    clearSurfaceCache();
+  }
+});

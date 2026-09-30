@@ -185,3 +185,102 @@ test("nothing outside the runner calls activateOverride directly", () => {
     assert.match(middleware, /status: 503/);
   });
 }
+
+/* ---------------- 5. the newest read wins (defect 52's sibling, plan section 4) ---------------- */
+// A surface is read by its boot, the live feed, a write's refresh, a return to the tab and Retry, and nothing ordered
+// them: a read asked for second could answer first, and the first, landing after it, wrote the older rows over the
+// newer ones. activateOverride now takes one read at a time for each surface, and a read asked for while one is out
+// starts when it has landed and answers everyone who asked meanwhile.
+{
+  globalThis.window ??= globalThis;
+  globalThis.CustomEvent ??= class CustomEvent {
+    constructor(type) {
+      this.type = type;
+    }
+  };
+  globalThis.window.dispatchEvent ??= () => true;
+  const { importSrc } = await import("../../_source.mjs");
+  const { activateOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+
+  /** An override whose reads are held: each `apply` is a promise the test lets land, in the order it chooses. */
+  const held = (key, extra = {}) => {
+    const reads = [];
+    return {
+      key,
+      reads,
+      apply: () =>
+        new Promise((land, fail) => {
+          reads.push({ land, fail });
+        }),
+      ...extra,
+    };
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  test("a read asked for while one is out waits for it, and everyone who asked meanwhile shares the one that follows", async () => {
+    const o = held("seam-a");
+    const first = activateOverride(o);
+    const second = activateOverride(o);
+    const third = activateOverride(o);
+    assert.equal(second, third, "one follow-up read answers both callers");
+    await tick();
+    assert.equal(o.reads.length, 1, "the second read has not started: an older answer could land after a newer one");
+    o.reads[0].land();
+    assert.equal(await first, true);
+    await tick();
+    assert.equal(o.reads.length, 2, "started as the first landed, once for the two who asked");
+    o.reads[1].land();
+    assert.deepEqual(await Promise.all([second, third]), [true, true]);
+    assert.equal(o.reads.length, 2, "and no more");
+  });
+
+  test("a read that fails still lets the next one start, and says so to its own caller alone", async () => {
+    const o = held("seam-b");
+    const first = activateOverride(o);
+    const next = activateOverride(o);
+    await tick();
+    const quiet = console.error;
+    console.error = () => {};
+    try {
+      o.reads[0].fail(new Error("the network"));
+      assert.equal(await first, false, "a failed override never breaks the surface: it is false");
+    } finally {
+      console.error = quiet;
+    }
+    await tick();
+    assert.equal(o.reads.length, 2, "the queue is not stuck behind a failure");
+    o.reads[1].land();
+    assert.equal(await next, true);
+    // Nothing left waiting: the next call starts a read at once.
+    const later = activateOverride(o);
+    await tick();
+    assert.equal(o.reads.length, 3, "an idle surface reads at once");
+    o.reads[2].land();
+    await later;
+  });
+
+  test("a surface whose view the page picks queues each view's reads apart: a pick never waits behind the view it left", async () => {
+    let view = "week";
+    const o = held("seam-c", { view: () => view });
+    const week = activateOverride(o);
+    view = "month";
+    const month = activateOverride(o);
+    await tick();
+    assert.equal(o.reads.length, 2, "the month starts at once, beside the week still out");
+    o.reads[1].land();
+    assert.equal(await month, true);
+    o.reads[0].land();
+    assert.equal(await week, true);
+    // Two asks of the same view still take their turn.
+    const again = activateOverride(o);
+    const more = activateOverride(o);
+    await tick();
+    assert.equal(o.reads.length, 3);
+    o.reads[2].land();
+    await again;
+    await tick();
+    assert.equal(o.reads.length, 4, "the second ask of one view waited for the first");
+    o.reads[3].land();
+    await more;
+  });
+}

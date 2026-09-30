@@ -8,6 +8,7 @@ import {
   whyNotForward,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
+import { dbRefusal } from "@/server/with-route";
 
 /**
  * POST /api/v1/lines/forwarding — {number, carrier, mode, test_from?}: keep
@@ -48,12 +49,7 @@ export const POST = write({
       // The generated argument type is `string`; the function takes null ("no phone named") and the API carries it.
       p_test_from: testFrom as string,
     });
-    if (error)
-      throw new AppError(
-        error.code === "P0001" ? "conflict" : "validation",
-        error.message,
-        error.code === "P0001" ? 409 : 400,
-      );
+    if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
     return { line_id: data };
   },
 });

@@ -13,6 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../_legacy-react.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 
@@ -343,9 +344,11 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
+installRoleStore();
 // Menus and questions as their props, drawn by hookless stand-ins.
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
@@ -382,6 +385,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
@@ -2697,7 +2702,16 @@ test("who may do what to a note: its author changes it, an owner or its author d
     assert.equal(byTestId(tree, "person-notes-input"), null, "a viewer writes nothing");
     assert.deepEqual(actsOf(tree), [[], [], []]);
     assert.equal(byTestId(tree, "person-note-keep"), null, "nor keeps a suggestion");
+    // REGRESSION: an owner previewing a viewer (View-as) is shown what a viewer is. The page read the signed-in role,
+    // blind to the preview, and offered the owner's controls to the viewer they were previewing.
+    globalThis.window.__ME = { role: "owner" };
+    globalThis.window.ST_STORE.viewAsRole = "viewer";
+    draw = await profile(vm);
+    const previewed = draw();
+    assert.equal(byTestId(previewed, "person-notes-input"), null, "an owner previewing a viewer writes nothing");
+    assert.deepEqual(actsOf(previewed), [[], [], []], "and deletes nothing");
   } finally {
+    globalThis.window.ST_STORE.viewAsRole = null;
     globalThis.window.__ME = me;
     globalThis.window.__personNotes = saved;
   }

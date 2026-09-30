@@ -2,7 +2,7 @@
  * A reach-out's reply, from the intake to the notice, over a database in memory (Reach out Part 5, PR 3; the plan's
  * Task 3.4). The real email_ingest and reply_read handlers run (packages/jobs dispatchJob), with the edge's own reader
  * (lib/reach-out/reply-read.ts): the model answered by the test through the platform's one transport (lib/model.ts
- * setModelClient), the spend taken through the workspace's billing and the day's reads, and the notice told through a
+ * over a scripted API), the spend taken through the workspace's billing and the day's reads, and the notice told through a
  * port the test holds. The database's doors are modelled from the SQL (00222), and the ledger's once-per-message index
  * is the fake's unique index on the payload.
  *
@@ -15,17 +15,18 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { answering } from "../ai/_model-world.mjs";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 import { loadFixtures } from "../../evals/reply-intents.mjs";
 
-const { setModelClient } = await import(at("apps/edge/lib/model.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
 const { replyReader } = await import(at("apps/edge/lib/reach-out/reply-read.ts"));
 const { dispatchJob } = await import(at("packages/jobs/src/handlers.ts"));
 const { scheduleJobOnce } = await import(at("packages/jobs/src/schedule.ts"));
 const { retryWait, LEASE_SECONDS } = await import(at("packages/jobs/src/ledger.ts"));
 const { receivedEmailFrom } = await import("@chanlytics/channels");
 const { REACH_OUT_MODEL } = await import("@chanlytics/contracts");
-after(() => setModelClient(null));
+after(() => setModelFetch(null));
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LEAD = "11111111-aaaa-4aaa-8aaa-111111111111";
@@ -37,21 +38,16 @@ const KEY = { ANTHROPIC_API_KEY: "model-key-for-this-file" };
 
 /** The model, scripted: each call answers the next of `answers` as JSON text, and is counted. */
 function model(answers) {
-  const calls = [];
-  setModelClient({
-    messages: {
-      create: async (body) => {
-        calls.push(body);
-        const a = answers[Math.min(calls.length - 1, answers.length - 1)];
-        return {
-          content: [{ type: "text", text: JSON.stringify(a) }],
-          stop_reason: "end_turn",
-          usage: { input_tokens: 1, output_tokens: 1 },
-        };
-      },
-    },
+  const api = answering(async () => {
+    const a = answers[Math.min(api.calls.length - 1, answers.length - 1)];
+    return {
+      content: [{ type: "text", text: JSON.stringify(a) }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    };
   });
-  return calls;
+  setModelFetch(api.fetch);
+  return api.calls;
 }
 
 /** The workspace, its mailbox, the lead a reach-out wrote to and the email it sent; and the doors 00222 adds, modelled. */

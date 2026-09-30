@@ -1,4 +1,4 @@
-/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, ThreadCall */
+/* global React, Icon, MoreMenu, CONVERSATIONS_DATA, EmptyState, FailedRead, ThreadPane, ThreadCall, useSurface */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email, newest first. A row opens the one thread (thread-pane.jsx)
 // -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
@@ -242,6 +242,8 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useCvState(!!initialId);
   const [tick, setTick] = useCvState(0);
+  // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
+  useSurface(["conversations", "inbox"]);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
@@ -251,10 +253,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
     const bump = () => setTick(n => n + 1);
     window.addEventListener("inbox:decisions", bump);
     window.addEventListener("live:ended", bump);
-    window.addEventListener("surface:conversations", bump); // SurfaceData seam: real-data swap + realtime refresh
-    // Where a call opens depends on the threads the Inbox read (cvOpens).
-    window.addEventListener("surface:inbox", bump);
-    return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("live:ended", bump); window.removeEventListener("surface:conversations", bump); window.removeEventListener("surface:inbox", bump); };
+    return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("live:ended", bump); };
   }, []);
 
   const matchesChannel = (c) => inChannel(c, channel);
