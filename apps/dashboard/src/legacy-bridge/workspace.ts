@@ -196,6 +196,9 @@ export function setAppRouter(router: AppRouter | null): void {
  * A route with a page of its own (src/surfaces/routes.ts) asks the router: its page is another segment, which the
  * router draws, and the patched history would only change the address over the segment already there. The address
  * then moves when the router lands, not before, and the frame is told as it does (LegacyHost's AddressFollower).
+ * Except a move from one address of that page to another (`clients/c-1` to `clients/seg:needs_you`, or a peek that
+ * replaces the address it stands at): the router's page for the route draws every address it takes and already stands
+ * there, so that is a pushed or replaced entry like any other, with no request for a page that is drawn.
  */
 export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
   const to = hrefOfRoute(route, win);

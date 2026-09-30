@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -229,9 +229,8 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 Object.assign(globalThis.window, kitPages);
-kitHooks();
+useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
   globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
@@ -245,7 +244,6 @@ Object.assign(globalThis.window, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __DEMO_MODE: false,
 });
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/playbook-bits.jsx");

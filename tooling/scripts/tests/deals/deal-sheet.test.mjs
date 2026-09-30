@@ -5,8 +5,8 @@
  * and sending the proposal was a third place, the More menu's: nothing joined the three. Now one sheet records every
  * move and can send the proposal as it records it, the person page says the deal as a card with its one next act, and
  * the thread's Actions open the same sheet. Every word, field, default and body is contracts' (deal-sheet.ts); the
- * sheet is drawn by the shell's host (components/deal-sheet.jsx) over the profile's own courier and the Inbox's own
- * reply.
+ * sheet is drawn by the frame's host (surfaces/people/deal-sheet/deal-sheet.tsx) over the profile's own courier and the
+ * Inbox's own reply.
  *
  * Run against contracts, and the sheet itself on the stub React, through the real couriers (people-detail.ts,
  * inbox-verbs.ts, surfaces/inbox/thread/thread-verbs.tsx threadVerbs over verbs.ts) over a stubbed wire. Nothing here reads a source file.
@@ -952,9 +952,10 @@ Object.assign(W, {
   __ACTIVE_WORKSPACE: "t1",
 });
 const L = "../../../../apps/dashboard/src/legacy";
+const PEOPLE = "../../../../apps/dashboard/src/surfaces/people";
+// The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
+// else the sheet reads is imported, as the sheet imports it.
 await import(`${L}/components/data-bits.jsx`);
-for (const f of ["record-row", "record-field", "record-fold", "record-sheet", "deal-sheet"])
-  await import(`${L}/components/${f}.jsx`);
 // The Inbox's reply courier, which the app publishes for the sheet (seed-globals, from surfaces/inbox/thread/thread-verbs.tsx).
 W.threadVerbs = (await import("../../../../apps/dashboard/src/surfaces/inbox/thread/thread-verbs.tsx")).threadVerbs;
 const quietly = async (fn) => {
@@ -966,18 +967,17 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { installPeopleCourier } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+const { personDetail } = await import(`${PEOPLE}/people-detail.ts`);
+const { DealSheetHost, openDealSheet } = await import(`${PEOPLE}/deal-sheet/deal-sheet.tsx`);
+const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { installInboxVerbs } = await quietly(
   () => import("../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts"),
 );
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 const { clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 // What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
 // not waiting on a module's first load while the test waits on the write.
 await quietly(() => import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
-installPeopleCourier();
 installInboxVerbs();
-installClock();
 // The host's toasts, as the page's stack would draw them.
 const toasts = [];
 W.usePPToast = () => [null, (t) => toasts.push(t)];
@@ -1028,11 +1028,11 @@ W.addEventListener("deal:recorded", (e) => recorded.push(e.detail));
 let drawn = null;
 const open = () => {
   unmount();
-  W.__recordFolds.reset();
+  recFolds.reset();
   clearReadCaches();
   toasts.length = 0;
   recorded.length = 0;
-  drawn = () => W.React.createElement(W.DealSheetHost, {});
+  drawn = () => W.React.createElement(DealSheetHost, {});
   return drawn();
 };
 const redraw = () => again(drawn);
@@ -1065,7 +1065,7 @@ test("the sheet opens where it is asked for, reads the person through the profil
   const { calls } = wire(R.detail());
   let tree = open();
   assert.equal(sheetOf(tree), null, "nothing drawn until it is asked for");
-  assert.equal(W.openDealSheet({ personId: "p1", mode: "propose" }), true);
+  assert.equal(openDealSheet({ personId: "p1", mode: "propose" }), true);
   tree = redraw();
   // Open at once, with its title, while the person is read.
   assert.ok(sheetOf(tree));
@@ -1089,7 +1089,7 @@ test("the sheet opens where it is asked for, reads the person through the profil
   tree = redraw();
   const url = "https://docs.example.com/p/dani-2";
   assert.equal(input(tree, "deal-sheet-message-input").props.value, proposalMessage(url), "the words follow the link");
-  assert.equal(W.__recordFolds.dirty(), true, "typed: the tab asks before closing over it");
+  assert.equal(recFolds.dirty(), true, "typed: the tab asks before closing over it");
   press(saveOf(tree));
   tree = await until("recorded and sent", () => recorded.length > 0);
   const writes = calls.filter((c) => c.method === "POST");
@@ -1107,8 +1107,8 @@ test("the sheet opens where it is asked for, reads the person through the profil
   assert.equal(typeof toasts[0].undo, "function");
   assert.deepEqual(recorded, [{ personId: "p1" }], "the page is told, and reads them again");
   assert.equal(sheetOf(tree), null, "and the sheet has closed");
-  assert.equal(W.__recordFolds.open(), null);
-  assert.equal(W.__recordFolds.dirty(), false);
+  assert.equal(recFolds.open(), null);
+  assert.equal(recFolds.dirty(), false);
   // The Undo stops the message, never the record.
   toasts[0].undo();
   await until("the send is canceled", () => toasts.length === 2);
@@ -1121,7 +1121,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
   const R = fixtures(Date.now());
   const { calls, answers } = wire(R.detail({ deals: [R.dealDto()] }));
   open();
-  W.openDealSheet({ personId: "p1", mode: "won", dealId: "d1" });
+  openDealSheet({ personId: "p1", mode: "won", dealId: "d1" });
   let tree = await until("the person is read", (t) => input(t, "deal-sheet-value-input"));
   assert.equal(title(tree), "Mark as client");
   assert.equal(sub(tree), "Daniela Reyes · Ad management");
@@ -1158,7 +1158,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
 
   // A new proposal refused for a service already open: said under the service it names, and nothing sent.
   open();
-  W.openDealSheet({ personId: "p1", mode: "propose" });
+  openDealSheet({ personId: "p1", mode: "propose" });
   tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   answers.deal = () => json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.already_open } });
   type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/again");
@@ -1194,7 +1194,7 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
 
   // A refusal: the link was changed here, the door says the deal moved on, and they are read again.
   open();
-  W.openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
+  openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
   let tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"]);
   type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/new");
@@ -1227,9 +1227,9 @@ test("read again with the sheet open -- after a refusal, or over the tab's held 
   // The tab's held copy, behind the row: painted at once, typed into before the fresh read lands, then merged.
   open();
   answers.person = person(was);
-  await W.__personDetail("p1");
+  await personDetail("p1");
   answers.person = person(since);
-  W.openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
+  openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
   tree = redraw();
   assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"], "the held copy, at once");
   type(input(tree, "deal-sheet-valid-input"), "2026-10-09");
@@ -1254,7 +1254,7 @@ test("a send refused after a good record says both and closes; where it cannot g
   const R = fixtures(Date.now());
   const { calls, answers } = wire(R.detail());
   open();
-  W.openDealSheet({ personId: "p1", mode: "propose" });
+  openDealSheet({ personId: "p1", mode: "propose" });
   let tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   answers.reply = () =>
     json(409, { ok: false, error: { code: "window_closed", message: "Their WhatsApp window has closed." } });
@@ -1275,7 +1275,7 @@ test("a send refused after a good record says both and closes; where it cannot g
   try {
     const bare = wire(R.detail());
     tree = open();
-    W.openDealSheet({ personId: "p1", mode: "propose" });
+    openDealSheet({ personId: "p1", mode: "propose" });
     tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
     type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/bare");
     assert.equal(textOf(saveOf(redraw())), "Record and send");
@@ -1299,7 +1299,7 @@ test("a send refused after a good record says both and closes; where it cannot g
     }),
   );
   open();
-  W.openDealSheet({ personId: "p1", mode: "propose" });
+  openDealSheet({ personId: "p1", mode: "propose" });
   tree = await until("the person is read", (t) => byTestId(t, "deal-sheet-send-switch"));
   const sw = byTestId(tree, "deal-sheet-send-switch");
   assert.deepEqual([sw.props["aria-checked"], sw.props["aria-disabled"]], [false, true]);
@@ -1313,7 +1313,7 @@ test("a send refused after a good record says both and closes; where it cannot g
   press(byTestId(tree, "rec-sheet-cancel-deal-sheet"));
   tree = redraw();
   assert.equal(sheetOf(tree), null);
-  W.openDealSheet({ personId: "p1", mode: "propose" });
+  openDealSheet({ personId: "p1", mode: "propose" });
   tree = redraw();
   assert.ok(input(tree, "deal-sheet-link-input"), "read before, so drawn at once from the tab's copy");
   type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/draft");
@@ -1331,35 +1331,57 @@ test("a send refused after a good record says both and closes; where it cannot g
   press(byTestId(redraw(), "deal-sheet-cancel-yes"));
   tree = redraw();
   assert.equal(sheetOf(tree), null);
-  assert.equal(W.__recordFolds.dirty(), false);
+  assert.equal(recFolds.dirty(), false);
 });
 
 test("a person the sheet cannot work out is said in the sheet as a read that failed, never a throw that takes the shell with it", async () => {
   const R = fixtures(Date.now());
-  wire(R.detail());
-  const was = W.__deal.sheet;
+  const { answers } = wire(R.detail());
   const said = console.error;
-  W.__deal.sheet = () => {
-    throw new Error("a view model the sheet was not written for");
-  };
-  console.error = () => {};
+  const reported = [];
+  console.error = (...args) => reported.push(args.map(String).join(" "));
   try {
     let tree = open();
-    W.openDealSheet({ personId: "p1", mode: "propose" });
+    // The tab's held copy of them is a person the sheet was not written for (peekPerson hands back the object the cache
+    // holds, so a view model missing what the sheet reads is one the sheet's own rules throw over), and the read behind
+    // it fails: the sheet has nobody it can work out.
+    const held = await personDetail("p1");
+    delete held.consent;
+    answers.person = () => json(500, { ok: false, error: { code: "internal", message: "The read went wrong." } });
+    openDealSheet({ personId: "p1", mode: "propose" });
     tree = await until("the person is read", (t) => byTestId(t, "deal-sheet-failed"));
     assert.ok(sheetOf(tree), "the sheet stands, and says so");
     assert.equal(saveOf(tree), null, "with nothing to save");
+    assert.ok(
+      reported.some((line) => line.startsWith("The deal sheet could not work this out.")),
+      "the fault is reported, not swallowed",
+    );
+    // Every draw over the held copy says so again, so the wire is waited out under the same hush.
+    await until("the wire is quiet", () => busy === 0);
   } finally {
-    W.__deal.sheet = was;
     console.error = said;
   }
+});
+
+test("the frame publishes the host and the verb under the names the Inbox's thread, the Calendar and the Pipeline open the sheet by, and the published verb asks the published host", async () => {
+  const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
+  assert.equal(PEOPLE_GLOBALS.DealSheetHost, DealSheetHost);
+  assert.equal(PEOPLE_GLOBALS.openDealSheet, openDealSheet);
+  const R = fixtures(Date.now());
+  wire(R.detail());
+  open();
+  assert.equal(PEOPLE_GLOBALS.openDealSheet({ personId: "p1", mode: "propose" }), true);
+  let tree = redraw();
+  assert.equal(title(tree), "New proposal");
+  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  assert.equal(sub(tree), "Daniela Reyes");
   await until("the wire is quiet", () => busy === 0);
 });
 
 test("a proposal started after a consultation names the service the consultation was for, as the Calendar's does", () => {
   const after = (title, consultFirst = ["SEO"], deals = []) =>
     person({ deals, visits: consulted(2 * D, title), consult_first: consultFirst });
-  // The quiet line's act and the card's next act both carry it, into the sheet (person-deal.jsx pdRun).
+  // The quiet line's act and the card's next act both carry it, into the sheet (surfaces/people/deal/person-deal.tsx pdRun).
   assert.equal(dealCardsOf(after("Consultation: SEO"), NOW, ZONE).quiet.act.service, "SEO");
   assert.equal(dealNextAct(after("Consultation: SEO"), NOW).service, "SEO");
   // A title that names no consult-first service, or a workspace with none: nothing is named.

@@ -18,6 +18,8 @@ import type { ReportsSurface } from "./reports/surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { TodayVM } from "@chanlytics/contracts";
+import type { PeopleSurface } from "./people/surface";
+import type { CalendarSurface } from "./calendar/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -26,6 +28,8 @@ export interface SurfaceValues {
   inbox: InboxSurface;
   conversations: ConversationsSurface;
   today: TodayVM;
+  people: PeopleSurface;
+  calendar: CalendarSurface;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -76,4 +80,6 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   inbox: true,
   conversations: true,
   today: true,
+  people: true,
+  calendar: true,
 };

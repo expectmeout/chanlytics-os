@@ -36,13 +36,13 @@ import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { todayOverride } from "@/surfaces/today/surface";
 import { settingsOverride } from "./surfaces/settings";
-import { peopleOverride } from "./surfaces/people";
+import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "./surfaces/live";
 import { broadcastsOverride } from "./surfaces/broadcasts";
 import { playbooksOverride } from "./surfaces/playbooks";
-import { calendarOverride } from "./surfaces/calendar";
+import { calendarOverride } from "@/surfaces/calendar/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -57,11 +57,11 @@ import {
 import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
-import { installPeopleCourier, warmPersonOnScreen } from "./people-detail";
+import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
 import { installLeadMap } from "./lead-map";
 import { installTabMemory } from "./tab-memory";
-import { installLists } from "./people-lists";
+import { installLists } from "@/surfaces/people/people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
@@ -71,7 +71,7 @@ import { installBroadcasts } from "./broadcast-verbs";
 import { installPlaybooks } from "./playbooks";
 import { installReachOuts, reachOutsOverride } from "./reach-out/reach-outs";
 import { installReplies, repliesOverride } from "./reach-out/replies";
-import { installCalendar } from "./calendar";
+import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installToday } from "@/surfaces/today/helpers";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";

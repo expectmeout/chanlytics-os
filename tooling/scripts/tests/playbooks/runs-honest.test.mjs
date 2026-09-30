@@ -25,7 +25,7 @@ import {
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -354,12 +354,11 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 Object.assign(globalThis.window, kitPages);
-kitHooks();
+useStubHooks();
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
   globalThis[k] = globalThis.window[k];
 const { installPolicyStore } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");

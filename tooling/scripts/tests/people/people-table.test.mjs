@@ -3,131 +3,27 @@
  *
  * Four of its helpers closed over People's own PL_COLUMNS, so the Leads scope could not draw the table with columns
  * of its own; every one of them now takes the column list, and the table says what it calls its rows (the foot's
- * count, the select-all label, and the row id the page's cursor effect looks up). Drawn on the people-honest
- * harness's stub React, over the real pages/people-table.jsx.
+ * count, the select-all label, and the row id the page's cursor effect looks up). Drawn on the shared stub React
+ * (_legacy-react.mjs), over the real TSX: surfaces/people/table/table.tsx (the table), columns.ts (the helpers) and
+ * row-window.ts (the first draw's budget).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
-/* ------------------------------- the window ------------------------------- */
-
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: {},
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  querySelector: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-globalThis.window = {
-  location: { pathname: "/w/salon", hash: "#/clients", origin: "https://app.chanlytics.com" },
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener() {},
-  removeEventListener() {},
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useCallback: (fn) => fn,
-  useEffect: () => {},
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
-  globalThis[k] = globalThis.window[k];
-// The `td` helper below builds its cell with T.React.createElement, and the harness sets only globalThis.React; the
-// app seeds window.React the same way (legacy-bridge/seed-globals.ts).
-globalThis.window.React = globalThis.React;
-await import("../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-// A legacy file's Object.assign(window, …) writes to globalThis.window, a plain object here, while the page reads
-// the nine names as bare globals.
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-  "PL_WINDOW_ROWS",
-  "usePlRowWindow",
-])
-  globalThis[k] = globalThis.window[k];
-
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-  if (n.rendered) walk(n.rendered, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-/** A node's words in reading order: what a drawn component rendered, else its children in turn. */
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return (n.props?.children ?? []).map(textOf).join("");
-};
+// The table has no hook of its own; its rows' memo is the identity here (_react-memo.mjs) and its empty state is the kit's,
+// both taken from the modules it imports, so the stub's hooks go on the react module first (installLegacyReact does it).
+installLegacyReact();
+const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/table/table.tsx");
+const { plColumnChoices, plColumnOptions, plDrawnColumns, plShownColumns, plSortKeys } = await importSrc(
+  "apps/dashboard/src/surfaces/people/table/columns.ts",
+);
+const { PL_FIRST_ROWS } = await importSrc("apps/dashboard/src/surfaces/people/table/row-window.ts");
 
 /* --------------------------------- the table --------------------------------- */
 
-const T = globalThis.window;
-const td = (key, text) => (p) => T.React.createElement("td", { key }, text(p));
+const td = (key, text) => (p) => globalThis.React.createElement("td", { key }, text(p));
 const COLS = [
   { key: "name", label: "Person", sortable: true, pinned: true, cell: td("name", (p) => p.name) },
   { key: "state", label: "State", sortable: true, cell: td("state", (p) => p.state) },
@@ -147,27 +43,28 @@ const ROWS = [
   { id: "b2", name: "Bo Example", state: "quiet" },
 ];
 const table = ({ phone = false, ...over } = {}) => {
-  frames.begin();
-  cells = [];
-  return T.PeopleTable({
-    columns: T.plShownColumns(T.plDrawnColumns(COLS, {}, { withCalendar: false }), phone),
-    ctx: {},
-    rows: ROWS,
-    total: 2,
-    sortBy: "name",
-    sortDir: "asc",
-    onSort() {},
-    onOpen() {},
-    filtered: false,
-    onClearFilters() {},
-    ...over,
-  });
+  fresh();
+  return again(() =>
+    PeopleTable({
+      columns: plShownColumns(plDrawnColumns(COLS, {}, { withCalendar: false }), phone),
+      ctx: {},
+      rows: ROWS,
+      total: 2,
+      sortBy: "name",
+      sortDir: "asc",
+      onSort() {},
+      onOpen() {},
+      filtered: false,
+      onClearFilters() {},
+      ...over,
+    }),
+  );
 };
 
 test("the helpers take the column list: sort keys, drawn columns, choices and options come from it", () => {
-  assert.deepEqual(T.plSortKeys(COLS), ["name", "state", "visits"]);
+  assert.deepEqual(plSortKeys(COLS), ["name", "state", "visits"]);
   assert.deepEqual(
-    T.plDrawnColumns(COLS, {}, { withCalendar: false }).map((c) => [c.key, !!c.off]),
+    plDrawnColumns(COLS, {}, { withCalendar: false }).map((c) => [c.key, !!c.off]),
     [
       ["name", false],
       ["state", false],
@@ -177,7 +74,7 @@ test("the helpers take the column list: sort keys, drawn columns, choices and op
     ],
   );
   assert.deepEqual(
-    T.plDrawnColumns(COLS, { email: true }, { withCalendar: true }).map((c) => [c.key, !!c.off]),
+    plDrawnColumns(COLS, { email: true }, { withCalendar: true }).map((c) => [c.key, !!c.off]),
     [
       ["name", false],
       ["state", false],
@@ -188,12 +85,12 @@ test("the helpers take the column list: sort keys, drawn columns, choices and op
     ],
   );
   assert.deepEqual(
-    T.plColumnChoices(COLS, { name: false, actions: false, email: true, state: "yes", junk: 1 }),
+    plColumnChoices(COLS, { name: false, actions: false, email: true, state: "yes", junk: 1 }),
     { email: true },
     "only the columns a member may hide, and only booleans",
   );
   assert.deepEqual(
-    T.plColumnOptions(COLS, {}, { withCalendar: true }).map((o) => [o.key, o.on, o.locked]),
+    plColumnOptions(COLS, {}, { withCalendar: true }).map((o) => [o.key, o.on, o.locked]),
     [
       ["name", true, true],
       ["state", true, false],
@@ -259,7 +156,7 @@ test("a heading that sorts is a button with aria-sort on its th; a column turned
 });
 
 test("a budget draws that many rows and no more; a budget past the rows, or none, draws them all", () => {
-  // The page's first draw on a fresh mount (clients-a.jsx rowBudget) hands the table PL_FIRST_ROWS; the rest come a
+  // The page's first draw on a fresh mount (row-window.ts usePlRowWindow) hands the table PL_FIRST_ROWS; the rest come a
   // frame later. The foot's count and the select-all still read every row.
   const many = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, name: `Person ${i}`, state: "new" }));
   const drawn = (tree) => all(tree, (n) => n.type === "tr" && /^person-m/.test(String(n.props?.id || ""))).length;
@@ -267,7 +164,7 @@ test("a budget draws that many rows and no more; a budget past the rows, or none
   assert.equal(drawn(table({ rows: many, total: 25, budget: 25 })), 25, "a budget the rows fit in");
   assert.equal(drawn(table({ rows: many, total: 25 })), 25, "no budget: every row");
   assert.match(textOf(table({ rows: many, total: 25, budget: 24 })), /25 people/, "the foot counts every row");
-  assert.equal(T.PL_FIRST_ROWS, 24, "the first draw's budget, published for the page");
+  assert.equal(PL_FIRST_ROWS, 24, "the first draw's budget, published for the page");
 });
 
 /* ------------------------------------------------------------------------------------------------ in sections */

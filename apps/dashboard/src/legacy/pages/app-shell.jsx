@@ -316,23 +316,8 @@ const useShellRouting = ({ route, setRoute, setReadyTick }) => {
   useShellEffect(() => window.CHANLY.address.hear(() => setRoute(parseRoute())), []);
   // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
   useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
-  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
-  // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
-  // Which list an id names is the People surface's to say, and on a cold load of the old route that surface is
-  // still on its way: the redirect waits for it (surface:people when it first lands, surface:clients when a page
-  // of it does) rather than running once, finding nothing, and never running again.
-  useShellEffect(() => {
-    if (route.page !== "segments" || !window.__listRoute) return;
-    const names = ["surface:people", "surface:clients"];
-    const go = () => {
-      if (!window.__PEOPLE) return;
-      names.forEach((n) => window.removeEventListener(n, go));
-      window.CHANLY.address.go(window.__listRoute(route.param), { replace: true });
-    };
-    if (window.__PEOPLE) { go(); return; }
-    names.forEach((n) => window.addEventListener(n, go));
-    return () => names.forEach((n) => window.removeEventListener(n, go));
-  }, [route.page, route.param]);
+  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace: its App Router page replaces
+  // the address once People says which list an id names (surfaces/people/lists-route.tsx), and a demo keeps the seeded page.
   // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come
   // from their row: drawn again when the rows do, once. Asked with what this draw saw, so rows that landed between the
   // draw and this effect draw it again too, rather than waiting for an event that has already gone.
@@ -655,8 +640,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   const PhoneFace = window.AskFace || null;
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
-  window.appNavigate = navigate;
-  window.appAsk = openAsk;
+  // (A person's page, an App Router page in surfaces/people/person, takes its Back to People from the frame, which knows the
+  // People view it was opened from.)
+  Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick });
   useShellKeys({ setAskOpen, sidebar, onSidebar });

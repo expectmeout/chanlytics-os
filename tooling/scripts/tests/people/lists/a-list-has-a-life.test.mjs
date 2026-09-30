@@ -464,9 +464,11 @@ test("every table a surface repaints on is one the one subscription listens to -
   const WATCHED_TABLES = (await import(at("packages/db/src/realtime.ts"))).watchedTables();
   // The seam and each surface's module beside it (legacy-bridge/surfaces/).
   const SURFACES = "apps/dashboard/src/legacy-bridge/surfaces";
-  const modules = ["apps/dashboard/src/legacy-bridge/surface-data.ts"].concat(
-    fs.readdirSync(path.join(ROOT, SURFACES)).map((f) => `${SURFACES}/${f}`),
-  );
+  // A surface that has moved keeps its override in its own folder (decision 0015's amendment).
+  const modules = [
+    "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    "apps/dashboard/src/surfaces/people/surface.ts",
+  ].concat(fs.readdirSync(path.join(ROOT, SURFACES)).map((f) => `${SURFACES}/${f}`));
   const surfaces = Object.assign({}, ...(await Promise.all(modules.map((m) => import(at(m))))));
   const unheard = Object.entries(surfaces).flatMap(([name, o]) =>
     Array.isArray(o?.refreshOnTables)

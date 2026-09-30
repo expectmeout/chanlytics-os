@@ -25,11 +25,25 @@ import {
   toPersonVM,
   afterPersonRefused,
   personActs,
+  stateOf,
   PEOPLE_LISTS,
+  ROLE_PERMS,
 } from "@chanlytics/contracts";
 import { importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+import {
+  installLegacyReact,
+  installRoleStore,
+  fresh,
+  again,
+  all,
+  byTestId,
+  classes,
+  find,
+  press,
+  textOf,
+} from "../_legacy-react.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -42,12 +56,77 @@ const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server
 setRateStore(memoryStore());
 
 /**
- * The People page and the table it draws with, each read once for the whole file. The table, its Columns menu and
- * their helpers were lifted out of the page into people-table.jsx (release B of the lead finder), so the strings
- * below live in one file or the other; four reads of the page became one, and the fifth is the table's.
+ * People's page, drawn rather than read: the real TSX (apps/dashboard/src/surfaces/people/) on the shared stub React
+ * (_legacy-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
+ * The page was one legacy file (people.jsx, with people-table.jsx beside it) that these pins scanned; it is a folder of
+ * TSX now, and what it shows is asked of what it draws. Installed on first use, so the tests that do not draw it keep the
+ * bare node they had: the role store (who is acting), the toast and the shell's move (CHANLY.nav, recorded in `went`).
  */
-const PEOPLE_PAGE = readCode("apps/dashboard/src/legacy/pages/people.jsx");
-const PEOPLE_TABLE = readCode("apps/dashboard/src/legacy/pages/people-table.jsx");
+/** The shell's moves (`CHANLY.nav`) both worlds below record: one window, so the last to install its `nav` is the one called. */
+const moved = [];
+let harness = null;
+async function peopleHarness() {
+  if (harness) return harness;
+  installLegacyReact();
+  installRoleStore(globalThis.window);
+  const went = moved;
+  Object.assign(globalThis.window, {
+    mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
+    canDo: (action) => !!ROLE_PERMS[globalThis.window.__ME.role]?.[action],
+    gate: () => ({}),
+    usePPToast: () => [null, () => {}],
+    CHANLY: { nav: (route) => went.push(route) },
+  });
+  const src = (p) => importSrc(`apps/dashboard/src/surfaces/${p}`);
+  const { setSurfaceValue } = await src("surface-values.ts");
+  const { peopleSample } = await src("people/sample.ts");
+  const { PeopleReal } = await src("people/page/people-real.tsx");
+  const drawn = (props = {}, { role = "owner" } = {}) => {
+    globalThis.window.__ME = { role };
+    setSurfaceValue("people", peopleSample(new Date(NOW)));
+    fresh();
+    const draw = (over = {}) => again(() => PeopleReal({ onNavigate() {}, onOpenProfile() {}, ...props, ...over }));
+    return { draw, tree: draw() };
+  };
+  const { PeopleRoute } = await src("people/people-route.tsx");
+  // The frame's route for an address of People's: the page it draws for the params the address names.
+  const routed = (pathname) => {
+    globalThis.window.__ME = { role: "owner" };
+    setSurfaceValue("people", peopleSample(new Date(NOW)));
+    fresh();
+    return again(() => globalThis.React.createElement(PeopleRoute, { pathname }));
+  };
+  /**
+   * What `run` sends, recorded as { method, route, body } (the route as the client names it, `views/people`), each answered as
+   * the server does: a batch done for every id it was sent, anything else `{}`. The wire is the tab's fetch, put back after.
+   */
+  const onTheWire = async (run) => {
+    const sent = [];
+    const fetched = globalThis.fetch;
+    globalThis.fetch = async (url, init = {}) => {
+      const body = init.body ? JSON.parse(init.body) : null;
+      sent.push({
+        method: init.method || "GET",
+        route: new URL(url, "https://app.chanlytics.com").pathname.replace(/^\/api\/v1\//, ""),
+        body,
+      });
+      const data = Array.isArray(body?.ids) ? { done: body.ids.length, failed: [], skipped: [] } : {};
+      return new Response(JSON.stringify({ ok: true, data }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    try {
+      await run();
+      await new Promise((resolve) => setImmediate(resolve));
+    } finally {
+      globalThis.fetch = fetched;
+    }
+    return sent;
+  };
+  harness = { went, drawn, routed, onTheWire, setSurfaceValue, sample: () => peopleSample(new Date(NOW)) };
+  return harness;
+}
 
 /**
  * The business's own addresses, for the cases below that are not about them:
@@ -546,6 +625,22 @@ const ROW = {
   has_chat: false,
   queued_reply_at: null,
 };
+/** What People has loaded, for the surface's mapping (surfaces/people/surface-map.ts): `ROW` in Harbor's zone, a calendar that reads, no deals. */
+const peopleLoaded = (over = {}) => ({
+  tz: TZ,
+  people: [ROW],
+  page: null,
+  saved: [],
+  calendar: { state: "ok", source: "Google Calendar" },
+  bookingLink: null,
+  dealsOn: false,
+  consultFirst: false,
+  dealPace: null,
+  followUp: null,
+  views: {},
+  viewsRead: true,
+  ...over,
+});
 const detail = (visits) => ({
   row: ROW,
   identities: [],
@@ -567,6 +662,93 @@ const detail_ = (over = {}) => ({
   receptionist_mode: null,
   workspace_reply_mode: "auto",
 });
+
+/**
+ * The person's page as TSX (surfaces/people/person), drawn on the stub React the page tests share, for the cases below that
+ * read what the profile draws or asks: the parts it is made of, each drawn over a person's view model, and its courier run
+ * over a wire that records the write. Nothing else in this file draws, so the stub is installed when it is first asked for.
+ */
+let profileWorld = null;
+async function profileUi() {
+  if (profileWorld) return profileWorld;
+  const LR = await import("../_legacy-react.mjs");
+  LR.installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+  const went = moved;
+  Object.assign(globalThis, {
+    __WORKSPACES: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
+    __ACTIVE_WORKSPACE: HARBOR,
+    CHANLY: { nav: (to) => went.push(to) },
+  });
+  const P = "apps/dashboard/src/surfaces/people";
+  const { hero, openWith } = await importSrc(`${P}/person/hero.tsx`);
+  const { PersonNotes } = await importSrc(`${P}/person/notes.tsx`);
+  const { PersonTimeline } = await importSrc(`${P}/person/timeline.tsx`);
+  const { setPersonDetails } = await importSrc(`${P}/people-detail.ts`);
+  const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
+  const quietly = async (fn) => {
+    const was = console.error;
+    console.error = () => {};
+    try {
+      return await fn();
+    } finally {
+      console.error = was;
+    }
+  };
+  // What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
+  // not waiting on a module's first load while the test waits on the write.
+  await quietly(() => importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+  /** What the page hands each of its parts: the person, and who is looking. */
+  const ctx = (p, over = {}) => ({
+    p,
+    dealP: p,
+    first: "Maria",
+    who: "Maria",
+    isOwner: true,
+    canRecord: true,
+    flash() {},
+    load() {},
+    error: null,
+    onBack() {},
+    del: { open: false, typed: "", busy: false, error: null },
+    setDel() {},
+    ...over,
+  });
+  /** The writes a courier's call made over a wire that takes every write, with what each carried. */
+  const writes = async (call) => {
+    const asked = [];
+    const kept = globalThis.fetch;
+    globalThis.fetch = async (url, init = {}) => {
+      const method = init.method || "GET";
+      asked.push([
+        method,
+        new URL(String(url), "https://app.chanlytics.com").pathname,
+        init.body ? JSON.parse(init.body) : null,
+      ]);
+      const body =
+        method === "GET" ? { ok: false, error: { code: "not_found", message: "not here" } } : { ok: true, data: {} };
+      return new Response(JSON.stringify(body), {
+        status: method === "GET" ? 404 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    try {
+      await quietly(async () => {
+        await call();
+        for (let i = 0; i < 12; i += 1) await LR.settle();
+      });
+    } finally {
+      globalThis.fetch = kept;
+    }
+    return asked.filter(([method]) => method !== "GET");
+  };
+  /** A tree drawn afresh, and the way to draw it again over the state it kept, as React does after a press. */
+  const drawn = (thunk) => {
+    LR.fresh();
+    return { tree: LR.again(thunk), again: () => LR.again(thunk) };
+  };
+  profileWorld = { LR, went, ctx, writes, drawn, hero, openWith, PersonNotes, PersonTimeline, setPersonDetails, Icon };
+  return profileWorld;
+}
 
 test("the profile: a Next visit fact and About rows when the calendar is connected; nothing invented when it is not", () => {
   const now = new Date(NOW);
@@ -669,7 +851,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   // Phone: the visits in the caller context, and a call for a switched-off
   // channel telling the platform as a text does: run in call-start.test.mjs.
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"])
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(
@@ -677,7 +859,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
     "one line, no feed counts",
   );
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
-  assert.ok(page.includes("matched by {b.person.via}") && page.includes("Not in People yet"));
+  assert.ok(page.includes("matched by {person.via}") && page.includes("Not in People yet"));
   const dto = readCode("packages/contracts/src/calendar/calendar.ts");
   assert.ok(
     dto.includes('source: dto.feed.source ?? "your calendar"') &&
@@ -947,7 +1129,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     cameFrom.seen.some((q) => selectOn(q, "events", ["kind", "contact.added"], ["subject_id", MARIA])),
     "from the events, the contact.added row of this person",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/calendar.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
   assert.ok(
     !page.includes("cal-panel-add") && !page.includes("__addPerson"),
     "no button on the CALENDAR: added on its own, deleted from the profile if unwanted",
@@ -956,7 +1138,9 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   // The hand's door has its screen on People now (slice D of the data program):
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/people-detail.ts").includes('return api()("POST contacts", { body });'),
+    readCode("apps/dashboard/src/surfaces/people/people-detail.ts").includes(
+      'return api()("POST contacts", { body });',
+    ),
     "the bridge verb, through the same door",
   );
   const edgeAv = readCode("apps/edge/lib/calendar/availability.ts");
@@ -1205,13 +1389,36 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   // The assistant answers who booked and who never did: people.search runs over a feed in ask-turn.test.mjs, its
   // Booked and Asked, never booked lists judged over the People page's own rows.
-  const sd = ["apps/dashboard/src/legacy-bridge/surfaces/people.ts", "apps/dashboard/src/surfaces/reports/surface.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
+  // People's lists are the mapping's (surface-map.ts), run: a calendar list is there only where a calendar reads, a deal
+  // list only where deals are on. The Reports surface carries the booking line as the report answered it.
+  const { peopleSurfaceOf } = await importSrc("apps/dashboard/src/surfaces/people/surface-map.ts");
+  const listsOf = (over) => peopleSurfaceOf(peopleLoaded(over), null, new Date(NOW)).lists.map((l) => l.id);
+  const only = (need) =>
+    PEOPLE_LISTS.filter(
+      (l) => !!l[need] && ["needsCalendar", "needsConsultFirst", "needsDeals"].every((n) => n === need || !l[n]),
+    ).map((l) => l.id);
+  const [calendarLists, dealLists] = [only("needsCalendar"), only("needsDeals")];
+  assert.ok(calendarLists.length > 0 && dealLists.length > 0, "the lists this pins exist");
+  const withCalendar = listsOf({});
   assert.ok(
-    sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
-      sd.includes("(!l.needsDeals || dealsOn),") &&
-      sd.includes("booking: toBookingReportVM(data.booking),"),
+    calendarLists.every((id) => withCalendar.includes(id)),
+    "with a calendar read, its lists",
+  );
+  for (const state of ["none", "unavailable"])
+    assert.ok(
+      calendarLists.every((id) => !listsOf({ calendar: { state, source: "your calendar" } }).includes(id)),
+      `with the calendar ${state}, none of them`,
+    );
+  assert.ok(
+    dealLists.every((id) => !withCalendar.includes(id)),
+    "deals off: no deal list",
+  );
+  assert.ok(
+    dealLists.every((id) => listsOf({ dealsOn: true }).includes(id)),
+    "deals on: every deal list",
+  );
+  assert.ok(
+    readCode("apps/dashboard/src/surfaces/reports/surface.ts").includes("booking: toBookingReportVM(data.booking),"),
   );
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   // Leads came back on 18 Sep 2026 as a SCOPE of People, so the old address lands on that scope, not on the list of clients.
@@ -1227,12 +1434,18 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "a real workspace lands on People",
   );
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
+  const { drawn } = await peopleHarness();
+  const page = drawn().tree;
   assert.ok(
-    PEOPLE_PAGE.includes('data-testid="row-next-visit"') &&
+    byTestId(page, "row-next-visit") &&
       /nothing on your calendar since answers it/.test(PEOPLE_LISTS.find((l) => l.id === "asked_never_booked").tip),
     "the column and the tips",
   );
-  assert.ok(!PEOPLE_PAGE.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
+  assert.ok(
+    !all(page, (n) => typeof n.type === "function" && n.type.name === "StatCell").length &&
+      !/Booked/.test(textOf(byTestId(page, "people-standing"))),
+    "REGRESSION: the rail said it and a card said it again",
+  );
   assert.ok(readCode("apps/dashboard/src/surfaces/reports/sections.tsx").includes('testid="chart-booking"'));
 });
 
@@ -1283,24 +1496,36 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     [null, null],
     "none written: none",
   );
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(
-    bridge.includes("window.__setPersonDetails = setPersonDetails;") && bridge.includes('"PUT contacts/[id]/details"'),
+  // The profile's courier asks the details door this route answers. Run, on the page's own TSX (surfaces/people/person).
+  const ui = await profileUi();
+  const { byTestId, press } = ui.LR;
+  assert.deepEqual(await ui.writes(() => ui.setPersonDetails(MARIA, { name: "Maria Lopez" })), [
+    ["PUT", `/api/v1/contacts/${MARIA}/details`, { name: "Maria Lopez" }],
+  ]);
+  // The hero name is the editable one: whoever may record is offered the pencil, then the box and its Save; anyone else
+  // is shown the name and nothing to change it with.
+  const maria = toPersonVM(detail_(), TZ, new Date(NOW));
+  const hero = (canRecord) => () => ui.hero(ui.ctx(maria, { canRecord }), () => {}, false);
+  const named = ui.drawn(hero(true));
+  assert.ok(byTestId(named.tree, "person-rename"), "person-rename");
+  press(byTestId(named.tree, "person-rename"));
+  const renaming = named.again();
+  for (const id of ["person-name-input", "person-name-save"]) assert.ok(byTestId(renaming, id), id);
+  assert.equal(byTestId(ui.drawn(hero(false)).tree, "person-rename"), null, "a viewer's is a name and no pencil");
+  // The notes are a composer: the box, and Save once something is typed.
+  const notes = ui.drawn(() =>
+    globalThis.React.createElement(ui.PersonNotes, {
+      p: maria,
+      canEdit: true,
+      isOwner: true,
+      flash() {},
+      onChanged() {},
+    }),
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
-  for (const id of [
-    "person-rename",
-    "person-name-input",
-    "person-name-save",
-    "person-notes",
-    "person-notes-input",
-    "person-notes-save",
-  ])
-    assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(
-    page.includes("<PersonName p={p} canEdit={canRecord} flash={ppFlash} />"),
-    "the hero name is the editable one",
-  );
+  for (const id of ["person-notes", "person-notes-input"]) assert.ok(byTestId(notes.tree, id), id);
+  assert.equal(byTestId(notes.tree, "person-notes-save"), null, "nothing to save until something is typed");
+  byTestId(notes.tree, "person-notes-input").props.onChange({ target: { value: "Sees Sofia" } });
+  assert.ok(byTestId(notes.again(), "person-notes-save"), "person-notes-save");
   // The notes are a list now (0007): each dated and signed, the field they moved from no longer drawn.
   const note = {
     id: "n1",
@@ -1501,46 +1726,105 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.equal(peopleListAction("opted_out", [week]), null);
 });
 
-test("the list page: the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
-  assert.ok(
-    PEOPLE_PAGE.includes('data-testid="row-next-visit"') && !PEOPLE_PAGE.includes("row-booked"),
-    "the column carries the outcome; the chip is gone",
+test("the list page: the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", async () => {
+  const { PEOPLE_LIST_GROUPS, peopleListAction } = await import("@chanlytics/contracts");
+  const { went, drawn, routed, sample, onTheWire } = await peopleHarness();
+  const page = drawn().tree;
+  assert.ok(byTestId(page, "row-next-visit"), "the column carries the outcome");
+  assert.equal(byTestId(page, "row-booked"), null, "the chip is gone");
+  // The groups themselves are the rail kit's (RailGroup), drawn and counted in people-honest; here, that the rail says them.
+  assert.deepEqual(
+    all(page, (n) => classes(n).includes("cl-rail-group-label")).map(textOf),
+    PEOPLE_LIST_GROUPS.map((g) => g.label),
+    "the rail is grouped",
   );
-  // The groups themselves are the rail kit's (RailGroup), drawn and counted in people-honest, not read here.
-  assert.ok(PEOPLE_PAGE.includes("cl-rail-group-label"));
-  assert.ok(
-    PEOPLE_PAGE.includes('data-testid="state-filter"') && !PEOPLE_PAGE.includes('{["all", ...PL_TABS].map((t) => ('),
-    "one state switcher: the strip, echoed as a chip",
-  );
-  assert.ok(
-    PEOPLE_PAGE.includes('data-testid="list-action"') && PEOPLE_PAGE.includes("window.CHANLY.nav(listStep.to)"),
-  );
-  assert.ok(
-    PEOPLE_PAGE.includes("window.CHANLY.address.go(next, { replace: true, quiet: true })") &&
-      PEOPLE_PAGE.includes('`seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}`'),
+  // One state switcher: the strip, echoed as a chip once a state is picked, and the chip's x shows everyone.
+  assert.equal(byTestId(page, "state-filter"), null, "no chip until a state is picked");
+  const quiet = drawn({ initialState: "quiet" });
+  const chip = byTestId(quiet.tree, "state-filter");
+  assert.match(textOf(chip), /Quiet/);
+  press(find(chip, (n) => classes(n).includes("chip-x")));
+  assert.equal(byTestId(quiet.draw(), "state-filter"), null, "one state switcher: the strip, echoed as a chip");
+  // A list has its step: the button goes where the list's own action says, through the shell's move.
+  const needsYou = drawn({ initialSegment: "needs_you" });
+  const step = byTestId(needsYou.tree, "list-action");
+  const listed = sample().lists.find((l) => l.id === "needs_you");
+  assert.ok(listed.action, "the list carries its step");
+  went.length = 0;
+  press(find(step, (n) => n.type === "button"));
+  assert.deepEqual(went, [listed.action.to]);
+  // Linkable: the view is said in the address, replaced and never pushed (Back leaves People).
+  const replaced = [];
+  globalThis.location.pathname = "/w/studio/people";
+  globalThis.location.hash = "";
+  globalThis.history = {
+    replaceState: (_s, _t, url) => replaced.push(url),
+    pushState: (_s, _t, url) => replaced.push(`push ${url}`),
+  };
+  drawn({ initialSegment: "needs_you" });
+  drawn({ initialSaved: "sample-regulars" });
+  drawn({ initialState: "quiet" });
+  assert.deepEqual(
+    replaced,
+    ["/w/studio/people/seg:needs_you", "/w/studio/people/list:sample-regulars", "/w/studio/people/state:quiet"],
     "linkable",
   );
-  assert.ok(
-    PEOPLE_PAGE.includes('const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view",') &&
-      PEOPLE_PAGE.includes("plSaveView(scope, view);") &&
-      PEOPLE_PAGE.includes("window.__saveView(page, view)"),
-    "remembered: on this device, and on the member's row in the workspace, per scope",
+  // Remembered: on this device, per scope, and on the member's row in the workspace (a save of the whole view).
+  const { plSaveView, plLoadView } = await importSrc("apps/dashboard/src/surfaces/people/hooks/view-store.ts");
+  plSaveView("leads", { sortBy: "stage" });
+  assert.deepEqual(
+    [plLoadView("leads"), globalThis.localStorage.getItem("chanlytics-leads-view")],
+    [{ sortBy: "stage" }, '{"sortBy":"stage"}'],
   );
-  // The shell's route table (app-routes.jsx): the row that takes a view of People, and what it hands the page.
-  const routes = readCode("apps/dashboard/src/legacy/pages/app-routes.jsx");
-  assert.ok(
-    routes.includes("/^(seg|list|state):/.test(param)") &&
-      routes.includes("initialSaved={savedId} initialState={stateId}"),
+  assert.doesNotMatch(
+    globalThis.localStorage.getItem("chanlytics-people-view") ?? "",
+    /stage/,
+    "People's view is its own",
   );
-  const sd = [
-    "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts",
-    "apps/dashboard/src/legacy-bridge/surfaces/people.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
+  const sent = await onTheWire(async () => {
+    const kept = drawn();
+    press(find(kept.tree, (n) => classes(n).includes("cl-th-sort") && textOf(n).includes("Offers")));
+    kept.draw();
+  });
+  assert.equal(
+    JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).sortBy,
+    "offers",
+    "on this device",
+  );
+  const put = sent.find((r) => r.method === "PUT" && r.route === "views/people");
+  assert.deepEqual(
+    [put?.body.view.sortBy, put?.body.view.sortDir, Object.keys(put?.body.view)],
+    ["offers", "desc", ["sortBy", "sortDir", "columns"]],
+    "and on the member's row in the workspace, the whole view",
+  );
+  // The frame's route (people-route.tsx): the addresses that take a view of People, and what each hands the page.
+  const { peopleTakes } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
+  for (const param of ["seg:needs_you", "list:sample-regulars", "state:quiet"])
+    assert.equal(peopleTakes(param), true, param);
+  assert.equal(peopleTakes("c-1"), true, "a person is the page's too, but not a view of People: it draws their page");
+  assert.equal(peopleTakes("leads:s-1"), false, "Leads stays with the frame");
+  assert.match(textOf(byTestId(routed("/w/studio/people/list:sample-regulars"), "saved-filter")), /Regulars/);
+  assert.ok(byTestId(routed("/w/studio/people/seg:needs_you"), "smart-filter"));
+  assert.ok(byTestId(routed("/w/studio/people/state:quiet"), "state-filter"));
+  // The list carries its step and the rail its groups: the surface's mapping (surface-map.ts), run over the sample's people.
+  const surface = sample();
+  for (const l of surface.lists)
+    assert.deepEqual(
+      l.action,
+      peopleListAction(
+        l.id,
+        surface.rows.filter((r) => l.ids.includes(r.id)),
+      ),
+      `${l.id}: its own step`,
+    );
+  assert.deepEqual(
+    surface.groups,
+    PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+  );
   assert.ok(
-    sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'),
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts").includes(
+      '(!l.needsCalendar || people.calendar?.state === "ok")',
+    ),
     "a calendar list is an audience only with a calendar",
   );
   const ports = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");
@@ -1595,56 +1879,95 @@ test("asked means they reached out: the call they placed counts, a call the owne
   );
 });
 
-test("bulk actions: a selection becomes people on a list, a yes on record (one request each, fifty at most, one refresh), or a file; everyone shown can be kept as a list", () => {
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(
-    bridge.includes(
-      "export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>",
-    ) && bridge.includes("const take = [...new Set(ids)].slice(0, 50);"),
+test("bulk actions: a selection becomes people on a list, a yes on record (one request each, fifty at most, one refresh), or a file; everyone shown can be kept as a list", async () => {
+  const { setPersonConsentMany, setPersonMarketingConsentMany } = await importSrc(
+    "apps/dashboard/src/surfaces/people/people-detail.ts",
   );
-  assert.ok(bridge.includes("window.__setPersonConsentMany = setPersonConsentMany;"));
-  // The many used to be one request per person, held back from refreshing, with
-  // one refresh at the end. They are ONE request now, through the batch door,
-  // which the refresh map treats like any other write (slice B of the data
-  // program); consent-history.test.mjs runs that door.
+  const { plCsv } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  const { CONSENT_SOURCES } = await import("@chanlytics/contracts");
+  const { drawn, onTheWire } = await peopleHarness();
+  // The many used to be one request per person, held back from refreshing, with one refresh at the end. They are ONE
+  // request now, through the batch door, fifty at most (a longer selection sends its first fifty, once each), the route
+  // chosen by which yes it is; consent-history.test.mjs runs that door. Run over the wire, not read.
+  const sixty = Array.from({ length: 60 }, (_, i) => `p${i}`);
+  const said = { consent: "opted_in", source: "in_person" };
+  const sent = await onTheWire(async () => {
+    assert.deepEqual(await setPersonConsentMany([...sixty, "p0"], said), {
+      ok: true,
+      done: 50,
+      failed: 0,
+      message: undefined,
+    });
+    await setPersonMarketingConsentMany(sixty, said);
+  });
+  assert.deepEqual(
+    sent.filter((r) => r.method === "PUT").map((r) => [r.route, r.body.ids.length, r.body.consent, r.body.source]),
+    [
+      ["contacts/consent", 50, "opted_in", "in_person"],
+      ["contacts/marketing-consent", 50, "opted_in", "in_person"],
+    ],
+    "one request each, fifty at most, and the yes to offers is written to its own door",
+  );
+  // The single and the many both refresh through the map: none of them holds it back (a view save, which changes no
+  // surface, is the one write that does).
+  const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
   assert.ok(
     bridge.includes("return api()(CONSENT_ROUTE[purpose], { params: { id }, body });") &&
-      bridge.includes("api()(MANY_ROUTE[purpose], { body: { ids: take, ...body } })") &&
       !bridge
         .slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany"))
         .includes("refresh: false"),
-    "the single and the many both refresh through the map; the many are one request (a view save, which changes no surface, is the one write that holds the map back)",
+    "the single and the many both refresh through the map",
   );
-  for (const id of ["bulk-bar", "bulk-list-name", "bulk-export", "bulk-clear", "save-shown", "save-shown-name"])
-    assert.ok(PEOPLE_PAGE.includes(`data-testid="${id}"`), id);
-  for (const id of ["select-all", "row-select"]) assert.ok(PEOPLE_TABLE.includes(`data-testid="${id}"`), id);
-  // WHICH yes, and how it was given. The bulk action was titled for offers and
-  // wrote the conversational column, so a salon recording thirty signed marketing
-  // consents changed the one field that does not authorise a promotion.
-  assert.ok(
-    bridge.includes(
-      "export async function setPersonMarketingConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult>",
-    ),
+  // The page selects: a box for each row and one for all of them, for whoever may act on a selection (a member who may
+  // edit lists, or export) -- and for nobody else.
+  const owner = drawn();
+  assert.ok(byTestId(owner.tree, "select-all") && byTestId(owner.tree, "row-select"), "the table selects");
+  assert.ok(byTestId(drawn({}, { role: "operator" }).tree, "select-all"), "an operator edits lists: selectable");
+  assert.equal(
+    byTestId(drawn({}, { role: "viewer" }).tree, "select-all"),
+    null,
+    "a viewer edits nothing and exports nothing",
   );
-  assert.ok(bridge.includes("window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;"));
-  assert.ok(
-    PEOPLE_PAGE.includes('{ header: "Yes to messages about their visit\u2026" }') &&
-      PEOPLE_PAGE.includes('{ header: "Yes to offers and news\u2026" }'),
+  const picking = drawn();
+  byTestId(picking.tree, "row-select").props.onChange();
+  const bar = byTestId(picking.draw(), "bulk-bar");
+  for (const id of ["bulk-export", "bulk-clear"]) assert.ok(byTestId(bar, id), id);
+  // Add to a list, or make one: the box that takes the new list's name.
+  const menuOf = (label) => find(bar, (n) => n.props?.label === label && Array.isArray(n.props.items));
+  menuOf("Add to list")
+    .props.items.find((i) => i.label === "New list…")
+    .onClick();
+  assert.ok(byTestId(picking.draw(), "bulk-list-name"), "a new list is named where it is made");
+  // WHICH yes, and how it was given. The bulk action was titled for offers and wrote the conversational column, so a
+  // salon recording thirty signed marketing consents changed the one field that does not authorise a promotion.
+  const yes = menuOf("Record a yes").props.items;
+  assert.deepEqual(
+    yes.filter((i) => i.header).map((i) => i.header),
+    ["Yes to messages about their visit…", "Yes to offers and news…"],
     "both asks are offered, and named",
   );
-  assert.ok(PEOPLE_PAGE.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
-  assert.ok(
-    PEOPLE_PAGE.includes('.filter((s) => s.id !== "customer_message")'),
-    "their own message is not something a desk records for them",
+  const own = CONSENT_SOURCES.find((s) => s.id === "customer_message").label;
+  assert.ok(!yes.some((i) => i.label === own), "their own message is not something a desk records for them");
+  const byDesk = yes.find((i) => i.label === CONSENT_SOURCES.find((s) => s.id === "in_person").label);
+  const recorded = await onTheWire(async () => {
+    await byDesk.onClick();
+  });
+  assert.deepEqual(
+    recorded.filter((r) => r.method === "PUT").map((r) => [r.route, r.body.consent, r.body.source, r.body.ids.length]),
+    [["contacts/consent", "opted_in", "in_person", 1]],
+    "a yes says how it was given",
   );
-  // "A selection never outlives its view" is run, in both scopes: people-honest.test.mjs and leads-honest.test.mjs.
-  assert.ok(
-    PEOPLE_PAGE.includes(
-      'const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];',
-    ),
+  // A selection never outlives its view is run, in both scopes: people-honest.test.mjs and leads-honest.test.mjs.
+  // The file holds the columns the page shows, nothing invented.
+  assert.equal(
+    plCsv([]),
+    "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact",
     "the file holds the columns the page shows, nothing invented",
   );
-  assert.ok(PEOPLE_PAGE.includes("selectable={canEditLists || canExport}"));
+  // Everyone shown can be kept as a list: a view that filters offers Save these, and its box takes the name.
+  const filtered = drawn({ initialSegment: "needs_you" });
+  press(byTestId(filtered.tree, "save-shown"));
+  assert.ok(byTestId(filtered.draw(), "save-shown-name"), "everyone shown can be kept as a list");
 });
 
 test("every visit, oldest first, for the timeline; the profile reads them as Visited and Booked, and the booking link is one step away", async () => {
@@ -1728,8 +2051,16 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     now,
   );
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
-  const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
-  assert.ok(page.includes('sessionStorage.setItem("chanlytics-compose"'), "the send carries the link into the thread");
+  // The send carries the link into the thread: the words wait in the tab for the thread's composer, which opens.
+  const ui = await profileUi();
+  ui.went.length = 0;
+  ui.openWith({ p: { ...chat, openThread: "inbox/th-1" } })("Here is the link");
+  assert.deepEqual(
+    JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose")),
+    { threadId: "th-1", text: "Here is the link" },
+    "the send carries the link into the thread",
+  );
+  assert.deepEqual(ui.went, ["inbox/th-1"]);
   assert.ok(
     personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://book.example.com/marisas" }).some(
       (a) => a.id === "booking" && a.label === "Send booking link",
@@ -1741,7 +2072,19 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   // inside the window a reply is carried in, outside it the thread offers the approved message.
   assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
   assert.deepEqual([closed.bookingLinkAction.label, closed.bookingLinkAction.ready], ["Send the booking link", false]);
-  assert.ok(page.includes(': e.kind === "visit" ? <Icon name="calendar" size={12} />'));
+  // A visit's mark on the timeline is the calendar.
+  const timeline = ui.drawn(() =>
+    globalThis.React.createElement(ui.PersonTimeline, { items: vm.timeline, initials: vm.initials }),
+  );
+  const marks = ui.LR.all(
+    timeline.tree,
+    (n) => typeof n.props?.className === "string" && n.props.className.startsWith("cl-tl-mark"),
+  );
+  assert.equal(
+    marks.filter((m) => ui.LR.find(m, (n) => n.type === ui.Icon && n.props.name === "calendar")).length,
+    visits.length,
+    "each visit's mark is the calendar",
+  );
   const composer = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(
     composer.includes('sessionStorage.getItem("chanlytics-compose")') &&
@@ -1792,39 +2135,109 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.equal(row.lastVisitDay, "Thu, Aug 20");
   assert.deepEqual(row.replyWindow, { open: true, hoursLeft: 23 });
   assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, TZ, now).replyWindow, null);
+  // The table's own cells, drawn (surfaces/people/cells/columns.tsx) on the stub React the page test draws on.
+  const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+  const { offersOf, plMatcher, plWhen } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+  const { PeopleTable } = await importSrc("apps/dashboard/src/surfaces/people/table/table.tsx");
+  const { went } = await peopleHarness();
+  const cellOf = (key, p, x = {}) => {
+    fresh();
+    return again(() => PL_COLUMNS.find((c) => c.key === key).cell(p, { attention: {}, onOpen() {}, ...x }));
+  };
   // First contact left the identity cell (22 Sep, Ruben: the row read jam-packed) for a column of its own that is off
   // until a member asks for it, so Offers still holds the place on screen it took from First contact.
-  assert.ok(
-    PEOPLE_PAGE.includes('{ key: "since", label: "First contact", sortable: false, on: false,'),
+  const since = PL_COLUMNS.find((c) => c.key === "since");
+  assert.deepEqual(
+    [since.label, since.sortable, since.on],
+    ["First contact", false, false],
     "First contact is a column a member may choose, not on screen by default",
   );
+  // A number is not initials; it can be named.
+  const unnamed = toPersonRowVM({ ...ROW, display_name: null }, TZ, now);
+  const bare = cellOf("name", unnamed);
   assert.ok(
-    PEOPLE_PAGE.includes("cl-row-avatar-glyph") && PEOPLE_PAGE.includes('data-testid="row-name-them"'),
+    all(bare, (n) => classes(n).includes("cl-row-avatar-glyph")).length && byTestId(bare, "row-name-them"),
     "a number is not initials; it can be named",
   );
-  assert.ok(
-    PEOPLE_PAGE.includes('<span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>'),
-    "a visit behind them when nothing is ahead",
+  assert.equal(byTestId(cellOf("name", row), "row-name-them"), null, "somebody named has initials and nothing to name");
+  assert.match(textOf(cellOf("visits", row)), /Last · Thu, Aug 20/, "a visit behind them when nothing is ahead");
+  assert.deepEqual(
+    { opted_in: offersOf("opted_in"), opted_out: offersOf("opted_out"), unknown: offersOf("unknown") },
+    { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] },
   );
-  assert.ok(
-    PEOPLE_PAGE.includes(
-      'const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };',
-    ),
+  // The row's own next steps: the thread, and the booking link carried into it, inside the reply window.
+  const talking = toPersonRowVM(
+    {
+      ...ROW,
+      has_chat: true,
+      conversation_count: 1,
+      latest_conversation_id: "cv1",
+      latest_state: "open",
+      last_message_at: new Date(NOW - 3_600_000).toISOString(),
+      last_message_direction: "inbound",
+      last_message_sender: "customer",
+      last_inbound_at: new Date(NOW - 3_600_000).toISOString(),
+      last_inbound_text: "Can I move Saturday to 11?",
+      latest_wa_inbound_at: new Date(NOW - 3_600_000).toISOString(),
+      visits: cal({ last }),
+    },
+    TZ,
+    now,
   );
-  assert.ok(
-    PEOPLE_PAGE.includes('data-testid="row-open-thread"') &&
-      PEOPLE_PAGE.includes('data-testid="row-booking-link"') &&
-      PEOPLE_PAGE.includes('sessionStorage.setItem("chanlytics-compose"'),
-    "the row's own next steps",
+  const link = "https://book.example.com/marisas";
+  const acts = cellOf("actions", talking, { bookingLink: link, drop: null });
+  assert.ok(byTestId(acts, "row-open-thread") && byTestId(acts, "row-booking-link"), "the row's own next steps");
+  went.length = 0;
+  press(byTestId(acts, "row-booking-link"));
+  assert.deepEqual(
+    JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose")),
+    { threadId: talking.threadId, text: `Here's the link to book your appointment: ${link}` },
+    "the link is carried into the thread's composer",
   );
-  assert.ok(PEOPLE_PAGE.includes("title={plWhen(p.lastContact.at)}"), "the exact time on hover");
+  assert.deepEqual(went, [`inbox/${talking.threadId}`]);
+  assert.equal(byTestId(cellOf("actions", talking, { bookingLink: null, drop: null }), "row-booking-link"), null);
+  // The exact time is on hover, by the business's clock.
+  const at = cellOf("last", talking).props.title;
+  assert.equal(at, plWhen(talking.lastContact.at), "the exact time on hover");
+  assert.match(at, /^[A-Z][a-z]{2} \d{1,2}, 2026 · \d{1,2}:\d{2} [AP]M$/);
   // A row no longer counts threads and calls ("no messages yet" was that count at zero): the profile has them.
-  assert.ok(PEOPLE_TABLE.includes("`${total} ${total === 1 ? words.one : words.many}`"), "honest words");
-  assert.ok(
-    PEOPLE_PAGE.includes('(p.quote || "").toLowerCase().includes(needle)') &&
-      PEOPLE_PAGE.includes('(p.nextVisit || "").toLowerCase().includes(needle)'),
-    "search finds words on the row",
-  );
+  const footOf = (total) => {
+    fresh();
+    return textOf(
+      again(() =>
+        PeopleTable({
+          columns: [PL_COLUMNS[0]],
+          ctx: { attention: {}, onOpen() {} },
+          rows: [talking],
+          total,
+          noun: "person",
+          sortBy: "name",
+          sortDir: "asc",
+          onSort() {},
+          onOpen() {},
+          filtered: false,
+          onClearFilters() {},
+        }),
+      ),
+    );
+  };
+  assert.match(footOf(1), /(^|\D)1 person$/, "honest words");
+  assert.match(footOf(2), /(^|\D)2 people$/, "honest words");
+  // Search finds words on the row: what they last said, and the day they are coming.
+  const ahead = {
+    id: "b1:1",
+    start: "2026-09-08T18:00:00.000Z",
+    end: "2026-09-08T21:00:00.000Z",
+    title: "Balayage",
+    all_day: false,
+    via: "phone",
+  };
+  const booked = toPersonRowVM({ ...ROW, visits: cal({ next: ahead, last }) }, TZ, now);
+  assert.ok(plMatcher("saturday")(talking), "what they last said");
+  assert.ok(!plMatcher("saturday")({ ...talking, quote: null }), "and only that: the words are the row's own");
+  const day = booked.nextVisit.toLowerCase().split(" · ")[0];
+  assert.ok(plMatcher(day)(booked), "the day they are coming");
+  assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
   const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
   assert.ok(
     css.includes("overflow: clip;") &&
@@ -1841,7 +2254,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     "the list envelope carries the link",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surfaces/people.ts").includes("bookingLink: data.booking_link ?? null,"),
+    readCode("apps/dashboard/src/surfaces/people/surface.ts").includes("bookingLink: data.booking_link ?? null,"),
   );
 });
 

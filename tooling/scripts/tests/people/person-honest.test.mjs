@@ -9,19 +9,33 @@
  * - Only calls on the timeline opened anything, and nothing narrowed it (B17); a list chip was text (B18).
  * - "All clients", "All customers" and "Customer" on a page called People (B19).
  * - A visit on a row or a profile opened the profile, or nothing, instead of that day (B26).
- * Run against the contracts and the pages, the People surface over a fake wire, on a stub React.
+ * Run against the contracts and the pages, the People surface over a fake wire, on a stub React. The person's page is the
+ * TSX (surfaces/people/person): it reads the person and writes every answer through the profile's courier, so a person here
+ * is the answer the wire gives (GET /api/v1/contacts/<id>) and what the page does is the request it makes; People's rows
+ * are the typed seam's (surface-values.ts). The People list is still the shell's page, drawn from its scripts.
  */
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
-import { installRoleStore, kitPages } from "../_legacy-react.mjs";
+import { all, byTestId, find, installRoleStore, kitPages, press, textOf, useStubHooks } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
-const { CONSENT_SOURCES, attentionRow, mayReceive, offersYesRefusal, stateOf, toPersonRowVM, toPersonVM } = contracts;
+const { CONSENT_SOURCES, attentionRow, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } = contracts;
 const filterTimeline = (items, id) => contracts.filterTimeline(items, id);
+/**
+ * A person as the contract maps them, remembering the detail it was made from: the page reads its person off the wire, so
+ * `profile(vm)` answers the request for them with that detail, and the page maps it again as it does in the app.
+ */
+const details = new WeakMap();
+const toPersonVM = (dto, ...rest) => {
+  const vm = contracts.toPersonVM(dto, ...rest);
+  details.set(vm, dto);
+  return vm;
+};
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -211,13 +225,21 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: {},
+  body: { appendChild() {} },
   activeElement: null,
   addEventListener() {},
   removeEventListener() {},
   getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+  createElement: () => ({
+    setAttribute() {},
+    style: {},
+    classList: { add() {}, remove() {} },
+    click() {},
+    remove() {},
+  }),
 };
+/** Every event the window was told, in order: the page's own listeners come and go with its draws; what was said stays. */
+const dispatched = [];
 globalThis.window = {
   location: {
     pathname: "/w/salon",
@@ -241,9 +263,11 @@ globalThis.window = {
     listeners[type]?.delete(fn);
   },
   dispatchEvent: (ev) => {
+    dispatched.push(ev);
     for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
     return true;
   },
+  innerHeight: 800,
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: ZONE }],
@@ -260,29 +284,90 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { peopleOverride } = await quietly(
-  () => import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
-);
+const { peopleOverride } = await quietly(() => import("../../../../apps/dashboard/src/surfaces/people/surface.ts"));
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
 
+/**
+ * The wire, one for the People read and the person's own: what the profile's courier and the list verbs ask of the server.
+ * `people` and `lists` answer the People read; a person's page is answered with the detail the test gave it (`serve`); an
+ * `answers` entry ("PUT /api/v1/contacts/p1/details") answers a request itself, and the rest of a person's writes are
+ * accepted. A read held (`holdRead`) waits for the test to let it go. Every request is kept, with its body.
+ */
+const world = {
+  people: [],
+  lists: [],
+  details: new Map(),
+  answers: {},
+  seen: [],
+  held: [],
+  holding: new Set(),
+  pending: 0,
+};
+const okBody = (data = {}) => json(200, { ok: true, data });
+const refused = (status, message, code = "invalid") => json(status, { ok: false, error: { code, message } });
+/** The person's page: what the detail route answers for them, or that they are not in the workspace. */
+const personAnswer = (id) => {
+  const dto = world.details.get(id);
+  return dto ? okBody({ person: dto }) : refused(404, "This person is not in your workspace.", "not_found");
+};
+const CONTACT = /^\/api\/v1\/contacts\/([^/]+)(\/.*)?$/;
+const handleRequest = async (url, init = {}) => {
+  const u = new URL(String(url), "https://app.chanlytics.com");
+  const method = init.method ?? "GET";
+  world.seen.push({ method, path: u.pathname, body: init.body ? JSON.parse(init.body) : null });
+  const answer = world.answers[`${method} ${u.pathname}`];
+  if (answer) return answer(world.seen.at(-1).body);
+  if (u.pathname === "/api/v1/contacts")
+    return okBody({
+      people: world.people,
+      page: { q: null, offset: 0, limit: 1000, total: world.people.length, has_more: false },
+      calendar: { state: "ok", source: "Google Calendar" },
+      booking_link: null,
+    });
+  if (u.pathname === "/api/v1/segments") return okBody({ lists: world.lists });
+  if (u.pathname === "/api/v1/views") return okBody({ views: {} });
+  const one = CONTACT.exec(u.pathname);
+  if (one && method === "GET" && !one[2]) {
+    if (!world.holding.has(one[1])) return personAnswer(one[1]);
+    // A request held is not out: the test lets it go, and it is out again until it is answered.
+    world.pending -= 1;
+    return new Promise((r) =>
+      world.held.push(() => {
+        world.pending += 1;
+        r(personAnswer(one[1]));
+      }),
+    );
+  }
+  if (one && method !== "GET") return okBody();
+  if (method === "PUT" && /^\/api\/v1\/segments\/[^/]+$/.test(u.pathname)) return okBody();
+  return refused(404, `no ${u.pathname}`, "not_found");
+};
+globalThis.window.fetch = async (url, init) => {
+  world.pending += 1;
+  try {
+    return await handleRequest(url, init);
+  } finally {
+    world.pending -= 1;
+  }
+};
 /** The People read over a fake wire: these people, a calendar that reads, one saved list. */
 const wire = (people, lists = []) => {
-  globalThis.window.fetch = async (url) => {
-    const u = new URL(String(url), "https://app.chanlytics.com");
-    if (u.pathname === "/api/v1/contacts")
-      return json(200, {
-        ok: true,
-        data: {
-          people,
-          page: { q: null, offset: 0, limit: 1000, total: people.length, has_more: false },
-          calendar: { state: "ok", source: "Google Calendar" },
-          booking_link: null,
-        },
-      });
-    if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
-    if (u.pathname === "/api/v1/views") return json(200, { ok: true, data: { views: {} } });
-    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  world.people = people;
+  world.lists = lists;
+};
+/** The requests the wire took, of one method and path. */
+const took = (method, path) => world.seen.filter((q) => q.method === method && q.path === path);
+/** A person's page held on the wire until `release`, which lets every read held go: their page, or that they are not here. */
+const holdRead = (id) => {
+  world.holding.add(id);
+  return {
+    release: (dto = world.details.get(id)) => {
+      world.holding.delete(id);
+      if (dto === null) world.details.delete(id);
+      else world.details.set(id, dto);
+      for (const go of world.held.splice(0)) go();
+    },
   };
 };
 
@@ -290,6 +375,17 @@ let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
 const went = [];
+let ids = 0;
+// An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
+const effect = (fn, deps) => {
+  const k = frames.key();
+  const prev = cells[k];
+  if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i])))
+    return;
+  if (prev && typeof prev.cleanup === "function") prev.cleanup();
+  cells[k] = { deps, cleanup: undefined };
+  cells[k].cleanup = fn();
+};
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
@@ -327,31 +423,26 @@ globalThis.React = {
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
-  // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
-  useEffect: (fn, deps) => {
+  useEffect: effect,
+  useLayoutEffect: effect,
+  // An id that stays with its component across draws and is no other's.
+  useId: () => {
     const k = frames.key();
-    const prev = cells[k];
-    if (
-      prev &&
-      deps &&
-      prev.deps &&
-      deps.length === prev.deps.length &&
-      deps.every((d, i) => Object.is(d, prev.deps[i]))
-    )
-      return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = { deps, cleanup: undefined };
-    cells[k].cleanup = fn();
+    if (!(k in cells)) cells[k] = `:r${(ids++).toString(36)}:`;
+    return cells[k];
   },
+  // A store outside React (the typed seam's, surface-values.ts): what it holds as it is drawn. These tests draw when they
+  // ask, so a notice to redraw has no one to tell; the redraw on the store moving is proved in shell/surfaces.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+globalThis.useSurface = () => 0; // the bridge's hook the shell's pages call: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
 installRoleStore();
-// Menus and questions as their props, drawn by hookless stand-ins.
+// Menus and questions as their props, drawn by hookless stand-ins, for the People list's scripts (the person's page draws the kit's own).
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
 // Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops that return their own cleanup.
@@ -359,6 +450,8 @@ globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
+  // The frame's own Back to People, which the person's page asks for (person-verbs.ts backToPeople).
+  appBackToPeople: () => went.push("back"),
   AttnRow: () => null,
   CHANLY: {
     nav: (to) => went.push(to),
@@ -371,64 +464,43 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-// The bridge's own globals for a profile, the timeline's filters among them; and no view saved over the wire.
-const { installPeopleCourier } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+// The bridge's own globals for a profile.
+const { installPeopleCourier } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
+const { staleReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 installPeopleCourier();
-delete globalThis.window.__saveView;
-await import("../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-  "PL_WINDOW_ROWS",
-  "usePlRowWindow",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/people.jsx");
-// The record kit, as both load lists put it before the pages: the profile's card draws its rows and folds.
-for (const f of ["record-row", "record-field", "record-fold", "record-sheet"])
-  await import(`../../../../apps/dashboard/src/legacy/components/${f}.jsx`);
-// A person's deal (0008), which the profile draws first in its column: before the profile, as both load lists put it.
-await import("../../../../apps/dashboard/src/legacy/pages/person-deal.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
+// The kit's components and the hooks the TSX draws with: the stub's, on the react module the TSX imports them from.
+useStubHooks();
+// People's own list page (the tests that draw it beside the profile), the New list row and the kit's Icon the TSX draws.
+const { PeopleReal } = await importSrc("apps/dashboard/src/surfaces/people/page/people-real.tsx");
+const { NewListRow } = await importSrc("apps/dashboard/src/surfaces/people/rail/new-list.tsx");
+const { Icon: KitIcon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
+// The person's page and what it draws, which are TSX (surfaces/people): imported as the app imports them, after the window
+// they read is in place. Its parts are read off the same modules the page draws them from, so a node is found by its type.
+const P = "../../../../apps/dashboard/src/surfaces/people";
+const { ClientProfile } = await import(`${P}/person/person-real.tsx`);
+const { PersonLists } = await import(`${P}/person/lists.tsx`);
+const { PersonDealCard } = await import(`${P}/deal/person-deal.tsx`);
+const { personDetail } = await import(`${P}/people-detail.ts`);
+const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
+const { setStatus } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+// The write that lands moves the surfaces the refresh map names, through a module the loader hands over off the main
+// thread: loaded before a test waits on a write, so it is not the wait.
+await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
+const { MoreMenu, StatePill } = kitPages;
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-  if (n.rendered) walk(n.rendered, fn);
-};
-const all = (tree, pred) => {
-  const out = [];
-  walk(tree, (n) => {
-    if (pred(n)) out.push(n);
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-/** A node's words in reading order: what a drawn component rendered, else its children in turn. */
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return (n.props?.children ?? []).map(textOf).join("");
-};
 const tick = () => new Promise((r) => setTimeout(r, 0));
+/** Turns of the loop for what a press started to finish: and for every request out to be answered, and what follows it (a held one is not out). */
 const settle = async (n = 8) => {
   for (let i = 0; i < n; i += 1) await tick();
+  await idle();
 };
-const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+/** Every request out answered, and a turn for what its answer started. */
+const idle = async () => {
+  for (let i = 0; i < 200 && world.pending > 0; i += 1) await tick();
+  await tick();
+};
 
 /** The People page over the real surface. */
 const peoplePage = async (people, lists = []) => {
@@ -439,22 +511,70 @@ const peoplePage = async (people, lists = []) => {
   for (const k of Object.keys(listeners)) delete listeners[k];
   return () => {
     frames.begin();
-    return globalThis.window.ClientsA({ onOpenProfile: (id) => went.push(`profile:${id}`) });
+    return PeopleReal({ onOpenProfile: (id) => went.push(`profile:${id}`) });
   };
+};
+/**
+ * A new tree for a person's page, as the app makes one: what the last one had out is answered first (its state is written
+ * into the cells by key, so a late answer would land in this tree), and nothing of it is kept: its state, its listeners,
+ * the people the tab held, the fold that was open.
+ */
+const newTree = async () => {
+  await idle();
+  cells = [];
+  went.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+  clearReadCaches();
+  recFolds.reset();
+};
+/** A person's page is the wire's answer for them: the detail the contract mapped this person from. */
+const serve = (vm) => {
+  const dto = details.get(vm);
+  assert.ok(dto, "the person served is one this file mapped, so the wire has their detail");
+  world.details.set(vm.id, dto);
+};
+/** The page for a person, as the shell draws it at their id. */
+const pageFor = (id) => {
+  frames.begin();
+  return ClientProfile({ id });
 };
 /** A loaded profile: the load effect run, then drawn again. */
 const profile = async (vm) => {
-  globalThis.window.__personDetail = async () => vm;
-  cells = [];
-  went.length = 0;
-  const draw = () => {
-    frames.begin();
-    return globalThis.window.ClientProfile({ id: vm.id, onBack: () => went.push("back") });
-  };
+  await newTree();
+  serve(vm);
+  const draw = () => pageFor(vm.id);
   draw();
-  await settle();
+  await settle(2);
   return draw;
 };
+/**
+ * The tab's storage for a test that reads what a press carries to the thread's composer (a send opens the thread with its
+ * words ready): the composer's slot alone is kept, since the tab keeps the people it read in the same storage (read-cache.ts).
+ * Answers the way to put the tab's own back.
+ */
+const carryingCompose = (carried) => {
+  const tab = globalThis.sessionStorage;
+  globalThis.sessionStorage = {
+    setItem: (k, v) => {
+      if (k === "chanlytics-compose") carried.push([k, v]);
+    },
+    getItem: () => null,
+    removeItem: () => {},
+  };
+  return () => {
+    globalThis.sessionStorage = tab;
+  };
+};
+// What a test held or answered on the wire, and told the window, is its own.
+afterEach(async () => {
+  for (const go of world.held.splice(0)) go();
+  world.holding.clear();
+  world.answers = {};
+  world.details.clear();
+  world.seen.length = 0;
+  dispatched.length = 0;
+  await idle();
+});
 
 /* ----------------------------------- the People page ----------------------------------- */
 
@@ -502,7 +622,6 @@ test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of wor
     row(),
     row({ id: "p2", display_name: "Ana Ruiz", phone_e164: "+17865550182", latest_conversation_id: "cv2" }),
   ]);
-  globalThis.window.__setPersonReceptionistMany = async () => ({ ok: true, done: 2, failed: 0 });
   let tree = draw();
   byTestId(tree, "select-all").props.onChange();
   tree = draw();
@@ -523,6 +642,18 @@ test("REGRESSION (B19, B15): a profile goes back to People, and names following 
     "People",
     "REGRESSION: All clients",
   );
+  // Back is the frame's own (the People view they came from, with its place), and People itself where the frame has none.
+  press(find(tree, (n) => n.props?.className === "cl-prof-back"));
+  assert.deepEqual(went, ["back"]);
+  const frameBack = globalThis.window.appBackToPeople;
+  delete globalThis.window.appBackToPeople;
+  try {
+    went.length = 0;
+    press(find(draw(), (n) => n.props?.className === "cl-prof-back"));
+    assert.deepEqual(went, ["clients"]);
+  } finally {
+    globalThis.window.appBackToPeople = frameBack;
+  }
   const mode = byTestId(tree, "receptionist-mode");
   assert.deepEqual(
     all(mode, (n) => n.props?.className?.includes("cl-prof-aut-seg")).map((b) => textOf(b)),
@@ -609,7 +740,7 @@ test("REGRESSION (B18): a list chip on a profile opens its list -- the name was 
   await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
   cells = [];
   frames.begin();
-  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const lists = PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
   const open = byTestId(lists, "person-list-open");
   assert.ok(open && textOf(open).includes("Regulars"), "the name is a door");
   press(open);
@@ -626,8 +757,8 @@ test("REGRESSION: a profile's Add to a list opens over the card -- the card clip
   );
   cells = [];
   frames.begin();
-  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
-  const add = find(lists, (n) => n.type === globalThis.MoreMenu);
+  const lists = PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const add = find(lists, (n) => n.type === MoreMenu);
   assert.equal(add.props.testid, "person-list-add");
   assert.equal(add.props.escape, true, "placed against the window, so the card's rounded clip cannot cut it off");
   assert.deepEqual(
@@ -681,7 +812,7 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     "one door, one label: the card said Open in Inbox and the header said Open thread",
   );
   const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
-  const more = find(actions, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-more");
+  const more = find(actions, (n) => n.type === MoreMenu && n.props.testid === "person-more");
   assert.ok(
     byTestId(actions, "person-open-thread") && more && more.props.label === "More",
     "the thread beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
@@ -858,7 +989,10 @@ test("Right now says the state once: the pill wears the standing's word, the sen
     undefined,
     "REGRESSION: the pill carried the whole title -- Escalated · asked for a person -- and spilled past the card between 901 and 990px",
   );
-  const words = textOf(card);
+  // The pill is the standing's word; the sentence under the name gives the reason, and both are read together.
+  const why = byTestId(tree, "person-now-why");
+  assert.equal(textOf(why), vm.rightNow.detail, "the sentence gives the reason");
+  const words = `${textOf(card)} ${textOf(why)}`;
   assert.ok((words.match(/eceptionist/g) || []).length <= 1, `the receptionist is named once at most: ${words}`);
   assert.ok(!words.includes("Escalated"), `the state is the pill's word, not said again in the sentence: ${words}`);
 });
@@ -918,12 +1052,9 @@ test("arming a consent answer does not draw it as the answer on record, and the 
 });
 
 test("a frame with nobody to draw has no rail column; History leads About; ten seconds on the phone is not one minute", async () => {
-  globalThis.window.__personDetail = async () => null;
-  cells = [];
-  const frame = () => {
-    frames.begin();
-    return globalThis.window.ClientProfile({ id: "p-none", onBack: () => went.push("back") });
-  };
+  // Nobody at this id: the wire says they are not in the workspace.
+  await newTree();
+  const frame = () => pageFor("p-none");
   frame();
   await settle();
   const missing = frame();
@@ -952,26 +1083,20 @@ test("each smart list on a profile says why it has them, in its rule's words (de
   const vm = toPersonVM(detail({ row: row({ visits: VISITS }) }), ZONE, new Date(NOW));
   assert.ok(vm.smartLists.length > 0, "the fixture is on one of People's lists");
   for (const l of vm.smartLists) assert.ok(typeof l.why === "string" && l.why.length > 0, `${l.label} says why`);
-  const saved = globalThis.window.__PEOPLE;
-  const listsKept = globalThis.window.__lists;
-  globalThis.window.__PEOPLE = {
-    ...(saved || {}),
-    savedRead: true,
-    saved: [
+  // The workspace's own smart list, read as People reads it: a rule that holds for them (they reach the business by
+  // WhatsApp), and the words the rule says it in are what the chip says it has them for.
+  const saved = surfaceValue("people");
+  await peoplePage(
+    [row({ visits: VISITS })],
+    [
       {
         id: "s2",
         name: "Texters",
-        ids: [vm.id],
-        byHand: false,
-        rule: ["Reaches you by WhatsApp"],
-        unknown: null,
-        tip: "",
+        ids: [],
+        rule: { all: [{ field: "channel", op: "is", channel: "whatsapp" }] },
       },
     ],
-  };
-  globalThis.window.__lists = {
-    why: (id, person) => (id === "s2" && person === vm.id ? "Reaches you by WhatsApp" : null),
-  };
+  );
   try {
     const tree = (await profile(vm))();
     const smart = all(tree, (n) => n.props?.["data-testid"] === "person-smart-chip");
@@ -979,36 +1104,28 @@ test("each smart list on a profile says why it has them, in its rule's words (de
     for (const chip of smart) assert.match(find(chip, (n) => n.type === "button").props["data-tip"], /^Because: /);
     assert.equal(byTestId(tree, "person-list-open").props["data-tip"], "Because: Reaches you by WhatsApp");
   } finally {
-    globalThis.window.__PEOPLE = saved;
-    globalThis.window.__lists = listsKept;
+    setSurfaceValue("people", saved);
   }
 });
 
 test("a profile opened before People is read says it is reading their lists -- it said there were none (decision 0009)", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS }) }), ZONE, new Date(NOW));
-  const saved = globalThis.window.__PEOPLE;
-  delete globalThis.window.__PEOPLE;
+  const saved = surfaceValue("people");
+  // As the shell draws it in a real workspace, before People is read.
+  setSurfaceValue("people", undefined);
   try {
-    // As the shell draws it in a real workspace (real), before People is read.
-    globalThis.window.__personDetail = async () => vm;
-    cells = [];
-    const draw = () => {
-      frames.begin();
-      return globalThis.window.ClientProfile({ id: vm.id, real: true, onBack: () => {} });
-    };
-    draw();
-    await settle();
+    const draw = await profile(vm);
     const lists = byTestId(draw(), "person-lists");
     assert.ok(byTestId(lists, "person-lists-reading"), "Reading…, until People lands");
     assert.doesNotMatch(textOf(lists), /No lists/, "REGRESSION: a cold load said there were no lists");
     // And a read that failed says so, rather than reading for ever.
-    globalThis.window.__surfaceFailed = (page) => page === "clients";
+    setStatus("people", "seeded");
     const failed = byTestId(draw(), "person-lists");
     assert.ok(byTestId(failed, "person-lists-failed"));
     assert.equal(byTestId(failed, "person-lists-reading"), null);
   } finally {
-    delete globalThis.window.__surfaceFailed;
-    if (saved) globalThis.window.__PEOPLE = saved;
+    setStatus("people", "live");
+    setSurfaceValue("people", saved);
   }
 });
 
@@ -1019,8 +1136,8 @@ test("a person known by number is invited to name them; an empty Lists section i
     new Date(NOW),
   );
   assert.equal(vm.givenName, null);
-  const saved = globalThis.window.__PEOPLE;
-  globalThis.window.__PEOPLE = { ...(saved || {}), saved: [], savedRead: true };
+  const saved = surfaceValue("people");
+  setSurfaceValue("people", { ...(saved || {}), saved: [], savedRead: true });
   try {
     const tree = (await profile(vm))();
     const rename = byTestId(tree, "person-rename");
@@ -1042,27 +1159,25 @@ test("a person known by number is invited to name them; an empty Lists section i
       "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; the door says in the address that the box opens, never a timer",
     );
   } finally {
-    globalThis.window.__PEOPLE = saved;
+    setSurfaceValue("people", saved);
   }
 });
 
 /* ----------------------------------- the address (00125) ----------------------------------- */
 
-/** A profile drawn with the bridge's save replaced by a recorder that answers as told. */
+/** What the wire answers for a write, as the door does: accepted, or refused with its code and words. */
+const answerOf = (answer) =>
+  answer.ok ? okBody(answer.data) : refused(answer.code === "conflict" ? 409 : 422, answer.message, answer.code);
+/** A profile drawn over a wire whose save of the person's details records what it is sent and answers as told. */
 const profileSaving = async (vm, answer = { ok: true, data: {} }) => {
   const sent = [];
-  const saved = { details: globalThis.window.__setPersonDetails, why: globalThis.window.__whyNotAnEmail };
-  globalThis.window.__setPersonDetails = async (id, body) => {
-    sent.push([id, body]);
-    return answer;
+  const door = `PUT /api/v1/contacts/${vm.id}/details`;
+  world.answers[door] = (body) => {
+    sent.push([vm.id, body]);
+    return answerOf(answer);
   };
-  globalThis.window.__whyNotAnEmail = contracts.whyNotAnEmail;
   const draw = await profile(vm);
-  const restore = () => {
-    globalThis.window.__setPersonDetails = saved.details;
-    globalThis.window.__whyNotAnEmail = saved.why;
-  };
-  return { draw, sent, restore };
+  return { draw, sent, restore: () => delete world.answers[door] };
 };
 const type = (input, value) => input.props.onChange({ target: { value } });
 
@@ -1190,7 +1305,7 @@ test("a person with an address and no number or name is called by the address ev
   const tr = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-p1");
   assert.ok(byTestId(tr, "row-name-them"), "named by an identifier: the row invites a name");
   assert.equal(
-    find(tr, (n) => n.type === "Icon" && n.props?.name === "mail") !== null,
+    find(tr, (n) => n.type === KitIcon && n.props?.name === "mail") !== null,
     true,
     "an envelope, not a handset",
   );
@@ -1217,25 +1332,21 @@ test("a person with an address and no number or name is called by the address ev
 
 /* ------------------------------- their own message (00137) ------------------------------- */
 
-/** A profile whose two consent doors are recorders that answer yes, in a real workspace whichever test ran first. */
+/** A profile whose two consent doors record what they are sent and answer yes, in a real workspace whichever test ran first. */
 const profileRecording = async (vm) => {
-  globalThis.window.__PEOPLE ??= { saved: [], savedRead: true };
+  if (!surfaceValue("people")) setSurfaceValue("people", { saved: [], savedRead: true });
   const sent = [];
-  const saved = { visit: globalThis.window.__setPersonConsent, offers: globalThis.window.__setPersonMarketingConsent };
-  globalThis.window.__setPersonConsent = async (id, body) => {
-    sent.push(["visit", id, body]);
-    return { ok: true, data: {} };
+  const doors = {
+    visit: `PUT /api/v1/contacts/${vm.id}/consent`,
+    offers: `PUT /api/v1/contacts/${vm.id}/marketing-consent`,
   };
-  globalThis.window.__setPersonMarketingConsent = async (id, body) => {
-    sent.push(["offers", id, body]);
-    return { ok: true, data: {} };
-  };
+  for (const [ask, door] of Object.entries(doors))
+    world.answers[door] = (body) => {
+      sent.push([ask, vm.id, body]);
+      return okBody();
+    };
   const draw = await profile(vm);
-  const restore = () => {
-    globalThis.window.__setPersonConsent = saved.visit;
-    globalThis.window.__setPersonMarketingConsent = saved.offers;
-  };
-  return { draw, sent, restore };
+  return { draw, sent, restore: () => Object.values(doors).forEach((door) => delete world.answers[door]) };
 };
 const said = (id, hoursAgo, body, over = {}) => ({
   id,
@@ -1703,7 +1814,7 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
   cells = [];
   frames.begin();
-  const lists = globalThis.window.PersonLists({
+  const lists = PersonLists({
     personId: "p1",
     canEdit: true,
     first: "Daniela",
@@ -1718,18 +1829,12 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
 
 test("clients/new-list opens People with the New list box open from the first draw -- the door fired segments:new on a 450ms timer and hoped", async () => {
   await peoplePage([row()], []);
-  const was = globalThis.window.__lists;
-  globalThis.window.__lists = { create: async () => ({ ok: true, data: { id: "s9" } }) };
-  try {
-    cells = [];
-    frames.begin();
-    globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
-    frames.begin();
-    const tree = globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
-    assert.ok(byTestId(tree, "new-list-name"), "the box, open, waiting for a name");
-  } finally {
-    globalThis.window.__lists = was;
-  }
+  cells = [];
+  frames.begin();
+  PeopleReal({ onOpenProfile: () => {}, newList: true });
+  frames.begin();
+  const tree = PeopleReal({ onOpenProfile: () => {}, newList: true });
+  assert.ok(byTestId(tree, "new-list-name"), "the box, open, waiting for a name");
 });
 
 /* ------------------------------ lists that keep themselves current (00155) ------------------------------ */
@@ -1757,7 +1862,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
 
   cells = [];
   frames.begin();
-  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const lists = PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
   const chips = all(lists, (n) => n.props?.["data-testid"] === "person-list-chip");
   assert.deepEqual(chips.map(textOf), ["WhatsApp people"], "on the smart list today");
   assert.equal(
@@ -1765,7 +1870,7 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
     null,
     "no cross on a rule",
   );
-  const menu = find(lists, (n) => n.type === globalThis.MoreMenu);
+  const menu = find(lists, (n) => n.type === MoreMenu);
   assert.deepEqual(
     menu.props.items.filter((i) => i.label).map((i) => i.label),
     ["Regulars"],
@@ -1774,53 +1879,55 @@ test("a smart list rides the rail with who its rule holds for, and says its rule
 });
 
 test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
-  const made = [];
+  // The lists' verbs are the module's own (people-lists.ts), so the draft goes over the wire it would go over, and who the
+  // rule holds for is counted by the real rule over the people the page has read: three of these four were last here
+  // more than sixty days ago, on a calendar that reads.
+  const lastHere = (i, daysAgo) =>
+    row({
+      id: `d${i}`,
+      display_name: `Drifter ${i}`,
+      phone_e164: `+1786555${2000 + i}`,
+      visits: {
+        ...VISITS,
+        next: null,
+        last: { ...NEXT, id: `d${i}:1`, start: iso(daysAgo * D), end: iso(daysAgo * D - 2 * H) },
+      },
+    });
+  await peoplePage([lastHere(1, 90), lastHere(2, 75), lastHere(3, 61), lastHere(4, 10)]);
+  const rule = { all: [{ field: "last_visit", op: "more_than", days: 60 }] };
   const drafted = [];
-  const was = globalThis.window.__lists;
-  globalThis.window.__lists = {
-    ...(was || {}),
-    draft: async (words) => {
-      drafted.push(words);
-      return {
-        ok: true,
-        data: {
-          name: "Drifting",
-          rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
-          cannot: "who their stylist is",
-        },
-      };
-    },
-    parts: (r) => contracts.listRuleParts(r),
-    count: () => 3,
+  const people = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    if (u.pathname !== "/api/v1/segments/draft") return people(url, init);
+    drafted.push([init.method, JSON.parse(init.body)]);
+    return json(200, { ok: true, data: { name: "Drifting", rule, cannot: "who their stylist is" } });
   };
-  try {
-    cells = [];
-    const onCreate = async (name, rule) => {
-      made.push([name, rule]);
-      return { ok: true };
-    };
-    const draw = () => {
-      frames.begin();
-      return globalThis.window.NewListRow({ onCreate });
-    };
-    press(byTestId(draw(), "new-list"));
-    press(byTestId(draw(), "new-list-smart"));
-    byTestId(draw(), "new-list-words").props.onChange({ target: { value: "regulars who stopped coming" } });
-    await press(byTestId(draw(), "new-list-build"));
-    await new Promise((r) => setTimeout(r, 0));
-    const tree = draw();
-    assert.deepEqual(drafted, ["regulars who stopped coming"]);
-    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "new-list-rule").map(textOf), [
-      "Last visit more than 60 days ago",
-    ]);
-    assert.equal(textOf(byTestId(tree, "new-list-holds")), "3 people on it today, and it keeps itself current.");
-    assert.equal(textOf(byTestId(tree, "new-list-cannot")), "Left out: who their stylist is");
-    assert.equal(byTestId(tree, "new-list-name").props.value, "Drifting", "the draft's name, to change or keep");
-    await press(byTestId(tree, "new-list-add"));
-    assert.deepEqual(made, [["Drifting", { all: [{ field: "last_visit", op: "more_than", days: 60 }] }]]);
-  } finally {
-    globalThis.window.__lists = was;
-  }
+  const made = [];
+  cells = [];
+  const onCreate = async (name, made_rule) => {
+    made.push([name, made_rule]);
+    return { ok: true };
+  };
+  const draw = () => {
+    frames.begin();
+    return NewListRow({ onCreate });
+  };
+  press(byTestId(draw(), "new-list"));
+  press(byTestId(draw(), "new-list-smart"));
+  byTestId(draw(), "new-list-words").props.onChange({ target: { value: "regulars who stopped coming" } });
+  await press(byTestId(draw(), "new-list-build"));
+  await settle();
+  const tree = draw();
+  assert.deepEqual(drafted, [["POST", { words: "regulars who stopped coming" }]]);
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "new-list-rule").map(textOf), [
+    "Last visit more than 60 days ago",
+  ]);
+  assert.equal(textOf(byTestId(tree, "new-list-holds")), "3 people on it today, and it keeps itself current.");
+  assert.equal(textOf(byTestId(tree, "new-list-cannot")), "Left out: who their stylist is");
+  assert.equal(byTestId(tree, "new-list-name").props.value, "Drifting", "the draft's name, to change or keep");
+  await press(byTestId(tree, "new-list-add"));
+  assert.deepEqual(made, [["Drifting", rule]]);
 });
 
 test("REGRESSION: a reply counting down to send waits on you on People as in the Inbox -- the rule lived in inbox.jsx, and People counted that person as waiting on nobody", () => {
@@ -1868,7 +1975,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   assert.equal(byTestId(tree, "person-proposal"), null, "REGRESSION: the link was an About row of its own");
   assert.ok(!aboutKeys(tree).includes("Proposal"), `About says it no more: ${aboutKeys(tree)}`);
   // The sends are the More menu's first items, in plain words, each saying what it does under it.
-  const moreOf = (t) => find(t, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-more");
+  const moreOf = (t) => find(t, (n) => n.type === MoreMenu && n.props.testid === "person-more");
   const labels = (t) =>
     moreOf(t)
       ? moreOf(t)
@@ -1889,8 +1996,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
   const carried = [];
-  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
-  globalThis.window.__proposalMessage = contracts.proposalMessage;
+  const putBack = carryingCompose(carried);
   try {
     went.length = 0;
     press(send);
@@ -1902,8 +2008,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
       text: contracts.proposalMessage(url),
     });
   } finally {
-    delete globalThis.sessionStorage;
-    delete globalThis.window.__proposalMessage;
+    putBack();
   }
 
   // Once the address went out the label says so; a message still in its cancel window does not count.
@@ -2025,7 +2130,7 @@ const cardOf = (t) => byTestId(t, "person-deal-card");
 const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
 
 test("the Deal section stands first in the column, above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
-  globalThis.window.__recordFolds.reset();
+  recFolds.reset();
   const asked = sheetAsks();
   try {
     const off = (await profile(toPersonVM(detail({ deals_on: false, deals: [] }), ZONE, new Date(NOW))))();
@@ -2037,7 +2142,7 @@ test("the Deal section stands first in the column, above Coming up, only where d
     // First in the column: the body draws it, then Coming up (VISITS has a visit ahead).
     const body = find(tree, (n) => n.props?.className === "cl-prof-body");
     const kids = body.props.children.filter((k) => k && typeof k === "object");
-    assert.equal(kids[0].type, globalThis.window.PersonDealCard, "the deal first");
+    assert.equal(kids[0].type, PersonDealCard, "the deal first");
     assert.equal(kids[1].props["data-testid"], "person-coming-up", "then what is coming");
     // Nothing recorded: one line, and its act in quiet words.
     assert.equal(textOf(byTestId(tree, "person-deal-said")), "No proposal yet");
@@ -2064,11 +2169,11 @@ test("the Deal section stands first in the column, above Coming up, only where d
 });
 
 test("a proposal out is a card: its service and value, its steps, its link and whether it went, its one next act as the outline button and the other moves as words, each opening the sheet or the thread", async () => {
-  globalThis.window.__recordFolds.reset();
+  recFolds.reset();
   const asked = sheetAsks();
   const url = "https://quotes.example.com/p/dani";
   const carried = [];
-  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  const putBack = carryingCompose(carried);
   try {
     // The person's own link (00154) stays theirs: the card says the deal's.
     const vm = withDeals([dealRow({ proposal_url: url })], { proposal_url: "https://docs.example.com/p/own" });
@@ -2126,7 +2231,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
     // Nothing back in a week: a state in the warn tone, the house's one pill.
     tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) })))();
-    const flag = find(tree, (n) => n.type === globalThis.window.StatePill && n.props.testid === "person-deal-flag");
+    const flag = find(tree, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
     assert.deepEqual([flag.props.kind, flag.props.value, flag.props.label], ["tone", "warn", "Nothing back in 9 days"]);
 
     // A client: the steps say it; the one move is the end, in quiet words.
@@ -2167,15 +2272,15 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     }
   } finally {
     delete globalThis.window.openDealSheet;
-    delete globalThis.sessionStorage;
+    putBack();
   }
 });
 
 test("where only an approved message can reach them, the card's follow-up opens their thread with nothing written in it and says why on hover; someone who said stop is offered none", async () => {
-  globalThis.window.__recordFolds.reset();
+  recFolds.reset();
   const url = "https://quotes.example.com/p/dani";
   const carried = [];
-  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  const putBack = carryingCompose(carried);
   const said = (id, dir, body, ago) => ({
     id,
     conversation_id: "cv1",
@@ -2221,49 +2326,45 @@ test("where only an approved message can reach them, the card's follow-up opens 
     }
     // Where their People row says the proposal follow-up has them (0006): the day its run goes, and the card leads
     // with no nudge of its own.
-    const keep = globalThis.window.__PEOPLE;
+    const keep = surfaceValue("people");
     try {
       const draw = await profile(quiet());
-      globalThis.window.__PEOPLE = {
+      setSurfaceValue("people", {
         ...(keep || {}),
         rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
-      };
+      });
       const inHand = draw();
       assert.equal(textOf(byTestId(inHand, "person-deal-next")), "Mark as client");
-      const flag = find(inHand, (n) => n.type === globalThis.window.StatePill && n.props.testid === "person-deal-flag");
+      const flag = find(inHand, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
       assert.deepEqual([flag.props.value, flag.props.label], ["info", "Follow-up to approve today"]);
     } finally {
-      globalThis.window.__PEOPLE = keep;
+      setSurfaceValue("people", keep);
     }
   } finally {
-    delete globalThis.sessionStorage;
+    putBack();
   }
 });
 
 test("the page reads the person again when a deal of theirs is recorded in the sheet, and not for anyone else's", async () => {
   const vm = withDeals([dealRow()]);
-  // Only this page's listener: the pages the tests above drew were never taken off the stub's window.
-  delete listeners["deal:recorded"];
   const draw = await profile(vm);
   draw();
+  await settle();
   // Counted from here: drawing the page is not what is being proved.
-  let reads = 0;
-  globalThis.window.__personDetail = async () => {
-    reads += 1;
-    return vm;
-  };
+  const reads = () => took("GET", "/api/v1/contacts/p1").length;
+  const drawn = reads();
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "someone-else" } });
   await settle();
-  assert.equal(reads, 0);
+  assert.equal(reads() - drawn, 0);
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "p1" } });
   await settle();
-  assert.equal(reads, 1, "their page is read again");
+  assert.equal(reads() - drawn, 1, "their page is read again");
 });
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */
 
 test("the card's settings are one line each, and Change opens the editor under its row: the record kit's row and fold", async () => {
-  globalThis.window.__recordFolds.reset();
+  recFolds.reset();
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
   const draw = await profile(vm);
   let tree = draw();
@@ -2403,55 +2504,76 @@ test("History names who added a person, by the door that did: the calendar, the 
 
 /* ------------------------------ opening a person is as quick as the tab can make it ------------------------------ */
 
-test("a People row reads its person as a pointer reaches it or the cursor lands on it, so the page opens on what the tab holds", async () => {
+/**
+ * The wire's answer for each person a page reads (GET contacts/[id]), on top of the People read: the people read, in
+ * order, by id. The courier the People page calls is people-detail.ts's own (warmPerson, warmPeople), so what these
+ * two tests hold is what it sends, not a stub of it. The wire is put back when the test ends: the tests after them read
+ * a person the world's own answers say.
+ */
+const personReads = (t) => {
+  const reads = [];
+  const people = globalThis.window.fetch;
+  t.after(() => {
+    globalThis.window.fetch = people;
+  });
+  globalThis.window.fetch = async (url, init) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const at = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)$/);
+    if (!at) return people(url, init);
+    reads.push(at[1]);
+    return json(200, { ok: true, data: { person: detail({ row: row({ id: at[1], visits: VISITS }) }) } });
+  };
+  return reads;
+};
+
+test("a People row reads its person as a pointer reaches it or the cursor lands on it, so the page opens on what the tab holds", async (t) => {
   // The courier to read ahead (people-detail.ts warmPerson) was called by the retired demo page's rows alone: every
-  // open from People waited on the wire behind "Loading…".
-  const draw = await peoplePage([row()]);
-  const warmed = [];
-  const was = globalThis.window.__warmPerson;
-  globalThis.window.__warmPerson = (id) => warmed.push(id);
-  try {
-    const tr = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-p1");
-    tr.props.onPointerEnter();
-    tr.props.onFocus();
-    assert.deepEqual(warmed, ["p1", "p1"], "a pointer arriving, and the cursor landing");
-  } finally {
-    globalThis.window.__warmPerson = was;
-  }
+  // open from People waited on the wire behind "Loading…". Two people, so a read that one arrival started is not
+  // taken for the other's (the client shares an identical read in flight: warming twice costs one request). The tab
+  // read both before and a write since has made those copies old: the page's own read ahead leaves what the tab holds
+  // be, and a copy from before is read again as a pointer reaches it.
+  const draw = await peoplePage([
+    row({ id: "w1", display_name: "Wren One" }),
+    row({ id: "w2", display_name: "Wren Two", phone_e164: "+17865550182" }),
+  ]);
+  const reads = personReads(t);
+  await personDetail("w1");
+  await personDetail("w2");
+  staleReadCaches();
+  reads.length = 0;
+  const tree = draw();
+  await settle();
+  assert.deepEqual(reads, [], "the rows on screen are read ahead only where the tab holds nothing of them");
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-w1").props.onPointerEnter();
+  await settle();
+  assert.deepEqual(reads, ["w1"], "a pointer arriving");
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-w2").props.onFocus();
+  await settle();
+  assert.deepEqual(reads, ["w1", "w2"], "and the cursor landing");
 });
 
-test("People reads the people it shows ahead, so a press opens a page the tab already holds", async () => {
-  const draw = await peoplePage([row(), row({ id: "p2", display_name: "Ana Ruiz" })]);
-  const lists = [];
-  const was = globalThis.window.__warmPeople;
-  globalThis.window.__warmPeople = (ids) => lists.push(ids);
-  try {
-    draw();
-    await settle();
-    assert.ok(
-      lists.some((ids) => ids.includes("p1") && ids.includes("p2")),
-      `the rows on screen, handed to the courier: ${JSON.stringify(lists)}`,
-    );
-  } finally {
-    globalThis.window.__warmPeople = was;
-  }
+test("People reads the people it shows ahead, so a press opens a page the tab already holds", async (t) => {
+  const draw = await peoplePage([
+    row({ id: "a1", display_name: "Ana One" }),
+    row({ id: "a2", display_name: "Ana Two", phone_e164: "+17865550182" }),
+  ]);
+  const reads = personReads(t);
+  draw();
+  await settle();
+  assert.deepEqual([...reads].sort(), ["a1", "a2"], "the rows on screen, read by the courier");
 });
 
 test("a person not read yet is nothing of theirs until their whole page is in: never the name first and the rest after", async () => {
   // Ruben, 24 Sep 2026: "the person name the header part still loads first for a split second". The page drew their
   // People row's name and number over Reading…, and the rest landed under it a moment later.
   await peoplePage([row()]);
-  let resolve = null;
-  globalThis.window.__personDetail = () =>
-    new Promise((r) => {
-      resolve = r;
-    });
-  globalThis.window.__peekPerson = () => null;
-  cells = [];
-  frames.begin();
-  globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
-  frames.begin();
-  let tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  // Their page is on its way: the wire has it, and holds it until the test lets it go.
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  await newTree();
+  serve(vm);
+  const hold = holdRead("p1");
+  pageFor("p1");
+  let tree = pageFor("p1");
   const reading = byTestId(tree, "person-reading");
   assert.ok(reading, "the pane any page on its way draws");
   assert.equal(reading.props["aria-busy"], "true");
@@ -2465,11 +2587,9 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
   assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
 
   // Their page lands whole: the head, where they stand and the history in the same draw.
-  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
-  resolve(vm);
+  hold.release();
   await settle();
-  frames.begin();
-  tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  tree = pageFor("p1");
   assert.ok(byTestId(tree, "person-now"), "where they stand");
   assert.ok(
     find(tree, (n) => n.type === "h1"),
@@ -2484,74 +2604,90 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
 
 test("a kept copy whose read again failed says so, quietly, and stays: never taken for now", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
-  const wasPeek = globalThis.window.__peekPerson;
-  globalThis.window.__peekPerson = (id) => (id === vm.id ? vm : null);
-  globalThis.window.__personDetail = async () => {
-    throw new Error("Could not be read right now");
-  };
-  try {
-    cells = [];
-    frames.begin();
-    globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
-    await settle();
-    frames.begin();
-    const tree = globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
-    assert.ok(byTestId(tree, "person-now"), "the page they already had");
-    const stale = byTestId(tree, "person-stale");
-    assert.ok(stale, "REGRESSION: a copy from before the reload was shown as current, the failed read unsaid");
-    assert.match(textOf(stale), /from earlier/);
-  } finally {
-    globalThis.window.__peekPerson = wasPeek;
-  }
+  // The tab read them earlier and keeps the copy; the read it makes now fails.
+  await newTree();
+  serve(vm);
+  await personDetail(vm.id);
+  world.answers[`GET /api/v1/contacts/${vm.id}`] = () => refused(500, "Could not be read right now", "internal");
+  pageFor(vm.id);
+  await settle();
+  const tree = pageFor(vm.id);
+  assert.ok(byTestId(tree, "person-now"), "the page they already had");
+  const stale = byTestId(tree, "person-stale");
+  assert.ok(stale, "REGRESSION: a copy from before the reload was shown as current, the failed read unsaid");
+  assert.match(textOf(stale), /from earlier/);
 });
 
 test("a person this tab holds is the first draw, not the second, and is read again behind it", async () => {
   // The tab keeps the people it opened (people-detail.ts), so a reload has them before the first frame. Seeded in the
   // load effect, the page drew one frame of the head alone before the page it already had.
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
-  const wasPeek = globalThis.window.__peekPerson;
-  let asked = 0;
-  globalThis.window.__peekPerson = (id) => (id === vm.id ? vm : null);
-  globalThis.window.__personDetail = async () => {
-    asked += 1;
-    return vm;
-  };
+  await newTree();
+  serve(vm);
+  await personDetail(vm.id);
+  const reads = () => took("GET", `/api/v1/contacts/${vm.id}`).length;
+  const held = reads();
+  const first = pageFor(vm.id);
+  assert.ok(byTestId(first, "person-now"), "REGRESSION: the first frame was the head alone");
+  assert.equal(byTestId(first, "person-known"), null, "and never the head over Reading…");
+  await settle();
+  assert.equal(reads() - held, 1, "what the tab held is read again behind the paint");
+});
+
+test("on a real workspace a person's page is read from the workspace before People's rows land: never the sample a demo draws", async () => {
+  // A person's page no longer waits for the list (surface-registry.ts routeSurfaceFor): the workspace is real, and the
+  // page reads its own person. Asked for a person the sample also has (c-aisha, the mockup's own id), it is the wire that
+  // answers, and the wire says who is in the workspace.
+  const keep = surfaceValue("people");
+  setSurfaceValue("people", undefined);
   try {
-    cells = [];
-    frames.begin();
-    const first = globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
-    assert.ok(byTestId(first, "person-now"), "REGRESSION: the first frame was the head alone");
-    assert.equal(byTestId(first, "person-known"), null, "and never the head over Reading…");
+    await newTree();
+    const hold = holdRead("c-aisha");
+    const tree = pageFor("c-aisha");
+    assert.ok(byTestId(tree, "person-reading"), "the real page, reading their record, never the sample");
+    assert.equal(took("GET", "/api/v1/contacts/c-aisha").length, 1, "and it asked the workspace for the person");
+    hold.release(null);
     await settle();
-    assert.equal(asked, 1, "what the tab held is read again behind the paint");
+    const gone = pageFor("c-aisha");
+    assert.match(textOf(gone), /This person is not in your workspace/);
+    assert.ok(!textOf(gone).includes("Aisha"), "nothing of the sample's person");
   } finally {
-    globalThis.window.__peekPerson = wasPeek;
+    setSurfaceValue("people", keep);
   }
 });
 
-test("on a real workspace a person's page is the real one before People's rows land: never the seeded profile", async () => {
-  // A person's page no longer waits for the list (surface-registry.ts routeSurfaceFor): the shell says the workspace
-  // is real, and the page reads its own person.
-  const keep = globalThis.window.__PEOPLE;
-  const wasPeek = globalThis.window.__peekPerson;
-  delete globalThis.window.__PEOPLE;
-  globalThis.window.__peekPerson = () => null;
-  let resolve = null;
-  globalThis.window.__personDetail = () =>
-    new Promise((r) => {
-      resolve = r;
-    });
+test("a demo session draws a sample person's page and asks the workspace for no one; a person the sample does not have is not in the workspace", async () => {
+  // A demo has no workspace to read (surfaces/people/sample.ts): the page is the one page there is, over made-up people,
+  // by the mockup's own ids.
+  globalThis.window.__DEMO_MODE = true;
   try {
-    cells = [];
-    frames.begin();
-    const tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {}, real: true });
-    assert.ok(byTestId(tree, "person-reading"), "the real page, reading their record, never the seeded profile");
-    assert.equal(resolve === null, false, "and it asked for the person");
-    resolve(null);
+    await newTree();
+    pageFor("c-aisha");
     await settle();
+    const tree = pageFor("c-aisha");
+    assert.equal(textOf(find(tree, (n) => n.type === "h1")), "Aisha Khan", "the sample's person, by name");
+    assert.ok(byTestId(tree, "person-now"), "where they stand");
+    assert.ok(
+      find(tree, (n) => String(n.props?.className || "").includes("cl-prof-history")),
+      "and their history",
+    );
+    assert.equal(byTestId(tree, "person-reading"), null);
+    assert.equal(world.seen.filter((q) => q.path.startsWith("/api/v1/contacts")).length, 0, "no request went out");
+
+    await newTree();
+    pageFor("c-nobody");
+    await settle();
+    const gone = pageFor("c-nobody");
+    assert.match(textOf(gone), /This person is not in your workspace/);
+    assert.equal(
+      find(gone, (n) => n.type === "h1"),
+      null,
+      "no one is drawn",
+    );
+    assert.equal(byTestId(gone, "person-now"), null);
+    assert.equal(world.seen.filter((q) => q.path.startsWith("/api/v1/contacts")).length, 0, "and still no request");
   } finally {
-    globalThis.window.__PEOPLE = keep;
-    globalThis.window.__peekPerson = wasPeek;
+    delete globalThis.window.__DEMO_MODE;
   }
 });
 
@@ -2619,74 +2755,71 @@ test("a person's notes are a log (0007): the receptionist's suggestion first, th
   assert.deepEqual(vm.noteTeam, NOTE_TEAM);
 });
 
+/**
+ * The notes card's doors on the wire (POST contacts/<id>/notes, and /done, /remove, /decide), recording what the page asks of
+ * them as [door, person, body] in the order it asks, and accepting each.
+ */
+const recordingNotes = (sent, id = "p1") => {
+  for (const [door, name] of [
+    ["", "write"],
+    ["/done", "done"],
+    ["/remove", "remove"],
+    ["/decide", "decide"],
+  ])
+    world.answers[`POST /api/v1/contacts/${id}/notes${door}`] = (body) => {
+      sent.push([name, id, body]);
+      return okBody();
+    };
+};
+
 test("REGRESSION: the notes card was one box the receptionist read whole, overwritten by every save -- now a note is added, kept or dismissed, and said with who wrote it and when", async () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
   const sent = [];
-  const saved = globalThis.window.__personNotes;
-  const ok = { ok: true, data: {} };
-  globalThis.window.__personNotes = {
-    write: async (id, body) => (sent.push(["write", id, body]), ok),
-    remove: async (id, noteId) => (sent.push(["remove", id, noteId]), ok),
-    decide: async (id, body) => (sent.push(["decide", id, body]), ok),
-    words: contracts.NOTE_WORDS,
-    max: contracts.NOTE_MAX,
-  };
-  try {
-    const draw = await profile(vm);
-    let tree = draw();
-    const card = byTestId(tree, "person-notes");
-    assert.ok(card, "the card");
-    const suggested = byTestId(card, "person-note-suggested");
-    assert.match(textOf(suggested), /Suggested by the receptionist/);
-    assert.match(textOf(suggested), /After a call/);
-    const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
-    assert.ok(
-      rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),
-      "REGRESSION: the row wore .cl-prof-note, the consent form's class, whose align-items: center pushed every note off the card's edge",
-    );
-    assert.deepEqual(
-      rows.map((r) => textOf(find(r, (n) => n.props?.className === "cl-prof-note-body"))),
-      ["Allergic to ammonia.", "Call her back about the bridal party.", "Sees Sofia."],
-    );
-    assert.match(textOf(rows[1]), /Maria/);
-    assert.match(textOf(rows[1]), /For you/);
-    assert.match(textOf(rows[1]), /Team only/);
-    assert.equal(byTestId(tree, "person-notes-save"), null, "nothing to add until something is written");
+  recordingNotes(sent);
+  const draw = await profile(vm);
+  let tree = draw();
+  const card = byTestId(tree, "person-notes");
+  assert.ok(card, "the card");
+  const suggested = byTestId(card, "person-note-suggested");
+  assert.match(textOf(suggested), /Suggested by the receptionist/);
+  assert.match(textOf(suggested), /After a call/);
+  const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
+  assert.ok(
+    rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),
+    "REGRESSION: the row wore .cl-prof-note, the consent form's class, whose align-items: center pushed every note off the card's edge",
+  );
+  assert.deepEqual(
+    rows.map((r) => textOf(find(r, (n) => n.props?.className === "cl-prof-note-body"))),
+    ["Allergic to ammonia.", "Call her back about the bridal party.", "Sees Sofia."],
+  );
+  assert.match(textOf(rows[1]), /Maria/);
+  assert.match(textOf(rows[1]), /For you/);
+  assert.match(textOf(rows[1]), /Team only/);
+  assert.equal(byTestId(tree, "person-notes-save"), null, "nothing to add until something is written");
 
-    press(byTestId(suggested, "person-note-keep"));
-    await settle();
-    assert.deepEqual(sent.at(-1), ["decide", vm.id, { note_id: "n-sug", keep: true }]);
+  press(byTestId(suggested, "person-note-keep"));
+  await settle();
+  assert.deepEqual(sent.at(-1), ["decide", vm.id, { note_id: "n-sug", keep: true }]);
 
-    type(byTestId(draw(), "person-notes-input"), "  Likes tea.  ");
-    tree = draw();
-    byTestId(tree, "person-note-for").props.onChange({ target: { value: "u-sam" } });
-    tree = draw();
-    byTestId(tree, "person-note-team-only").props.onChange({ target: { checked: true } });
-    tree = draw();
-    press(byTestId(tree, "person-notes-save"));
-    await settle();
-    assert.deepEqual(sent.at(-1), ["write", vm.id, { body: "Likes tea.", for_user_id: "u-sam", team_only: true }]);
-    assert.equal(byTestId(draw(), "person-notes-input").props.value, "", "the box empties once the note is added");
-  } finally {
-    globalThis.window.__personNotes = saved;
-  }
+  type(byTestId(draw(), "person-notes-input"), "  Likes tea.  ");
+  tree = draw();
+  byTestId(tree, "person-note-for").props.onChange({ target: { value: "u-sam" } });
+  tree = draw();
+  byTestId(tree, "person-note-team-only").props.onChange({ target: { checked: true } });
+  tree = draw();
+  press(byTestId(tree, "person-notes-save"));
+  await settle();
+  assert.deepEqual(sent.at(-1), ["write", vm.id, { body: "Likes tea.", for_user_id: "u-sam", team_only: true }]);
+  assert.equal(byTestId(draw(), "person-notes-input").props.value, "", "the box empties once the note is added");
 });
 
 test("who may do what to a note: its author changes it, an owner or its author deletes it, a viewer only reads", async () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
-  const saved = globalThis.window.__personNotes;
-  globalThis.window.__personNotes = {
-    write: async () => ({ ok: true }),
-    remove: async () => ({ ok: true }),
-    decide: async () => ({ ok: true }),
-    words: contracts.NOTE_WORDS,
-    max: contracts.NOTE_MAX,
-  };
   const me = globalThis.window.__ME;
   try {
     const actsOf = (tree) =>
       all(tree, (n) => n.props?.["data-testid"] === "person-note").map((r) => {
-        const m = find(r, (n) => n.type === globalThis.MoreMenu);
+        const m = find(r, (n) => n.type === MoreMenu);
         return m ? m.props.items.map((i) => i.label) : [];
       });
     globalThis.window.__ME = { role: "owner" };
@@ -2716,7 +2849,6 @@ test("who may do what to a note: its author changes it, an owner or its author d
   } finally {
     globalThis.window.ST_STORE.viewAsRole = null;
     globalThis.window.__ME = me;
-    globalThis.window.__personNotes = saved;
   }
 });
 
@@ -2724,20 +2856,6 @@ test("who may do what to a note: its author changes it, an owner or its author d
 
 /** A day by the business's calendar, some days from now: far enough from a midnight that no zone moves it. */
 const dayFrom = (days) => contracts.zoneDayKey(NOW + days * 86_400_000, ZONE);
-/** The notes card's courier, as the bridge publishes it, recording what the page asks of it. */
-const stepCourier = (sent) => {
-  const ok = { ok: true, data: {} };
-  return {
-    write: async (id, body) => (sent.push(["write", id, body]), ok),
-    remove: async () => ok,
-    decide: async () => ok,
-    done: async (id, noteId, done, version) => (sent.push(["done", id, noteId, done, version]), ok),
-    days: contracts.stepDays,
-    dayOf: contracts.stepDayOf,
-    words: contracts.NOTE_WORDS,
-    max: contracts.NOTE_MAX,
-  };
-};
 const stepNotes = () => [
   noteDto("n-step", "Call about the timeline", 5, {
     due_on: dayFrom(3),
@@ -2759,15 +2877,11 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
   const vm = toPersonVM(detail({ person_notes: stepNotes(), note_team: NOTE_TEAM }), ZONE, new Date(NOW));
   const sent = [];
   const flashes = [];
-  const asked = [];
-  const keep = {
-    notes: globalThis.window.__personNotes,
-    toast: globalThis.window.usePPToast,
-    sheet: globalThis.window.openStepSheet,
-  };
-  globalThis.window.__personNotes = stepCourier(sent);
+  // The step sheet is asked for by the event it hears (step-sheet.tsx openStepSheet): what the window was told.
+  const asked = () => dispatched.filter((e) => e.type === "step:sheet").map((e) => e.detail);
+  const keep = { toast: globalThis.window.usePPToast };
+  recordingNotes(sent);
   globalThis.window.usePPToast = () => [null, (t) => flashes.push(t)];
-  globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
   const W = contracts.NOTE_WORDS;
   try {
     const draw = await profile(vm);
@@ -2785,15 +2899,15 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     // Ticked by anyone who acts, with the version the page saw; done, the toast offers the next one, on its deal.
     byTestId(step, "person-note-done").props.onChange({ target: { checked: true } });
     await settle();
-    assert.deepEqual(sent.at(-1), ["done", vm.id, "n-step", true, 1]);
+    assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-step", done: true, version: 1 }]);
     assert.equal(flashes.at(-1).action.label, W.setTheNext);
     flashes.at(-1).action.onClick();
-    assert.deepEqual(asked.at(-1), { personId: vm.id, dealId: "d1" });
+    assert.deepEqual(asked().at(-1), { personId: vm.id, dealId: "d1", noteId: null });
     // Ticked again, a done step is open again, and nothing is offered.
     [step, done, plain] = rowsOf(draw());
     byTestId(done, "person-note-done").props.onChange({ target: { checked: false } });
     await settle();
-    assert.deepEqual(sent.at(-1), ["done", vm.id, "n-done", false, 1]);
+    assert.deepEqual(sent.at(-1), ["done", vm.id, { note_id: "n-done", done: false, version: 1 }]);
     assert.equal(flashes.at(-1).action, undefined);
 
     // The composer: a day makes the note a step, and holds Team only on whatever it was.
@@ -2832,8 +2946,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     assert.equal(sent.at(-1)[2].due_on, "2026-12-01");
 
     // Its author takes a day away: the change says so. A note that never had one says nothing of days.
-    const editOf = (row) =>
-      find(row, (n) => n.type === globalThis.MoreMenu).props.items.find((i) => i.label === W.edit);
+    const editOf = (row) => find(row, (n) => n.type === MoreMenu).props.items.find((i) => i.label === W.edit);
     [step, done, plain] = rowsOf(draw());
     editOf(step).onClick();
     tree = draw();
@@ -2862,25 +2975,19 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
       { body: "Allergic to ammonia.", for_user_id: null, team_only: false, note_id: "n-plain", version: 1 },
     ]);
   } finally {
-    globalThis.window.__personNotes = keep.notes;
     globalThis.window.usePPToast = keep.toast;
-    globalThis.window.openStepSheet = keep.sheet;
   }
 });
 
 test("a deal's card says its next step (0007, amended): Next, what, when, for whom, with Done and, for its author, Change; with none, Set a next step; a viewer only reads it", async () => {
   const sent = [];
   const asked = [];
-  const heard = [];
-  const keep = {
-    notes: globalThis.window.__personNotes,
-    sheet: globalThis.window.openStepSheet,
-    me: globalThis.window.__ME,
-  };
-  globalThis.window.__personNotes = stepCourier(sent);
+  // What the window was told a step was saved (the page reads them again on it).
+  const heard = () => dispatched.filter((e) => e.type === "note:saved").map((e) => e.detail);
+  const keep = { sheet: globalThis.window.openStepSheet, me: globalThis.window.__ME };
+  recordingNotes(sent);
+  // The card asks the shell's step sheet, which the frame draws once: here, a stand-in that says it was asked.
   globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
-  const onSaved = (e) => heard.push(e.detail);
-  globalThis.window.addEventListener("note:saved", onSaved);
   const S = contracts.NOTE_WORDS;
   try {
     const notes = [
@@ -2911,10 +3018,10 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     await settle();
     assert.deepEqual(
       sent.filter((x) => x[0] === "done"),
-      [["done", "p1", "n-soon", true, 1]],
+      [["done", "p1", { note_id: "n-soon", done: true, version: 1 }]],
       "one press, however many",
     );
-    assert.deepEqual(heard.at(-1), { personId: "p1" }, "the page reads them again");
+    assert.deepEqual(heard().at(-1), { personId: "p1" }, "the page reads them again");
     press(byTestId(step, "person-deal-nextstep-change"));
     assert.deepEqual(asked.at(-1), { personId: "p1", noteId: "n-soon" });
 
@@ -2940,9 +3047,8 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     tree = (await profile(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM })))();
     assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
   } finally {
-    globalThis.window.removeEventListener("note:saved", onSaved);
-    globalThis.window.__personNotes = keep.notes;
     globalThis.window.openStepSheet = keep.sheet;
     globalThis.window.__ME = keep.me;
+    globalThis.window.fetch = keep.fetch;
   }
 });

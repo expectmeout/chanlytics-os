@@ -224,7 +224,7 @@ const REACHED = {
   "clients/pipeline": ["Pipeline", "clients/pipeline"],
 };
 // People's scopes are listed by hand: a scope is an address of `clients`, which the registry routes as one page, so a
-// new scope's jump is this list's to add (people.jsx plScopes).
+// new scope's jump is this list's to add (surfaces/people/words.ts plScopes).
 const SCOPES = ["clients/pipeline"];
 
 /** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
@@ -1037,7 +1037,7 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   const tb = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.ok(shell.includes("window.appAsk = openAsk;"));
+  assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
   assert.ok(!shell.includes("Ask stubbed outside demo"));
   const ask = readCode("apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx");
   assert.ok(

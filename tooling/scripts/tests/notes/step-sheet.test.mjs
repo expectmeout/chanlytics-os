@@ -1,9 +1,10 @@
 /**
  * The step sheet (0007, amended; 00166): where a next step is set or changed from outside the notes card. contracts
  * step-sheet.ts and the deal card's step (deal-sheet.ts dealStepOf), executed; then the sheet itself, drawn by the
- * shell's host (components/step-sheet.jsx) over the profile's real courier and a wire that answers the person read and
- * the notes route: it opens where it is asked for, reads the person, says what is wrong under its field before a
- * round trip, writes through the notes route with the version it opened over, then closes, says so and tells the page.
+ * frame's host (surfaces/people/step-sheet/step-sheet.tsx) over the profile's real courier and a wire that answers
+ * the person read and the notes route: it opens where it is asked for, reads the person, says what is wrong under its
+ * field before a round trip, writes through the notes route with the version it opened over, then closes, says so and
+ * tells the page.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -170,9 +171,9 @@ Object.assign(W, {
   __ACTIVE_WORKSPACE: "t1",
 });
 const L = "../../../../apps/dashboard/src/legacy";
+// The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are data-bits'; everything else it
+// reads is imported, as the sheet imports it.
 await import(`${L}/components/data-bits.jsx`);
-for (const f of ["record-row", "record-field", "record-fold", "record-sheet", "deal-sheet", "step-sheet"])
-  await import(`${L}/components/${f}.jsx`);
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};
@@ -182,12 +183,14 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { installPeopleCourier } = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
-const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
+const PEOPLE = "../../../../apps/dashboard/src/surfaces/people";
+const { installPeopleCourier } = await import(`${PEOPLE}/people-detail.ts`);
+const { StepSheetHost, openStepSheet } = await import(`${PEOPLE}/step-sheet/step-sheet.tsx`);
+const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 await quietly(() => import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts"));
+// The courier's window names, for the last test: the Inbox's thread still writes a step through window.__personNotes.
 installPeopleCourier();
-installClock();
 const toasts = [];
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 
@@ -296,11 +299,11 @@ W.addEventListener("note:saved", (e) => saved.push(e.detail));
 let drawn = null;
 const open = () => {
   unmount();
-  W.__recordFolds.reset();
+  recFolds.reset();
   clearReadCaches();
   toasts.length = 0;
   saved.length = 0;
-  drawn = () => W.React.createElement(W.StepSheetHost, {});
+  drawn = () => W.React.createElement(StepSheetHost, {});
   return drawn();
 };
 const redraw = () => again(drawn);
@@ -326,7 +329,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   const { calls } = wire(() => personDto(now));
   let tree = open();
   assert.equal(sheetOf(tree), null, "nothing drawn until it is asked for");
-  assert.equal(W.openStepSheet({ personId: "p1", dealId: "d1" }), true);
+  assert.equal(openStepSheet({ personId: "p1", dealId: "d1" }), true);
   tree = redraw();
   assert.ok(sheetOf(tree));
   assert.equal(title(tree), "Set a next step");
@@ -353,7 +356,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
     "u-sam",
   );
   tree = redraw();
-  assert.equal(W.__recordFolds.dirty(), true, "typed: the tab asks before closing over it");
+  assert.equal(recFolds.dirty(), true, "typed: the tab asks before closing over it");
   press(saveOf(tree));
   tree = await until("written", () => saved.length > 0);
   const writes = calls.filter((c) => c.method === "POST");
@@ -375,14 +378,14 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.add);
   assert.deepEqual(saved, [{ personId: "p1" }], "the page is told, and reads them again");
   assert.equal(sheetOf(tree), null, "and the sheet has closed");
-  assert.equal(W.__recordFolds.dirty(), false);
+  assert.equal(recFolds.dirty(), false);
 });
 
 test("a change opens on the step as it stands and saves with the version it opened over, which the door refuses if a teammate changed it since; someone else's step is not changed here", async () => {
   const now = Date.now();
   const { calls } = wire(() => personDto(now, [noteDto(now, "n1", { version: 2 })]));
   open();
-  W.openStepSheet({ personId: "p1", noteId: "n1" });
+  openStepSheet({ personId: "p1", noteId: "n1" });
   let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(title(tree), "Change the step");
   assert.equal(input(tree, "step-sheet-what-input").props.value, "Call about the timeline");
@@ -395,7 +398,7 @@ test("a change opens on the step as it stands and saves with the version it open
 
   wire(() => personDto(now, [noteDto(now, "n2", { mine: false, author_name: "Sam" })]));
   open();
-  W.openStepSheet({ personId: "p1", noteId: "n2" });
+  openStepSheet({ personId: "p1", noteId: "n2" });
   tree = await until("blocked", (t) => byTestId(t, "step-sheet-blocked"));
   assert.equal(textOf(byTestId(tree, "step-sheet-blocked")), NOTE_REFUSALS.not_yours);
   assert.equal(saveOf(tree)?.props?.disabled ?? true, true, "nothing to save");
@@ -406,7 +409,7 @@ test("a person the sheet cannot read is said in the sheet, never a throw that ta
   answers.person = () =>
     json(404, { ok: false, error: { code: "not_found", message: "This person is not in your workspace." } });
   open();
-  W.openStepSheet({ personId: "p1" });
+  openStepSheet({ personId: "p1" });
   const tree = await quietly(() => until("said", (t) => byTestId(t, "step-sheet-failed")));
   assert.ok(byTestId(tree, "step-sheet-failed"));
 });
@@ -427,7 +430,7 @@ test("refused because a teammate changed the step since, the sheet reads it agai
     return json(409, { ok: false, error: { code: "conflict", message: NOTE_REFUSALS.moved } });
   };
   open();
-  W.openStepSheet({ personId: "p1", noteId: "n1" });
+  openStepSheet({ personId: "p1", noteId: "n1" });
   let tree = await until("the step is read", (t) => input(t, "step-sheet-what-input"));
   type(input(tree, "step-sheet-what-input"), "Call about the timeline and the logo");
   // Meanwhile a teammate moved its day, and the step's version with it.
@@ -456,6 +459,19 @@ test("refused because a teammate changed the step since, the sheet reads it agai
     ["n1", 5, "Call about the timeline and the logo", zoneDayKey(now + 30 * D, ZONE)],
     "the second: the fresh version, the words typed here, the teammate's day",
   );
+});
+
+test("the frame publishes the host and the verb under the names the deal card and the Inbox's thread open the sheet by, and the published verb asks the published host", async () => {
+  const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
+  assert.equal(PEOPLE_GLOBALS.StepSheetHost, StepSheetHost);
+  assert.equal(PEOPLE_GLOBALS.openStepSheet, openStepSheet);
+  wire(() => personDto(Date.now()));
+  open();
+  assert.equal(PEOPLE_GLOBALS.openStepSheet({ personId: "p1", dealId: "d1" }), true);
+  let tree = redraw();
+  assert.equal(title(tree), "Set a next step");
+  tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(sub(tree), "Tove Lind · Website");
 });
 
 test("a note's write answers when the server takes it: People, whose rows carry each next step, is read again behind it, not in front", async () => {

@@ -449,7 +449,7 @@ test("a person's profile says its days by the workspace's zone", async () => {
     added: { at: WROTE, source: "manual", title: null },
   };
   wire({ "GET /api/v1/contacts/k1": { person: detail } });
-  const { personDetail } = await import("../../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { personDetail } = await import("../../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const vm = await personDetail("k1");
   assert.equal(vm.about.find((a) => a.k === "Added").v, "Sep 7, 2026 · by hand");
 });

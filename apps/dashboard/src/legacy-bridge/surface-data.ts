@@ -22,7 +22,7 @@ import { read } from "./api";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { RealtimeChange } from "./surface-realtime";
 import type { MembershipRole, PendingWorkspace } from "@chanlytics/contracts";
-import { peopleLoaded, publishPeople } from "./surfaces/people";
+import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
 

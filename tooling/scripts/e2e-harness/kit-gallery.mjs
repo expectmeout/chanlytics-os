@@ -77,7 +77,7 @@ const icon = (name, size) => {
 /** What a role's gate puts on a control it refuses (data-bits gatedProps). */
 const gated = (why) => `data-gated="" aria-disabled="true" aria-description="${why}" data-tip="${why}"`;
 
-/* ---- the record kit's parts, as record-row.jsx, record-field.jsx and record-fold.jsx render them ---- */
+/* ---- the record kit's parts, as the kit (surfaces/kit/record: row, field, fold) renders them ---- */
 
 /** A row's act (RecordRow): its words, an arrow for an act that goes to another page, and the phone's chevron. */
 const recAct = (words, arrow = false) =>
@@ -233,7 +233,7 @@ const listRow = ({ said = true, note = false, door = false } = {}) =>
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
   (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
   (door ? `</a>` : `</div>`);
-/** The same row as People's plRowCard draws it (pages/people.jsx), the classes it draws with and the same words. */
+/** The same row as People's plRowCard draws it (surfaces/people/cells/row-card.tsx), the classes it draws with and the same words. */
 const plCard = ({ said = true, note = false } = {}) =>
   `<div class="pl-card"><div class="ix-thread-avatar pl-card-face" aria-hidden="true">AR</div>` +
   `<div class="pl-card-name">Aisha Rahman</div><span class="pill pill-warn">Needs you</span>` +
@@ -283,12 +283,12 @@ const sheet = ({ handle = true, leaving = false } = {}) =>
   `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   (handle ? `<div class="sheet-handle" aria-hidden="true"></div>` : "") +
   `${SHEET_PARTS}</section>`;
-/** The same composer in RecordSheet's frame (components/record-sheet.jsx), a desk's twin. */
+/** The same composer in RecordSheet's frame (surfaces/kit/record/sheet.tsx), a desk's twin. */
 const recSheetFrame = (leaving = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   `${SHEET_PARTS}</section>`;
-/** The same composer in PhoneSheet's frame and its handle (pages/people.jsx), a phone's twin. */
+/** The same composer in PhoneSheet's frame and its handle (surfaces/people/sheets/phone-sheet.tsx), a phone's twin. */
 const phoneSheetFrame = (leaving = false) =>
   `<div class="sb-sheet-backdrop"${going(leaving)}></div>` +
   `<div class="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label="Services"${going(leaving)}>` +

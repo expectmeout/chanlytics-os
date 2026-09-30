@@ -3221,7 +3221,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   assert.equal(ctx.supabase.seen.length, reads, "read once a turn: the second call is the first read");
 
   // The page's own view model over the page's own payload: GET contacts/:id, then toPersonVM for the member looking, as
-  // the profile builds it (legacy-bridge/people-detail.ts).
+  // the profile builds it (surfaces/people/people-detail.ts).
   const page = await personRoute.GET.run(new Request(`http://localhost/api/v1/contacts/${P1}?workspace=${A}`), {
     ...ctxFor(t, rpcs),
     params: { id: P1 },

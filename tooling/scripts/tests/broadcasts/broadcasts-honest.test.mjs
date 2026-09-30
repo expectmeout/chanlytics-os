@@ -266,7 +266,6 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 Object.assign(globalThis.window, kitPages);
 kitHooks();
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
@@ -284,7 +283,6 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");

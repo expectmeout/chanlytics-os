@@ -24,15 +24,6 @@ import "@/legacy/components/shortcuts.jsx";
 import "@/legacy/components/ask-face.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
-import "@/legacy/components/day-agenda.jsx";
-import "@/legacy/components/record-row.jsx";
-import "@/legacy/components/record-field.jsx";
-import "@/legacy/components/record-fold.jsx";
-import "@/legacy/components/record-sheet.jsx";
-// The one deal sheet (0008): after the kit it is drawn with, before the pages that open it and the shell that holds it.
-import "@/legacy/components/deal-sheet.jsx";
-// The step sheet (0007, amended): after the deal sheet, whose select it draws who a step is for with.
-import "@/legacy/components/step-sheet.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
 import "@/legacy/components/campaign-bits.jsx";
@@ -46,25 +37,10 @@ import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/clients-bits.jsx";
-import "@/legacy/pages/people-table.jsx";
-// People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the
-// scope before people.jsx, whose ClientsA draws it.
-// The pieces a row, a card and the peek share (the track, the row's menu, a selection's pass), before them.
-import "@/legacy/pages/pipeline-row.jsx";
-import "@/legacy/pages/pipeline-peek.jsx";
-import "@/legacy/pages/pipeline-board.jsx";
-// New proposal: who it is for, before the one deal sheet.
-import "@/legacy/pages/pipeline-new.jsx";
-import "@/legacy/pages/pipeline-scope.jsx";
-// Import people: the owner's sheet, before people.jsx, whose People page opens it.
-import "@/legacy/pages/people-import.jsx";
-// People › Leads, the real surface (moved whole from people.jsx): before people.jsx, whose ClientsA draws it.
+// People's list, its table, rail kit, hooks and import sheet are TSX (surfaces/people), and so is the Pipeline and a person's deal card;
+// the parts the pages below still draw by name are published by seed-globals from people-globals.ts before any of these loads.
+// People › Leads, the real surface (moved whole from people.jsx): the frame draws it (app-routes.jsx drawLeads).
 import "@/legacy/pages/leads-real.jsx";
-// People (clients-a.jsx until 26 September 2026): ClientsA, PeopleReal and the two list-page hooks.
-import "@/legacy/pages/people.jsx";
-// A person's deal (0008): the card the profile draws first in its left column.
-import "@/legacy/pages/person-deal.jsx";
-import "@/legacy/pages/client-profile.jsx";
 // The Leads scope's cells, bench and map (moved whole from leads-scope.jsx): before the scope, which draws them.
 import "@/legacy/pages/leads-cells.jsx";
 import "@/legacy/pages/leads-bench.jsx";
@@ -95,7 +71,6 @@ import "@/legacy/pages/broadcasts-run.jsx";
 import "@/legacy/pages/broadcasts-ledger.jsx";
 import "@/legacy/pages/broadcasts.jsx";
 import "@/legacy/pages/live-monitor.jsx";
-import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/first-run.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the

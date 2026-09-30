@@ -167,14 +167,6 @@
     const digits = String(raw ?? "").replace(/[^\d]/g, "");
     return digits.length >= 3 && digits.length <= 6;
   };
-  // One CSV cell as contracts spell it (csvCell): People's export of a selection reads it.
-  if (!has("__csvCell")) {
-    window.__csvCell = (v) => {
-      let s = v == null ? "" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
-      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-  }
   if (!has("__samePhone")) {
     window.__samePhone = (a, b) => {
       const x = normalizePhone(a);

@@ -9,7 +9,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installRoleStore } from "../_legacy-react.mjs";
+import {
+  again,
+  all,
+  byTestId,
+  fresh,
+  installLegacyReact,
+  installRoleStore,
+  settle,
+  textOf,
+  unmount,
+  walk,
+} from "../_legacy-react.mjs";
 import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
@@ -19,10 +30,14 @@ import {
   consentSourceLabel,
   OFFERS_YES_SOURCES,
   offersYesRefusal,
+  stateOf,
   verbalOptInScript,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { personRow } from "./_person-row.mjs";
+
+// People's table, from the code the page draws it with (surfaces/people/cells/columns.tsx), not a scan of it.
+const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -104,12 +119,25 @@ test("TWO lists, because there are two answers: one for messages, one for offers
 
   const at = (id) => PEOPLE_LISTS.findIndex((l) => l.id === id);
   assert.ok(at("opted_in") < at("offers_ok") && at("offers_ok") < at("opted_out"), "the two yeses, then the no");
-  const page = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // The rail's tip is the list's own (contracts BUILTIN_LISTS, decision 0009): it says which yes.
   assert.match(offers.tip, /^Said yes to OFFERS, separately/, "the rail explains which yes");
-  // And the column titled Offers reads the offers answer.
-  assert.ok(page.includes("const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;"));
-  assert.ok(page.includes("title={p.consent.marketingSub}"), "and its tooltip is that answer's own history");
+  // And the column titled Offers reads the offers answer: drawn for a person who said yes to messages only, and for
+  // one who said yes to offers only, it says what the OFFERS answer says, whichever way the other one went.
+  const offersColumn = PL_COLUMNS.find((c) => c.key === "offers");
+  assert.equal(offersColumn.label, "Offers");
+  const drawn = (consent, marketing) => {
+    const p = personRow({ consent, marketing_consent: marketing });
+    const td = offersColumn.cell(p, {});
+    const [span] = td.props.children;
+    return { p, td, word: span.props.children[0], cls: span.props.className };
+  };
+  assert.equal(drawn("opted_in", "unknown").word, "Not asked", "a yes to messages is not a yes to offers");
+  assert.equal(drawn("unknown", "opted_in").word, "Yes");
+  assert.equal(drawn("opted_in", "opted_out").word, "No");
+  assert.match(drawn("unknown", "opted_in").cls, /\bcl-row-offers yes\b/);
+  const yes = drawn("unknown", "opted_in");
+  assert.equal(yes.td.props["data-testid"], "row-offers");
+  assert.equal(yes.td.props.title, yes.p.consent.marketingSub, "and its tooltip is that answer's own history");
 });
 
 test("the second door: an operator can record a signed marketing consent", () => {
@@ -163,129 +191,97 @@ test("the route: operator or owner, a yes or a no needs its source, the reset ne
   );
 });
 
-test("the page: TWO asks, each asking how before it writes, a STOP is not undone by the desk", () => {
-  const b = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(
-    b.includes("window.__setPersonConsent = setPersonConsent;") &&
-      b.includes("window.__consentSources = CONSENT_SOURCES;") &&
-      b.includes("window.__verbalOptInScript = verbalOptInScript;"),
-  );
-  assert.ok(b.includes("window.__setPersonMarketingConsent = setPersonMarketingConsent;"));
-  // One transport, the path chosen by purpose, so neither answer can be posted to
-  // the other's door by a typo in a page.
-  assert.ok(
-    b.includes('conversational: "PUT contacts/[id]/consent",') &&
-      b.includes('marketing: "PUT contacts/[id]/marketing-consent",'),
-  );
-  assert.ok(b.includes("api()(CONSENT_ROUTE[purpose]"));
-
-  const p = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
-  // The same pair the public /yes page renders, so a reader can see that one may be
-  // given without the other -- which is what error 30913 asked us to show.
-  assert.ok(p.includes('testid="consent-control"') && p.includes('label="Messages about their visit"'));
-  assert.ok(p.includes('testid="consent-marketing"') && p.includes('label="Offers and news"'));
-  assert.ok(
-    p.includes("value={p.consent.state}") && p.includes("value={p.consent.marketing}"),
-    "each ask reads its OWN column",
-  );
-  // Each records through its own purpose, and its fold closes once the door takes it.
-  assert.ok(
-    p.includes('onRecord={recordAndClose("conversational", visitFold)}') &&
-      p.includes('onRecord={recordAndClose("marketing", offersFold)}'),
-  );
-  assert.ok(p.includes("data-testid={`${testid}-how`}"), "a yes is not written until the page knows how it was given");
-  assert.ok(
-    p.includes('if (value !== "unknown") record("unknown", null);'),
-    "the reset writes nothing when there is nothing to reset",
-  );
-  assert.ok(p.includes("Record a yes only if they have asked again themselves."), "a STOP is not undone by the desk");
-  // A STOP stops offers too, so the offers ask has nothing to record while it stands.
-  assert.ok(p.includes('canRecord={canRecord && p.consent.state !== "opted_out"}'));
-  assert.ok(p.includes("They asked us to stop, which stops offers too."));
-  assert.ok(!/Offers by WhatsApp/.test(p), "REGRESSION: one control labelled for offers, writing the other column");
-});
-
 /* -------------------------------------------------------------------------- *
- * The two asks, RENDERED — no browser, no jsdom, no React.
+ * The two asks, RENDERED — no browser, no jsdom.
  *
- * The two hooks below are the two this component uses, so its body runs for
- * real: real branching, real clicks, real calls into whatever recorder it was
- * handed. registration-path.test.mjs names the same tradeoff — a source scan
- * answers "does this control write the column it is labelled for" badly, and
- * that is precisely the property that was broken. So it is executed instead.
+ * The ask and the page that holds it are TSX (surfaces/people/person). They are drawn here on the stub React the page tests
+ * share (_legacy-react.mjs), so their bodies run for real: real branching, real clicks, real calls into whatever recorder
+ * the ask was handed. The page is drawn over a wire that answers as the routes do, so the courier it imports
+ * (people-detail.ts) makes the request it would make in the browser and the test reads that request.
+ * registration-path.test.mjs names the same tradeoff — a source scan answers "does this control write the column it is
+ * labelled for" badly, and that is precisely the property that was broken. So it is executed instead.
  *
  * What was broken: ONE control labelled "Offers by WhatsApp" calling the
  * conversational door. Every string in the file agreed it was about offers; the
  * one line that mattered wrote `contacts.consent`. Only running it and watching
  * where the write goes catches that.
  * -------------------------------------------------------------------------- */
-// The hooks are installed BEFORE the import and never replaced, because this file
-// aliases them at module scope (`const { useState: useStateP } = React`). A harness
-// that assigns them inside mount() -- as registration-path.test.mjs does, correctly
-// for a page that calls `React.useState` at its use site -- hands this one
-// `undefined`. So the globals are stable indirections and only what they DELEGATE to
-// is swapped per mount.
-let HOOKS = null;
-// A5: the ask's refusal is drawn by the shared FieldError (data-bits.jsx, run for real in
-// refusals-on-the-page.test.mjs). This harness never runs a component's function, so it draws
-// that one hook-free component the way the component draws: the sentence as text, announced,
-// under its testid -- and nothing without a sentence.
-const FieldError = ({ message, testid }) =>
-  message
-    ? {
-        type: "span",
-        props: { className: "field-error", role: "alert", "data-testid": testid ?? undefined, children: [message] },
-      }
-    : null;
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) =>
-    type === FieldError
-      ? FieldError({ ...(p || {}) })
-      : { type, props: { ...(p || {}), children: kids.flat(Infinity) } },
-  useState: (init) => HOOKS.useState(init),
-  useEffect: (fn) => HOOKS.useEffect(fn),
-  useMemo: (fn) => HOOKS.useMemo(fn),
+installLegacyReact({ __DEMO_MODE: false, __chrome: { state: stateOf } });
+const W = globalThis;
+const PEOPLE = "../../../../apps/dashboard/src/surfaces/people";
+const BRIDGE = "../../../../apps/dashboard/src/legacy-bridge";
+// What the shell still provides around a person's page: who is signed in, the workspace's name (the desk's script says
+// it), the shell's toast, and the role store the gates ask (the frame's, completed by the bridge).
+const toasts = [];
+Object.assign(W, {
+  __ME: { role: "operator", id: "u-me" },
+  __WORKSPACES: [{ id: "t-1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: "t-1",
+  CHANLY: { nav() {} },
+  usePPToast: () => [null, (t) => toasts.push(t)],
+});
+installRoleStore(W);
+W.mayAtLeast = (rung) => W.ST_STORE.mayAtLeast(rung);
+const quietly = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
 };
-globalThis.window = { __ME: { role: "operator" }, FieldError };
-// Who is acting, as data-bits asks it (mayAtLeast) of the role store the bridge completes.
-installRoleStore(globalThis.window);
-globalThis.mayAtLeast = (rung) => globalThis.window.ST_STORE.mayAtLeast(rung);
-await import("../../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
-const Ask = globalThis.window.ConsentAsk;
-assert.equal(typeof Ask, "function", "the ask is published, or nothing below tests anything");
+const { ConsentAsk } = await import(`${PEOPLE}/person/consent-ask.tsx`);
+const { ClientProfile } = await import(`${PEOPLE}/person/person-real.tsx`);
+const { PersonTimeline } = await import(`${PEOPLE}/person/timeline.tsx`);
+const { setPersonConsent, setPersonMarketingConsent } = await import(`${PEOPLE}/people-detail.ts`);
+const { recFolds } = await import("../../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
+const { clearReadCaches } = await import(`${BRIDGE}/read-cache.ts`);
+// What a write reads again after it lands (loaded by the client on a first write): loaded now, so a write's answer is
+// not waiting on a module's first load while the test waits on the write.
+await quietly(() => import(`${BRIDGE}/refresh-map.ts`));
 
-const SOURCES = [
-  { id: "in_person", label: "In person" },
-  { id: "form", label: "Sign-up form" },
-];
+const ID = "p-maria";
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/**
+ * The wire: the person's read and the two consent doors, answered as the test says (`refuse` is the sentence a door
+ * refuses with), and every request kept.
+ */
+const wire = { calls: [], person: null, refuse: null };
+W.fetch = async (url, init = {}) => {
+  const u = new URL(String(url), "https://app.chanlytics.com");
+  const method = init.method || "GET";
+  wire.calls.push({ method, path: u.pathname, body: init.body ? JSON.parse(init.body) : null });
+  await settle();
+  if (method === "GET" && u.pathname === `/api/v1/contacts/${ID}`)
+    return json(200, { ok: true, data: { person: wire.person } });
+  if (method === "PUT" && u.pathname.startsWith(`/api/v1/contacts/${ID}/`))
+    return wire.refuse
+      ? json(422, { ok: false, error: { code: "invalid", message: wire.refuse } })
+      : json(200, { ok: true, data: {} });
+  return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+};
+/** What the doors were asked, in order: the path and the body. */
+const puts = () => wire.calls.filter((c) => c.method === "PUT").map((c) => [c.path, c.body]);
+/** Let every write's answer, and what the page reads again after it, land. */
+const quiet = async () => {
+  for (let i = 0; i < 12; i += 1) await settle();
+};
 
+const asksOf = (tree) => all(tree, (n) => n.type === ConsentAsk).map((n) => n.props);
+const buttons = (root) => all(root, (n) => n.type === "button");
+const byLabel = (root, text) => buttons(root).find((b) => textOf(b).trim() === text) ?? null;
+const byId = byTestId;
+
+/**
+ * One ask drawn on its own, as a person's page draws it, and the gestures on it. One ask at a time on the stub's
+ * cells: a new mount is a new tree.
+ */
 function mount(props) {
-  const cells = [];
-  let seq = 0;
-  const hooks = {
-    useState: (init) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [
-        cells[k],
-        (v) => {
-          cells[k] = typeof v === "function" ? v(cells[k]) : v;
-        },
-      ];
-    },
-    useEffect: () => {},
-    useMemo: (fn) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = fn();
-      return cells[k];
-    },
-  };
-  const draw = () => {
-    HOOKS = hooks;
-    seq = 0;
-    return Ask(props);
-  };
+  unmount();
+  fresh();
+  const draw = () => again(() => W.React.createElement(ConsentAsk, props));
   let tree = draw();
   return {
     get tree() {
@@ -294,7 +290,7 @@ function mount(props) {
     async click(node) {
       await node.props.onClick();
       tree = draw();
-      await new Promise((r) => setImmediate(r));
+      await settle();
       tree = draw();
     },
     type(node, value) {
@@ -304,43 +300,10 @@ function mount(props) {
   };
 }
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-};
-const buttons = (root) => {
-  const out = [];
-  walk(root, (n) => {
-    if (n.type === "button") out.push(n);
-  });
-  return out;
-};
-const byLabel = (root, text) => buttons(root).find((b) => textOf(b) === text) ?? null;
-const byId = (root, id) => {
-  let hit = null;
-  walk(root, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-const textOf = (n) => {
-  const out = [];
-  const rec = (x) => {
-    if (x == null || x === false || x === true) return;
-    if (typeof x === "string" || typeof x === "number") {
-      out.push(String(x));
-      return;
-    }
-    if (Array.isArray(x)) {
-      x.forEach(rec);
-      return;
-    }
-    if (typeof x === "object") rec(x.props?.children);
-  };
-  rec(n);
-  return out.join(" ").trim();
-};
+const SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "form", label: "Sign-up form" },
+];
 
 test("an ask asks HOW before it writes anything, and a yes carries its source", async () => {
   const wrote = [];
@@ -440,7 +403,7 @@ test("a viewer cannot record, and the ask says who can", () => {
 test("THE DEFECT: each ask writes the column it is labelled for", async () => {
   // The whole point. Two asks, two recorders, and the offers one must reach the
   // offers door -- which is what one control labelled "Offers by WhatsApp" and
-  // wired to `__setPersonConsent` did not do.
+  // wired to the conversational door did not do.
   const calls = [];
   const askFor = (label, purpose, value) =>
     mount({
@@ -476,135 +439,163 @@ test("THE DEFECT: each ask writes the column it is labelled for", async () => {
   );
 });
 
+/** A person as the People read holds them: a number, a name, no answer on either question. */
+const ROW = {
+  id: ID,
+  display_name: "Maria Lopez",
+  wa_profile_name: null,
+  phone_e164: "+13055550134",
+  consent: "unknown",
+  consent_source: null,
+  consent_updated_at: null,
+  marketing_consent: "unknown",
+  marketing_consent_source: null,
+  marketing_consent_updated_at: null,
+  dnc: false,
+  channels: ["whatsapp"],
+  conversation_count: 0,
+  escalation_count: 0,
+  needs_human: false,
+  open_escalation_reason: null,
+  open_escalation_since: null,
+  latest_conversation_id: null,
+  latest_state: null,
+  latest_paused_until: null,
+  latest_assignee_user_id: null,
+  latest_snooze_until: null,
+  latest_wa_inbound_at: null,
+  last_message_at: null,
+  last_message_direction: null,
+  last_message_sender: null,
+  last_inbound_text: null,
+  last_inbound_at: null,
+  last_call_at: null,
+  last_inbound_call_at: null,
+  call_count: 0,
+  call_seconds: 0,
+  first_contact_at: null,
+  earliest_row_at: null,
+  has_backfill: false,
+  has_chat: false,
+  queued_reply_at: null,
+};
+
 /**
- * The real profile, rendered the way a person opens it: the shell's globals, a
- * person's view model from the real mapper, the load effect run, then drawn again.
- * The harness above renders one control; nothing rendered the page that holds it.
+ * The real profile, rendered the way a person opens it: the shell's globals, the courier's read over the wire (a person's
+ * view model from the real mapper), drawn again once it has landed. The harness above renders one control; nothing
+ * rendered the page that holds it.
  */
 async function renderLoadedProfile(extra = {}) {
-  const { toPersonVM, CONSENT_SOURCES } = await import("@chanlytics/contracts");
-  const row = {
-    id: "p-maria",
-    display_name: "Maria Lopez",
-    wa_profile_name: null,
-    phone_e164: "+13055550134",
-    consent: "unknown",
-    consent_source: null,
-    consent_updated_at: null,
-    marketing_consent: "unknown",
-    marketing_consent_source: null,
-    marketing_consent_updated_at: null,
-    dnc: false,
-    channels: ["whatsapp"],
-    conversation_count: 0,
-    escalation_count: 0,
-    needs_human: false,
-    open_escalation_reason: null,
-    open_escalation_since: null,
-    latest_conversation_id: null,
-    latest_state: null,
-    latest_paused_until: null,
-    latest_assignee_user_id: null,
-    latest_snooze_until: null,
-    latest_wa_inbound_at: null,
-    last_message_at: null,
-    last_message_direction: null,
-    last_message_sender: null,
-    last_inbound_text: null,
-    last_inbound_at: null,
-    last_call_at: null,
-    last_inbound_call_at: null,
-    call_count: 0,
-    call_seconds: 0,
-    first_contact_at: null,
-    earliest_row_at: null,
-    has_backfill: false,
-    has_chat: false,
-    queued_reply_at: null,
+  wire.person = {
+    row: ROW,
+    identities: [],
+    conversations: [],
+    calls: [],
+    escalations: [],
+    decisions: [],
+    receptionist_mode: null,
+    workspace_reply_mode: "auto",
+    ...extra,
   };
-  const vm = toPersonVM(
-    {
-      row,
-      identities: [],
-      conversations: [],
-      calls: [],
-      escalations: [],
-      decisions: [],
-      receptionist_mode: null,
-      workspace_reply_mode: "auto",
-      ...extra,
-    },
-    ZONE,
-    new Date("2026-09-10T12:00:00.000Z"),
-  );
-  // What the shell provides around a page: the real-workspace flag, who is signed in,
-  // the sources, the loader, the toast, and the few components other files define.
-  Object.assign(globalThis.window, {
-    __PEOPLE: {},
-    __ME: { role: "operator" },
-    __consentSources: CONSENT_SOURCES,
-    __personDetail: async () => vm,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    usePPToast: () => [null, () => {}],
-    // The shell's workspace list and the bridge's script, so the visit ask can
-    // show the desk what to say -- the sentence the campaign files as method (3).
-    __WORKSPACES: [
-      { id: "t-1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
-    ],
-    __ACTIVE_WORKSPACE: "t-1",
-    __verbalOptInScript: verbalOptInScript,
-  });
-  for (const g of [
-    "Icon",
-    "ChannelGlyph",
-    "ClientTag",
-    "StatePill",
-    "Confirm",
-    "StatCell",
-    "StatStrip",
-    "MoreMenu",
-    "TempBar",
-  ])
-    globalThis[g] ??= g;
-  globalThis.React.useCallback ??= (fn) => fn;
-  const Profile = globalThis.window.ClientProfile({ id: "p-maria" }).type;
-  assert.equal(typeof Profile, "function", "a real workspace renders the real profile");
-
-  const cells = [];
-  let seq = 0;
-  let effects = [];
-  const hooks = {
-    useState: (init) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [
-        cells[k],
-        (v) => {
-          cells[k] = typeof v === "function" ? v(cells[k]) : v;
-        },
-      ];
-    },
-    useEffect: (fn) => {
-      effects.push(fn);
-    },
-    useMemo: (fn) => {
-      const k = seq++;
-      if (!(k in cells)) cells[k] = fn();
-      return cells[k];
-    },
-  };
-  const draw = () => {
-    HOOKS = hooks;
-    seq = 0;
-    effects = [];
-    return Profile({ id: "p-maria" });
-  };
-  draw();
-  for (const e of effects) e();
-  await new Promise((r) => setImmediate(r));
-  return draw();
+  wire.calls.length = 0;
+  wire.refuse = null;
+  // The last tree goes away as React unmounts it (its cleanups let go of the registry and the window) before a new one.
+  unmount();
+  recFolds.reset();
+  clearReadCaches();
+  fresh();
+  const draw = () => W.React.createElement(ClientProfile, { id: ID });
+  let tree = draw();
+  // A person the tab does not hold is nothing of theirs until their whole page is in.
+  for (let i = 0; i < 400 && asksOf(tree).length === 0; i += 1) {
+    await settle();
+    tree = again(draw);
+  }
+  return tree;
 }
+
+test("the page: TWO asks, each asking how before it writes, a STOP is not undone by the desk", async () => {
+  // One transport, the path chosen by purpose, so neither answer can be posted to the other's door by a typo in a page:
+  // the courier the page imports is run over the wire, and the two requests it makes are read.
+  wire.calls.length = 0;
+  wire.refuse = null;
+  assert.equal((await setPersonConsent(ID, { consent: "opted_in", source: "in_person" })).ok, true);
+  assert.equal(
+    (await setPersonMarketingConsent(ID, { consent: "opted_in", source: "form", note: "Slip 12" })).ok,
+    true,
+  );
+  assert.deepEqual(puts(), [
+    [`/api/v1/contacts/${ID}/consent`, { consent: "opted_in", source: "in_person" }],
+    [`/api/v1/contacts/${ID}/marketing-consent`, { consent: "opted_in", source: "form", note: "Slip 12" }],
+  ]);
+  await quiet();
+
+  // The same pair the public /yes page renders, so a reader can see that one may be given without the other -- which is
+  // what error 30913 asked us to show. Each ask reads its OWN column: here the answers differ.
+  const tree = await renderLoadedProfile({
+    row: {
+      ...ROW,
+      consent: "opted_in",
+      consent_source: "in_person",
+      marketing_consent: "opted_out",
+      marketing_consent_source: "customer_message",
+    },
+  });
+  const [talk, offers, ...more] = asksOf(tree);
+  assert.deepEqual(more, [], "two asks, no third");
+  assert.deepEqual([talk.testid, talk.label], ["consent-control", "Messages about their visit"]);
+  assert.deepEqual([offers.testid, offers.label], ["consent-marketing", "Offers and news"]);
+  assert.deepEqual([talk.value, offers.value], ["opted_in", "opted_out"], "each ask reads its OWN column");
+  assert.deepEqual([talk.canRecord, offers.canRecord], [true, true], "an operator records both");
+
+  // Each records through its own purpose, and its fold closes once the door takes it.
+  wire.calls.length = 0;
+  recFolds.request("person-visit");
+  assert.equal(recFolds.open(), "person-visit");
+  assert.equal((await talk.onRecord("opted_in", "in_person")).ok, true);
+  assert.equal(recFolds.open(), null, "the visit ask's fold closed");
+  recFolds.request("person-offers");
+  assert.equal(recFolds.open(), "person-offers");
+  assert.equal((await offers.onRecord("opted_in", "form", { note: "Slip 12" })).ok, true);
+  assert.equal(recFolds.open(), null, "the offers ask's fold closed");
+  assert.deepEqual(puts(), [
+    [`/api/v1/contacts/${ID}/consent`, { consent: "opted_in", source: "in_person" }],
+    [`/api/v1/contacts/${ID}/marketing-consent`, { consent: "opted_in", source: "form", note: "Slip 12" }],
+  ]);
+  await quiet();
+  // A door that refuses leaves its fold open, with what it said.
+  wire.refuse = "The carriers refused that.";
+  recFolds.request("person-offers");
+  const refused = await offers.onRecord("opted_in", "form", { note: "Slip 13" });
+  assert.equal(refused.ok, false);
+  assert.equal(recFolds.open(), "person-offers", "a refused answer is not a closed fold");
+  wire.refuse = null;
+  await quiet();
+
+  // "Not asked" and the way a yes is asked are the ask's own (the mounts above): a yes is not written until the page
+  // knows how it was given, and the reset writes nothing when there is nothing to reset.
+
+  // A STOP is not undone by the desk, and it stops offers too, so the offers ask has nothing to record while it stands.
+  const stopped = asksOf(
+    await renderLoadedProfile({ row: { ...ROW, consent: "opted_out", consent_source: "customer_message" } }),
+  );
+  assert.equal(stopped.length, 2);
+  assert.ok(stopped[0].hint.includes("Record a yes only if they have asked again themselves."), stopped[0].hint);
+  assert.equal(stopped[0].canRecord, true, "the visit ask may still record an answer");
+  assert.equal(stopped[1].canRecord, false, "the offers ask has nothing to record while a STOP stands");
+  assert.ok(stopped[1].hint.includes("They asked us to stop, which stops offers too."), stopped[1].hint);
+  await quiet();
+
+  // REGRESSION: one control labelled for offers, writing the other column.
+  const said = [textOf(tree)];
+  walk(tree, (n) => {
+    for (const v of Object.values(n.props ?? {})) if (typeof v === "string") said.push(v);
+  });
+  assert.ok(
+    !/Offers by WhatsApp/.test(said.join(" | ")),
+    "REGRESSION: one control labelled for offers, writing the other column",
+  );
+});
 
 test("a real profile renders once its person loads", async () => {
   // THE CRASH. #313 declared `who` from `first` thirty-four lines above the line
@@ -612,15 +603,12 @@ test("a real profile renders once its person loads", async () => {
   // loaded -- a const read before its line runs. Lint does not see it and the
   // build does not run it, so it is rendered here, loaded, with a real view model.
   const tree = await renderLoadedProfile();
-  const asks = [];
-  walk(tree, (n) => {
-    if (n.type === Ask) asks.push(n.props.testid);
-  });
   assert.deepEqual(
-    asks,
+    asksOf(tree).map((a) => a.testid),
     ["consent-control", "consent-marketing"],
     "it reached the consent rail, which it used to throw before drawing",
   );
+  await quiet();
 });
 
 test("a yes to offers is written or it is not recorded; a no is honoured however it is said", () => {
@@ -657,19 +645,16 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   // and where the first version of this line crashed every profile by being put in
   // the wrong component, which this helper exists to catch.
   const tree = await renderLoadedProfile();
-  const asks = [];
-  walk(tree, (n) => {
-    if (n.type === Ask) asks.push(n.props);
-  });
+  const asks = asksOf(tree);
   assert.deepEqual(
     asks.map((a) => a.testid),
     ["consent-control", "consent-marketing"],
   );
   const [talk, offers] = asks;
-  const all = CONSENT_SOURCES.map((s) => s.id);
+  const every = CONSENT_SOURCES.map((s) => s.id);
   assert.deepEqual(
     talk.sources.map((s) => s.id),
-    all,
+    every,
     "a yes to messages about a visit may be given any way",
   );
   assert.equal(talk.yesSources, undefined);
@@ -689,7 +674,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   );
   assert.deepEqual(
     offers.sources.map((s) => s.id),
-    all,
+    every,
     "a NO to offers may be given any way, and is honoured",
   );
   assert.deepEqual(
@@ -704,7 +689,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   const how = byId(yes.tree, "consent-marketing-how");
   assert.deepEqual(
     buttons(how)
-      .map(textOf)
+      .map((b) => textOf(b).trim())
       .filter((t) => t !== "Cancel"),
     ["Sign-up form", "Their own message"],
   );
@@ -713,10 +698,11 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   await no.click(byLabel(no.tree, "No"));
   assert.deepEqual(
     buttons(byId(no.tree, "consent-marketing-how"))
-      .map(textOf)
+      .map((b) => textOf(b).trim())
       .filter((t) => t !== "Cancel"),
     ["In person", "On the phone", "Sign-up form", "Their own message"],
   );
+  await quiet();
 });
 
 test("on the loaded profile, a consent change is on the timeline with how we know", async () => {
@@ -728,7 +714,7 @@ test("on the loaded profile, a consent change is on the timeline with how we kno
     consent_history: [
       {
         id: "ev-1",
-        contact_id: "p-maria",
+        contact_id: ID,
         at: "2026-09-01T14:00:00Z",
         purpose: "conversational",
         consent: "opted_in",
@@ -742,7 +728,7 @@ test("on the loaded profile, a consent change is on the timeline with how we kno
       },
       {
         id: "ev-2",
-        contact_id: "p-maria",
+        contact_id: ID,
         at: "2026-09-02T14:00:00Z",
         purpose: "marketing",
         consent: "opted_in",
@@ -756,20 +742,17 @@ test("on the loaded profile, a consent change is on the timeline with how we kno
       },
     ],
   });
-  // The timeline is its own component (PersonTimeline), so it is expanded here
-  // the way the page would expand it, and read from there.
-  const found = [];
-  walk(tree, (n) => {
-    if (typeof n.type === "function" && n.type.name === "PersonTimeline") found.push(n);
-  });
+  // The timeline is its own component (PersonTimeline), drawn by the page: what it drew is read from there.
+  const found = all(tree, (n) => n.type === PersonTimeline);
   assert.equal(found.length, 1, "the timeline is drawn once");
   const texts = [];
-  walk(found[0].type(found[0].props), (n) => {
+  walk(found[0], (n) => {
     for (const k of n.props?.children ?? []) if (typeof k === "string") texts.push(k);
   });
-  const all = texts.join(" | ");
-  assert.ok(all.includes("Said yes to messages about their visit"), all.slice(0, 400));
-  assert.ok(all.includes("In their own words by text: “START”"), "the evidence, quoted");
-  assert.ok(all.includes("Said yes to offers and news"));
-  assert.ok(all.includes("Sign-up form, recorded by staff · signed at the desk"), "the way, and the recorder's note");
+  const drawn = texts.join(" | ");
+  assert.ok(drawn.includes("Said yes to messages about their visit"), drawn.slice(0, 400));
+  assert.ok(drawn.includes("In their own words by text: “START”"), "the evidence, quoted");
+  assert.ok(drawn.includes("Said yes to offers and news"));
+  assert.ok(drawn.includes("Sign-up form, recorded by staff · signed at the desk"), "the way, and the recorder's note");
+  await quiet();
 });

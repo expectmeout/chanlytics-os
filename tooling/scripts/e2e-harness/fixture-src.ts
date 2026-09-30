@@ -28,11 +28,11 @@ import { installClock } from "@/legacy-bridge/zone";
 import { installRoles } from "@/legacy-bridge/identity";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
-import { peopleOverride } from "@/legacy-bridge/surfaces/people";
-import { installPeopleCourier } from "@/legacy-bridge/people-detail";
+import { peopleOverride } from "@/surfaces/people/surface";
+import { installPeopleCourier } from "@/surfaces/people/people-detail";
 import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
 import { setStatus } from "@/legacy-bridge/surface-status";
-import { pipelineHelpers } from "@/legacy-bridge/pipeline-helpers";
+import { pipelineHelpers } from "@/surfaces/people/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
 import { installNotifications } from "@/legacy-bridge/notifications";
 import { installAsk } from "@/legacy-bridge/ask";
@@ -270,18 +270,9 @@ if (S.people && inBrowser) {
   installSurfaceRegistry();
   installPeopleCourier();
   w.__pipeline = pipelineHelpers();
-  // What the People pages call that seed-globals.ts publishes from contracts: a selection's cell in an export, the
-  // reader of a client list the import sheet plans by, the words the one-step send of a proposal carries, and why a
-  // typed address is not one.
-  w.__csvCell = C.csvCell;
-  w.__csvImport = {
-    parseCsv: C.parseCsv,
-    matchColumns: C.matchColumns,
-    importRowsOf: C.importRowsOf,
-    importCounts: C.importCounts,
-  };
+  // What the People pages call that seed-globals.ts publishes from contracts: the words the one-step send of a proposal
+  // carries, and why a typed address is not one.
   w.__proposalMessage = C.proposalMessage;
-  w.__whyNotAnEmail = C.whyNotAnEmail;
   setStatus("workspace", "live");
   // The settings read and Setup are published above, as for every record, so their routes draw. A route whose
   // surface the harness does not serve (Today, the Inbox, Leads) waits under the gate and then says it could not be

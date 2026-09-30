@@ -1,7 +1,7 @@
 /* global React, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, usePeople, usePlControls, usePlPlace, railToggle, plScopeRoute */
 // Chanlytics -- People › Leads, the real surface: LeadsReal and what only it reads. Moved whole from clients-a.jsx
-// (Reach out Part 2.5), whose ClientsA draws it. It reads People's hooks (usePeople, usePlControls, usePlPlace) from
-// window when it draws, since clients-a.jsx loads after it.
+// (Reach out Part 2.5), which the frame draws (app-routes.jsx drawLeads). It reads People's hooks (usePeople, usePlControls, usePlPlace) from
+// window when it draws: surfaces/people/people-globals.ts publishes them (TSX) before any page loads.
 const { useState } = React;
 
 /** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
@@ -23,7 +23,7 @@ const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopl
     onOpen: door("onOpen"), onExpand: door("onExpand"),
     values, mixedFits, hasCenter, canFind, peopleRows, stageShown, reachOut,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
-    // The row under a pointer or a finger, or reached by Tab (people-table.jsx): its photo is asked for before a press.
+    // The row under a pointer or a finger, or reached by Tab (surfaces/people/table/table.tsx): its photo is asked for before a press.
     onWarm: door("onWarm"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };

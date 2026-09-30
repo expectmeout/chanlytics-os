@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, kitPages } from "../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -151,7 +151,8 @@ installLegacyReact({
   clearInterval() {},
 });
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 globalThis.useHotkey = () => {};

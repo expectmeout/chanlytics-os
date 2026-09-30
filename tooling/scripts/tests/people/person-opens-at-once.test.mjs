@@ -141,7 +141,9 @@ const settle = async () => {
   for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
 };
 
-const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+const bridge = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
+// What the person's page reads them with (surfaces/people/person/read.ts): the courier's, the tab's copy first.
+const { heldPerson, readPerson } = await import("../../../../apps/dashboard/src/surfaces/people/person/read.ts");
 const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { readCache, clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 const { clearSurfaceCache } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
@@ -167,13 +169,13 @@ beforeEach(() => {
 test("a tab opened on a person's page asks for them before anything else, and the page's own read is that one", async () => {
   globalThis.window.location.hash = `#/clients/${ID}`;
   bridge.warmPersonOnScreen(globalThis.window);
-  const page = bridge.personDetail(ID);
+  const page = readPerson(ID);
   assert.equal(reads(), 1, "one request: the page shares the read the boot started");
   assert.equal(seen[0].workspace, "harbor", "named for the workspace in the address");
   const vm = await page;
   assert.equal(vm.name, "Zoe Martin");
   await settle();
-  assert.equal(bridge.peekPerson(ID).name, "Zoe Martin", "and the next first paint has them");
+  assert.equal(heldPerson(ID).name, "Zoe Martin", "and the next first paint has them");
 });
 
 test("the surfaces nobody is looking at wait for the person the page opens on (25 Sep 2026)", async () => {
@@ -329,7 +331,7 @@ const asked = () =>
   seen.filter((q) => q.method === "GET" && q.path.startsWith("/api/v1/contacts/")).map((q) => q.path.split("/").pop());
 
 test("a list's people are read ahead once the boot is in: the first twelve, two at a time, never one the tab holds", async () => {
-  // A person the tab does not hold opens on nothing of theirs until their page is whole (client-profile.jsx): the way
+  // A person the tab does not hold opens on nothing of theirs until their page is whole (person/person-real.tsx): the way
   // it opens at once is to have read them before the press.
   const rows = Array.from({ length: 14 }, (_, i) => uuid(i + 1));
   held = null;

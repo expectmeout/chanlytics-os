@@ -38,6 +38,8 @@ import {
   PROFILE_LIMITS,
 } from "@chanlytics/contracts";
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e-workspace.mjs";
+import { KIT_GLOBALS } from "../../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
+import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
 import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
@@ -152,7 +154,7 @@ test("the page's fixture publishes the tab's globals through the same contracts 
 
 test("the role store the mockup makes is completed with the shell's own reading, so an owner's items are offered", async () => {
   // Since the shell took its role from identity.ts, a page asks `ST_STORE.mayAtLeast(rung)` for what only an owner may
-  // press (client-profile.jsx's "Delete person", the receptionist row's act), and the mockup's store never defined it: the
+  // press (the person page's "Delete person", the receptionist row's act), and the mockup's store never defined it: the
   // harness showed none of them, and three of the style-equality recorder's scenes could not find what they press.
   const { installRoles } = await import("../../../../apps/dashboard/src/legacy-bridge/identity.ts");
   for (const name of SCENARIOS.filter((n) => n !== "kit")) {
@@ -231,7 +233,7 @@ function globalsRead(files, dir = "pages") {
 }
 
 /**
- * Every `window.__x` a legacy file PUBLISHES, except data/bridge-stubs.jsx -- which is the mockup's stand-in for the
+ * Every `window.__x` a legacy file or the kit's bundle PUBLISHES, except data/bridge-stubs.jsx -- which is the mockup's stand-in for the
  * bridge and writes only what is missing, so a global left to it is exactly the defect this test is for.
  */
 function globalsInstalledByThePages() {
@@ -250,6 +252,11 @@ function globalsInstalledByThePages() {
     }
   };
   walk(LEGACY);
+  // The kit's bundle (data/kit-globals.js, which the harness's document loads after the stubs) publishes the fold registry and
+  // the Settings rail's two answers, as the app publishes them from seed-globals.
+  for (const name of Object.keys(KIT_GLOBALS)) if (name.startsWith("__")) names.add(name);
+  // And People's (data/people-globals.js, the harness's own copy over the People the fixture boots).
+  for (const name of Object.keys(PEOPLE_GLOBALS)) if (name.startsWith("__")) names.add(name);
   return names;
 }
 
@@ -262,6 +269,10 @@ const NOT_PUBLISHED = new Map([
   ["__CHANNELS", "defining it at all flips settings.jsx to PaneIntegrationsReal, and its shape is toChannelVM's"],
   ["__CALENDAR", "the Calendar pane's surface; the Business record's calendar row reads the config"],
   ["__calendar", "the Calendar pane's verbs"],
+  [
+    "__calendarPage",
+    "the Calendar's two words (surfaces/calendar/words.ts); the record's row reads them beside __CALENDAR, which is left alone",
+  ],
   ["__setup", "the Setup pane's verbs"],
   ["__TEAM", "the Team card's surface"],
   ["__TEAM_INVITES", "the Team card's invitations"],
@@ -591,48 +602,8 @@ test("in a browser, the pipeline record's page stands at its workspace's address
   assert.equal(person.proposal.sent !== null, true, "the proposal went out, and the page says so");
 });
 
-/**
- * What the People pages read that the pipeline record's page leaves alone, and why. The Leads scope's own is excused
- * whole (LEADS_SCOPE): people.jsx draws it beside People, and this record has no searches.
- */
-const PEOPLE_NOT_PUBLISHED = new Map([
-  [
-    "__href",
-    "the api's addresses (inbox-verbs.ts): without it the page offers no export, and the harness serves no file",
-  ],
-  ["__lists", "a saved list's verbs (people-lists.ts), every one a write: the page offers none without them"],
-]);
-const LEADS_SCOPE = /^__(LEADS|LEAD_VM|leads?[A-Z]\w*)$/;
-
-test("in a browser, the pipeline record's page has every global the People pages read, or says why not", async () => {
-  const read = new Set([
-    ...globalsRead([
-      "people.jsx",
-      "clients-bits.jsx",
-      "people-table.jsx",
-      "people-import.jsx",
-      "pipeline-scope.jsx",
-      "pipeline-row.jsx",
-      "pipeline-peek.jsx",
-      "pipeline-board.jsx",
-      "pipeline-new.jsx",
-      "client-profile.jsx",
-      "person-deal.jsx",
-    ]),
-    ...globalsRead(["deal-sheet.jsx"], "components"),
-  ]);
-  assert.ok(read.has("__proposalMessage"), "the one-step send's words are one of the globals this test is about");
-  const { w } = await pipelinePage();
-  const published = new Set(Object.keys(w));
-  const installed = globalsInstalledByThePages();
-  const missing = [...read]
-    .filter((n) => !published.has(n) && !installed.has(n) && !PEOPLE_NOT_PUBLISHED.has(n) && !LEADS_SCOPE.test(n))
-    .sort();
-  assert.deepEqual(missing, [], `neither published nor accounted for: ${missing.join(", ")}`);
-  // The list only shrinks: a name published AND excused is an excuse nobody will delete.
-  const stale = [...PEOPLE_NOT_PUBLISHED.keys()].filter((n) => published.has(n) || !read.has(n)).sort();
-  assert.deepEqual(stale, [], `no longer true of: ${stale.join(", ")}`);
-});
+// The People pages read nothing off the window (surfaces/people is TSX that imports its verbs), so there is no list of the
+// globals they read for the record to publish or excuse: the test that held it is gone with the last People JSX that read one.
 
 /* ------------------------------------------- the first run and Ask ------------------------------------------- */
 

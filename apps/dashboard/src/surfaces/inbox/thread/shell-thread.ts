@@ -10,7 +10,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/legacy-bridge/surface-status";
 import type { replies } from "@/legacy-bridge/reach-out/replies";
-import type { PeopleSurface } from "@/legacy-bridge/surfaces/people";
+import type { PeopleSurface } from "@/surfaces/people/surface";
 import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
 

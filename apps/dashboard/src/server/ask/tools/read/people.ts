@@ -150,7 +150,7 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
   // The person as their page reads them (readers/person.ts): the profile's one round of reads, once a turn, the
   // workspace's config and sells_by shared with the rest of it; a person this workspace does not hold is the reader's
   // 404. Then the page's own view model, for the member asking, as the profile builds it
-  // (legacy-bridge/people-detail.ts): the facts, the timeline and the notes are the page's (ledger #3).
+  // (surfaces/people/people-detail.ts): the facts, the timeline and the notes are the page's (ledger #3).
   const r = await unlessNotFound(load(t.rc, person, { id }));
   if (!r) return { error: "no such person in this workspace" };
   const detail = r.data.person;

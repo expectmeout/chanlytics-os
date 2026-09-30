@@ -7,10 +7,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { toTodayVM, QUOTE_MAX, leadQuestionRoute, attentionRow } from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { installLegacyReact, fresh, again, all, byTestId } from "../_legacy-react.mjs";
+
+// People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
+const { PL_COLUMNS, PL_PHONE_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -407,11 +411,40 @@ test("the wiring: one row component for People and Today, the queue in the comma
     ["brief-run-row", "brief-run-soon"],
     "a run waiting for a word and a run under its Stop are rows of the same grammar",
   );
-  const people = readCode("apps/dashboard/src/legacy/pages/people.jsx");
   // People drew three of these rows above its table -- the table's own first rows
-  // again -- so the strip went and each row carries the words itself.
+  // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
+  // every cell of their row drawn (the desktop's columns and the phone's card) with the attention row the surface
+  // computed for them, holds no AttnRow and no strip's status, and the words are on the row.
+  installLegacyReact();
+  const needsYou = personRow({
+    id: "p1",
+    needs_human: true,
+    open_escalation_reason: "human_token",
+    open_escalation_since: daysAgo(0.1),
+    last_inbound_text: "Can I move Saturday to 11?",
+  });
+  const attention = { p1: attentionRow(needsYou, ROW_TZ, ROW_NOW) };
+  const ctx = { bookingLink: null, attention, onOpen() {}, onWarm() {}, drop: null, listsOf: {}, shows: {} };
+  const drawn = [];
+  for (const c of [...PL_COLUMNS, ...PL_PHONE_COLUMNS]) {
+    fresh();
+    drawn.push(
+      ...all(
+        again(() => c.cell(needsYou, ctx)),
+        () => true,
+      ),
+    );
+  }
   assert.ok(
-    !people.includes("<window.AttnRow") && !people.includes('className="cl-attn-status"'),
+    drawn.some((n) => n.props?.["data-testid"] === "row-words" || n.props?.["data-testid"] === "row-state-detail"),
+    "People says it on the row",
+  );
+  assert.ok(
+    !drawn.some(
+      (n) =>
+        (typeof n.type === "function" && n.type.name === "AttnRow") ||
+        String(n.props?.className || "").includes("cl-attn-status"),
+    ),
     "People says it on the row, once",
   );
   const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");

@@ -124,11 +124,6 @@
   "apps/dashboard/src/legacy-bridge/mascot/colour.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 4
   },
-  "apps/dashboard/src/legacy-bridge/people-lists.ts": {
-    "@typescript-eslint/no-redundant-type-constituents": 1,
-    "@typescript-eslint/no-unsafe-member-access": 1,
-    "@typescript-eslint/no-unsafe-return": 2
-  },
   "apps/dashboard/src/legacy-bridge/tab-memory.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
@@ -147,30 +142,10 @@
     "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/no-static-element-interactions": 1
   },
-  "apps/dashboard/src/legacy/components/deal-sheet.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/components/record-field.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/role-supports-aria-props": 1,
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/components/record-fold.jsx": {
-    "jsx-a11y-x/no-noninteractive-element-interactions": 3,
-    "react-hooks/exhaustive-deps": 8
-  },
-  "apps/dashboard/src/legacy/components/record-sheet.jsx": {
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 2
-  },
   "apps/dashboard/src/legacy/components/sidebar.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 4,
     "jsx-a11y-x/interactive-supports-focus": 1,
     "jsx-a11y-x/no-static-element-interactions": 3
-  },
-  "apps/dashboard/src/legacy/components/step-sheet.jsx": {
-    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/components/topbar.jsx": {
     "react-hooks/exhaustive-deps": 1
@@ -185,11 +160,6 @@
   },
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": {
     "react-hooks/exhaustive-deps": 7
-  },
-  "apps/dashboard/src/legacy/demo/pages/calendar.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 8,
-    "jsx-a11y-x/no-static-element-interactions": 8,
-    "react-hooks/exhaustive-deps": 6
   },
   "apps/dashboard/src/legacy/demo/pages/live-monitor.jsx": {
     "react-hooks/exhaustive-deps": 3
@@ -229,10 +199,6 @@
   },
   "apps/dashboard/src/legacy/pages/business-tab.jsx": {
     "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx": {
-    "jsx-a11y-x/no-autofocus": 3,
-    "react-hooks/exhaustive-deps": 3
   },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
@@ -274,22 +240,6 @@
   },
   "apps/dashboard/src/legacy/pages/outbound.jsx": {
     "jsx-a11y-x/no-noninteractive-tabindex": 1
-  },
-  "apps/dashboard/src/legacy/pages/people-table.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/interactive-supports-focus": 1
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx": {
-    "jsx-a11y-x/no-autofocus": 15
-  },
-  "apps/dashboard/src/legacy/pages/pipeline-board.jsx": {
-    "jsx-a11y-x/no-noninteractive-element-to-interactive-role": 1
-  },
-  "apps/dashboard/src/legacy/pages/pipeline-new.jsx": {
-    "jsx-a11y-x/no-autofocus": 3
-  },
-  "apps/dashboard/src/legacy/pages/pipeline-row.jsx": {
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-card.jsx": {
     "jsx-a11y-x/no-noninteractive-tabindex": 1,
@@ -363,6 +313,37 @@
   },
   "apps/dashboard/src/server/with-route.ts": {
     "@typescript-eslint/no-misused-promises": 1
+  },
+  "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx": {
+    "jsx-a11y-x/no-autofocus": 3
+  },
+  "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx": {
+    "jsx-a11y-x/no-autofocus": 3
+  },
+  "apps/dashboard/src/surfaces/people/lists/list-title.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/people/lists/rule-editor.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/people/lists/save-shown.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/people/rail/new-list.tsx": {
+    "jsx-a11y-x/no-autofocus": 2
+  },
+  "apps/dashboard/src/surfaces/people/rail/phone-bar.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/people/sheets/add-person.tsx": {
+    "jsx-a11y-x/no-autofocus": 1
+  },
+  "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx": {
+    "jsx-a11y-x/no-autofocus": 2
+  },
+  "apps/dashboard/src/surfaces/people/table/columns-menu.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/interactive-supports-focus": 1
   },
   "apps/edge/api/admin/playbooks-run.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1

@@ -119,6 +119,10 @@ shell (decision 0015). A new route or page never extends an old noun.
 | Back office      | `platform_admins` | `/api/v1/platform/*`              | `#/admin/platform`     |
 | Pipeline, a deal | `deals`           | `POST /api/v1/contacts/[id]/deal` | `#/clients/pipeline`   |
 
+A route that has left the shell says the product's word in its path, `/w/<slug>/people` and `/w/<slug>/lists` (contracts
+`ROUTE_WORDS`: the shell's `clients` and `segments`); the column above is what the shell's own code and the old hash
+address still say, and either old name lands on the word for ever (`movedAddress`).
+
 ## Words to avoid
 
 - **Salon, stylist, visit** as product words. The first workspace was a salon

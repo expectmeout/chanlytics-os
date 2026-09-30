@@ -34,29 +34,29 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            158   of which over 200 lines: 39
-files over 800 lines                 11
+functions over the limit            134   of which over 200 lines: 31
+files over 800 lines                  8
 directories over 20 modules           4
-window globals                      188   names
-window publishers                   373   sites in 133 files
-copies                               52   of 14 names
-as unknown as                       176
+window globals                      167   names
+window publishers                   307   sites in 113 files
+copies                               70   of 20 names
+as unknown as                       163
 as never                             13
 non-null assertions, x!             128
-index reads the compiler lets pass  454   in 119 files
+index reads the compiler lets pass  457   in 118 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
-literal style values               1093   in 22 stylesheets
-primitives outside the kit         2177   selectors naming 864 classes
-inline style props                  274   in 52 files
+literal style values               1088   in 22 stylesheets
+primitives outside the kit         2175   selectors naming 862 classes
+inline style props                  231   in 52 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     300
-source-text reads in tests          827
-lint warnings                       464   in 168 files, 114 of them exhaustive-deps
-workspace route JS, KB gzipped      973   the shell included
+source-text reads in tests          806
+lint warnings                       407   in 165 files, 92 of them exhaustive-deps
+workspace route JS, KB gzipped      923   the shell included
 workspace route CSS, KB gzipped     132
 trees the lint's limits hold         39   15 of them with max-params waiting
 ```

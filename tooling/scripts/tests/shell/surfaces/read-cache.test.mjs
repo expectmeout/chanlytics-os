@@ -125,7 +125,7 @@ test("a log paged deep does not evict its own head", async () => {
 });
 
 test('a "not in your workspace" is never held: it is the one answer that changes the moment somebody is added', async () => {
-  // The person cache is built with exactly this rule (legacy-bridge/people-detail.ts).
+  // The person cache is built with exactly this rule (surfaces/people/people-detail.ts).
   const c = readCache("person", (vm) => vm !== null);
   await c.through("p-1", async () => null);
   assert.equal(c.peek("p-1"), null, "asking again asks the server, not the memory");

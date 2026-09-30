@@ -18,12 +18,12 @@
  */
 import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "./surfaces/broadcasts";
-import { calendarOverride } from "./surfaces/calendar";
+import { calendarOverride } from "@/surfaces/calendar/surface";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
 import { liveOverride } from "./surfaces/live";
 import { notificationsOverride } from "./surfaces/notifications";
-import { peopleOverride } from "./surfaces/people";
+import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "./surfaces/playbooks";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { settingsOverride } from "./surfaces/settings";

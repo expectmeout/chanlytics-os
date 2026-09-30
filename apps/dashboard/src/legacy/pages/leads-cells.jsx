@@ -268,7 +268,7 @@ const ldBusinessCell = (l, x) => (
 // PRD §6.2's Leads columns as the redesign cuts them (D5): three that differ row to row -- who they are, whether
 // you can reach them, how well they are rated -- and when they were found, whose cell holds the row's acts on
 // hover. Fit, Why it fits and Stage stay in the Columns menu, off: the band bar says the fits, the name's card
-// and the peek say why, and the row wears its stage as a tag. In the shape the table takes (people-table.jsx):
+// and the peek say why, and the row wears its stage as a tag. In the shape the table takes (surfaces/people/table/table.tsx):
 // { key, label, sortable, pinned, fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes.
 const LEAD_COLUMNS = [
   { key: "business", label: "Business", sortable: true, pinned: true, cell: ldBusinessCell },

@@ -37,8 +37,6 @@ Object.assign(W, {
 });
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
 await import(`${L}/components/message-preview.jsx`);
 await import(`${L}/components/template-chips.jsx`);
 await import(`${L}/components/campaign-bits.jsx`);

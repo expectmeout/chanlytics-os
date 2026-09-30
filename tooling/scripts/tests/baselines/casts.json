@@ -82,9 +82,6 @@
   "apps/dashboard/src/legacy-bridge/business-tab.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/calendar.ts": {
-    "unknownAs": 3
-  },
   "apps/dashboard/src/legacy-bridge/identity.ts": {
     "unknownAs": 3
   },
@@ -107,13 +104,6 @@
   },
   "apps/dashboard/src/legacy-bridge/partner.ts": {
     "unknownAs": 3
-  },
-  "apps/dashboard/src/legacy-bridge/people-detail.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/people-lists.ts": {
-    "unknownAs": 5,
-    "nonNull": 1
   },
   "apps/dashboard/src/legacy-bridge/platform.ts": {
     "nonNull": 2
@@ -142,17 +132,11 @@
   "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": {
-    "unknownAs": 2
-  },
   "apps/dashboard/src/legacy-bridge/surfaces/live.ts": {
     "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/surfaces/notifications.ts": {
     "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surfaces/people.ts": {
-    "unknownAs": 5
   },
   "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": {
     "unknownAs": 1
@@ -236,6 +220,15 @@
   },
   "apps/dashboard/src/server/route.ts": {
     "unknownAs": 1
+  },
+  "apps/dashboard/src/surfaces/people/people-detail.ts": {
+    "unknownAs": 1
+  },
+  "apps/dashboard/src/surfaces/people/people-lists.ts": {
+    "nonNull": 1
+  },
+  "apps/dashboard/src/surfaces/people/surface.ts": {
+    "unknownAs": 2
   },
   "apps/edge/api/admin/voice-converge.ts": {
     "unknownAs": 2

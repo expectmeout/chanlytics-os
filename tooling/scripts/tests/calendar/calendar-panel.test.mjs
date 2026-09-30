@@ -9,12 +9,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact } from "../_legacy-react.mjs";
 
-installLegacyReact({ __DEMO_MODE: false });
-const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/pages/calendar.jsx`);
-const W = globalThis.window;
+const { crDur, crNotesWorth, crWhen } = await import("../../../../apps/dashboard/src/surfaces/calendar/words.ts");
+const W = { crDur, crNotesWorth, crWhen };
 
 test("how long it runs, in the words the day's rows use", () => {
   assert.equal(W.crDur(45), "45m");

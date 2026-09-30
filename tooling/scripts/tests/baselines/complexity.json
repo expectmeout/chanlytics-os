@@ -69,36 +69,6 @@
     "branches": 58,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/components/deal-sheet.jsx::DealSheetFields#1": {
-    "lines": 163,
-    "branches": 24,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/deal-sheet.jsx::DealSheetHost#1": {
-    "lines": 162,
-    "branches": 45,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/components/record-fold.jsx::RecordFold#1": {
-    "lines": 156,
-    "branches": 48,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/components/record-fold.jsx::RecordInline#1": {
-    "lines": 80,
-    "branches": 36,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/record-row.jsx::RecordRow#1": {
-    "lines": 51,
-    "branches": 49,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/record-sheet.jsx::RecordSheet#1": {
-    "lines": 119,
-    "branches": 45,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
     "lines": 209,
     "branches": 35,
@@ -108,11 +78,6 @@
     "lines": 42,
     "branches": 31,
     "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/step-sheet.jsx::StepSheetHost#1": {
-    "lines": 129,
-    "branches": 33,
-    "depth": 1
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
     "lines": 162,
@@ -125,8 +90,8 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/data/bridge-stubs.jsx::bridgeStubs#1": {
-    "lines": 197,
-    "branches": 13,
+    "lines": 189,
+    "branches": 12,
     "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx::FleetDetail#1": {
@@ -158,16 +123,6 @@
     "lines": 353,
     "branches": 22,
     "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarSeed#1": {
-    "lines": 340,
-    "branches": 23,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::EventPanel#1": {
-    "lines": 169,
-    "branches": 52,
-    "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/content-cal.jsx::ContentPage#1": {
     "lines": 153,
@@ -269,36 +224,6 @@
     "branches": 6,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/pages/calendar.jsx::CalendarReal#1": {
-    "lines": 354,
-    "branches": 80,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/calendar.jsx::CrPanel#1": {
-    "lines": 109,
-    "branches": 37,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileReal#1": {
-    "lines": 515,
-    "branches": 78,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileSeed#1": {
-    "lines": 357,
-    "branches": 71,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::GenericQueue#1": {
-    "lines": 41,
-    "branches": 35,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::PersonNotes#1": {
-    "lines": 221,
-    "branches": 31,
-    "depth": 0
-  },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx::AskBarSeed#1": {
     "lines": 264,
     "branches": 28,
@@ -373,51 +298,6 @@
     "lines": 180,
     "branches": 37,
     "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/people-import.jsx::PeopleImportSheet#1": {
-    "lines": 155,
-    "branches": 29,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::ClientsASeed#1": {
-    "lines": 319,
-    "branches": 27,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::PeopleBulkBar#1": {
-    "lines": 323,
-    "branches": 88,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::PeopleRail#1": {
-    "lines": 64,
-    "branches": 32,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::RailRow#1": {
-    "lines": 22,
-    "branches": 34,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::onKey#2": {
-    "lines": 48,
-    "branches": 54,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::usePlControls#1": {
-    "lines": 164,
-    "branches": 13,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::usePlPlace#1": {
-    "lines": 183,
-    "branches": 6,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/pipeline-scope.jsx::PipelineScope#1": {
-    "lines": 462,
-    "branches": 64,
-    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
     "lines": 204,

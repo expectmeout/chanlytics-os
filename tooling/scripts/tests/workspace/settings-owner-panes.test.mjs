@@ -25,7 +25,7 @@ import {
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
 import { installPolicyStore } from "../../../../apps/dashboard/src/legacy-bridge/policy-store.ts";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { useStubHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 
@@ -170,13 +170,10 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-field.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-row.jsx");
 // data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
 Object.assign(globalThis.window, kitPages);
-kitHooks();
+useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 const saved = [];
 Object.assign(globalThis.window, {

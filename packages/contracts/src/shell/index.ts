@@ -70,7 +70,7 @@ export type {
   ToastTone,
   ToastShape,
 } from "./chrome";
-export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath } from "./address";
+export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, ROUTE_WORDS } from "./address";
 export type { AddressParts } from "./address";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./tone";
 export type { Tone, StateKind, LeadPinnable } from "./tone";
