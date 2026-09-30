@@ -1,4 +1,4 @@
-# 0023 · How the packages ship
+# 0024 · How the packages ship
 
 **Status:** decided on 29 September 2026 with the road-to-10 health lane, and built in part: step 1, third-party code
 stays an import, is built with this note; steps 2 to 4 are to come. Written against `1388f2cc6` (main, 29 September

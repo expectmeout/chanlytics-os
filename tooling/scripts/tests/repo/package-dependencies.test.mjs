@@ -4,7 +4,7 @@
  * The hoisted linker (`.npmrc`) puts every third-party module at the root, so an import a project never declared
  * resolves anyway and nothing fails until the layout changes: core and jobs imported `@supabase/supabase-js`, and
  * their builds carried `html-to-text` inline, for weeks without declaring either (the scorecard's I1:3). A package's
- * built dist is what the edge executes (docs/decisions/0023-how-the-packages-ship.md): the workspace's own packages
+ * built dist is what the edge executes (docs/decisions/0024-how-the-packages-ship.md): the workspace's own packages
  * are inlined into it, every third-party module stays an import, and a Dependabot bump of one changes a manifest and
  * the lockfile, never a committed dist.
  */

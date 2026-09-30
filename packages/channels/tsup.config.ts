@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 export default defineConfig({
   // The workspace's own packages are inlined: the edge executes this file by relative path, and Vercel's function
-  // bundler does not follow pnpm's links (docs/decisions/0023-how-the-packages-ship.md).
+  // bundler does not follow pnpm's links (docs/decisions/0024-how-the-packages-ship.md).
   noExternal: [/^@chanlytics\//],
   // Third-party code is never inlined: every other bare import stays an import, resolved from the hoisted
   // node_modules and declared in package.json (repo/package-dependencies.test.mjs holds both).
