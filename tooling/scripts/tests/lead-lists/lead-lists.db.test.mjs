@@ -641,8 +641,16 @@ test(
       );
     assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
 
-    const story = bodyIn(migration("00242"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), story, "the database runs 00242's");
+    const latest = bodyIn(migration("00285"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), latest, "the database runs 00285's");
+    // 00285 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
+    const story = latest
+      .replace(
+        "  -- A partner's seat counts for the calling session only once it showed its second factor (0013, 00261).\n",
+        "",
+      )
+      .replace("\n          and (m.role <> 'partner' or public.session_shows_second_factor())", "");
+    assert.equal(story, bodyIn(migration("00242"), "create or replace function public.reach_out_lead_timeline("));
     assert.equal(
       story.replace(/ {4}-- Found on a listing[^\n]*\n {4}'found_on_listing', v_lead\.place_id is not null,\n/, ""),
       bodyIn(migration("00241"), "create or replace function public.reach_out_lead_timeline("),
