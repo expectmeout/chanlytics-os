@@ -40,6 +40,7 @@ import { log } from "@/server/log";
  */
 export const DELETE = write({
   scope: erasureScope,
+  fresh: true,
   role: "owner",
   rate: "erase",
   handle: async ({ ctx, row: contact }) =>

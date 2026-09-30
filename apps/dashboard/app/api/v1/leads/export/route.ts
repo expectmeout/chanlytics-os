@@ -10,6 +10,7 @@ import { exportLeads } from "@/server/leads/leads";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   query: LeadExportQuerySchema,

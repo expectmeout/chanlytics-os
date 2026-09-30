@@ -19,6 +19,7 @@ import { log } from "@/server/log";
  */
 export const GET = read({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "export",
   query: PeopleExportQuerySchema,

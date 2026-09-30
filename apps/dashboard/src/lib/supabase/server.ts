@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@chanlytics/db";
-import { env } from "@/server/env";
+import { env, isProduction } from "@/server/env";
+import { sessionCookieOptions } from "./cookie-options";
 
 /**
  * Session-scoped server client — the ONLY client /api/v1 handlers and server
@@ -11,6 +12,7 @@ import { env } from "@/server/env";
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookieOptions: sessionCookieOptions(isProduction()),
     cookies: {
       getAll() {
         return cookieStore.getAll();

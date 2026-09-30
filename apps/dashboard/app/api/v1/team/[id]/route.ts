@@ -15,6 +15,7 @@ const Body = z.object({
  */
 export const PATCH = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "team",
   input: Body,
@@ -30,6 +31,7 @@ export const PATCH = write({
 /** DELETE /api/v1/team/:id — remove a member (or revoke an open invite). Owner-only. */
 export const DELETE = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "team",
   handle: async ({ ctx, member }) =>

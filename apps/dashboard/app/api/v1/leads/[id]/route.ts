@@ -39,6 +39,7 @@ export const GET = read({
  */
 export const DELETE = write({
   scope: leadScope,
+  fresh: true,
   role: "owner",
   rate: "erase",
   handle: ({ ctx, row }) => eraseLead(ctx, row),

@@ -10,6 +10,7 @@ import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
  */
 export const POST = write({
   scope: workspace,
+  fresh: true,
   role: "owner",
   rate: "billing",
   handle: async ({ ctx, member }) => {

@@ -6,6 +6,7 @@ import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { writeAuthCookies } from "@/server/auth-cookies";
 import { env, isProduction } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
+import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -137,6 +138,7 @@ export async function proxy(request: NextRequest) {
   let response = nextWithPolicy();
 
   const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookieOptions: sessionCookieOptions(isProduction()),
     cookies: {
       getAll() {
         return request.cookies.getAll();

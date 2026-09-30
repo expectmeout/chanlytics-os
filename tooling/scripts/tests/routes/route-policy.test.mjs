@@ -85,3 +85,37 @@ test("only a workspace or row write may spend a workspace's money", () => {
 test("what the routes declare is what the file says", () => {
   assert.deepEqual(declared, file.routes, "a route's policy changed: review it, then UPDATE_ROUTE_POLICY=1");
 });
+
+// The acts that cannot be taken back, or that hand over a workspace's people or its money, ask the Auth server whether
+// the session is still live (`fresh`, route.ts): getClaims() cannot tell a session revoked a minute ago from a live one.
+// The list is this test's; route-policy.json holds each route's declaration and this holds that no other route drifts in.
+const FRESH = [
+  "DELETE me",
+  "PATCH team/[id]",
+  "DELETE team/[id]",
+  "POST team/invite",
+  "GET export",
+  "GET contacts/export",
+  "GET leads/export",
+  "DELETE contacts/[id]",
+  "DELETE leads/[id]",
+  "POST billing/checkout",
+  "POST billing/portal",
+  "POST billing/resume",
+  "POST billing/start-now",
+];
+test("the sensitive acts ask whether the session is still live, and no other route pays for it unannounced", () => {
+  const fresh = Object.entries(declared)
+    .filter(([, p]) => p.fresh === true)
+    .map(([key]) => key)
+    .sort();
+  assert.deepEqual(fresh, [...FRESH].sort());
+  assert.deepEqual(
+    Object.entries(file.routes)
+      .filter(([, p]) => p.fresh === true)
+      .map(([key]) => key)
+      .sort(),
+    fresh,
+    "route-policy.json says the same: bank it with UPDATE_ROUTE_POLICY=1",
+  );
+});
