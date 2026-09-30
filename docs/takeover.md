@@ -34,16 +34,16 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            158   of which over 200 lines: 39
-files over 800 lines                 11
+functions over the limit            142   of which over 200 lines: 31
+files over 800 lines                 10
 directories over 20 modules           4
-window globals                      188   names
-window publishers                   373   sites in 133 files
-copies                               52   of 14 names
-as unknown as                       176
+window globals                      176   names
+window publishers                   330   sites in 108 files
+copies                               73   of 21 names
+as unknown as                       171
 as never                             13
 non-null assertions, x!             128
-index reads the compiler lets pass  454   in 119 files
+index reads the compiler lets pass  478   in 128 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
@@ -51,14 +51,14 @@ doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2177   selectors naming 864 classes
-inline style props                  274   in 52 files
+inline style props                  262   in 53 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     300
-source-text reads in tests          827
-lint warnings                       464   in 168 files, 114 of them exhaustive-deps
-workspace route JS, KB gzipped      973   the shell included
+dead exports, types and modules     316
+source-text reads in tests          809
+lint warnings                       443   in 159 files, 105 of them exhaustive-deps
+workspace route JS, KB gzipped      918   the shell included
 workspace route CSS, KB gzipped     132
-trees the lint's limits hold         39   15 of them with max-params waiting
+trees the lint's limits hold         40   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

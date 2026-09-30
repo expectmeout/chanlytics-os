@@ -139,14 +139,8 @@
   "apps/dashboard/src/legacy-bridge/surface-runner.ts": {
     "unknownAs": 2
   },
-  "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": {
     "unknownAs": 2
-  },
-  "apps/dashboard/src/legacy-bridge/surfaces/live.ts": {
-    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/surfaces/notifications.ts": {
     "unknownAs": 1
@@ -154,14 +148,8 @@
   "apps/dashboard/src/legacy-bridge/surfaces/people.ts": {
     "unknownAs": 5
   },
-  "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": {
     "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/templates.ts": {
-    "unknownAs": 2
   },
   "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
     "unknownAs": 2,
