@@ -1,6 +1,6 @@
 # 0021 · People are paged by a moment the database keeps
 
-**Status:** Accepted by Ruben, 28 Sep 2026. Built: step 1 (00259, #1306 folded into the lane's landing), and steps 2 and 3 together (00268 and its callers); steps 4 and 5 to come. The open questions stay open for the steps they touch.
+**Status:** Accepted by Ruben, 28 Sep 2026. Built: step 1 (00259, #1306 folded into the lane's landing), and steps 2 and 3 together (00276 and its callers); steps 4 and 5 to come. The open questions stay open for the steps they touch.
 Written against commit `887e79cc` (main, 28 September 2026, after
 #1210 merged), and every file and line below was read at it. The numbers are from a model on Postgres 16 (Context says
 what it holds) with #1226's `people_list` (00250) and #1247's indexes (00253) applied, since both are open and both
@@ -268,12 +268,12 @@ Each is its own pull request, in this order, and each ships alone.
 ## Built (29 September 2026): steps 2 and 3
 
 Built in one pull request against `9025895a`: the migration
-`supabase/migrations/00268_people_are_paged_by_their_kept_moments.sql`, and the callers in `packages/db` (`peoplePage`,
+`supabase/migrations/00276_people_are_paged_by_their_kept_moments.sql`, and the callers in `packages/db` (`peoplePage`,
 `everyoneIn`), the dashboard (`GET contacts`, its reader, `everyPerson` and Show more) and so the edge's `allPeople`,
 which reads through `everyoneIn`. Where it differs from Steps and Shape:
 
 - **Steps 2 and 3 are one pull request, and either can deploy first.** A caller names a cursor only once a row carries
-  its place (`in_touch_at`, `added_at`), which only 00268 answers; until then it asks by offset, as before. So the
+  its place (`in_touch_at`, `added_at`), which only 00276 answers; until then it asks by offset, as before. So the
   dashboard and the edge may deploy before the migration is applied, and the migration waits only on the fill.
 - **The migration refuses to apply while a live person has no kept moments.** A person with no row would be on no
   page, so the precondition Shape states in prose ("does not read the table until `person_moments_check` finds every
@@ -312,7 +312,7 @@ which reads through `everyoneIn`. Where it differs from Steps and Shape:
   after the first page are each read at most once, and open the next pass; the older call by position; a member reads
   their workspace's page and a stranger none), against which 00250's function fails the first two, and a page chosen
   inside `people_list` fails the first on a fresh stack; `people/people-routes.test.mjs` (the page's `next`, the next
-  page just past the last row, a database before 00268 asked by offset, a cursor refused; `everyone` reading nobody
+  page just past the last row, a database before 00276 asked by offset, a cursor refused; `everyone` reading nobody
   twice when someone writes between pages); and `shell/surfaces/people-pages.test.mjs` (the tab's pages follow
   `next`, and the offset alone without it). `people/people-came-from.db.test.mjs` now finds people alike in everything
   in falling id order.

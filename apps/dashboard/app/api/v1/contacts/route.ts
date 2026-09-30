@@ -24,7 +24,7 @@ const Query = z.object({
  * of the number; `?offset=` reads the next thousand under the same order.
  * `page` says how many there are in all and whether more follow, so the
  * page can stop at nothing and keep its counts right (00112). Once the rows
- * carry their place in the order (00268), `page.next` is where the next
+ * carry their place in the order (00276), `page.next` is where the next
  * page starts: handed back as `?after=`, beside the offset that counts what
  * the page holds, it reads just past the last row, so nobody who writes in
  * between is read twice (0021). A cursor this route did not give is refused.

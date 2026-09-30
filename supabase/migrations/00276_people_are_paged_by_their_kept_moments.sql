@@ -1,4 +1,4 @@
--- 00268 · People are paged by their kept moments.
+-- 00276 · People are paged by their kept moments.
 --
 -- Decision 0021, step 2 (docs/decisions/0021-people-are-paged-by-a-moment-the-database-keeps.md). people_list ordered
 -- everyone by the later of their last spoken word and their last connected call, two of its eleven reads, so to answer

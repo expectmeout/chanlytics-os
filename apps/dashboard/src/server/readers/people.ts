@@ -35,7 +35,7 @@ interface PeoplePage {
   follow_up: FollowUpFactsDto | null;
   /**
    * `offset` is how many rows the caller holds, and counts `has_more`; `next`, when the rows carry their place in the
-   * order (00268), is where the next page starts: handed back as `?after=`, it reads just past the last row, and
+   * order (00276), is where the next page starts: handed back as `?after=`, it reads just past the last row, and
    * nobody who writes in between is read twice.
    */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean; next: string | null };

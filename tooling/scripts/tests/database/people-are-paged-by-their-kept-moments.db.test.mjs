@@ -1,5 +1,5 @@
 /**
- * People are paged by their kept moments (decision 0021, step 2, 00268), on a real database.
+ * People are paged by their kept moments (decision 0021, step 2, 00276), on a real database.
  *
  * people_list chooses a page before it reads it: the page's people come from person_moments in the kept order (the
  * later of their last word and last call, then when they were added, then the id, falling), after an offset or a

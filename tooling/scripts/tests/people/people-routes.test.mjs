@@ -754,9 +754,9 @@ test("the list pages under one order and counts everyone: the door is named a qu
 });
 
 /**
- * people_list as 00268 answers it, over `n` people of workspace A in the kept order (the latest in touch first, then
+ * people_list as 00276 answers it, over `n` people of workspace A in the kept order (the latest in touch first, then
  * the newest added, then the id, falling): a page after the cursor or the offset, each row carrying its place. With
- * `places: false`, a database before 00268: the same rows without their place, and no cursor taken. Every question is
+ * `places: false`, a database before 00276: the same rows without their place, and no cursor taken. Every question is
  * kept in `asked`, and `move(id)` puts someone at the top, as a word from them would.
  */
 function kept(n, { places = true } = {}) {
@@ -774,7 +774,7 @@ function kept(n, { places = true } = {}) {
     asked.push(a);
     const order = [...rows].sort(before);
     const after = a.p_after_id ? { at: a.p_after_at, added: a.p_after_added, id: a.p_after_id } : null;
-    if (after && !places) throw new Error("a database before 00268 was named a cursor");
+    if (after && !places) throw new Error("a database before 00276 was named a cursor");
     const from = after ? order.filter((r) => before(after, r) < 0) : order.slice(a.p_offset ?? 0);
     return from
       .slice(0, a.p_limit ?? 1000)
@@ -822,7 +822,7 @@ test("a page says where the next begins once its rows carry their place, and the
   assert.ok(!second.people.some((p) => first.people.some((q) => q.id === p.id)), "nobody twice");
   assert.deepEqual(second.page, { q: null, offset: 1000, limit: 1000, total: 1500, has_more: false, next: null });
 
-  // A database before 00268: no place on the rows, so no cursor, and the next page is asked by offset as before.
+  // A database before 00276: no place on the rows, so no cursor, and the next page is asked by offset as before.
   const before = kept(1500, { places: false });
   const old = await contacts.GET.run(
     get(inA),
@@ -839,7 +839,7 @@ test("a page says where the next begins once its rows carry their place, and the
   }
 });
 
-test("everyone is read a page at a time, each just past the last row's place, and nobody twice when someone writes between pages; by offset from a database before 00268", async () => {
+test("everyone is read a page at a time, each just past the last row's place, and nobody twice when someone writes between pages; by offset from a database before 00276", async () => {
   const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
   const world = kept(2500);
   const tables = { memberships: both("owner", "owner"), policies: [], contacts: world.contacts };

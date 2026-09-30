@@ -21,13 +21,13 @@ interface PeoplePage {
   q?: string | null;
   offset?: number;
   limit?: number;
-  /** Just past this place in the kept order (00268), in place of the offset. */
+  /** Just past this place in the kept order (00276), in place of the offset. */
   after?: PeopleCursor | null;
 }
 
 /**
  * The next page's cursor as the wire carries it (`page.next`, then `GET contacts?after=`): the last row's place,
- * opaque to the page, which only hands it back. Null when the row does not carry its place (a database before 00268):
+ * opaque to the page, which only hands it back. Null when the row does not carry its place (a database before 00276):
  * the page then asks by offset.
  */
 export function nextPeopleParam(row: PersonRowDto | undefined): string | null {

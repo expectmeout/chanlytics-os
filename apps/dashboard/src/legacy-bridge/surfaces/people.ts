@@ -111,7 +111,7 @@ export interface PeopleSurface {
   dealPace: DealPaceVM | null;
   /**
    * The page the rows came from: how many there are in all, and whether more follow (00112); and, once the rows carry
-   * their place in the order (00268), where the next page starts (handed back as `after`, 0021).
+   * their place in the order (00276), where the next page starts (handed back as `after`, 0021).
    */
   page: {
     q: string | null;

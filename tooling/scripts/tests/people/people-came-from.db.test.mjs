@@ -279,7 +279,7 @@ test(
         .insert([1, 2, 3, 4, 5].map((i) => ({ tenant_id: t, display_name: `Tie ${i}`, phone_e164: `+155501490${i}` })))
         .select("id"),
     );
-    // Falling, as person_moments_order holds it (00268).
+    // Falling, as person_moments_order holds it (00276).
     const byId = made
       .map((m) => m.id)
       .sort()

@@ -1,7 +1,7 @@
 /**
  * People's pages in the tab (decision 0021, step 3): every page after the first asks just past the last row once the
  * page before said where the next begins (`page.next`, handed back as `after`, beside the offset that counts the rows
- * the tab holds), and by the offset alone when it did not (a database before 00268). The real surface module reads
+ * the tab holds), and by the offset alone when it did not (a database before 00276). The real surface module reads
  * over a fake of GET contacts.
  */
 import { test } from "node:test";
@@ -47,7 +47,7 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: "t-studio",
 };
 
-/** GET contacts over `total` people, a thousand a page; `next` is said only when `cursors` (a database with 00268). */
+/** GET contacts over `total` people, a thousand a page; `next` is said only when `cursors` (a database with 00276). */
 function contactsServer(total, { cursors }) {
   const asked = [];
   globalThis.window.fetch = async (url) => {
@@ -109,7 +109,7 @@ test("every page after the first starts just past the last row, where the page b
   assert.deepEqual([page.has_more, page.next], [false, null]);
 });
 
-test("a page that says nowhere (a database before 00268) is followed by the offset alone, as before", async () => {
+test("a page that says nowhere (a database before 00276) is followed by the offset alone, as before", async () => {
   const asked = contactsServer(2300, { cursors: false });
   const { people } = await everyPerson(firstPage(2300, false));
   assert.equal(people.length, 2300);
