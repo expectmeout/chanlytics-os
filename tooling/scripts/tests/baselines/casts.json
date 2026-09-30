@@ -237,9 +237,6 @@
   "apps/dashboard/src/server/platform/signup.ts": {
     "nonNull": 2
   },
-  "apps/dashboard/src/server/ports/campaign-ports.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/server/ports/core-ports.ts": {
     "unknownAs": 2
   },
@@ -326,7 +323,7 @@
     "nonNull": 2
   },
   "apps/edge/lib/playbooks.ts": {
-    "unknownAs": 3
+    "unknownAs": 2
   },
   "apps/edge/lib/reach-out/clock.ts": {
     "nonNull": 1

@@ -131,6 +131,9 @@ select 'role_unbounded', coalesce(array_agg(x order by x), '{}') from (
      and not exists (select 1 from unnest(coalesce(r.rolconfig, '{}'::text[])) cfg where cfg like 'statement_timeout=%')
 ) s
 union all
+select 'jobs_index_missing', case when to_regclass('public.jobs_tenant_kind_state') is null
+                                   then array['jobs_tenant_kind_state'] else '{}'::text[] end
+union all
 select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -166,6 +169,23 @@ test("every role a request runs as has a statement bound, the service role's too
     "the service role's is 30 s: the client waits 40, so the database ends it first",
   );
 });
+
+test(
+  "a workspace's jobs of a kind are found by index, not by a scan of every workspace's ledger (00281)",
+  { skip },
+  () => {
+    assert.deepEqual(
+      rules.jobs_index_missing,
+      [],
+      "create index jobs_tenant_kind_state on jobs (tenant_id, kind, state)",
+    );
+    const [row] = query("select indexdef from pg_indexes where indexname = 'jobs_tenant_kind_state'");
+    assert.ok(
+      (row?.indexdef ?? "").includes("(tenant_id, kind, state)"),
+      "on the three columns every per-workspace read filters by",
+    );
+  },
+);
 
 test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");

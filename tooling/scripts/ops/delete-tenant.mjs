@@ -28,6 +28,12 @@
  * to own the product's first real phone line, answering, with two inbound texts
  * on it. A dry run is what caught that; a hand-typed DELETE would not have.
  *
+ * Its two deletes (the events, then the tenant with its cascade) are one statement each, and the service role's
+ * statements end at 30 seconds (00281). A workspace with a very long history can need longer: the events delete then
+ * times out having removed nothing, or the tenant delete does after the events are gone. Both are safe to run again,
+ * since the backup is already written and the script is idempotent; for a workspace too large to finish, run the same
+ * two deletes from psql after `set statement_timeout = 0`.
+ *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
  *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
