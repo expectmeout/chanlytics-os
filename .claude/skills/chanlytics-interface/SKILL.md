@@ -196,7 +196,7 @@ TSX (Draw with the kit, step 2).
 | quiet link | `LinkButton` (`.link-btn`) |
 | list row | `ListRow` (`.list-row`) |
 | confirmation, flash | `Confirm` (`.confirm*`); `useToast` (`.pp-toast*`), `usePPToast` on a legacy page |
-| glyph | `Icon` (`apps/dashboard/src/legacy/components/icons.jsx`) |
+| glyph | `Icon` (`apps/dashboard/src/surfaces/kit/icon/icon.tsx`) |
 
 ## Behaviour: Base UI
 

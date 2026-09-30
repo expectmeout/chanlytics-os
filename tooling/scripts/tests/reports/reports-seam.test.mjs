@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, redrawWanted, quiet } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, redrawWanted, quiet } from "../_legacy-react.mjs";
 
 const CACHE = "chanlytics.surfaces.v1";
 const storage = () => {
@@ -25,7 +25,7 @@ globalThis.sessionStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
-const S = "../../../../../apps/dashboard/src";
+const S = "../../../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
 const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
 // Importing the overrides declares the mirrors, as the app's boot does.

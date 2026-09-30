@@ -29,7 +29,7 @@ import {
 } from "../../../apps/dashboard/src/surfaces/kit/index.ts";
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
 
-/** A glyph as the Icon draws it (components/icons.jsx): the gallery's table of paths, at a size. */
+/** A glyph as the Icon draws it (surfaces/kit/icon/icon.tsx): the gallery's table of paths, at a size. */
 const glyph = (name: keyof typeof GLYPHS, size: number): ReactElement => (
   <svg
     width={size}

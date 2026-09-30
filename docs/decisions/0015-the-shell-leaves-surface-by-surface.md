@@ -94,7 +94,7 @@ Five real pages still fork to a seeded twin when their surface is absent: `pages
 `pages/broadcasts.jsx:959` (`BroadcastsSeed`), `pages/outbound.jsx:239` (`OutboundSeed`), `pages/live-monitor.jsx:21`
 and `:584` (`LiveMonitorPage`), and `pages/client-profile.jsx:1830` (`ClientProfileSeed`); `pages/segments.jsx:157`
 reads `BC_HISTORY_SEED`. The first four twins live under `demo/`, and they and `BC_HISTORY_SEED` are why the manifest
-still loads the demo tree for every workspace (`docs/debt.md`, the demo row). Reports and Today draw a declared demo session from a contracts sample instead (`reports-sample.ts`,
+still loads the demo tree for every workspace (`docs/debt.md`, the demo row). Reports and Today draw a declared demo session from a contracts sample instead (`surfaces/reports/sample.ts`, formerly `reports-sample.ts`,
 `today-sample.ts`), which is the shape a twin should have had.
 
 ### What the plan and the register already say

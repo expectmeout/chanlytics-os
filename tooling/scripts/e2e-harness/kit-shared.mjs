@@ -1,7 +1,7 @@
 /**
  * What the kit's two galleries share (kit-gallery.mjs, the static page, and kit-behaves.tsx, the page that runs the
  * kit's components), with no import of node's, so the browser's bundle takes it as the server does: the glyphs, as
- * components/icons.jsx draws them (a 16-unit box, a 1.5 stroke, the class `icon`), and the rows the running page's
+ * surfaces/kit/icon/icon.tsx draws them (a 16-unit box, a 1.5 stroke, the class `icon`), and the rows the running page's
  * sheet holds, enough that its body scrolls.
  */
 export const GLYPHS = {

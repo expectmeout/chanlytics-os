@@ -63,7 +63,7 @@ export const UNLISTED = {
   "rec-combo-label": "an option's words beside its meta (RecordCombobox), which no stylesheet names",
 };
 
-/** Icon's markup (components/icons.jsx), its size written on the element as Icon writes it. A glyph not here throws. */
+/** Icon's markup (surfaces/kit/icon/icon.tsx), its size written on the element as Icon writes it. A glyph not here throws. */
 const icon = (name, size) => {
   if (!Object.hasOwn(GLYPHS, name))
     throw new Error(`kit-gallery.mjs draws no glyph "${name}": add its paths to GLYPHS`);
@@ -252,7 +252,7 @@ const SERIES = [
 const ONE_PART = SERIES.slice(0, 1);
 /** A meter's words for a screen reader, as SegmentBar says its parts. */
 const partsLabel = (parts) => parts.map(([name, share]) => `${share} ${name}`).join(", ");
-/** The parts, each its share and its colour inline, as SegmentBar writes them (components/chart-core.jsx). */
+/** The parts, each its share and its colour inline, as SegmentBar writes them (surfaces/kit/charts/card.tsx). */
 const partsHtml = (parts, tag, cls) =>
   parts
     .map(

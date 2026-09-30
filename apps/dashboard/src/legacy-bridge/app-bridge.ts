@@ -109,7 +109,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
   };
-  // A file the page made (chart-core's CSV), asked for with a cancelable `app:file`: taken to the app's share sheet,
+  // A file the page made (the chart kit's CSV, surfaces/kit/charts/card.tsx), asked for with a cancelable `app:file`: taken to the app's share sheet,
   // and the event cancelled so the page does not also try the download a WebView drops. One that is no file the app
   // would take is left to the page.
   const file = (e: Event) => {
