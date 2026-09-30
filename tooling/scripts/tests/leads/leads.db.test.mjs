@@ -79,9 +79,6 @@ let releaseList;
 before(async () => {
   if (skip) return;
   releaseList = await takeLock("lead-platform-list");
-});
-before(async () => {
-  if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -178,10 +175,14 @@ before(async () => {
 // nothing behind. Everything carrying a tenant_id cascades from the workspace;
 // events have no foreign key to it, so they go by hand.
 after(async () => {
-  if (skip) return;
-  await db.from("events").delete().eq("tenant_id", A);
-  await db.from("tenants").delete().eq("id", A);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  try {
+    if (skip) return;
+    await db.from("events").delete().eq("tenant_id", A);
+    await db.from("tenants").delete().eq("id", A);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseList?.();
+  }
 });
 
 test(
@@ -1276,7 +1277,3 @@ test(
     );
   },
 );
-
-after(async () => {
-  await releaseList?.();
-});

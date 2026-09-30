@@ -12,6 +12,10 @@
  *   const release = await takeLock("lead-platform-list");   // in before()
  *   await release();                                        // last in after()
  *
+ * Take it inside the setup hook itself, before anything the suite writes, and give it back in the one `after` that
+ * cleans up: a file's `before` hooks run at the same time (and so do its `after` hooks), so a lock taken in a hook of
+ * its own guards nothing, and one given back in a hook of its own is given back while the cleanup still writes.
+ *
  * A directory is made to take it (`mkdir` is atomic on every platform) and removed to give it back. A lock older than
  * `staleMs` was left by a process that died, and is taken over.
  *

@@ -267,9 +267,6 @@ let releaseList;
 before(async () => {
   if (skip) return;
   releaseList = await takeLock("lead-platform-list");
-});
-before(async () => {
-  if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = ok(
     await db
@@ -304,30 +301,34 @@ before(async () => {
 // workspace; events have no foreign key to it, and the platform's day
 // counter has no workspace at all, so those two go by hand.
 after(async () => {
-  if (skip) return;
-  const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
-  if (p.data)
-    await db
-      .from("lead_platform")
-      .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
-      .eq("id", true);
-  for (const id of [A, B].filter(Boolean)) {
-    for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
-      platformDays.add(r.platform_day);
-    await db.from("events").delete().eq("tenant_id", id);
-    await db.from("tenants").delete().eq("id", id);
+  try {
+    if (skip) return;
+    const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
+    if (p.data)
+      await db
+        .from("lead_platform")
+        .update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) })
+        .eq("id", true);
+    for (const id of [A, B].filter(Boolean)) {
+      for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? [])
+        platformDays.add(r.platform_day);
+      await db.from("events").delete().eq("tenant_id", id);
+      await db.from("tenants").delete().eq("id", id);
+    }
+    // The platform's day counter carries no workspace, so it does not cascade
+    // -- and it is the platform's, shared with every suite: take back exactly
+    // the day rows this suite's own rounds reserved in, and nothing else.
+    if (platformDays.size)
+      await db
+        .from("lead_counters")
+        .delete()
+        .is("tenant_id", null)
+        .eq("kind", "day")
+        .in("period", [...platformDays]);
+    for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
+  } finally {
+    await releaseList?.();
   }
-  // The platform's day counter carries no workspace, so it does not cascade
-  // -- and it is the platform's, shared with every suite: take back exactly
-  // the day rows this suite's own rounds reserved in, and nothing else.
-  if (platformDays.size)
-    await db
-      .from("lead_counters")
-      .delete()
-      .is("tenant_id", null)
-      .eq("kind", "day")
-      .in("period", [...platformDays]);
-  for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
 const ids = {}; // what the tests hand each other, in order
@@ -3279,7 +3280,3 @@ test(
     );
   },
 );
-
-after(async () => {
-  await releaseList?.();
-});
