@@ -103,6 +103,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Workspace route CSS 125.8 → 130.2 KB gzipped (the interface kit, steps 5.1 to 5.3: the Glass look's tokens, the kit and the frame in Glass; the JS stays in its band)                                                                                 | Glass is one block of values in `tokens.css` and its rules under `[data-look="glass"]` in `kit.css`, `components.css`, `mobile.css`, `ask.css` and `clients.css`: 760.4 KB raw, from 734.0; 130.5 KB gzipped after the review, in the band. Every workspace loads them whichever look it wears: a look is chosen on the device before first paint                                        | Classic retires (step 5.7, decision 6) and the rules only it reads leave, or route-level splitting (0015)                    |
 | Files over 800 lines: `legacy/components/data-bits.jsx` 1,234 → 1,281 (+47, the shell lane)                                                                                                                                                           | One focus helper for every modal (`trapFocus`, `dialogRef`; the Calendar kept a second, wrong trap), `keyPress` and `mayAtLeast`, beside `trapTab` and `gate` in the file every page loads: a module of their own would put `legacy/components` over its directory cap                                                                                                                   | The shell leaves (decision 0015), or data-bits is split                                                                      |
 | Source-text lint exemptions 8 → 9: `ai/flag-registry.test.mjs` (the AI lane, step 11)                                                                                                                                                                 | A repo-wide lint of the same kind as `env-manifest.test.mjs`: every switch the edge reads (its getter in `lib/env.ts` documented "Switch:") is listed once in contracts' `ai/flags.ts` with an owner and a day, and a listed one is read where its mechanism says. It has to read `env.ts` and the workflows as text, since a variable's meaning is not in a value the code can be asked | The lint becomes a type or a generated list: switches declared in one module the getters are made from                       |
+| Source-text reads in tests, `repo/ops-hygiene.test.mjs` 9 → 11 (the AI lane, step 10; found by the lander, the lane argued the exemption above and not these two)                                                                                     | The nightly-evals workflow keeps a promise a person cannot see: the eval key reaches two steps and never the job's environment, no other secret reaches the job, and the production key is never named. That is a fact of the workflow's text and of the runner's, so the test reads both as files (two reads), as its other checks read the other workflows                             | The workflows' promises are asserted over a parsed workflow (a YAML reader in the test helpers) instead of over its text     |
 
 ## The numbers
 
@@ -118,7 +119,7 @@ directories over 20 modules           5
 window globals                      200   names
 window publishers                   443   sites in 164 files
 copies                               52   of 14 names
-as unknown as                       188
+as unknown as                       186
 as never                             13
 non-null assertions, x!             130
 index reads the compiler lets pass  450   in 113 files
@@ -128,8 +129,8 @@ literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes
 inline style props                  274   in 47 files
 wire names not in snake_case         54   in 26 routes
-dead exports, types and modules     155
-source-text reads in tests          812
+dead exports, types and modules     154
+source-text reads in tests          816
 lint warnings                       492   in 176 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      973   the shell included
 workspace route CSS, KB gzipped     130
