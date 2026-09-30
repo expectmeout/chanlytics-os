@@ -10,7 +10,7 @@
  *
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
-import type { ReactNode } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
 interface LegacyFlash {
@@ -181,4 +181,180 @@ export function openAutonomy(): void {
 export function showTip(target: Element | null): void {
   const tip = shellObject<{ show?: (el: Element) => void }>("__tip");
   if (tip && tip.show && target) tip.show(target);
+}
+
+/* ------------------------- the shell's helpers a surface's controls take (data-bits.jsx) ------------------------- */
+
+/**
+ * What a role gate spreads onto a control, AFTER its handlers (data-bits `gate`): nothing where the role may act; where
+ * it may not, the control stays in the tab order, says why on hover, on focus and when pressed, and does nothing.
+ */
+export interface GateProps {
+  disabled?: boolean;
+  title?: string;
+  "aria-disabled"?: boolean;
+  "aria-description"?: string;
+  "data-tip"?: string;
+  "data-gated"?: string;
+  onClick?: (e: MouseEvent<HTMLElement>) => void;
+  onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
+  onKeyUp?: undefined;
+  onPointerDown?: undefined;
+  onPointerUp?: undefined;
+  onPointerLeave?: undefined;
+  onPointerCancel?: undefined;
+}
+
+/** A page under a strip, walked across by a swipe (data-bits `touchSwipe`, `pages`): the page each side, and how it follows. */
+interface SwipePage {
+  prev: boolean;
+  next: boolean;
+  moving?: Element | null;
+  follow: (progress: number, step: number, how: "move" | "leave" | "settle") => void;
+  go: (step: number) => void;
+}
+
+/** What a swipe answers to (data-bits `touchSwipe`): each is the page's own to do, called once the thumb has let go. */
+export interface SwipeOptions {
+  onLeft?: (() => void) | null;
+  onRight?: (() => void) | null;
+  onDown?: (() => void) | null;
+  onBack?: (() => void) | null;
+  onAway?: (() => void) | null;
+  pages?: ((el: Element, from: EventTarget | null) => SwipePage | null) | null;
+  min?: number;
+  when?: (() => boolean) | null;
+  onGrab?: ((el: Element, on: boolean) => void) | null;
+}
+
+/** The handlers a swipe spreads onto the element it is on. */
+export interface SwipeHandlers {
+  onTouchStart?: (e: TouchEvent<HTMLElement>) => void;
+  onTouchMove?: (e: TouchEvent<HTMLElement>) => void;
+  onTouchEnd?: (e: TouchEvent<HTMLElement>) => void;
+  onTouchCancel?: (e: TouchEvent<HTMLElement>) => void;
+}
+
+/** What a link to a route spreads (data-bits `routeDoor`): the address in its href, the app's own way there on a plain press. */
+export interface RouteDoor {
+  href: string;
+  onClick: (e?: MouseEvent<HTMLElement>) => void;
+  onPointerEnter?: () => void;
+  onFocus?: () => void;
+}
+
+/** A refusal, as the toast raises it (contracts `refusalOf`): a title for the kind of no, and the sentence in the owner's words. */
+interface Refusal {
+  title?: string | null;
+  message?: string | null;
+}
+
+/** What Ask is told is on screen (Ask reads it when it opens); a page says it as it draws, and takes it back as it goes. */
+export interface AskOnScreen {
+  key: string;
+  ids: readonly string[];
+  labels: readonly (string | undefined)[];
+  view: string | null;
+}
+
+/** What the deal sheet is asked for, from anywhere (`window.openDealSheet`, components/deal-sheet.jsx). */
+export interface DealSheetAsk {
+  personId: string;
+  mode: string;
+  service?: string;
+  dealId?: string;
+}
+
+declare global {
+  interface Window {
+    gate?: (action: string, doing?: string) => GateProps;
+    gateTitle?: (action: string, doing?: string) => string;
+    mayAtLeast?: (rung: string) => boolean;
+    touchSwipe?: (options: SwipeOptions) => SwipeHandlers;
+    leaving?: (key: string) => RefCallback<HTMLElement>;
+    trapFocus?: (box: HTMLElement | null) => () => void;
+    dialogRef?: (key: string) => RefCallback<HTMLElement>;
+    keyPress?: (fn: (e: KeyboardEvent<HTMLElement>) => void) => (e: KeyboardEvent<HTMLElement>) => void;
+    routeDoor?: (to: string, go?: ((to: string) => void) | null) => RouteDoor;
+    refusalToast?: (r: Refusal | null | undefined, what?: string | null) => LegacyFlash;
+    useHotkey?: (matcher: (e: KeyboardEvent, typing: boolean) => boolean, handler: (e: KeyboardEvent) => void) => void;
+    __tip?: { show: (el: Element) => void };
+    __askOnScreen?: AskOnScreen | null;
+    openDealSheet?: (ask: DealSheetAsk) => void;
+  }
+}
+
+/** A role gate's props for a control (data-bits `gate`); where the shell has no role store, the control is not gated. */
+export function gate(action: string, doing?: string): GateProps {
+  return window.gate ? window.gate(action, doing) : {};
+}
+
+/** The sentence a role's refusal says (data-bits `gateTitle`), for a control that explains itself its own way. */
+export function gateTitle(action: string, doing?: string): string {
+  return window.gateTitle ? window.gateTitle(action, doing) : "Your role can't do this.";
+}
+
+/** Whether the member, as they are acting (View-as included), stands on this rung or above (data-bits `mayAtLeast`). */
+export function mayAtLeast(rung: string): boolean {
+  return window.mayAtLeast ? window.mayAtLeast(rung) : false;
+}
+
+/** A thumb's gestures for an element (data-bits `touchSwipe`); none where the shell has none. */
+export function touchSwipe(options: SwipeOptions): SwipeHandlers {
+  return window.touchSwipe ? window.touchSwipe(options) : {};
+}
+
+/** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */
+export function leaving(key: string): RefCallback<HTMLElement> | undefined {
+  return window.leaving ? window.leaving(key) : undefined;
+}
+
+/** A dialog's ref: it holds focus while it is open and plays out as it goes (data-bits `dialogRef`), one per key. */
+export function dialogRef(key: string): RefCallback<HTMLElement> | undefined {
+  return window.dialogRef ? window.dialogRef(key) : undefined;
+}
+
+/** Focus goes into a box and Tab stays inside it (data-bits `trapFocus`); the answer puts focus back where it was. */
+export function trapFocus(box: HTMLElement | null): () => void {
+  return window.trapFocus ? window.trapFocus(box) : () => undefined;
+}
+
+/** Enter and Space, pressed on the element itself, as a press (data-bits `keyPress`). */
+export function keyPress(fn: (e: KeyboardEvent<HTMLElement>) => void): (e: KeyboardEvent<HTMLElement>) => void {
+  return window.keyPress ? window.keyPress(fn) : () => undefined;
+}
+
+/** A link to a route: its address in the href, and the app's own way there on a plain press (data-bits `routeDoor`). */
+export function routeDoor(to: string, go?: ((to: string) => void) | null): RouteDoor {
+  return window.routeDoor ? window.routeDoor(to, go) : { href: `#/${to}`, onClick: () => navigate(to) };
+}
+
+/** A refusal as the toast raises it: always the danger tone, the page's words first (data-bits `refusalToast`). */
+export function refusalToast(r: Refusal | null | undefined, what?: string | null): LegacyFlash {
+  return window.refusalToast
+    ? window.refusalToast(r, what)
+    : { tone: "danger", msg: r?.message ?? "That didn't go through." };
+}
+
+/** The shell's hotkey hook (data-bits `useHotkey`): the matcher is asked on every keydown, with whether a field has the keys. */
+export function useLegacyHotkey(
+  matcher: (e: KeyboardEvent, typing: boolean) => boolean,
+  handler: (e: KeyboardEvent) => void,
+): void {
+  window.useHotkey?.(matcher, handler);
+}
+
+/** Say what is on screen to Ask, or take it back (`null`): what Ask reads when it opens. */
+export function setAskOnScreen(on: AskOnScreen | null): void {
+  window.__askOnScreen = on;
+}
+
+/** The page Ask was last told is on screen: a page takes it back only when it is its own. */
+export function askOnScreenKey(): string | null {
+  return window.__askOnScreen ? window.__askOnScreen.key : null;
+}
+
+/** Ask for the one deal sheet (components/deal-sheet.jsx); nothing where the shell has none. */
+export function openDealSheet(ask: DealSheetAsk): void {
+  window.openDealSheet?.(ask);
 }
