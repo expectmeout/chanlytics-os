@@ -132,9 +132,6 @@
   "apps/dashboard/src/legacy-bridge/tab-memory.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/src/legacy-bridge/today-sample.ts": {
-    "@typescript-eslint/require-await": 3
-  },
   "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": {
     "@typescript-eslint/prefer-promise-reject-errors": 1
   },

@@ -43,7 +43,7 @@ copies                               52   of 14 names
 as unknown as                       176
 as never                             13
 non-null assertions, x!             128
-index reads the compiler lets pass  453   in 118 files
+index reads the compiler lets pass  454   in 119 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
@@ -55,9 +55,9 @@ inline style props                  274   in 52 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     300
 source-text reads in tests          827
-lint warnings                       467   in 169 files, 114 of them exhaustive-deps
-workspace route JS, KB gzipped      963   the shell included
-workspace route CSS, KB gzipped     130
+lint warnings                       464   in 168 files, 114 of them exhaustive-deps
+workspace route JS, KB gzipped      973   the shell included
+workspace route CSS, KB gzipped     132
 trees the lint's limits hold         39   15 of them with max-params waiting
 ```
 
