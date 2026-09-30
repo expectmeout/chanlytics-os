@@ -461,11 +461,12 @@ test("the draft: a read that fails is a 500, an unknown id a 404, another worksp
     ),
     [404, { ok: false, error: "not_found" }],
   );
-  // A token minted for another workspace opens only that workspace's drafts.
+  // A token minted for another workspace opens only that workspace's drafts: this one is not there for it, and the
+  // answer is the one a made-up id gets, so the door cannot be asked which ids exist.
   const other = "aaaaaaaa-aaaa-4aaa-8aaa-ffffffffffff";
   assert.deepEqual(
     await answer(await knock({ message_id: v.M, text: OWNER_SAYS }, { workspace: other, brain: unasked().port })),
-    [403, { ok: false, error: "workspace_mismatch" }],
+    [404, { ok: false, error: "not_found" }],
   );
   assert.equal(tables.messages.find((m) => m.id === v.M).status, "queued", "the draft still waits");
   assert.equal(writes(db, "messages").length + writes(db, "jobs").length, 0);

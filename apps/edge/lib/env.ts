@@ -297,7 +297,7 @@ export function httpsOriginOf(value: string | undefined): string | null {
  * lost its setting went on writing whatever the default said; production now names them, and only a preview or a
  * laptop keeps the default (dashboard-origin.ts, lines/lines.ts, leads/lead-wires.ts).
  */
-export const REQUIRED_IN_PRODUCTION = [
+const REQUIRED_IN_PRODUCTION = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "EDGE_CALL_SECRET",

@@ -152,7 +152,7 @@ export const REQUIRED_IN_PRODUCTION = [
 ] as const satisfies readonly Name[];
 
 /** What is wrong with an environment, by name only (a value is never repeated): unset where required, or unreadable. */
-export interface EnvProblems {
+interface EnvProblems {
   /** Required in production and unset (or blank). */
   missing: string[];
   /** Set, and refused by its schema: read as unset everywhere. */
@@ -221,6 +221,14 @@ export const deployment: Deployment = deploymentFrom({
   VERCEL_ENV: env.VERCEL_ENV,
   EDGE_PROVIDERS: env.EDGE_PROVIDERS,
 });
+
+/**
+ * Whether this deployment is served over https, read now: a Vercel production or preview is, a laptop (an unset
+ * VERCEL_ENV, or `vercel dev`) is plain http. The session's cookies are Secure exactly here (lib/supabase/cookie-options.ts).
+ */
+export function servedOverHttps(): boolean {
+  return deploymentFrom({ VERCEL_ENV: env.VERCEL_ENV }).env !== "development";
+}
 
 /** Whether this deployment is production, read now, by the same rule as `deployment`: an unset VERCEL_ENV is a laptop. */
 export function isProduction(): boolean {

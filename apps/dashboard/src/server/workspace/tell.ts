@@ -12,12 +12,17 @@ const TELL_TIMEOUT_MS = 8000;
  * has already recorded the ask; this is the email Postgres cannot send.
  * Production only, never throws: a failure here is logged, not surfaced.
  */
-export async function tellPlatformOfSetupRequest(tenantId: string, what: string, by: string | null): Promise<boolean> {
+export async function tellPlatformOfSetupRequest(
+  tenantId: string,
+  what: string,
+  by: string | null,
+  userId: string,
+): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
   const r = await callEdge(
     "/api/admin/setup-request",
     { tenant_id: tenantId, what, by },
-    { workspace: tenantId, user: null, timeoutMs: TELL_TIMEOUT_MS },
+    { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
     log.error("setup_request_tell_failed", { tenant: tenantId, what, status: r.status, error: r.body?.error });
@@ -29,12 +34,12 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
  * composes and sends it to the workspace's alert addresses. Called once, on the first activation of calls. Production
  * only, never throws: the activation is already on record, and a failure here is logged, not surfaced.
  */
-export async function tellOwnerLive(tenantId: string): Promise<boolean> {
+export async function tellOwnerLive(tenantId: string, userId: string): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
   const r = await callEdge(
     "/api/admin/you-are-live",
     { tenant_id: tenantId },
-    { workspace: tenantId, user: null, timeoutMs: TELL_TIMEOUT_MS },
+    { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
   if (!edgeAnswered(r))
     log.error("you_are_live_tell_failed", { tenant: tenantId, status: r.status, error: r.body?.error });

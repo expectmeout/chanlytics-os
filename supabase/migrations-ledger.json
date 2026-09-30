@@ -287,6 +287,6 @@
     "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
     "00283_a_session_inserts_only_the_columns_it_writes.sql": "734ed7e5a43077f059e1ee0f0efdd263a9836ae53fcfe66fa405eda902c21942",
     "00284_a_child_names_only_its_own_workspace_s_parent.sql": "0308f6a009ef4ca6a09bc3e99d96951d297fb99c22e27cc75ee2f4556da83b38",
-    "00285_a_partner_s_password_opens_no_door_a_seat_opens.sql": "9a6990705f97cade684000ed16c5f31f778c30143f51363d41624d2e269e5af0"
+    "00285_a_partner_s_password_opens_no_door_a_seat_opens.sql": "edd82a073410f88bbf537e60950df8fc24ee7541a59f331dc5a8fc9f1d00daab"
   }
 }

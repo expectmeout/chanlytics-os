@@ -131,8 +131,7 @@ begin
                limit 10) r), '[]'::jsonb),
     'can_stop', v_root is not null and v_lead.reach_out_stopped_at is null
   );
-end
-$$;
+end $$;
 
 -- The partner account's own invitations answer only a session that showed its second factor.
 create or replace function public.partner_invitations_mine()
@@ -196,7 +195,7 @@ $$;
 -- The policy under it: an owner reads their workspace's invitations; the partner reads theirs once the session shows it.
 drop policy if exists partner_invitations_read on public.partner_invitations;
 create policy partner_invitations_read on public.partner_invitations
-  for select
+  for select to authenticated
   using (
     public.is_workspace_owner(tenant_id)
     or partner_id in (

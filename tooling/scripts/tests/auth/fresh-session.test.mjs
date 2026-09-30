@@ -108,6 +108,17 @@ test("an Auth server that cannot be asked is a 503 the client retries, never a s
   assert.deepEqual(handled, []);
 });
 
+test("an Auth server that answers 'slow down' (429) has not forgotten the session: a 503 to retry, not a sign-out", async () => {
+  const busy = authServer(() => ({
+    data: { user: null },
+    error: { status: 429, name: "AuthApiError", message: "over_request_rate_limit" },
+  }));
+  const res = await within(busy, () => call(erase, req("POST")));
+  assert.equal(res.status, 503);
+  assert.equal((await res.json()).error.code, "upstream_auth");
+  assert.deepEqual(handled, []);
+});
+
 test("a route that does not declare fresh never asks the Auth server: the ordinary request pays nothing for it", async () => {
   const server = authServer(() => {
     throw new Error("a route that is not fresh must not ask the Auth server");

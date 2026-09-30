@@ -1108,6 +1108,7 @@ async function providerFetch(provider, url, call2, deps = {}) {
 function answerObject(a) {
   return a.json !== null && typeof a.json === "object" && !Array.isArray(a.json) ? a.json : null;
 }
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",

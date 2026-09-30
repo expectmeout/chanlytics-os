@@ -193,7 +193,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
   // place tells the mailbox and hands the create screen what sign-up kept.
   const create = readCode("apps/dashboard/app/api/v1/workspaces/create/route.ts");
   assert.ok(
-    create.includes('await notifyPlatformSignup(data.id, ctx.email ?? "");'),
+    create.includes('await notifyPlatformSignup(data.id, ctx.email ?? "", ctx.userId);'),
     "the mailbox hears about a workspace where workspaces are made",
   );
   const list = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");

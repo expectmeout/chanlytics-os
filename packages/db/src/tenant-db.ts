@@ -50,6 +50,23 @@ function stamped(row: unknown, tenantId: string): unknown {
   return { ...row, tenant_id: tenantId };
 }
 
+/** A patch that moves a row to another workspace is refused; naming its own is harmless. */
+function unmoved(patch: unknown, tenantId: string): void {
+  if (typeof patch !== "object" || patch === null) return;
+  const named: unknown = Reflect.get(patch, "tenant_id");
+  if (named !== undefined && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
+}
+
+/**
+ * An upsert conflicts on the workspace as well as the row: a bare `onConflict: "id"` (or none, the primary key) is
+ * matched against every workspace's rows, so another workspace's id would be taken over by the update half.
+ */
+function conflictsOnWorkspace(options: unknown): void {
+  const on: unknown = typeof options === "object" && options !== null ? Reflect.get(options, "onConflict") : undefined;
+  const columns = typeof on === "string" ? on.split(",").map((c) => c.trim()) : [];
+  if (!columns.includes("tenant_id")) throw new Error("tenantDb: an upsert must conflict on tenant_id as well");
+}
+
 /** The builder, with its verbs replaced by ones that scope what they build to the workspace. */
 function scoped<B extends object>(builder: B, tenantId: string): B {
   for (const verb of FILTERED) {
@@ -57,6 +74,7 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
       value: (...args: unknown[]) => {
+        if (verb === "update") unmoved(args[0], tenantId);
         const statement: unknown = Reflect.apply(build, builder, args);
         const eq: unknown = statement && Reflect.get(statement, "eq");
         if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
@@ -70,6 +88,7 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
       value: (rows: unknown, ...rest: unknown[]) => {
+        if (verb === "upsert") conflictsOnWorkspace(rest[0]);
         const statement: unknown = Reflect.apply(build, builder, [
           Array.isArray(rows) ? rows.map((r) => stamped(r, tenantId)) : stamped(rows, tenantId),
           ...rest,

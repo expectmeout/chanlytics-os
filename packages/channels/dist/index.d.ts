@@ -106,11 +106,13 @@ declare function answerObject(a: ProviderReply): Record<string, unknown> | null;
  * public address and again with a private one (DNS rebinding) between the check and the connect. So the check is the
  * connect: the socket's own lookup is replaced by one that resolves the name, refuses the connection if ANY of its
  * addresses is not a public one (a name that answers both is the attack), and hands the socket the address it judged.
- * Nothing here follows a redirect (`redirect: "manual"` is the only mode): the callers judge each hop's address and ask
- * again (contracts fetchPublic), so each hop is checked at its own connect.
+ * A redirect is followed hop by hop (up to five; `redirect: "manual"` answers the 3xx as it is), each hop connected to
+ * through the same lookup, so a redirect to a private name is refused at its own connect.
  *
  * https and http only; a host that is an IP literal is judged before any socket is made (a literal skips the lookup).
- * The body arrives as a stream, decompressed as fetch does, and the caller bounds how much of it is read.
+ * The body arrives as a stream, decompressed as fetch does, and capped once decoded (RESPONSE_MAX_BYTES): the callers
+ * read a whole page, feed or listing, and a small file that inflates to a gigabyte is an error to the reader, not
+ * the platform's memory.
  */
 
 /** One address a name resolved to. */

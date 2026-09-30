@@ -13,6 +13,7 @@ export const POST = write({
   scope: account,
   role: null,
   rate: "handover_answer",
+  fresh: true,
   handle: async ({ ctx }): Promise<{ workspace: { id: string; slug: string; name: string } }> => {
     const r = await acceptHandover(ctx.supabase, requireUuid(ctx.params.id, "workspace"));
     if (!r.ok) throw handoverRefusal(r);

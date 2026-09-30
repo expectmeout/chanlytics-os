@@ -21,6 +21,10 @@ const { edgeGoogle } = await importSrc("apps/dashboard/src/server/connections/go
 const { edgeLines } = await importSrc("apps/dashboard/src/server/connections/lines.ts");
 const { syncTemplates, deleteTemplate } = await importSrc("apps/dashboard/src/server/campaigns/meta-templates.ts");
 const { streamModel, GatewayRefused } = await importSrc("apps/dashboard/src/server/ask/gateway.ts");
+const { tellPlatformOfSetupRequest, tellOwnerLive } = await importSrc("apps/dashboard/src/server/workspace/tell.ts");
+const { sendHandoverInvite } = await importSrc("apps/dashboard/src/server/workspace/handover.ts");
+const { sendPartnerInvite } = await importSrc("apps/dashboard/src/server/workspace/partner-invite.ts");
+const { notifyPlatformSignup } = await importSrc("apps/dashboard/src/server/platform/signup.ts");
 
 const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const P = "11111111-1111-4111-8111-111111111111";
@@ -70,6 +74,33 @@ test("billing, Google and lines name the person their route passes in the body; 
     await syncTemplates(W, P);
     await deleteTemplate(W, "template-1", P);
     assert.equal(c.seen.length, 5);
+    for (const req of c.seen) assert.deepEqual(claimsOf(req), { ws: W, user: P, bound: true }, req.path);
+  } finally {
+    c.restore();
+  }
+});
+
+test("the platform's notices name the person who set them off: a setup request, the first calls, a handover, a partner's invitation, a new workspace", async () => {
+  const c = capture();
+  try {
+    await tellPlatformOfSetupRequest(W, "a phone line", "ada@example.com", P);
+    await tellOwnerLive(W, P);
+    await sendHandoverInvite(W, "owner@example.com", P, {
+      svc: { rpc: async () => ({ data: "an-account", error: null }) },
+      live: true,
+    });
+    await sendPartnerInvite(W, P, { live: true });
+    await notifyPlatformSignup(W, "ada@example.com", P);
+    assert.deepEqual(
+      c.seen.map((r) => r.path),
+      [
+        "/api/admin/setup-request",
+        "/api/admin/you-are-live",
+        "/api/admin/handover-invite",
+        "/api/admin/partner-invite",
+        "/api/admin/signup-notify",
+      ],
+    );
     for (const req of c.seen) assert.deepEqual(claimsOf(req), { ws: W, user: P, bound: true }, req.path);
   } finally {
     c.restore();

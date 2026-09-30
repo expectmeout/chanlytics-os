@@ -4,7 +4,7 @@ import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
 import { writeAuthCookies } from "@/server/auth-cookies";
-import { env, isProduction } from "@/server/env";
+import { env, isProduction, servedOverHttps } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 
@@ -138,7 +138,7 @@ export async function proxy(request: NextRequest) {
   let response = nextWithPolicy();
 
   const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookieOptions: sessionCookieOptions(isProduction()),
+    cookieOptions: sessionCookieOptions(servedOverHttps()),
     cookies: {
       getAll() {
         return request.cookies.getAll();

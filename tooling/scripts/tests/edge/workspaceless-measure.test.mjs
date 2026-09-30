@@ -34,6 +34,8 @@ test("a statement that names the workspace does not: a filter on tenant_id, a ro
   assert.equal(count(`await db.from("messages").insert({ tenant_id: tenantId, body });`), 0);
   assert.equal(count(`await db.from("messages").insert([{ tenant_id, a }, { tenant_id, b }]);`), 0);
   assert.equal(count(`await tenantDb(db, tenantId).from("lines").update({ x: 1 }).eq("id", id);`), 0);
+  // `platformWide` is the sweep saying, at the statement, that it reads every workspace on purpose.
+  assert.equal(count(`await platformWide(db).from("lines").select("id").eq("voice_state", "failed");`), 0);
   // A filter on another column, and a rows list that does not all carry it, are not naming the workspace.
   assert.equal(count(`await db.from("calls").select("id").eq("tenant", tenantId);`), 1);
   assert.equal(count(`await db.from("messages").insert([{ tenant_id, a }, { b }]);`), 1);

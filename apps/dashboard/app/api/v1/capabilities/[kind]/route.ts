@@ -62,7 +62,7 @@ export const POST = write({
       ...(dto.activations ?? []).filter((a) => a.capability !== kind),
       { capability: kind, activated_at: now, activated_by: ctx.userId, deactivated_at: null },
     ];
-    const told = firstCalls ? await tellOwnerLive(member.tenantId) : false;
+    const told = firstCalls ? await tellOwnerLive(member.tenantId, ctx.userId) : false;
     return { capability: kind, status: capabilityStatus(kind, { ...dto, activations }), told };
   },
 });

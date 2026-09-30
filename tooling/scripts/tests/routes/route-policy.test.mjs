@@ -103,6 +103,13 @@ const FRESH = [
   "POST billing/portal",
   "POST billing/resume",
   "POST billing/start-now",
+  // Who is on the team and who owns the workspace, and the platform's money, a partner's factor and a released number.
+  "POST team/partner",
+  "DELETE team/partner",
+  "POST handovers/[id]/accept",
+  "POST platform/partners/payout",
+  "POST platform/partners/second-factor",
+  "POST platform/lines/release",
 ];
 test("the sensitive acts ask whether the session is still live, and no other route pays for it unannounced", () => {
   const fresh = Object.entries(declared)

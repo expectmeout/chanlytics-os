@@ -18,6 +18,26 @@ test("the options are SameSite=Lax always, and Secure exactly where the site is 
   assert.deepEqual(sessionCookieOptions(false), { sameSite: "lax", secure: false });
 });
 
+test("Secure follows the scheme the deployment is served on: a production or a preview is https, a laptop is not", async () => {
+  const { servedOverHttps } = await importSrc("apps/dashboard/src/server/env.ts");
+  const before = process.env.VERCEL_ENV;
+  try {
+    for (const [vercel, https] of [
+      ["production", true],
+      ["preview", true],
+      ["development", false],
+      [undefined, false],
+    ]) {
+      if (vercel === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = vercel;
+      assert.equal(servedOverHttps(), https, String(vercel));
+    }
+  } finally {
+    if (before === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = before;
+  }
+});
+
 /** A session token as the Auth server would issue one, built here so no token-shaped literal is in the tree. */
 const part = (v) => Buffer.from(v).toString("base64url");
 const session = () => ({

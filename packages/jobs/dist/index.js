@@ -8175,6 +8175,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
 z26.config({ jitless: true });
 var MODELS2 = {
   OPUS_5_5: "claude-opus-5-5",
@@ -12265,6 +12266,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
+var RESPONSE_MAX_BYTES2 = 5 * 1024 * 1024;
 z28.config({ jitless: true });
 var MODELS3 = {
   OPUS_5_5: "claude-opus-5-5",

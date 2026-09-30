@@ -148,7 +148,7 @@ import dns from "dns";
 import http from "http";
 import https from "https";
 import net from "net";
-import { Readable } from "stream";
+import { pipeline, Readable, Transform } from "stream";
 import zlib from "zlib";
 var resolveByLookup = async (host) => {
   const all = await dns.promises.lookup(host, { all: true, verbatim: true });
@@ -250,12 +250,25 @@ function bodyText(body) {
   if (body instanceof URLSearchParams) return body.toString();
   throw new TypeError("publicFetch sends a string or form fields as a body");
 }
+var RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+function capped(limit) {
+  let seen = 0;
+  return new Transform({
+    transform(chunk, _encoding, done) {
+      seen += chunk.length;
+      if (seen > limit) done(new Error(`the response is over ${limit} bytes`));
+      else done(null, chunk);
+    }
+  });
+}
 function decoded(res) {
   const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
-  if (coding === "gzip" || coding === "x-gzip") return res.pipe(zlib.createGunzip());
-  if (coding === "deflate") return res.pipe(zlib.createInflate());
-  if (coding === "br") return res.pipe(zlib.createBrotliDecompress());
-  return res;
+  const cap2 = capped(RESPONSE_MAX_BYTES);
+  const ignore = () => void 0;
+  if (coding === "gzip" || coding === "x-gzip") return pipeline(res, zlib.createGunzip(), cap2, ignore);
+  if (coding === "deflate") return pipeline(res, zlib.createInflate(), cap2, ignore);
+  if (coding === "br") return pipeline(res, zlib.createBrotliDecompress(), cap2, ignore);
+  return pipeline(res, cap2, ignore);
 }
 function publicFetch(deps = {}) {
   const lookup = publicLookup(deps.resolve ?? resolveByLookup);

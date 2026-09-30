@@ -171,12 +171,12 @@ export async function joinWaitlist(input: { email: string; name?: string; source
  * holds the email key. Called where workspaces are made, /api/v1/workspaces/create,
  * for the first one and every one after. A failure is a shrug.
  */
-export async function notifyPlatformSignup(tenantId: string, email: string): Promise<void> {
+export async function notifyPlatformSignup(tenantId: string, email: string, userId: string): Promise<void> {
   if (!edgeConfigured() || !deployment.providersLive) return;
   const r = await callEdge(
     "/api/admin/signup-notify",
     { tenant_id: tenantId, email },
-    { workspace: tenantId, user: null, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
+    { workspace: tenantId, user: userId, timeoutMs: SIGNUP_NOTIFY_TIMEOUT_MS },
   );
   if (r.status >= 503) log.warn("signup_notify_failed", { tenant: tenantId, error: r.body?.detail });
 }

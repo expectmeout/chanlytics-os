@@ -141,3 +141,65 @@ test("every switch has an owner and a day it is looked at again; one with no day
     }
   }
 });
+
+/**
+ * The edge reports which weaker modes are open on the deployment it runs in (lib/security-switches.ts, /api/diag's
+ * `securitySwitches`), from the variables it holds now: every edge-held switch of the registry is answered, and each
+ * answer follows the code it describes.
+ */
+test("the edge answers for every weaker mode it holds, and each answer follows the variables the code reads", async () => {
+  const { securitySwitchesHere } = await importSrc("apps/edge/lib/security-switches.ts");
+  const KEYS = ["EDGE_CALL_SECRET", "DIAG_KEY", "RETELL_FN_SECRET", "RETELL_WEBHOOK_KEY", "RETELL_DOORS_SIGNED"];
+  const before = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  const openWith = (vars) => {
+    for (const k of KEYS) delete process.env[k];
+    Object.assign(process.env, vars);
+    return Object.fromEntries(securitySwitchesHere(new Date("2026-10-03T12:00:00Z")).map((s) => [s.name, s.open]));
+  };
+  try {
+    const held = FLAGS.filter((f) => f.weaker && f.mechanism !== "dashboard_env").map((f) => f.name);
+    assert.deepEqual(Object.keys(openWith({})).sort(), held.sort(), "no edge-held weaker mode goes unanswered");
+
+    assert.deepEqual(openWith({}), {
+      DIAG_KEY: false,
+      EDGE_TOKEN_UNBOUND: false,
+      RETELL_DOORS_SIGNED: true,
+      RETELL_FN_SECRET: false,
+      RETELL_WEBHOOK_KEY: true,
+    });
+    // An edge that holds the secret: the key opens nothing alone, tokens without a body are let in, the voice secret opens.
+    assert.deepEqual(
+      openWith({ EDGE_CALL_SECRET: "s", DIAG_KEY: "k", RETELL_FN_SECRET: "f", RETELL_WEBHOOK_KEY: "w" }),
+      {
+        DIAG_KEY: false,
+        EDGE_TOKEN_UNBOUND: true,
+        RETELL_DOORS_SIGNED: true,
+        RETELL_FN_SECRET: true,
+        RETELL_WEBHOOK_KEY: false,
+      },
+    );
+    // A preview with a key and no secret: the key opens every admin door.
+    assert.equal(openWith({ DIAG_KEY: "k" }).DIAG_KEY, true);
+    // Closed: any value but an explicit off is signature-only, and closes the secret with it.
+    for (const v of ["1", "true", "yes", "on", "anything"])
+      assert.deepEqual(
+        [
+          openWith({ RETELL_DOORS_SIGNED: v, RETELL_FN_SECRET: "f" }).RETELL_DOORS_SIGNED,
+          openWith({ RETELL_DOORS_SIGNED: v, RETELL_FN_SECRET: "f" }).RETELL_FN_SECRET,
+        ],
+        [false, false],
+        v,
+      );
+    for (const v of ["0", "false", "off", "no"])
+      assert.equal(openWith({ RETELL_DOORS_SIGNED: v }).RETELL_DOORS_SIGNED, true, `${v} leaves it open on purpose`);
+
+    const rows = securitySwitchesHere(new Date("2026-10-03T12:00:00Z"));
+    const voice = rows.find((r) => r.name === "RETELL_DOORS_SIGNED");
+    assert.deepEqual([voice.sunset, voice.days_left], ["2026-10-17", 14], "each answer carries its day");
+  } finally {
+    for (const k of KEYS) {
+      if (before[k] === undefined) delete process.env[k];
+      else process.env[k] = before[k];
+    }
+  }
+});

@@ -89,15 +89,15 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const { data: m, error: mErr } = await db
+  const draft = db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
-    .eq("id", messageId)
-    .maybeSingle();
+    .eq("id", messageId);
+  // A token minted for one workspace opens only that workspace's drafts: another's is a draft that is not there, the
+  // answer a made-up id gets, so the door cannot be used to find out which ids exist.
+  const { data: m, error: mErr } = await (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
-  // A token minted for one workspace opens only that workspace's drafts.
-  if (workspace && m.tenant_id !== workspace) return refuse(403, "workspace_mismatch");
   if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
 
   const { data: conv } = await db

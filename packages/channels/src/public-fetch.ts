@@ -9,17 +9,19 @@
  * public address and again with a private one (DNS rebinding) between the check and the connect. So the check is the
  * connect: the socket's own lookup is replaced by one that resolves the name, refuses the connection if ANY of its
  * addresses is not a public one (a name that answers both is the attack), and hands the socket the address it judged.
- * Nothing here follows a redirect (`redirect: "manual"` is the only mode): the callers judge each hop's address and ask
- * again (contracts fetchPublic), so each hop is checked at its own connect.
+ * A redirect is followed hop by hop (up to five; `redirect: "manual"` answers the 3xx as it is), each hop connected to
+ * through the same lookup, so a redirect to a private name is refused at its own connect.
  *
  * https and http only; a host that is an IP literal is judged before any socket is made (a literal skips the lookup).
- * The body arrives as a stream, decompressed as fetch does, and the caller bounds how much of it is read.
+ * The body arrives as a stream, decompressed as fetch does, and capped once decoded (RESPONSE_MAX_BYTES): the callers
+ * read a whole page, feed or listing, and a small file that inflates to a gigabyte is an error to the reader, not
+ * the platform's memory.
  */
 import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
-import { Readable } from "node:stream";
+import { pipeline, Readable, Transform } from "node:stream";
 import zlib from "node:zlib";
 
 /** One address a name resolved to. */
@@ -166,13 +168,31 @@ function bodyText(body: NonNullable<RequestInit["body"]>): string {
   throw new TypeError("publicFetch sends a string or form fields as a body");
 }
 
-/** The response body as a stream fetch would give it: the content-coding taken off. */
+/** The most a response may say once decoded: a page, a feed or a listing, never what a small file inflates to. */
+const RESPONSE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** A stage that passes bytes through and fails the stream past `limit`; the pipeline drops the socket behind it. */
+function capped(limit: number): Transform {
+  let seen = 0;
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      seen += chunk.length;
+      if (seen > limit) done(new Error(`the response is over ${limit} bytes`));
+      else done(null, chunk);
+    },
+  });
+}
+
+/** The response body as a stream fetch would give it: the content-coding taken off, and the size held. */
 function decoded(res: http.IncomingMessage): Readable {
   const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
-  if (coding === "gzip" || coding === "x-gzip") return res.pipe(zlib.createGunzip());
-  if (coding === "deflate") return res.pipe(zlib.createInflate());
-  if (coding === "br") return res.pipe(zlib.createBrotliDecompress());
-  return res;
+  const cap = capped(RESPONSE_MAX_BYTES);
+  // The last stage carries an upstream error to whoever reads; the callback only has to exist.
+  const ignore = () => undefined;
+  if (coding === "gzip" || coding === "x-gzip") return pipeline(res, zlib.createGunzip(), cap, ignore);
+  if (coding === "deflate") return pipeline(res, zlib.createInflate(), cap, ignore);
+  if (coding === "br") return pipeline(res, zlib.createBrotliDecompress(), cap, ignore);
+  return pipeline(res, cap, ignore);
 }
 
 /**

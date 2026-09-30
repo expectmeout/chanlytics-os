@@ -93,6 +93,7 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
   assert.equal(isRetryableAuthError(null), false);
   assert.equal(isRetryableAuthError({ status: 401, name: "AuthApiError" }), false);
   assert.equal(isRetryableAuthError({ status: 503, name: "AuthApiError" }), true);
+  assert.equal(isRetryableAuthError({ status: 429, name: "AuthApiError" }), true, "rate limited is not signed out");
   assert.equal(
     isRetryableAuthError({ name: "AuthRetryableFetchError" }),
     true,

@@ -28,11 +28,12 @@ export const POST = write({
   scope: workspace,
   role: "owner",
   rate: "partner_invite",
+  fresh: true,
   input: PartnerInviteSchema,
   handle: async ({ ctx, member, input }): Promise<{ code: string; expiresAt: string; sent: boolean }> => {
     const r = await invitePartner(ctx.supabase, member.tenantId, partnerCodeFrom(input.code));
     if (!r.ok) throw handoverRefusal(r);
-    const sent = await sendPartnerInvite(member.tenantId);
+    const sent = await sendPartnerInvite(member.tenantId, ctx.userId);
     return { code: r.value.code, expiresAt: r.value.expiresAt, sent };
   },
 });
@@ -42,6 +43,7 @@ export const DELETE = write({
   scope: workspace,
   role: "owner",
   rate: "partner_invite",
+  fresh: true,
   handle: async ({ ctx, member }): Promise<{ withdrawn: true }> => {
     const r = await withdrawPartnerInvite(ctx.supabase, member.tenantId);
     if (!r.ok) throw handoverRefusal(r);

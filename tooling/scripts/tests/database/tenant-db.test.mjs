@@ -79,10 +79,33 @@ test("a row written is stamped with the workspace, and a row that names another 
     () =>
       tenantDb(db, A)
         .from("calls")
-        .upsert([{ id: "call-y", tenant_id: B }], { onConflict: "id" }),
+        .upsert([{ id: "call-y", tenant_id: B }], { onConflict: "tenant_id,id" }),
     /names another workspace/,
   );
   assert.equal((await db.from("calls").select("id").eq("tenant_id", B)).data.length, 1, "nothing landed in B");
+});
+
+test("an upsert conflicts on the workspace as well as the row, and a patch cannot move a row to another workspace", async () => {
+  const db = world();
+  for (const options of [undefined, {}, { onConflict: "id" }, { onConflict: "retell_call_id" }])
+    assert.throws(
+      () => tenantDb(db, A).from("calls").upsert({ id: "call-b", retell_call_id: "call_b0000001" }, options),
+      /conflict on tenant_id/,
+      JSON.stringify(options),
+    );
+  await tenantDb(db, A).from("calls").upsert({ id: "call-a", status: "ended" }, { onConflict: "tenant_id,id" });
+  await tenantDb(db, A).from("calls").upsert({ id: "call-a9", status: "ended" }, { onConflict: "id, tenant_id" });
+  assert.throws(
+    () => tenantDb(db, A).from("lines").update({ tenant_id: B }).eq("id", "line-a"),
+    /names another workspace/,
+    "a patch that moves the row is refused",
+  );
+  await tenantDb(db, A).from("lines").update({ tenant_id: A, voice_state: "failed" }).eq("id", "line-a");
+  assert.equal(
+    (await db.from("lines").select("voice_state").eq("id", "line-a").maybeSingle()).data.voice_state,
+    "failed",
+  );
+  assert.equal((await db.from("lines").select("id").eq("tenant_id", B)).data.length, 1, "B still holds its line");
 });
 
 test("a workspace is required, and the platform-wide door hands back the client as it is, said at the call", () => {

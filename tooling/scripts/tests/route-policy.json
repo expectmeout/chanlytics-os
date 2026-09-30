@@ -571,6 +571,7 @@
     },
     "POST handovers/[id]/accept": {
       "kind": "write",
+      "fresh": true,
       "scope": "account",
       "role": null,
       "rate": "handover_answer",
@@ -959,6 +960,7 @@
     },
     "POST platform/lines/release": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_line_release",
@@ -987,6 +989,7 @@
     },
     "POST platform/partners/payout": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_partner_payout",
@@ -994,6 +997,7 @@
     },
     "POST platform/partners/second-factor": {
       "kind": "write",
+      "fresh": true,
       "scope": "platform",
       "role": null,
       "rate": "platform_partner_second_factor",
@@ -1312,6 +1316,7 @@
     },
     "POST team/partner": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "partner_invite",
@@ -1319,6 +1324,7 @@
     },
     "DELETE team/partner": {
       "kind": "write",
+      "fresh": true,
       "scope": "workspace",
       "role": "owner",
       "rate": "partner_invite",

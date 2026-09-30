@@ -166,6 +166,31 @@ test("a page on the public internet is read, decompressed as fetch does, and the
   );
 });
 
+test("a response is held to a size once decoded: a small gzip that inflates past it, and a plain body past it, fail the reader", async () => {
+  const past = 6 * 1024 * 1024;
+  const f = publicFetch({
+    resolve: PUBLIC,
+    request: transport({
+      "https://bomb.example/feed.ics": {
+        status: 200,
+        headers: [["content-encoding", "gzip"]],
+        body: zlib.gzipSync(Buffer.alloc(past, 0x61)),
+      },
+      "https://big.example/page": { status: 200, body: Buffer.alloc(past, 0x61) },
+      "https://fine.example/page": { status: 200, body: Buffer.alloc(1024 * 1024, 0x61) },
+    }),
+  });
+  const bomb = await f("https://bomb.example/feed.ics");
+  await assert.rejects(() => bomb.text(), /over \d+ bytes/);
+  const big = await f("https://big.example/page");
+  await assert.rejects(() => big.text(), /over \d+ bytes/);
+  assert.equal(
+    (await (await f("https://fine.example/page")).text()).length,
+    1024 * 1024,
+    "a page within the size reads whole",
+  );
+});
+
 test("a name that resolves to a private address is refused, whatever the address it was typed as", async () => {
   const f = publicFetch({
     resolve: PRIVATE,

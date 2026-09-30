@@ -136,7 +136,7 @@ export const POST = write({
     // The platform mailbox hears about a new workspace from the one place
     // workspaces are made. Bounded and best-effort: the workspace exists whether
     // or not the notice gets through.
-    await notifyPlatformSignup(data.id, ctx.email ?? "");
+    await notifyPlatformSignup(data.id, ctx.email ?? "", ctx.userId);
 
     // The creator hears from their own workspace: their address is its first alert
     // address, the one Settings › Notifications shows and changes. Without it every

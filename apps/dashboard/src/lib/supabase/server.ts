@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@chanlytics/db";
-import { env, isProduction } from "@/server/env";
+import { env, servedOverHttps } from "@/server/env";
 import { sessionCookieOptions } from "./cookie-options";
 
 /**
@@ -12,7 +12,7 @@ import { sessionCookieOptions } from "./cookie-options";
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookieOptions: sessionCookieOptions(isProduction()),
+    cookieOptions: sessionCookieOptions(servedOverHttps()),
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -503,6 +503,9 @@ export function headerOf(sf) {
   return (ts.getLeadingCommentRanges(text, 0) ?? []).map((r) => text.slice(r.pos, r.end)).join("\n");
 }
 
+/** What a chain may start at and be counted for neither: `tenantDb` names the workspace, `platformWide` says it chose none. */
+const SCOPING_ROOTS = new Set(["tenantDb", "platformWide"]);
+
 /** The methods that carry a filter, and the ones that write a row (whose object may name its workspace). */
 const FILTERS = new Set(["eq", "match", "filter", "in"]);
 const WRITES = new Set(["insert", "upsert", "update"]);
@@ -536,7 +539,7 @@ export function workspacelessStatements(sf, tenantTables, where = []) {
       !(
         ts.isCallExpression(m.expression.expression) &&
         ts.isIdentifier(m.expression.expression.expression) &&
-        m.expression.expression.expression.text === "tenantDb"
+        SCOPING_ROOTS.has(m.expression.expression.expression.text)
       )
     ) {
       // The chain from this `.from(...)` outward: each `.method(args)` that hangs off it.

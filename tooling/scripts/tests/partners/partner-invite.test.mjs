@@ -173,6 +173,7 @@ test("what the partner is shown and sent: who asked and until when; whether join
 
 test("the owner's routes: the workspace's, the owner's, counted; the code taken from a link; the function's refusals mapped", async () => {
   assert.deepEqual(team.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: null, spend: false });
+  // Who sits on the team is the owner's to change with a live session, as an invitation to a person is.
   for (const h of [team.POST, team.DELETE])
     assert.deepEqual(h.policy, {
       kind: "write",
@@ -180,6 +181,7 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
       role: "owner",
       rate: "partner_invite",
       spend: false,
+      fresh: true,
     });
   assert.equal(RATE.partner_invite.limit, 20);
 
@@ -306,17 +308,17 @@ const edgeCall = (status = 200) => {
 
 test("the partner is told by the edge, which is given the workspace and never an address; off production, nobody", async () => {
   const edge = edgeCall();
-  assert.equal(await sendPartnerInvite(A, { fetch: edge.fetch, live: true }), true);
+  assert.equal(await sendPartnerInvite(A, USER, { fetch: edge.fetch, live: true }), true);
   assert.equal(edge.calls.length, 1);
   assert.match(edge.calls[0].url, /\/api\/admin\/partner-invite$/);
   assert.deepEqual(edge.calls[0].body, { tenant_id: A });
   assert.ok(edge.calls[0].headers["x-edge-token"], "a token minted for this door");
   const preview = edgeCall();
-  assert.equal(await sendPartnerInvite(A, { fetch: preview.fetch, live: false }), false);
+  assert.equal(await sendPartnerInvite(A, USER, { fetch: preview.fetch, live: false }), false);
   assert.deepEqual(preview.calls, []);
-  assert.equal(await sendPartnerInvite(A, { fetch: edgeCall(502).fetch, live: true }), false);
+  assert.equal(await sendPartnerInvite(A, USER, { fetch: edgeCall(502).fetch, live: true }), false);
   assert.equal(
-    await sendPartnerInvite(A, {
+    await sendPartnerInvite(A, USER, {
       fetch: async () => {
         throw new Error("socket hang up");
       },

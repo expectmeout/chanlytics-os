@@ -171,11 +171,12 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-10-13",
     weaker: {
       allows:
-        "A per-call token with no body hash is accepted on a POST, and one with no workspace on a door that acts on " +
-        "one (lib/admin-auth.ts), so a dashboard built before this may still call an edge that reads them.",
+        "A per-call token with no body hash is accepted on a POST, and one with no workspace on a door that must check " +
+        "whose row it acts on (the live-call doors and steer: tokenWorkspace in lib/admin-auth.ts), so a dashboard built " +
+        "before this may still call an edge that reads them. A token about no workspace is otherwise a platform " +
+        "operator's on purpose (the runbook's knock), so only these doors say it.",
       readiness: { event: "edge_token_unbound", when: "no line for a day after both projects deploy" },
-      closes:
-        "The change that refuses a token with no body hash on a POST, and one with no workspace on a door that acts on one.",
+      closes: "The change that refuses a token with no body hash on a POST, and one with no workspace on those doors.",
     },
   },
   {

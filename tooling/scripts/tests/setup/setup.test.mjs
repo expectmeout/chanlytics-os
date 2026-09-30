@@ -822,7 +822,7 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
   const route = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   assert.ok(
     route.includes(
-      "const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);",
+      "const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);",
     ),
   );
   assert.ok(route.includes("return { request: data, told };"));

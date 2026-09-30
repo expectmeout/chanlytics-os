@@ -13,7 +13,16 @@ import { logLineOf } from "../_log-lines.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (p) => pathToFileURL(path.join(ROOT, p)).href;
-const { assertBootable, bootProblems, REQUIRED_IN_PRODUCTION } = await import(at("apps/edge/lib/env.ts"));
+const { assertBootable, bootProblems } = await import(at("apps/edge/lib/env.ts"));
+
+/** What a production edge cannot serve without, written out: a change to the set is a change to this list. */
+const REQUIRED_IN_PRODUCTION = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "EDGE_CALL_SECRET",
+  "DASHBOARD_ORIGIN",
+  "EDGE_ORIGIN",
+];
 const { dashboardOrigin, edgeOrigin, edgeFnUrl } = await import(at("apps/edge/lib/dashboard-origin.ts"));
 
 /** A production environment that holds everything it must (made-up values). */

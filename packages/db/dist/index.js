@@ -3315,12 +3315,23 @@ function stamped(row, tenantId) {
   if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a row names another workspace");
   return { ...row, tenant_id: tenantId };
 }
+function unmoved(patch, tenantId) {
+  if (typeof patch !== "object" || patch === null) return;
+  const named = Reflect.get(patch, "tenant_id");
+  if (named !== void 0 && named !== tenantId) throw new Error("tenantDb: a patch names another workspace");
+}
+function conflictsOnWorkspace(options) {
+  const on = typeof options === "object" && options !== null ? Reflect.get(options, "onConflict") : void 0;
+  const columns = typeof on === "string" ? on.split(",").map((c) => c.trim()) : [];
+  if (!columns.includes("tenant_id")) throw new Error("tenantDb: an upsert must conflict on tenant_id as well");
+}
 function scoped(builder, tenantId) {
   for (const verb of FILTERED) {
     const build = Reflect.get(builder, verb);
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
       value: (...args) => {
+        if (verb === "update") unmoved(args[0], tenantId);
         const statement = Reflect.apply(build, builder, args);
         const eq = statement && Reflect.get(statement, "eq");
         if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
@@ -3334,6 +3345,7 @@ function scoped(builder, tenantId) {
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
       value: (rows, ...rest) => {
+        if (verb === "upsert") conflictsOnWorkspace(rest[0]);
         const statement = Reflect.apply(build, builder, [
           Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
           ...rest
