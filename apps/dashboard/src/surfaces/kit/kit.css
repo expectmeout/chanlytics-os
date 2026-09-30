@@ -2895,12 +2895,12 @@ a.list-row {
 /* ---------- Page head ----------
    What a canvas puts above a page in Glass (kit/head/page-head.tsx, drawn only there, inside <Glass>): the date and time
    in the mono face, the page's name light and large, and beside it, on its baseline, the one sentence that says where the
-   page stands. Its own gutter is the Glass pane's (a page in Glass has its panes 16px in from the window). */
+   page stands. The frame places it under the top bar (frame-head.tsx), at the page's gutter. */
 .pg-head {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px var(--pg-gutter, 16px) 12px;
+  padding: 0;
   min-width: 0;
 }
 .pg-dateline {
@@ -2926,7 +2926,7 @@ a.list-row {
 .pg-title {
   margin: 0;
   font-size: var(--text-4xl);
-  font-weight: var(--weight-light);
+  font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
   color: var(--ink);

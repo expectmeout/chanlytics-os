@@ -62,6 +62,7 @@ const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/br
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 
 /** The document's root, as the head's script and the shell stamp it: Glass where it says so, and nothing else says Classic. */
 const lookIs = (look) => {
@@ -90,28 +91,40 @@ const composing = (look) => {
   return page();
 };
 
-test("the head: Glass opens a tab's list on the surface's title, Classic keeps the tab's name for a screen reader", () => {
+test("the head: Glass says the surface's title to the frame's head and draws none of its own; Classic keeps the tab's name for a screen reader", () => {
   setSurfaceValue("playbooks", playbooksSample(NOW));
-  const h1 = () => {
+  const draw = () => {
     freshTree();
-    return find(
-      again(() => PlaybooksPage({})),
-      (n) => n.type === "h1",
-    );
+    return again(() => PlaybooksPage({}));
   };
+  const h1 = () => find(draw(), (n) => n.type === "h1");
   // Glass only where the document says so: no look stamped, Classic, a word that is not a look, and no document to ask (a server render).
   for (const stamp of [null, "classic", "anything else"]) {
     lookIs(stamp);
     assert.equal(textOf(h1()), "Playbooks", `${stamp}: Classic`);
     assert.ok(String(h1().props.className).includes("cm-sr"), "Classic: the name is a screen reader's alone");
+    assert.equal(standingSaid(), null, `${stamp}: Classic tells the frame's head nothing`);
   }
   const root = globalThis.document.documentElement;
   delete globalThis.document.documentElement;
   assert.equal(textOf(h1()), "Playbooks", "no document to ask: Classic");
   globalThis.document.documentElement = root;
   lookIs("glass");
-  assert.equal(textOf(h1()), "Campaigns", "Glass: the surface's name, which the strip above narrows to this tab");
-  assert.ok(!String(h1().props.className).includes("cm-sr"), "and seen");
+  const tree = draw();
+  assert.equal(
+    find(tree, (n) => n.type === "h1"),
+    null,
+    "Glass: the page draws no head of its own; the frame's is the head",
+  );
+  assert.equal(
+    find(tree, (n) => String(n.props?.className || "").includes("cm-head")),
+    null,
+    "and no cm-head either",
+  );
+  const said = standingSaid();
+  assert.equal(said?.title, "Campaigns", "Glass: the surface's name, which the strip above narrows to this tab");
+  assert.equal(said?.back, null, "a tab's list has no way back above its name");
+  assert.ok(said?.sentence, "and the head's line beside it");
 });
 
 test("the playbook composer: Classic's sections as they were; Glass's four rows, each holding Classic's section", () => {
@@ -142,12 +155,15 @@ test("the playbook composer: Classic's sections as they were; Glass's four rows,
 });
 
 test("the broadcast composer: Classic's three columns; Glass's rows To, Says, When in one pane", () => {
+  // The page's act (New broadcast) is the head's: in the page in Classic, said to the frame's head in Glass.
+  const act = (tree, id) =>
+    byTestId(tree, id) ?? find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === id);
   const open = (look) => {
     lookIs(look);
     setSurfaceValue("broadcasts", broadcastsSample(NOW));
     freshTree();
     const page = () => again(() => BroadcastsPage({}));
-    press(byTestId(page(), "bc-new"));
+    press(act(page(), "bc-new"));
     return page();
   };
   const classic = open(null);
@@ -167,5 +183,5 @@ test("the broadcast composer: Classic's three columns; Glass's rows To, Says, Wh
   assert.ok(within(glass, "bc-composer", "bc-col-who") && within(glass, "bc-composer", "bc-col-what"));
   assert.ok(within(glass, "bc-composer", "bc-col-when"), "each column keeps its testid");
   assert.ok(String(byTestId(glass, "bc-composer").props.className).includes("bc-glass"));
-  assert.ok(byTestId(glass, "bc-send") && byTestId(glass, "bc-compose-close"), "the foot and Cancel are the same");
+  assert.ok(byTestId(glass, "bc-send") && act(glass, "bc-compose-close"), "the foot and Cancel are the same");
 });

@@ -552,6 +552,7 @@ const firstRunScreen = ({ theme, look, param, navigate, askOpen, setAskOpen }) =
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, PhoneFace } = s;
   const { page, param, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeLoading, surfaceUnavailable } = s;
+  const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
@@ -576,20 +577,35 @@ const appChrome = (s) => {
         />
       </div>
       <div className="main">
+        {/* In Glass the top bar's row holds the date and time where the crumbs were, and the page's act moves down to
+            the row of views: the frame leaves the places (pg-dateline, pg-head, pg-act) and the kit's head draws into
+            them (surfaces/kit/head/frame-head.tsx, the interface kit's step 5.4). Classic's tree is as it was. */}
         <Topbar
-          crumbs={crumbs}
+          crumbs={glass ? [] : crumbs}
+          left={glass ? <span className="pg-dateline-slot" id="pg-dateline" /> : null}
           theme={theme}
           themePref={themePref}
           onTheme={onTheme}
           onAsk={openAsk}
           onMenu={() => setNavOpen(true)}
-          right={primaryAction}
+          right={glass ? null : primaryAction}
         />
         {/* A call happening right now outranks a newer build or a stale surface:
             it is the one thing on this line that stops being true by itself. */}
         <LiveCallBar />
         <ShellStatusBar />
-        <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+        {glass ? (
+          <div className="pg-slot">
+            <div className="pg-head-slot" id="pg-head" />
+            <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+            <div className="pg-act-slot">
+              <span id="pg-act" />
+              {primaryAction}
+            </div>
+          </div>
+        ) : (
+          <SurfaceTabs page={page} param={param} onNavigate={navigate} />
+        )}
         {/* On a phone a swipe across the page walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main
           id="main"
@@ -667,6 +683,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
 
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
+  // The crumbs, told to the head Glass draws in the frame's places (the bridge's, absent in the standalone mockup).
+  React.useEffect(() => {
+    if (look === "glass" && window.__chrome && window.__chrome.crumbsShown) window.__chrome.crumbsShown(drawn.crumbs);
+  }, [drawn.crumbs, look]);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);

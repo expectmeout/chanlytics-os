@@ -8,8 +8,8 @@ import assert from "node:assert/strict";
 import { fresh, installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
-const { inboxDateline, inboxStanding } =
-  await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
+const { inboxStanding } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
+const { pageDateline } = await import("../../../../apps/dashboard/src/surfaces/kit/head/dateline.ts");
 const { Glass, useLook } = await import("../../../../apps/dashboard/src/surfaces/kit/look/look.tsx");
 const { PageHead } = await import("../../../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
@@ -30,8 +30,8 @@ const sending = (id) => ({
 const handled = (id) => ({ id, real: true, state: "done", needsYou: false });
 
 test("the dateline is the day and the time in the business's zone, not the machine's", () => {
-  assert.equal(inboxDateline(NOW, ZONE), "Friday, October 2 · 4:02 PM");
-  assert.equal(inboxDateline(NOW, "Asia/Tokyo"), "Saturday, October 3 · 5:02 AM");
+  assert.equal(pageDateline(NOW, ZONE), "Friday, October 2 · 4:02 PM");
+  assert.equal(pageDateline(NOW, "Asia/Tokyo"), "Saturday, October 3 · 5:02 AM");
 });
 
 test("the standing sentence counts what waits on you and names the oldest's hour", () => {

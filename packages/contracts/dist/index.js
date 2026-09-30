@@ -15143,9 +15143,13 @@ var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
 var LOOK_OFFERED = false;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
+var LOOK_THEME_COLORS = {
+  classic: THEME_COLORS,
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
 var THEME_INK = { light: "#161616", dark: "#fbfaf8" };
-function themeColorOf(theme) {
-  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+function themeColorOf(theme, look = "classic") {
+  return LOOK_THEME_COLORS[look === "glass" ? "glass" : "classic"][theme === "light" ? "light" : "dark"];
 }
 var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
@@ -15163,7 +15167,7 @@ function themeBootScript() {
     "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
-    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(LOOK_THEME_COLORS)}[k][t]);`,
     "}catch(e){}"
   ].join("");
 }

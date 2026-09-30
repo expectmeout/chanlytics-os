@@ -25,6 +25,7 @@ import { subscribeWorkspaceChanges } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
 import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
+import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { loadPrefs, choosePref, documentStamps, type Prefs, type ChosenPref } from "./device-prefs";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
@@ -294,8 +295,8 @@ function useSystemDark(): boolean {
 function useDocumentStamps(theme: Theme, look: LookPref): void {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    paintThemeColor(document, theme);
-  }, [theme]);
+    paintThemeColor(document, theme, look);
+  }, [theme, look]);
   useEffect(() => {
     document.documentElement.setAttribute("data-look", look);
   }, [look]);
@@ -349,20 +350,24 @@ function useShellApp(
   return useMemo(
     () =>
       ChanlyticsApp ? (
-        <ChanlyticsApp
-          theme={theme}
-          themePref={themePref}
-          onTheme={onTheme}
-          look={look}
-          onLook={onLook}
-          sidebar={sidebar}
-          onSidebar={onSidebar}
-          inboxDensity={inboxDensity}
-          showInboxAgentRail={showInboxAgentRail}
-          routePage={routePage}
-          surfaceRoutes={SURFACE_ROUTES}
-          sharedPage={SHARED_PAGE}
-        />
+        <>
+          <ChanlyticsApp
+            theme={theme}
+            themePref={themePref}
+            onTheme={onTheme}
+            look={look}
+            onLook={onLook}
+            sidebar={sidebar}
+            onSidebar={onSidebar}
+            inboxDensity={inboxDensity}
+            showInboxAgentRail={showInboxAgentRail}
+            routePage={routePage}
+            surfaceRoutes={SURFACE_ROUTES}
+            sharedPage={SHARED_PAGE}
+          />
+          {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
+          <FrameHead look={look} />
+        </>
       ) : null,
     [
       ChanlyticsApp,

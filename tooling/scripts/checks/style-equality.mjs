@@ -62,7 +62,7 @@ const PERSON = "clients/5c0e0000-0000-4000-8000-000000000003";
  */
 export const PAGES = {
   salon: [
-    ...["today", "clients", "clients/c-aisha", "calendar"],
+    ...["clients", "clients/c-aisha", "calendar"],
     // Settings: Business is the bare route, and then each pane in the rail (settings.jsx SET_TABS).
     "admin",
     ...["profile", "partner", "team", "autonomy", "integrations", "notifications", "billing", "activity"].map(
@@ -70,7 +70,7 @@ export const PAGES = {
     ),
   ],
   pipeline: ["clients", "clients/pipeline", "clients/leads", PERSON],
-  nightly: ["today", "admin"],
+  nightly: ["admin"],
   kit: ["kit"],
 };
 

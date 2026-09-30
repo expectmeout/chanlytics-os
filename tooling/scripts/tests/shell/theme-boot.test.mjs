@@ -30,6 +30,7 @@ import {
   DEFAULT_THEME_PREF,
   DEFAULT_LOOK_PREF,
   THEME_COLORS,
+  LOOK_THEME_COLORS,
 } from "../../../../packages/contracts/src/shell/chrome.ts";
 import { paintThemeColor } from "../../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
 import { loadPrefs, choosePref, documentStamps } from "../../../../apps/dashboard/src/legacy-bridge/device-prefs.ts";
@@ -207,8 +208,9 @@ test("a storage that refuses, or a window with no matchMedia, still stamps a the
     {
       theme: resolveTheme("system", false),
       look: "glass",
-      bars: THEME_COLORS.light,
-      metas: [THEME_COLORS.light],
+      // The bars wear the look's own paper: Glass's page ground, not Classic's.
+      bars: LOOK_THEME_COLORS.glass.light,
+      metas: [LOOK_THEME_COLORS.glass.light],
       threw: null,
     },
     "no matchMedia reads as a light device, as the app's own useSystemDark does, and the look it keeps stands",

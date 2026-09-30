@@ -3318,11 +3318,6 @@ html.legacy-on .msg-use-link { position: relative; }
   }
 }
 
-/* The strip of views stands in the page under the top bar, a capsule set in from the page's edge as the canvases'
-   title blocks set theirs (its padding is the capsule's own in Glass, the kit's). */
-:where([data-look="glass"]) .main > .stabs {
-  margin: 0 24px 8px;
-}
 
 /* The Inbox's sending strip (inbox.css, fixed under the top bar), on a desk: at the right end of the strip of views'
    row, which the capsule of views leaves free (it is as wide as its tabs), so it covers neither the views nor the
@@ -3342,53 +3337,87 @@ html.legacy-on .msg-use-link { position: relative; }
   }
 }
 
-/* A page that opens with a head (the kit's PageHead, a <header> drawn in Glass alone) stands its panes under it, and the
-   top bar's crumbs give way to it: the head is the page's name. Named as the one header a page region opens with, since
-   the head is the kit's to name and not the frame's. */
-:where([data-look="glass"]) .main-scroll.pane:has(> header:first-child) {
-  flex-direction: column;
+/* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
+   top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with
+   the page's act at its right, as the canvases open every page. The frame leaves the places in Glass alone
+   (app-shell.jsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
+:where([data-look="glass"]) .topbar .crumbs {
+  display: none;
 }
-:where([data-look="glass"]) .main:has(> .main-scroll > header:first-child) .topbar .crumbs {
-  visibility: hidden;
-
-/* ============================================================
-   Campaigns in Glass (the interface kit's step 5.4, the Campaigns canvas C1, the page)
-   The head opens on the surface's title with the head's line beside it on one baseline; the list is a clear pane, its
-   head the canvases' small capitals, its rows insets that lift on hover, its hairlines the roles'; the moments not set
-   up are a pane of rows of their own, the way the canvas lists them under the running. Every value is a role or a scale
-   step: Classic draws none of this (the rules name the look), and the composer's own rows are the sheet's
-   (kit.css, "A sheet, and the glass foot bar"), drawn by the composer (surfaces/campaigns/playbooks/composer-glass.tsx).
-   ============================================================ */
-:where([data-look="glass"]) .cm-head.is-quiet {
-  align-items: baseline;
-  min-height: 0;
-  gap: var(--space-2) var(--space-4);
-}
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-text {
+:where([data-look="glass"]) .pg-dateline-slot {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  min-width: 0;
 }
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-title {
-  font-size: var(--text-3xl);
-  font-weight: var(--weight-regular);
-  letter-spacing: var(--tracking-tight);
-  line-height: var(--leading-tight);
-  white-space: nowrap;
+:where([data-look="glass"]) .pg-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-4);
+  row-gap: 14px;
+  align-items: end;
+  padding: 2px var(--gutter-page) 14px;
 }
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-sub {
-  margin-top: 0;
-  font-size: var(--text-md);
+:where([data-look="glass"]) .pg-head-slot {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+:where([data-look="glass"]) .pg-slot > .stabs {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+}
+/* The page's act, at the right of the row of views, or of the name where the page has no views: the page's own
+   (pg-act, said through the head) or the frame's, never both. */
+:where([data-look="glass"]) .pg-act-slot {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+:where([data-look="glass"]) #pg-act {
+  display: contents;
+}
+:where([data-look="glass"]) .pg-act-slot:has(> #pg-act:not(:empty)) > :not(#pg-act) {
+  display: none;
+}
+/* The way back above the name (a person's People): the quiet link, in the muted ink. */
+:where([data-look="glass"]) .pg-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   color: var(--ink-muted);
+  cursor: pointer;
 }
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right {
-  align-self: center;
-  margin-left: auto;
+:where([data-look="glass"]) .pg-back:hover {
+  color: var(--ink);
 }
-:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right > button {
-  height: var(--control-h-lg);
+:where([data-look="glass"]) .pg-back-glyph {
+  font-size: var(--text-lg);
+  line-height: 1;
 }
+/* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip. */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .pg-slot {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 10px;
+  }
+  :where([data-look="glass"]) .pg-act-slot {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+}
+
 :where([data-look="glass"]) .pb-standing > * > :first-child {
   font-weight: var(--weight-regular);
 }
@@ -3614,13 +3643,6 @@ html.legacy-on .msg-use-link { position: relative; }
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-:where([data-look="glass"]) .bc-glass > .cm-head {
-  padding: var(--space-4) var(--space-4) var(--space-2) calc(var(--space-4) + var(--space-2));
-}
-:where([data-look="glass"]) .bc-glass > .cm-head .cm-head-title {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-}
 :where([data-look="glass"]) .bc-grows {
   padding: 0 calc(var(--space-4) + var(--space-2));
 }
@@ -3812,4 +3834,30 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 :where([data-look="glass"]) .msg-list > .msg-row:last-child {
   border-bottom: 0;
+}
+
+/* The pools of light move as the canvases' do (their glow drifts over twenty seconds): the app's root carries their
+   centres from the tokens' registered properties, on a desk, and never where less motion is asked. */
+@keyframes pg-drift {
+  0% {
+    --pool-a-x: 23%;
+    --pool-a-y: 6%;
+    --pool-b-x: 89%;
+    --pool-b-y: 40%;
+    --pool-c-x: 39%;
+    --pool-c-y: 91%;
+  }
+  100% {
+    --pool-a-x: 29%;
+    --pool-a-y: 12%;
+    --pool-b-x: 84%;
+    --pool-b-y: 46%;
+    --pool-c-x: 45%;
+    --pool-c-y: 86%;
+  }
+}
+@media (width > 900px) and (prefers-reduced-motion: no-preference) {
+  :where([data-look="glass"]) .app-root {
+    animation: pg-drift 20s ease-in-out infinite alternate;
+  }
 }

@@ -32,6 +32,7 @@ import { switchWorkspace } from "./surface-data";
 import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
+import { crumbsShown } from "@/surfaces/kit/head/standing";
 
 export interface ShellApi {
   /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
@@ -80,6 +81,8 @@ export interface ChromeWords {
   replyWaits: typeof replyWaitsOnYou;
   /** Whether a key press belongs to a field being typed in. */
   typing(target: EventTarget | null): boolean;
+  /** The crumbs the shell drew, told to the head Glass draws in the shell's places (kit/head/standing.ts). */
+  crumbsShown: typeof crumbsShown;
 }
 
 declare global {
@@ -172,6 +175,7 @@ export function installShell(win: Window = window): void {
     state: stateOf,
     // A reply counting down to send waits on you (contracts standing.ts): the Inbox's Needs you and People's, one rule.
     replyWaits: replyWaitsOnYou,
+    crumbsShown,
     typing(target) {
       const el = target as { tagName?: string; isContentEditable?: boolean } | null;
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);

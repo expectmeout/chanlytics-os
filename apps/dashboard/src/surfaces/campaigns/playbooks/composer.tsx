@@ -26,7 +26,7 @@ import type { ReactNode } from "react";
 import { recordSheetPart, tabDraft, unsavedAskPart, useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../look";
+import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";

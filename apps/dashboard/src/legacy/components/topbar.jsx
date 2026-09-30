@@ -255,6 +255,8 @@ const Topbar = ({
   onAsk = () => {},
   onMenu = () => {},
   right = null,
+  // What stands before the crumbs: in Glass the frame's place for the date and time (app-shell.jsx), nothing in Classic.
+  left = null,
 }) => {
   // The Ask button's icon: the three (components/ask-face.jsx), or the sparkle where they are not loaded.
   const TbFace = window.AskFace || null;
@@ -531,6 +533,7 @@ const Topbar = ({
       <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" aria-label="Menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
+      {left}
       <div className="crumbs">
         {crumbs.map((c, i) => {
           const label = typeof c === "string" ? c : c.label;

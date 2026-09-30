@@ -1338,11 +1338,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    :where() so it weighs what it restyles; none matches in Classic.
    ==================================================================== */
 
-/* The page's gutter is the head's, and the page starts under it. */
-:where([data-look="glass"]) .main-scroll:has(> header:first-child + .dash-a-v2) {
+/* The page starts under the frame's head (kit/head/frame-head.tsx), at the page's gutter. */
+:where([data-look="glass"]) .main-scroll > .dash-a-v2 {
   --pg-gutter: var(--gutter-page);
-}
-:where([data-look="glass"]) .main-scroll > header:first-child + .dash-a-v2 {
   padding-top: 0;
   gap: 14px;
 }

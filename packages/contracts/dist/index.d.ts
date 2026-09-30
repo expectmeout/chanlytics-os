@@ -14052,7 +14052,7 @@ declare const THEME_COLORS: Readonly<Record<Theme, string>>;
  */
 declare const THEME_INK: Readonly<Record<Theme, string>>;
 /** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
-declare function themeColorOf(theme: unknown): string;
+declare function themeColorOf(theme: unknown, look?: unknown): string;
 /**
  * Where the bars' colour is written. Every match, not the first: React plants a second copy of the meta during
  * hydration whenever the boot script has already changed the one the markup shipped (measured 22 Sep 2026, a light

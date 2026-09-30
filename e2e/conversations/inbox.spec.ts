@@ -105,7 +105,8 @@ test.describe("The Inbox and Conversations on their paths", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const head = page.locator(".pg-head");
     await expect(head.getByRole("heading", { name: "Inbox" })).toBeVisible();
-    await expect(head.locator(".pg-dateline")).toBeVisible();
+    // The date and time stand in the top bar's row, where Classic's crumbs are (the frame's head).
+    await expect(page.locator(".pg-dateline")).toBeVisible();
     await expect(head.locator(".pg-sentence")).toContainText(/need you|Nothing needs you/);
     // The page still stands under it, and the top bar leaves the name to the head.
     await expect(page.locator(".inbox")).toBeVisible();

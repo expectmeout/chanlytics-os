@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLegacyUnsavedWork } from "../../legacy-parts";
 import { canDo, demoSession, navigate, useLegacyToast } from "../../legacy-verbs";
-import { useLook } from "../../look";
+import { useLook } from "../../kit/look/look";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { bcAgainOf, bcLedgerOf, bcRunSolo, bcSheetOf } from "./page/runs";

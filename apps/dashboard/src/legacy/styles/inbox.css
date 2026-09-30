@@ -2173,7 +2173,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
    :where(), so it weighs what the rule it restyles weighs and comes after it (components.css); none matches in Classic.
    ==================================================================== */
 
-/* Under the page's head the Inbox takes the row that is left, whatever its height was. */
+/* Under the frame's head (kit/head/frame-head.tsx) the Inbox takes the row that is left, whatever its height was. */
 :where([data-look="glass"]) .main-scroll.pane > .inbox {
   height: auto;
   flex: 1 1 0;
@@ -2182,7 +2182,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 
 /* A phone's thread is the whole screen, headed by its own person: the page's head (the one header a page holds) stands over the list alone. */
 @media (max-width: 900px) {
-  :where([data-look="glass"]) .main-scroll:has(> .inbox.phone-thread) > header {
+  :where([data-look="glass"]) .main:has(> .main-scroll > .inbox.phone-thread) .pg-slot {
     display: none;
   }
 }
@@ -2190,7 +2190,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 @media (width > 900px) {
   :where([data-look="glass"]) .inbox {
     gap: 14px;
-    padding: 0 16px 16px;
+    padding: 0 var(--gutter-page) 16px;
     background: transparent;
   }
   :where([data-look="glass"]) :is(.ix-list, .ix-thread-pane) {

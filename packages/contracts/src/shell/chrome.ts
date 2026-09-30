@@ -86,6 +86,11 @@ export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
  * paper reads as a strip of somebody else's app above this one.
  */
 export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8", dark: "#0c0d0f" };
+/** The same paper per look: Glass's page ground (tokens.css, the look's --bg), so the bars match the page whichever look it wears. */
+export const LOOK_THEME_COLORS: Readonly<Record<"classic" | "glass", Readonly<Record<Theme, string>>>> = {
+  classic: THEME_COLORS,
+  glass: { light: "#f1f2f6", dark: "#0f1014" },
+};
 /**
  * The ink on that paper, per theme (tokens.css --ink, as sRGB): what the native shell draws its own words and tab
  * labels with, beside the page. The two pairs are the shell's whole palette; the page's other tones stay the page's.
@@ -93,8 +98,8 @@ export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8",
 export const THEME_INK: Readonly<Record<Theme, string>> = { light: "#161616", dark: "#fbfaf8" };
 
 /** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
-export function themeColorOf(theme: unknown): string {
-  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+export function themeColorOf(theme: unknown, look: unknown = "classic"): string {
+  return LOOK_THEME_COLORS[look === "glass" ? "glass" : "classic"][theme === "light" ? "light" : "dark"];
 }
 
 /**
@@ -138,7 +143,7 @@ export function themeBootScript(): string {
     "document.documentElement.dataset.look=k;",
     `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
     'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
-    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(LOOK_THEME_COLORS)}[k][t]);`,
     "}catch(e){}",
   ].join("");
 }

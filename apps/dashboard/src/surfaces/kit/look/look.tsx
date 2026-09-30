@@ -20,8 +20,9 @@ function watch(onChange: () => void): () => void {
   return () => observer.disconnect();
 }
 
+// A document with no root yet (a test's stand-in, a page torn down) answers Classic, as no document does.
 const lookNow = (): Look =>
-  typeof document !== "undefined" && document.documentElement.getAttribute("data-look") === "glass"
+  typeof document !== "undefined" && document.documentElement?.getAttribute("data-look") === "glass"
     ? "glass"
     : "classic";
 

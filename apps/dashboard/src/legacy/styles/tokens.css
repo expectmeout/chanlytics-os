@@ -32,8 +32,6 @@
   --tracking-tight: -0.02em;
   --tracking-normal: -0.005em;
   --tracking-wide: 0.04em;
-
-  --weight-light: 300; /* a page head's name in Glass: the canvases draw it light and large */
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -141,6 +139,9 @@
      clear without a blur (kit.css, the panes), so that step waits for a pane that needs one. */
   --blur-lg: 28px;
   --saturate-lg: 1.5;
+  /* A clear pane's (the canvases' section: 14px and 1.25). */
+  --blur-md: 14px;
+  --saturate-md: 1.25;
 
   /* ---------- Signature Accent ---------- */
   /* Used ONLY for live/active agent state. Never decorative. */
@@ -297,6 +298,9 @@
      the page (a menu, a toast, a tip); the wash behind a sheet. */
   --surface-page-fill: var(--bg);
   --surface-pane-fill: var(--bg-raised);
+  /* Classic blurs nothing: `none`, read through var() (the build drops a bare `backdrop-filter: none`). */
+  --surface-pane-blur: none;
+  --surface-control-blur: none;
   --surface-pane-edge: var(--line);
   --surface-pane-radius: var(--radius-lg);
   --surface-inset-fill: var(--bg-sunken);
@@ -326,8 +330,25 @@
    canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
    and depth, the control layer's fill, the island, the count, the solid fills) are set here alone, and only rules of
    this look read them.
+/* Where the three pools of light stand (the canvases' glow): registered, so the app's root can move them (components.css,
+   pg-drift); a browser without @property keeps them still. */
+@property --pool-a-x { syntax: "<percentage>"; inherits: true; initial-value: 23%; }
+@property --pool-a-y { syntax: "<percentage>"; inherits: true; initial-value: 6%; }
+@property --pool-b-x { syntax: "<percentage>"; inherits: true; initial-value: 89%; }
+@property --pool-b-y { syntax: "<percentage>"; inherits: true; initial-value: 40%; }
+@property --pool-c-x { syntax: "<percentage>"; inherits: true; initial-value: 39%; }
+@property --pool-c-y { syntax: "<percentage>"; inherits: true; initial-value: 91%; }
    ============================================================ */
 [data-look="glass"] {
+  --pool-a-x: 23%;
+  --pool-a-y: 6%;
+  --pool-b-x: 89%;
+  --pool-b-y: 40%;
+  --pool-c-x: 39%;
+  --pool-c-y: 91%;
+  /* The page's gutter is the canvases' (28px beside the sidebar; 16px on a phone), which the head, the row of views and
+     the panes all keep to. */
+  --gutter-page: 28px;
   /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
   --bg: oklch(0.962 0.005 275);
   --bg-sunken: oklch(0.945 0.006 275);
@@ -373,15 +394,18 @@
 
   /* The page: its ground, and the light, three soft pools where the canvases put them. */
   --surface-page-light:
-    radial-gradient(39% 40% at 23% 6%, oklch(0.821 0.089 265 / 0.68), transparent),
-    radial-gradient(43% 36% at 89% 40%, oklch(0.98 0.013 64 / 0.95), transparent),
-    radial-gradient(37% 33% at 39% 91%, oklch(0.841 0.088 295 / 0.46), transparent);
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.821 0.089 265 / 0.68), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.98 0.013 64 / 0.95), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.841 0.088 295 / 0.46), transparent);
 
   /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
      with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
   --surface-control-fill: oklch(1 0 0 / 0.5);
   --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.33), transparent 42%);
-  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg));
+  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg)) brightness(1.03);
+  /* A clear pane blurs the page's light a little (the canvases' section), on a desk: kit.css and the pages' sheets read
+     it where a pane stands, and a phone spends no blur on a pane (the review of steps 5.1 to 5.3). */
+  --surface-pane-blur: blur(var(--blur-md)) saturate(var(--saturate-md)) brightness(1.03);
   --surface-control-rim: linear-gradient(
     135deg,
     oklch(1 0 0 / 0.98) 0%,
@@ -500,9 +524,9 @@
   --info-ink: oklch(0.72 0.12 235);
 
   --surface-page-light:
-    radial-gradient(39% 40% at 23% 6%, oklch(0.737 0.103 267 / 0.17), transparent),
-    radial-gradient(43% 36% at 89% 40%, oklch(0.955 0.026 55 / 0.05), transparent),
-    radial-gradient(37% 33% at 39% 91%, oklch(0.76 0.135 293 / 0.1), transparent);
+    radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), oklch(0.737 0.103 267 / 0.17), transparent),
+    radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), oklch(0.955 0.026 55 / 0.05), transparent),
+    radial-gradient(37% 33% at var(--pool-c-x) var(--pool-c-y), oklch(0.76 0.135 293 / 0.1), transparent);
 
   --surface-control-fill: oklch(1 0 0 / 0.085);
   --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.042), transparent 42%);
@@ -518,6 +542,8 @@
     0 2px 8px -4px oklch(0 0 0 / 0.5);
 
   --surface-pane-fill: oklch(1 0 0 / 0.035);
+  --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg));
+  --surface-pane-blur: blur(var(--blur-md)) saturate(var(--saturate-md));
   --surface-pane-rim: linear-gradient(
     135deg,
     oklch(1 0 0 / 0.42) 0%,
@@ -570,6 +596,7 @@
   [data-look="glass"][data-theme] {
     --surface-control-fill: var(--surface-control-solid);
     --surface-pane-fill: var(--surface-pane-solid);
+    --surface-pane-blur: none;
     --surface-inset-fill: var(--surface-inset-solid);
     --secondary-fill: var(--surface-inset-solid);
     --selected-fill: var(--selected-solid);
@@ -582,6 +609,7 @@
   [data-look="glass"][data-theme] {
     --surface-control-fill: var(--surface-control-solid);
     --surface-pane-fill: var(--surface-pane-solid);
+    --surface-pane-blur: none;
     --surface-inset-fill: var(--surface-inset-solid);
     --secondary-fill: var(--surface-inset-solid);
     --selected-fill: var(--selected-solid);
@@ -650,3 +678,8 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   border: 2px solid var(--bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+@media (max-width: 900px) {
+  [data-look="glass"] {
+    --gutter-page: 16px;
+  }
+}

@@ -8,8 +8,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { routeOfPath } from "@chanlytics/contracts";
 import { loadPrefs } from "@/legacy-bridge/device-prefs";
-import { Glass } from "../kit/look/look";
-import { InboxHead } from "./pages/inbox-head";
+import { useInboxStanding } from "./pages/inbox-head";
 import { Inbox } from "./pages/inbox-page";
 import { ixRouteThread } from "./rules";
 import { navigate } from "./shell";
@@ -24,11 +23,10 @@ export function InboxRoute() {
   // The id is passed on even when that thread is not loaded: the Inbox says it is missing, rather than opening the
   // first thread in its place.
   const threadParam = ixRouteThread(param, inboxData().THREADS).id;
+  // Where the page stands, for the head the frame draws in Glass (kit/head/frame-head.tsx).
+  useInboxStanding();
   return (
     <>
-      <Glass>
-        <InboxHead />
-      </Glass>
       <Inbox
         density={prefs.inboxDensity}
         showAgentRail={prefs.showInboxAgentRail}

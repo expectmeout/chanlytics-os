@@ -10,8 +10,9 @@
  * message. This is 22px and 12.5px, about fifty pixels, and it wraps rather than grows.
  */
 import type { MouseEvent, ReactNode } from "react";
+import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { useLook } from "../../look";
+import { useLook } from "../../kit/look/look";
 
 interface CmHeadProps {
   title: string;
@@ -33,11 +34,33 @@ interface CmHeadProps {
  *           head is ONE line -- the numbers at the left, the tools and the act at the right, as People's controls
  *           row is. The crumb, the tab and a 22px title said "Playbooks" three times over one list (23 Sep).
  *
- * Under Glass a tab's list opens on the canvas's title (step 5.4, C1): the surface's name, "Campaigns", in the page's own
- * type, and the head's line beside it on its baseline. The tab above still says which door this is.
+ * Under Glass the head is the frame's (kit/head/frame-head.tsx, the canvas C1): a tab's list opens on the surface's name,
+ * "Campaigns", with the head's line beside it and its act on the row of views, and a page that names one thing (an
+ * opened run, the send screen) opens on that name. This says the head's parts to the frame and draws nothing of its
+ * own there; the strip above still says which door this is.
  */
 export function CmHead({ title, badge = null, sub = null, right = null, quiet = false, testid = null }: CmHeadProps) {
-  const glass = useLook() === "glass" && quiet && !badge;
+  const glass = useLook() === "glass";
+  useStanding(
+    glass
+      ? {
+          title: badge ? (
+            <>
+              {title} {badge}
+            </>
+          ) : quiet ? (
+            "Campaigns"
+          ) : (
+            title
+          ),
+          // A tab's list is the surface's own page: no way back above its name.
+          back: quiet ? null : undefined,
+          sentence: sub,
+          act: right,
+        }
+      : null,
+  );
+  if (glass) return null;
   return (
     <header className={`cm-head${quiet ? " is-quiet" : ""}`} data-testid={testid || undefined}>
       <div className="cm-head-text">
@@ -47,7 +70,7 @@ export function CmHead({ title, badge = null, sub = null, right = null, quiet = 
             {badge}
           </div>
         ) : (
-          <h1 className={quiet && !glass ? "cm-head-title cm-sr" : "cm-head-title"}>{glass ? "Campaigns" : title}</h1>
+          <h1 className={quiet ? "cm-head-title cm-sr" : "cm-head-title"}>{title}</h1>
         )}
         {sub && <div className="cm-head-sub">{sub}</div>}
       </div>
