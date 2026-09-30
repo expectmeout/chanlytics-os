@@ -52,7 +52,11 @@ test("the look: Classic or Glass, Classic by default and for anything unknown, a
   assert.equal(DEFAULT_LOOK_PREF, "classic", "the app as it is drawn today");
   assert.equal(lookPrefOf("glass"), "glass");
   assert.equal(lookPrefOf("neon"), DEFAULT_LOOK_PREF, "an unknown look is the default, as an unknown theme is");
-  assert.equal(LOOK_OFFERED, false, "the account menu offers no Look until Glass is drawn (the plan's step 5.5)");
+  assert.equal(
+    LOOK_OFFERED,
+    true,
+    "the account menu offers the Look: Glass is drawn on every canvas (the plan's step 5.5)",
+  );
 });
 
 test("typing: a field being typed in keeps its keys", () => {
@@ -295,10 +299,10 @@ test("the account menu offers the look only once contracts does: none while it i
   };
   const groups = (menu) => all(menu, (n) => n.props?.role === "radiogroup").map((n) => n.props["aria-label"]);
 
-  const now = accountMenu(LOOK_OFFERED);
-  assert.ok(now, "the account menu opens");
-  assert.deepEqual(groups(now), ["Theme"], "not offered yet: the theme alone, and no Look to press");
-  assert.equal(byTestId(now, "sb-look-glass"), null);
+  const held = accountMenu(false);
+  assert.ok(held, "the account menu opens");
+  assert.deepEqual(groups(held), ["Theme"], "a chrome that holds the look back: the theme alone, and no Look to press");
+  assert.equal(byTestId(held, "sb-look-glass"), null);
 
   const offered = accountMenu(true);
   assert.deepEqual(groups(offered), ["Theme", "Look"], "offered: the look, under the theme");

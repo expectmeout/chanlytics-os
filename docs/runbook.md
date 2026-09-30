@@ -448,9 +448,10 @@ its 5.5 and 5.6. A third look also adds its name to `LookPref`, `LOOK_OPTIONS` a
    To see the look on the app itself before it is offered, set `look` to its name in the object this device keeps
    under `chanlytics-os-prefs` in local storage, and reload: the head's script stamps it before first paint.
 
-5. **Offered.** `LOOK_OFFERED` in `chrome.ts` turns true, and the account menu draws Look under Theme. The flag's pins
-   change with it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`, which expects no Look while it is off), and
-   the packages' `dist` is rebuilt and committed. Ruben walks it on production.
+5. **Offered.** `LOOK_OFFERED` in `chrome.ts` is true (30 September 2026, once Glass was drawn on every canvas), and
+   the account menu draws Look under Theme. The flag's pins hold it (`chrome.test.mjs`, and `e2e/shell/sidebar.spec.ts`,
+   which expects the Look offered and Classic checked), and the packages' `dist` is rebuilt and committed with a
+   change to it. Ruben walks it on production.
 6. **The default.** `DEFAULT_LOOK_PREF` becomes the look: every device that never chose one draws it from its next
    load, since a device keeps a look only once it is chosen (`apps/dashboard/src/legacy-bridge/device-prefs.ts`), and
    a member who chose Classic keeps it. `chrome.test.mjs` and `tooling/scripts/tests/shell/theme-boot.test.mjs` pin

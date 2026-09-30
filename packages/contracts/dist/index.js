@@ -15140,7 +15140,7 @@ var LOOK_OPTIONS = [
 var isLookPref = (v) => v === "classic" || v === "glass";
 var DEFAULT_LOOK_PREF = "classic";
 var lookPrefOf = (stored) => isLookPref(stored) ? stored : DEFAULT_LOOK_PREF;
-var LOOK_OFFERED = false;
+var LOOK_OFFERED = true;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
 var LOOK_THEME_COLORS = {

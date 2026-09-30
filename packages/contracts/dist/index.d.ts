@@ -14034,8 +14034,8 @@ declare const DEFAULT_LOOK_PREF: LookPref;
 /** A device's stored look as the app keeps it: anything unknown is the default. */
 declare const lookPrefOf: (stored: unknown) => LookPref;
 /**
- * Whether the account menu offers the look to members. Not yet: the menu draws no Look until Glass is drawn (the
- * plan's step 5.5), and a device paints the look it keeps, which is the default unless it was set by hand.
+ * Whether the account menu offers the look to members: it does, since Glass was drawn on every canvas (the plan's step
+ * 5.5). A device paints the look it keeps, which is the default, Classic, until a member picks the other by hand.
  */
 declare const LOOK_OFFERED: boolean;
 /** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
