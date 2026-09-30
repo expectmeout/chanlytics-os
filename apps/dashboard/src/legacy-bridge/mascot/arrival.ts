@@ -32,7 +32,7 @@ export const AGAIN_MS = 20_000;
 
 export interface ArrivalOptions {
   mood: Mood;
-  /** the address on screen (`#/inbox/th-1`) */
+  /** the route on screen (`inbox/th-1`) */
   route: () => string;
   /** whether a phone is looking: the ✦ is a phone's */
   phone: () => boolean;
@@ -61,8 +61,7 @@ export interface Arrival {
 
 /** The page an address names: `inbox/th-1`, `clients/leads`; what a walk within it adds after a colon is not a page. */
 export const pageOf = (route: string): string => {
-  const raw = (route || "").replace(/^#\/?/, "");
-  const [page, param = ""] = raw.split("/");
+  const [page, param = ""] = (route || "").split("/");
   const head = param.split(":")[0];
   return head ? `${page || "today"}/${head}` : page || "today";
 };

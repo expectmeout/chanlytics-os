@@ -10,7 +10,6 @@
  */
 import {
   setupSteps,
-  setupRoute,
   setupLaterOf,
   shouldLandOnFirstRun,
   FIRST_RUN_HELPERS,
@@ -34,6 +33,7 @@ import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { saveView } from "./people-detail";
+import { goToRoute, routeOnScreen } from "./workspace";
 
 export interface SetupSurface {
   dto: SetupDto;
@@ -277,7 +277,7 @@ export function installSetup(win: Window = window): void {
       landed = false;
     }
     const s = win.__SETUP;
-    if (!s || !shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)) return;
+    if (!s || !shouldLandOnFirstRun(s.role, s.vm.readiness.answering, routeOnScreen(win), landed)) return;
     try {
       win.sessionStorage.setItem(FIRST_RUN_LANDED_KEY, "1");
     } catch {
@@ -285,7 +285,7 @@ export function installSetup(win: Window = window): void {
     }
     const nav = (win as unknown as { appNavigate?: (to: string) => void }).appNavigate;
     if (nav) nav(FIRST_RUN_ROUTE);
-    else win.location.hash = `/${FIRST_RUN_ROUTE}`;
+    else goToRoute(FIRST_RUN_ROUTE, {}, win);
   });
   win.__firstRun = FIRST_RUN_HELPERS;
 }

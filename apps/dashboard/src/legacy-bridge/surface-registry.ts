@@ -22,6 +22,7 @@
 import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
 import { isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
+import { hearAddress, routeOnScreen } from "./workspace";
 
 export type SurfaceState = "real" | "demo";
 
@@ -230,15 +231,15 @@ export function routeSurfaces(page: string, param?: string | null): string[] {
 
 /* ------------------------- what a message re-reads ------------------------- */
 
-/** The page and its param the address names, as the shell parses it (app-shell.jsx parseHash). */
-function hashRoute(hash: string): { page: string; param: string | null } {
-  const [page, param] = (hash || "#/today").replace(/^#[/]?/, "").split("/");
+/** The page and its param a route names, as the shell parses it (app-shell.jsx parseRoute). */
+function pageOfRoute(route: string): { page: string; param: string | null } {
+  const [page, param] = route.split("/");
   return { page: page || "today", param: param || null };
 }
 
 /** Whether this surface is the one the page on screen is of (its own surface, never one it draws beside it). */
-export function ownsTheScreen(key: string, hash: string): boolean {
-  const { page, param } = hashRoute(hash);
+export function ownsTheScreen(key: string, route: string): boolean {
+  const { page, param } = pageOfRoute(route);
   return routeSurfaceFor(page, param) === key;
 }
 
@@ -255,10 +256,10 @@ const missedWhileAway = new Set<string>();
 export function onlyOnItsPage(
   key: string,
   tables: readonly string[],
-  hash: () => string = () => window.location.hash,
+  route: () => string = () => routeOnScreen(),
 ): (change: { table: string }) => boolean {
   return (change) => {
-    if (!tables.includes(change.table) || ownsTheScreen(key, hash())) return true;
+    if (!tables.includes(change.table) || ownsTheScreen(key, route())) return true;
     missedWhileAway.add(key);
     return false;
   };
@@ -274,12 +275,11 @@ export function readWhatWasMissed(
   win: Window = window,
 ): () => void {
   const onMove = () => {
-    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, win.location.hash));
+    const due = overrides.filter((o) => missedWhileAway.has(o.key) && ownsTheScreen(o.key, routeOnScreen(win)));
     for (const o of due) missedWhileAway.delete(o.key);
     if (due.length) read(due.map((o) => o.key));
   };
-  win.addEventListener("hashchange", onMove);
-  return () => win.removeEventListener("hashchange", onMove);
+  return hearAddress(onMove, win);
 }
 
 /**

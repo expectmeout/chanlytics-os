@@ -46,7 +46,7 @@ import { readCache, staleReadCaches } from "./read-cache";
 import { keepSavedView, placeDeal } from "./surfaces/people";
 import { personRouteId } from "./surface-registry";
 import { afterBoot, bootWaitsFor } from "./surface-runner";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, routeOnScreen } from "./workspace";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -136,7 +136,7 @@ function readAhead(): void {
  */
 export function warmPersonOnScreen(win: Window = window): void {
   if (!getActiveWorkspace()) return;
-  const [page, param] = (win.location.hash || "").replace(/^#[/]?/, "").split("/");
+  const [page, param] = routeOnScreen(win).split("/");
   const id = personRouteId(page, param);
   if (!id) return;
   // The surfaces nobody is looking at wait for this read as they wait for the page's own (surface-runner.ts

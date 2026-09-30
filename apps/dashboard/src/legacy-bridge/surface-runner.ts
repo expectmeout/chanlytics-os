@@ -18,7 +18,7 @@ import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cach
 import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
-import { getActiveWorkspace, signInHref } from "./workspace";
+import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -134,13 +134,12 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
  * Loading twelve surfaces nobody is looking at ahead of the one they are is
  * backwards; so was reading Settings, People and Leads ahead of the calendar
  * Today's day card is drawn from, which landed 1.6 s after the queue beside it.
- * Parsed the way the shell parses it (app-shell.jsx parseHash). A route that
+ * Parsed the way the shell parses it (app-shell.jsx parseRoute). A route that
  * owns no surface ranks nothing first, which costs nothing: the order is only
  * a preference.
  */
 function screenRank(win: Window): (o: SurfaceOverride) => number {
-  const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
-  const [page, param] = raw.split("/");
+  const [page, param] = routeOnScreen(win).split("/");
   const wanted = routeSurfaceFor(page || "today", param || null);
   const drawn = routeDrawsFor(page || "today", param || null);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
@@ -148,8 +147,7 @@ function screenRank(win: Window): (o: SurfaceOverride) => number {
 /** Whether the page on screen is drawn from this surface: its own, or one it names (ROUTE_DRAWS). A stranger is not. */
 function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
   const rank = screenRank(win);
-  const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
-  const [page, param] = raw.split("/");
+  const [page, param] = routeOnScreen(win).split("/");
   const strangers = 1 + routeDrawsFor(page || "today", param || null).length;
   return (o) => rank(o) < strangers;
 }
@@ -228,7 +226,7 @@ function signOutOnUnauthorized(run: SurfaceRun): void {
   // Cached customer data must never outlive the session allowed to see it.
   clearSurfaceCache();
   // The page's hash goes along, so signing in again lands where they were.
-  if (!run.cancelled) window.location.assign(signInHref(window.location.hash));
+  if (!run.cancelled) window.location.assign(signInHref(window.location));
 }
 
 function persistSurface(o: SurfaceOverride): void {

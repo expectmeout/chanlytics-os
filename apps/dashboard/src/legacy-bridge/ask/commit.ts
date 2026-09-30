@@ -30,6 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Api, ApiOptions, RouteKey } from "../../client/api";
 import { apiFor } from "../api";
+import { goToRoute } from "../workspace";
 import { viaAsk } from "./api";
 
 export type CommitResult =
@@ -112,7 +113,7 @@ export async function undoProposal(
 export function editReply(win: Window, p: AskProposal): void {
   const pl = p.payload;
   const text = (v: unknown): string => (v == null ? "" : String(v));
-  win.location.hash = `/inbox/th-${text(pl.conversation_id)}`;
+  goToRoute(`inbox/th-${text(pl.conversation_id)}`, {}, win);
   win.setTimeout(
     () => win.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { text: text(pl.text) } })),
     400,

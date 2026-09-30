@@ -39,7 +39,7 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { workspaceZone } from "./zone";
-import { getActiveWorkspace } from "./workspace";
+import { getActiveWorkspace, routeOnScreen } from "./workspace";
 import { heldViews } from "./held-views";
 import type { SurfaceOverride } from "./surface-data";
 import { unwrap, type ApiResult, type RouteKey } from "../client/api";
@@ -300,8 +300,8 @@ export async function warmLeadsView(to: string): Promise<void> {
  * 500 leads first and drew them over the restored rows of the view on screen. An order the server does not know is
  * never sent; the lead open over a view is no part of it.
  */
-export function leadsBootView(hash: string, restored: unknown): LeadsView {
-  const parsed = parseLeadsRoute((hash || "").replace(/^#\/?/, ""));
+export function leadsBootView(route: string, restored: unknown): LeadsView {
+  const parsed = parseLeadsRoute(route || "");
   const was = (restored as { view?: { sort?: unknown; dir?: unknown } } | null | undefined)?.view;
   const known =
     !!was &&
@@ -357,8 +357,7 @@ export const leadsOverride: SurfaceOverride = {
   debounceMs: 800,
   apply: async () => {
     try {
-      if (!leadsLoaded)
-        view = leadsBootView(window.location.hash, (window as unknown as { __LEADS?: unknown }).__LEADS);
+      if (!leadsLoaded) view = leadsBootView(routeOnScreen(), (window as unknown as { __LEADS?: unknown }).__LEADS);
       await (leadsLoaded ? refreshView() : readView(view));
     } catch (e) {
       publishLeads(true);

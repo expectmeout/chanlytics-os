@@ -1,6 +1,6 @@
 /**
  * The three on a phone take a page in as it arrives, stay lit while something needs you, and notice what comes for
- * you (mascot/arrival.ts, which is pure); this is its wiring: the address and its changes (hashchange), the phone (the
+ * you (mascot/arrival.ts, which is pure); this is its wiring: the address and its changes (workspace.ts hearAddress), the phone (the
  * takeover's own width), Ask's door (body.ask-open, ask-real.jsx, watched as it changes), the boot (surface-runner
  * afterBoot), what needs you (Ask's own standing, ask/palette.ts rightNowParts, and the bell's unread,
  * notifications.ts; asked again as the surfaces they are built from land, as the bell moves and as the phone comes
@@ -12,6 +12,7 @@
 import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
 import { afterBoot } from "./surface-runner";
+import { hearAddress, routeOnScreen } from "./workspace";
 
 /**
  * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (ask-real.jsx
@@ -48,7 +49,7 @@ const needsYouNow = (): boolean => {
 export function installArrival(): () => void {
   const arrival = watchArrival({
     mood: MASCOT.mood,
-    route: () => window.location.hash,
+    route: () => routeOnScreen(),
     phone: () => !!window.matchMedia && window.matchMedia("(max-width: 720px)").matches,
     askOpen: () => !!document.body && document.body.classList.contains("ask-open"),
     afterBoot,
@@ -63,7 +64,7 @@ export function installArrival(): () => void {
   const onVisible = () => {
     if (document.visibilityState === "visible") onStanding();
   };
-  window.addEventListener("hashchange", onHash);
+  const offAddress = hearAddress(onHash);
   window.addEventListener("inbox:counts", onCounts);
   for (const ev of STANDING_EVENTS) window.addEventListener(ev, onStanding);
   document.addEventListener("visibilitychange", onVisible);
@@ -82,7 +83,7 @@ export function installArrival(): () => void {
     arrival.arrived();
   });
   return () => {
-    window.removeEventListener("hashchange", onHash);
+    offAddress();
     window.removeEventListener("inbox:counts", onCounts);
     for (const ev of STANDING_EVENTS) window.removeEventListener(ev, onStanding);
     document.removeEventListener("visibilitychange", onVisible);

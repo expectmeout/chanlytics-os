@@ -232,14 +232,16 @@ installSurfaceRefresh();
  * Supabase returns a failed provider sign-in in the URL fragment, and the
  * browser carries it through the callback's redirect AND through the
  * middleware's bounce off /login when the person does have a session. It
- * arrives here, where the shell's parseHash reads window.location.hash, and
- * the shell drew `No surface at "error=server_error&error_code=..."` -- a
- * sign-in failure wearing a routing error's clothes.
+ * arrives here. The shell once read it as a route and drew `No surface at
+ * "error=server_error&error_code=..."` -- a sign-in failure wearing a routing
+ * error's clothes. A route always begins "#/" now (contracts routeOfHash), so
+ * the address cannot mistake it, and it is still taken out of the address so
+ * nothing else reads it.
  *
- * Module scope for the same reason as the route gate above: the shell reads
- * the hash during its FIRST render, so anything that runs in an effect is
- * already too late and shows the wrong page for a frame. Replaced rather than
- * pushed, because that address is not somewhere to go Back to.
+ * Module scope for the same reason as the route gate above: anything that
+ * runs in an effect is already too late, and the page would draw with the
+ * fragment in its address for a frame. Replaced rather than pushed, because
+ * that address is not somewhere to go Back to.
  */
 function installAuthHashScrub(): void {
   const refused = authErrorInHash(window.location.hash);

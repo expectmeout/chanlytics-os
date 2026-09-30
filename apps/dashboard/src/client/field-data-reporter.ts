@@ -12,7 +12,6 @@
 import { useEffect } from "react";
 import { useReportWebVitals } from "next/web-vitals";
 import { vitalsPageOf } from "@chanlytics/contracts";
-import { hashRoute } from "../legacy-bridge/app-bridge";
 import { beaconTo, createFieldData, flushWhenHidden, type FieldData } from "./field-data";
 
 let fieldData: FieldData | null = null;
@@ -21,10 +20,10 @@ function noteVital(metric: { id: string; name: string; value: number }): void {
   fieldData?.note(metric);
 }
 
-/** `landedOn`: the address's hash as the page began, before the shell could move it. */
+/** `landedOn`: the route the address named as the page began, before the frame could move it. */
 export default function FieldDataReporter({ landedOn }: { landedOn: string }): null {
   useEffect(() => {
-    fieldData ??= createFieldData(vitalsPageOf(hashRoute(landedOn)), beaconTo(navigator));
+    fieldData ??= createFieldData(vitalsPageOf(landedOn), beaconTo(navigator));
     return flushWhenHidden(window, fieldData);
   }, [landedOn]);
   useReportWebVitals(noteVital);

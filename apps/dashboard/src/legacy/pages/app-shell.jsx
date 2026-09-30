@@ -1,17 +1,19 @@
 /* global React, Icon, AskBar, Sidebar, Topbar, ShellStatusBar, LiveCallBar, SurfaceTabs, ShortcutsSheet, ReportsPage, FailedRead, useSurface */
 // Chanlytics — App Shell
-// The live product frame: hash routing, sidebar click-throughs, page transitions,
+// The live product frame: routing by the address, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
 // What each route draws is the route table's (app-routes.jsx SHELL_ROUTES, read through drawRoute); this file
 // resolves the address, holds the gates and the hooks, and draws the chrome around the table's answer.
 //
-// Routes:
-//   #/today                → Operator's brief
-//   #/inbox                → Inbox
-//   #/clients              → Clients portfolio
-//   #/clients/pipeline     → People › Pipeline, where deals are on (else People)
-//   #/clients/<id>         → Client profile
-//   #/soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
+// Routes (the address after /w/<slug>; the standalone mockup writes them after a #/ instead):
+//   /today                → Operator's brief
+//   /inbox                → Inbox
+//   /clients              → Clients portfolio
+//   /clients/pipeline     → People › Pipeline, where deals are on (else People)
+//   /clients/<id>         → Client profile
+//   /soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
+// The route is read, followed and moved in one place, the shell's address (window.__shell route/go/hear/href: the
+// bridge's, legacy-bridge/workspace.ts; the mockup's own in data/bridge-stubs.jsx). Nothing here reads window.location.
 
 const { useState: useShellState, useEffect: useShellEffect, useCallback: useShellCallback, useRef: useShellRef } = React;
 

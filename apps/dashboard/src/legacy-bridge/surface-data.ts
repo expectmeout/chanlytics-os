@@ -19,7 +19,7 @@
 import { clearSurfaceCache } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { read } from "./api";
-import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
+import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
 import type { RealtimeChange } from "./surface-realtime";
 import type { MembershipRole, PendingWorkspace } from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "./surfaces/people";
@@ -178,7 +178,7 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       const here = getActiveWorkspace();
       if (here && here !== slug) {
         clearSurfaceCache();
-        window.location.replace(workspaceHref(slug, window.location.hash));
+        window.location.replace(addressInWorkspace(slug, window.location));
         return;
       }
     }
@@ -213,8 +213,8 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * on the first boot and be lost with it (the nightly's workspace-create spec,
  * 13 Sep 2026).
  *
- * `after` is where the workspace opens: a hash for one just made (the first
- * run, `#/start`); nothing, and a switch opens on Today.
+ * `after` is where the workspace opens: a route for one just made (the first
+ * run, `#/start`, which is written as its path); nothing, and a switch opens on Today.
  */
 export function switchWorkspace(id: string, knownSlug?: string, after = ""): void {
   const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);

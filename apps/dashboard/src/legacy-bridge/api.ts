@@ -85,7 +85,7 @@ export function apiFor(win: Window): Api {
     onSignedOut: () => {
       clearSurfaceCache();
       clearReadCaches();
-      win.location.assign(signInHref(win.location.hash));
+      win.location.assign(signInHref(win.location));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
     onSecondFactor: () => toSecondFactor(win),
@@ -114,7 +114,7 @@ export function api(): Api {
       // page's hash goes along, so signing in again lands where they were.
       clearSurfaceCache();
       clearReadCaches();
-      window.location.assign(signInHref(window.location.hash));
+      window.location.assign(signInHref(window.location));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
     onSecondFactor: () => toSecondFactor(window),

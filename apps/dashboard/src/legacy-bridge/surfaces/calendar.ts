@@ -6,6 +6,7 @@
 import { read } from "../api";
 import { knownZone, workspaceZone } from "../zone";
 import { heldViews } from "../held-views";
+import { routeOnScreen } from "../workspace";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "../surface-data";
 
@@ -78,8 +79,8 @@ export const calendarOverride: SurfaceOverride = {
     // It read today's weeks first, and the page read the day's after them. Only the first read looks at the address.
     if (!calendarBooted) {
       calendarBooted = true;
-      const named = /^#\/?calendar\/(\d{4}-\d{2}-\d{2})$/.exec(
-        (typeof window !== "undefined" && window.location && window.location.hash) || "",
+      const named = /^calendar\/(\d{4}-\d{2}-\d{2})$/.exec(
+        typeof window !== "undefined" && window.location ? routeOnScreen() : "",
       );
       if (named && calendarFrom === null) {
         const w = windowFor(named[1]);

@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { movedAddress, routeOfAddress } from "@chanlytics/contracts";
 import { api } from "./api";
 import { homeHref, lastWorkspace } from "./workspace";
 
@@ -66,13 +68,13 @@ if (typeof window !== "undefined") void import("./LegacyApp");
 /**
  * Field data (00255): what this page load came to, sent when the page is put away (src/client/field-data.ts). The
  * reporter loads once the page has, as a chunk of its own, so nobody waits for it and the route's budget does not
- * carry it; its observers read what the browser buffered, so the numbers are the whole load's. The address is read
- * as the page begins, because the shell may move it before the reporter arrives.
+ * carry it; its observers read what the browser buffered, so the numbers are the whole load's. The route is read
+ * as the page begins, because the frame may move the address before the reporter arrives.
  */
 const FieldDataReporter = lazy(() => import("../client/field-data-reporter"));
 /** The shell's pane boundary says what it caught on window; this sends it (src/client/client-error.ts). */
 const shellErrors = () => import("../client/client-error").then((m) => m.listenForShellErrors(window));
-const landedOn = typeof window === "undefined" ? "" : window.location.hash;
+const landedOn = typeof window === "undefined" ? "" : routeOfAddress(window.location);
 
 /** True once the page's load event has fired: what waits for it never competes with what the page is loading. */
 function useLoaded(): boolean {
@@ -90,16 +92,30 @@ function useLoaded(): boolean {
 }
 
 /**
- * The shell, or the home that sends a tab to its workspace's address.
+ * The frame's host, or the home that sends a tab to its workspace's address.
  *
- * On /w/<slug> the app mounts at once. On the home, the tab goes to the last
- * workspace this browser used, else to the one the server calls active, with
- * the query and the hash route riding along; only an account with no
- * workspace stays here, where the app shows the create screen.
+ * On /w/<slug> the layout mounts the frame once and keeps it mounted across every navigation (decision 0015: the
+ * address is a path, and a route's page is `children`, drawn by a catch-all that draws nothing of its own). On the
+ * home, the tab goes to the last workspace this browser used, else to the one the server calls active, with the
+ * query and the route riding along; only an account with no workspace stays here, where the app shows the create
+ * screen.
+ *
+ * A hash address (`/w/acme#/inbox`: an email's link, the phone app's, a bookmark) is moved to its path before the
+ * frame draws, and keeps working for ever (contracts movedAddress). Through the router: the fragment is the browser's
+ * and never reaches the server, so the move is the client's, and it waits for the path to say the route.
  */
-export default function LegacyHost({ home = false }: { home?: boolean }) {
+export default function LegacyHost({ home = false, children }: { home?: boolean; children?: ReactNode }) {
   const [stay, setStay] = useState(!home);
   const loaded = useLoaded();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [placed, setPlaced] = useState(home);
+  useEffect(() => {
+    if (home) return;
+    const to = movedAddress({ pathname, search: window.location.search, hash: window.location.hash });
+    if (to) router.replace(to);
+    else setPlaced(true);
+  }, [home, pathname, router]);
   useEffect(() => {
     let unhook: (() => void) | null = null;
     let gone = false;
@@ -127,7 +143,7 @@ export default function LegacyHost({ home = false }: { home?: boolean }) {
       cancelled = true;
     };
   }, [home]);
-  if (!stay) return <Loading />;
+  if (!stay || !placed) return <Loading />;
   // The home's own load is the redirect's, so only a workspace's address reports its timings.
   return (
     <>
@@ -137,6 +153,7 @@ export default function LegacyHost({ home = false }: { home?: boolean }) {
         </Suspense>
       )}
       <LegacyApp />
+      {children}
     </>
   );
 }

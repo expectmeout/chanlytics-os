@@ -10,9 +10,15 @@
  * requests, never grants: the server validates membership on every call, and
  * a slug this account may not use resolves to nothing.
  *
- * Its own module, with no imports, so the client and the surfaces can both
- * read it without either importing the other.
+ * The rest of the address is here too: the route after the slug (`/w/acme/inbox`), read, followed and moved in this
+ * one place (decision 0015, "The address first"). Its words are contracts' (shell/address.ts).
+ *
+ * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
+ * importing the other.
  */
+import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
+import type { AddressParts } from "@chanlytics/contracts";
+
 const LAST_KEY = "chanlytics.workspace";
 
 /** The workspace a path names, /w/<slug or id>, or null off a workspace page. */
@@ -32,9 +38,20 @@ export function getActiveWorkspace(): string | null {
   return pathWorkspace(window.location.pathname);
 }
 
-/** A workspace page's address, with what rides after it: a query, the hash route. */
+/**
+ * A workspace page's address, with what rides after it: a query, and the route as a hash (`#/inbox`, how a link from
+ * an email or the phone app says it), which is written as the path it moves to (`/w/acme/inbox`) so the page it opens
+ * does not have to move it again.
+ */
 export function workspaceHref(slug: string, after = ""): string {
-  return `/w/${encodeURIComponent(slug)}${after}`;
+  const base = `/w/${encodeURIComponent(slug)}`;
+  const at = after.indexOf("#");
+  const moved = movedAddress({
+    pathname: base,
+    search: at < 0 ? after : after.slice(0, at),
+    hash: at < 0 ? "" : after.slice(at),
+  });
+  return moved ?? `${base}${after}`;
 }
 
 /** The last workspace this browser used: where the home sends a returning tab. */
@@ -74,10 +91,103 @@ export function homeHref(
 
 /**
  * Where a session that ended mid-page signs in again: /login, carrying the
- * page's hash, which the sign-in page keeps and lands on (login's landed()),
- * and the home then carries to the workspace. Only an app route rides along;
- * any other fragment is not a page to return to.
+ * page's route as a hash, which the sign-in page keeps and lands on (login's
+ * landed()), and the home then carries to the workspace. The route is the
+ * address's, in its path or its hash; any other fragment is not a page to
+ * return to.
  */
-export function signInHref(hash: string | null | undefined): string {
-  return typeof hash === "string" && hash.startsWith("#/") ? `/login${hash}` : "/login";
+export function signInHref(address: AddressParts): string {
+  const route = routeOfPath(address.pathname) || routeOfHash(address.hash);
+  return route ? `/login#/${route}` : "/login";
+}
+
+/** This address in another workspace: the same route under the slug, and the query that came with it. */
+export function addressInWorkspace(slug: string, address: AddressParts): string {
+  const route = routeOfPath(address.pathname) || routeOfHash(address.hash) || "";
+  return `${workspacePath(slug, route)}${address.search ?? ""}`;
+}
+
+/* ------------------------------ the route on screen ------------------------------ */
+
+/** The parts of a window the address reads, follows and moves; a test's stand-in has these and little else. */
+export interface AddressWindow {
+  location: AddressParts;
+  history: {
+    pushState(data: unknown, unused: string, url?: string | null): void;
+    replaceState(data: unknown, unused: string, url?: string | null): void;
+  };
+  addEventListener(type: string, fn: () => void): void;
+  removeEventListener(type: string, fn: () => void): void;
+}
+
+/** The route on screen, `inbox/th-1`, and `today` when the address names none. Read here and nowhere else. */
+export function routeOnScreen(win: { location: AddressParts } = window): string {
+  return routeOfAddress(win.location);
+}
+
+/**
+ * Where a route is linked to from this page: its path in a workspace, so that a long press, a middle click or a new
+ * tab opens it; the hash in the standalone mockup, which has no workspace path.
+ */
+export function hrefOfRoute(route: string, win: { location: AddressParts } = window): string {
+  const slug = pathWorkspace(win.location.pathname ?? "");
+  return slug ? workspacePath(slug, route) : `#/${route}`;
+}
+
+/** Every address listener, so a move the browser does not announce (a push, a replace) is heard like one it does. */
+const listening = new Set<() => void>();
+
+/** Tell every listener the address may have moved; each one answers only for a route that changed. */
+export function notifyAddress(): void {
+  for (const on of [...listening]) on();
+}
+
+/**
+ * Follow the address: `fn` runs when the route on screen changes, whether the person pressed Back (popstate) or a
+ * page moved it (goToRoute). A move within the same route (a query the page scrubs) is no news. Answers the stop.
+ */
+export function hearAddress(fn: () => void, win: AddressWindow = window): () => void {
+  let last = routeOnScreen(win);
+  const on = () => {
+    const now = routeOnScreen(win);
+    if (now === last) return;
+    last = now;
+    fn();
+  };
+  listening.add(on);
+  win.addEventListener("popstate", on);
+  return () => {
+    listening.delete(on);
+    win.removeEventListener("popstate", on);
+  };
+}
+
+export interface GoOptions {
+  /** A page saying the same place more exactly: no entry in the history, and the shell follows at once. */
+  replace?: boolean;
+}
+
+/**
+ * Move to a route: a path pushed (or, for a page saying the same place more exactly, replaced) through the history
+ * the App Router patches, which follows it for usePathname and keeps its Back. Not router.push: every route here is
+ * drawn by the same catch-all page, so that would ask the server for a page that draws nothing on every press, and a
+ * tab that is offline, or open across a deploy, would reload the whole app for it. A route with a page of its own
+ * asks the router when the first surface moves there (decision 0015, step 2).
+ */
+export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
+  const to = hrefOfRoute(route, win);
+  const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
+  if (opts.replace) win.history.replaceState(null, "", to);
+  else if (here !== to) win.history.pushState(null, "", to);
+  notifyAddress();
+}
+
+/** The four of them on `window.__shell`, for the pages that cannot import (shell.ts installShell). */
+export function addressApi(win: AddressWindow = window) {
+  return {
+    route: () => routeOnScreen(win),
+    href: (route: string) => hrefOfRoute(route, win),
+    go: (route: string, opts?: GoOptions) => goToRoute(route, opts, win),
+    hear: (fn: () => void) => hearAddress(fn, win),
+  };
 }
