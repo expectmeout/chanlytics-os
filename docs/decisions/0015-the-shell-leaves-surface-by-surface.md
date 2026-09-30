@@ -329,3 +329,43 @@ Reports left the shell as step 3 of the steps above (step 2 of the order). What 
   page tests can draw a Base UI part (the next step of the plan's Phase 4); Reports is listed in `KIT_PENDING` for that.
   And a route's page is not drawn for an address under it (`reports/anything`): it is not found, where the table drew
   Reports for any param.
+
+## Built: the Inbox (30 September 2026, same branch)
+
+The Inbox, Conversations and the one thread left the shell together as step 4 of the steps above (step 3 of the order); the
+bridge modules only they used moved with them (the amendment). What it settled, for the surfaces after it:
+
+- **A surface may be several routes, and an address may name a thing in one.** `apps/dashboard/app/(os)/w/[workspace]/inbox/[[...thread]]/page.tsx`
+  and `.../conversations/[[...tab]]/page.tsx` draw `inbox/th-<id>` and `conversations/<tab>:<row>`. A `SURFACE_ROUTES` row
+  takes `params` (the address may carry a tail: `routeHasPage` splits at the first `/`), `mount` and, where the chrome
+  follows the address, a function for `activeNav` and `crumbs`. The page reads its route with `usePathname()`, never
+  `useParams`: the App Router keys a dynamic segment by its param, so a `router.replace` between two threads would remount
+  the page and read again. `goToRoute` keeps a move that stays within one route's page (`staysOnPage`, for a route that
+  takes an address) on the patched history, and the real-app run shows the Inbox's root element is the same node across
+  thread moves. A thread pressed is a replace on a desktop (Back leaves the Inbox instead of replaying every thread read)
+  and an entry of its own on a phone (Back closes it).
+- **The store and the twin.** `IX_STORE`, `VW_STORE` and `VW_UTIL` are typed modules (`surfaces/inbox/store.ts`); the mockup's
+  seeds are `sample.ts` and its `sample/`; the old names the pages that have not moved still read (`INBOX_DATA`,
+  `CONVERSATIONS_DATA`, `IX_STORE`, `ixWaitsOnYou`, `CV_ROUTE`, `CV_IN_CHANNEL`) are one object, `legacy-globals.ts`,
+  published by `seed-globals.ts` and, in the standalone mockup, by a bundle its server builds (`data/inbox-globals.js`). The
+  seam's values are `useSurface("inbox")` and `useSurface("conversations")`.
+- **The bridge modules** (the two overrides, and the verbs of `inbox-verbs.ts` only the Inbox used: `inboxVerb`, `inboxBulk`,
+  `steerDraft`, `cancelSend`, `refreshInbox`) are in `surfaces/inbox/`; what Today, Ask and the deal sheet still call stays in
+  the bridge. The surface held 29 modules against a ceiling of 20 the day it moved, so it is `pages/` (what a route draws)
+  and `thread/` (what one thread draws, wherever it opens) and a root of the seam, the rules and the demo.
+- **The shared parts moved once into the kit**: `StatePill`, `Confirm`, `MoreMenu`, `PolicyChip` and `TlMedia`
+  (`surfaces/kit/`), published for the pages that still draw them by name.
+- **Proof.** The pilot's recorder, extended for a surface that fetches: 142 worlds (every seeded thread, the real payloads in
+  every state, each composer, each call, Conversations by tab), 6,495 handlers poked with each event they take, 74 scripted
+  sequences and a matrix of 1,436 checks over the pure rules and the small components: 13,437 steps, no difference, and 24
+  faults planted in the TSX, each caught (20 by the recorder; the shared verbs' four by their own test, which the moved verbs
+  had none of). A fault at a boundary is caught only by a world that stands on it, so the plants ran off the boundary and over
+  every world and script.
+- **Its kit step took what a stub can draw**: 32 buttons are the kit's `Button` and 3 quiet words that act its `LinkButton`.
+  `KIT_PENDING` keeps the Inbox for what waits: six inputs, three textareas and a select (Field, Switch and Select are Base
+  UI's, which no page test can import yet), the chips and rows that are the page's own looks, and the toasts and menus.
+  `ConfidenceMeter` is not the kit's `Meter` (the kit's draws parts by share and no words): a redraw the Glass canvas decides.
+- **What a surface may not assume, from the day.** A route of a surface that follows its address (`params`) is not moved through
+  the router within itself; the lint probe of the raw-element rule stands in a folder no surface will take
+  (`surfaces/probe/`), since each surface that leaves waits in `KIT_PENDING`; and a test that imports a surface module through
+  a template path hides its exports from knip, so they are written as literals.
