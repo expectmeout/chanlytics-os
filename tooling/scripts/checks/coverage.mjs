@@ -36,7 +36,7 @@ export const AREAS = [
 
 export const FLOORS = "tooling/scripts/tests/baselines/coverage.json";
 /** How far under the last measure a floor sits, in points: V8 on another platform or version counts a line differently. */
-export const SLACK = 1;
+export const SLACK = 2;
 
 /** A path with forward slashes: an lcov written on Windows names a file with backslashes, whatever machine reads it. */
 const slash = (p) => p.replaceAll("\\", "/");

@@ -144,9 +144,9 @@ test("a bank raises a floor to the measure less the slack, and lowers one only w
     { key: "jobs", label: "jobs", pct: 5 },
   ];
   const floors = { core: 70, doors: 60 };
-  assert.equal(SLACK, 1);
-  assert.deepEqual(bankedFloors(summary, floors), { core: 71.3, doors: 60, routes: 39 });
-  assert.deepEqual(bankedFloors(summary, floors, { lower: true }), { core: 71.3, doors: 49, routes: 39 });
+  assert.equal(SLACK, 2);
+  assert.deepEqual(bankedFloors(summary, floors), { core: 70.3, doors: 60, routes: 38 });
+  assert.deepEqual(bankedFloors(summary, floors, { lower: true }), { core: 70.3, doors: 48, routes: 38 });
   assert.deepEqual(floors, { core: 70, doors: 60 }, "the floors it was given are not changed");
 });
 
@@ -181,7 +181,7 @@ test("a run ends red under a floor, keeps its own failure, fails without a repor
   // the bank raises a floor the suite cleared, for `1` and for `raise`, and never lowers one: a floor it is under is red
   for (const bank of ["1", "raise"]) {
     assert.deepEqual(judge({ ...at, floors: { ...held, core: 50 }, status: 0, bank }).banked, {
-      core: 65.7,
+      core: 64.7,
       doors: 66,
       routes: 0,
     });
@@ -192,7 +192,7 @@ test("a run ends red under a floor, keeps its own failure, fails without a repor
   assert.equal(judge({ ...at, floors: { ...held, core: 50 }, status: 1, bank: "1" }).banked, null);
   // lowering is its own switch: every held floor to the measure less the slack, none judged
   const lowered = judge({ ...at, floors: { ...held, core: 80 }, status: 0, lower: true });
-  assert.deepEqual([lowered.status, lowered.banked.core], [0, 65.7]);
+  assert.deepEqual([lowered.status, lowered.banked.core], [0, 64.7]);
   assert.equal(judge({ ...at, floors: { ...held, core: 80 }, status: 1, lower: true }).banked, null);
   // a run of some files is not the suite: the table, and no floor
   const some = judge({ ...at, floors: { ...held, core: 80 }, status: 0, held: false, bank: "1" });
@@ -232,7 +232,7 @@ test("the end of a measured run, from its report: the table, the floor missed, t
   assert.match(red.said, /core is at 66\.7%, under its floor of 80\.0%/);
 
   const raised = ended(t, { floors: { ...held, core: 50 }, env: { UPDATE_BASELINES: "1" } });
-  assert.deepEqual([raised.code, raised.floors], [0, { core: 65.7, doors: 66, routes: 0 }]);
+  assert.deepEqual([raised.code, raised.floors], [0, { core: 64.7, doors: 66, routes: 0 }]);
   assert.match(raised.said, /floors written to tooling\/scripts\/tests\/baselines\/coverage\.json/);
 
   // `raise` is for the other ratchets: it neither lowers a coverage floor nor hides one missed
@@ -240,7 +240,7 @@ test("the end of a measured run, from its report: the table, the floor missed, t
   assert.deepEqual([raise.code, raise.floors.core], [1, 80]);
 
   const lowered = ended(t, { floors: { ...held, core: 80 }, env: { COVERAGE_FLOORS: "lower" } });
-  assert.deepEqual([lowered.code, lowered.floors.core], [0, 65.7]);
+  assert.deepEqual([lowered.code, lowered.floors.core], [0, 64.7]);
 
   const failed = ended(t, { floors: { ...held, core: 50 }, status: 1, env: { UPDATE_BASELINES: "1" } });
   assert.deepEqual([failed.code, failed.floors.core], [1, 50], "a run that failed banks nothing");
