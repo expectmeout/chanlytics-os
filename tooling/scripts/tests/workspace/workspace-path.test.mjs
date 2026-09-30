@@ -25,6 +25,7 @@ const {
   notifyAddress,
   setAppRouter,
 } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+const { onOnePage, routeHasPage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 
 test("a path names its workspace under /w/, by slug or id, decoded; anything else names none", () => {
   assert.equal(pathWorkspace("/w/acme"), "acme");
@@ -166,11 +167,11 @@ test("a replace makes no entry and is heard like a redirect; with quiet, it is a
   const heard = [];
   const stop = hearAddress(() => heard.push(routeOnScreen(w.win)), w.win);
   goToRoute("clients/leads", { replace: true }, w.win);
-  assert.deepEqual(w.replaced, ["/w/acme/clients/leads"]);
+  assert.deepEqual(w.replaced, ["/w/acme/people/leads"]);
   assert.deepEqual(w.pushed, [], "no entry");
   assert.deepEqual(heard, ["clients/leads"], "a redirect is heard, as location.replace was");
   goToRoute("clients/leads:p-1", { replace: true, quiet: true }, w.win);
-  assert.deepEqual(w.replaced.at(-1), "/w/acme/clients/leads:p-1");
+  assert.deepEqual(w.replaced.at(-1), "/w/acme/people/leads:p-1");
   assert.deepEqual(heard, ["clients/leads"], "quiet: no listener is told");
   stop();
 });
@@ -200,10 +201,15 @@ test("a route with a page of its own goes through the App Router and is heard wh
     goToRoute("reports", {}, w.win);
     assert.equal(asked.length, 1, "the address it is at: no second push");
     goToRoute("reports", { replace: true }, w.win);
-    assert.deepEqual(asked.at(-1), ["replace", "/w/acme/reports"], "a replace is the router's too");
+    assert.equal(
+      asked.length,
+      1,
+      "a replace of the address the page is at is the history's, not a request for the page",
+    );
+    assert.deepEqual(w.replaced, ["/w/acme/reports"]);
     goToRoute("settings", {}, w.win);
     assert.deepEqual(w.pushed, ["/w/acme/settings"], "a route the frame's table draws is pushed, as always");
-    assert.equal(asked.length, 2, "and never asks the router for a page that draws nothing");
+    assert.equal(asked.length, 1, "and never asks the router for a page that draws nothing");
     stop();
     // With no router (a test's window, the standalone mockup) a route with a page is moved like any other.
     setAppRouter(null);
@@ -270,4 +276,33 @@ test("this address in another workspace: the same route under its slug, and the 
   );
   assert.equal(addressInWorkspace("bayside", { pathname: "/w/acme", hash: "#/reports" }), "/w/bayside/reports");
   assert.equal(addressInWorkspace("bayside", { pathname: "/w/acme" }), "/w/bayside", "Today: no route to carry");
+});
+
+/** A table of routes with pages, as SURFACE_ROUTES is: one that takes addresses under it, and one that takes none. */
+const TABLE = {
+  clients: { activeNav: "clients", crumbs: ["People"], pane: true, takes: (param) => !/^leads(:|$)/.test(param) },
+  reports: { activeNav: "reports", crumbs: ["Reports"], pane: true },
+};
+
+test("a page takes the addresses under its route that it says, and the frame's table keeps the rest", () => {
+  assert.equal(routeHasPage("clients", TABLE), true);
+  assert.equal(routeHasPage("clients/c-1", TABLE), true, "a person");
+  assert.equal(routeHasPage("clients/seg:needs_you", TABLE), true, "a view");
+  assert.equal(routeHasPage("clients/pipeline:v-board", TABLE), true, "the Pipeline's address");
+  assert.equal(routeHasPage("clients/leads", TABLE), false, "Leads is not the page's: its row draws it");
+  assert.equal(routeHasPage("clients/leads:s-1:p-2", TABLE), false);
+  assert.equal(routeHasPage("reports", TABLE), true);
+  assert.equal(routeHasPage("reports/anything", TABLE), false, "a page that takes none has only its route");
+  assert.equal(routeHasPage("inbox", TABLE), false, "a route that has not left the shell");
+  assert.equal(routeHasPage("constructor", TABLE), false, "a name off Object.prototype is no page");
+  assert.equal(routeHasPage("", TABLE), false);
+});
+
+test("a move between two addresses of one page is the page's own; a move to it from another route is the router's", () => {
+  // routes.ts holds the real table: 'reports' is the page there, and it takes no address under it.
+  assert.equal(onOnePage("reports", "reports"), true);
+  assert.equal(onOnePage("today", "reports"), false, "from a route the frame's table draws");
+  assert.equal(onOnePage("reports", "inbox"), false);
+  assert.equal(onOnePage("inbox", "inbox/th-1"), true, "an address the page follows is the page's own");
+  assert.equal(onOnePage("settings", "settings/x"), false, "no page, so no page to stay on");
 });

@@ -25970,19 +25970,34 @@ function roleGate(role, perm, doing) {
 }
 
 // src/shell/address.ts
+var ROUTE_WORDS = { clients: "people", segments: "lists" };
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
 var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
 function routeOfPath(pathname) {
   const m = WORKSPACE_PATH.exec(pathname ?? "");
-  return m ? (m[2] ?? "").replace(/\/+$/, "") : null;
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
 }
 function routeOfHash(hash) {
-  return typeof hash === "string" && hash.startsWith("#/") ? hash.slice(2) : null;
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
 }
 function routeOfAddress(address) {
   return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
 }
 function movedAddress(address) {
   const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2] && Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+    return `/w/${m[1] ?? ""}/${pathRoute(m[2].replace(/\/+$/, ""))}${address.search ?? ""}${address.hash ?? ""}`;
+  }
   const route = routeOfHash(address.hash);
   if (!m || route === null || m[2]) return null;
   const at3 = route.indexOf("?");
@@ -25991,10 +26006,10 @@ function movedAddress(address) {
   const own = at3 < 0 ? "" : route.slice(at3 + 1);
   const search = address.search ?? "";
   const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${name}${joined}`;
+  return `/w/${m[1] ?? ""}/${pathRoute(name)}${joined}`;
 }
 function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${route}` : ""}`;
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(route)}` : ""}`;
 }
 
 // src/shell/vitals.ts
@@ -30663,6 +30678,7 @@ export {
   ROLE_PERMS,
   ROLE_WORDS,
   ROUTE_KEYS,
+  ROUTE_WORDS,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,

@@ -10,6 +10,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 
+/** The path's word for a route the shell names otherwise (docs/glossary.md), written here on its own, not read from contracts. */
+const WORDS = { clients: "people", segments: "lists" };
+const inPath = (route) => {
+  const head = route.split("/")[0];
+  return Object.hasOwn(WORDS, head) ? WORDS[head] + route.slice(head.length) : route;
+};
+
 /** Every kind of route the shell draws (legacy/CLAUDE.md, "Routes"), each as it is written after the slug. */
 const ROUTES = [
   "today",
@@ -45,7 +52,7 @@ test("a hash address moves to its path: the route becomes what follows the slug"
   assert.equal(movedAddress({ pathname: "/w/acme", search: "", hash: "#/today" }), "/w/acme/today");
   for (const route of ROUTES) {
     const to = movedAddress({ pathname: "/w/acme", hash: `#/${route}` });
-    assert.equal(to, `/w/acme/${route}`, route);
+    assert.equal(to, `/w/acme/${inPath(route)}`, route);
     // And the page it lands on reads the same route back, from the path alone.
     assert.equal(routeOfPath(to), route, `${route}, read back`);
     assert.equal(routeOfAddress({ pathname: to, hash: "" }), route, `${route}, read as an address`);
@@ -131,4 +138,68 @@ test("a route's path is the workspace's, the slug encoded, and Today has none", 
   assert.equal(workspacePath("a b", "inbox"), "/w/a%20b/inbox");
   assert.equal(workspacePath("acme"), "/w/acme");
   assert.equal(workspacePath("acme", ""), "/w/acme");
+});
+
+test("the path says the product's word: people and lists, where the shell's route says clients and segments", () => {
+  assert.equal(workspacePath("acme", "clients"), "/w/acme/people");
+  assert.equal(
+    workspacePath("acme", "clients/5f0c9a3e-1c2d-4e3f-8a4b-5c6d7e8f9a0b"),
+    "/w/acme/people/5f0c9a3e-1c2d-4e3f-8a4b-5c6d7e8f9a0b",
+  );
+  assert.equal(workspacePath("acme", "clients/leads:s-1"), "/w/acme/people/leads:s-1");
+  assert.equal(workspacePath("acme", "segments/s1"), "/w/acme/lists/s1");
+  // Only the head of the route is a word: a route that merely contains one is untouched.
+  assert.equal(workspacePath("acme", "inbox/clients"), "/w/acme/inbox/clients");
+  assert.equal(workspacePath("acme", "clientsx"), "/w/acme/clientsx");
+  assert.equal(
+    workspacePath("acme", "constructor"),
+    "/w/acme/constructor",
+    "a name off Object.prototype is not a word",
+  );
+  // Read back: the path's word is the shell's route, and so is the old name.
+  assert.equal(routeOfPath("/w/acme/people"), "clients");
+  assert.equal(routeOfPath("/w/acme/people/c-1"), "clients/c-1");
+  assert.equal(routeOfPath("/w/acme/people/pipeline:v-board"), "clients/pipeline:v-board");
+  assert.equal(routeOfPath("/w/acme/lists/s1"), "segments/s1");
+  assert.equal(routeOfPath("/w/acme/clients/c-1"), "clients/c-1", "the old name still reads");
+  assert.equal(routeOfPath("/w/acme/peopleish"), "peopleish");
+  assert.equal(routeOfHash("#/people/c-1"), "clients/c-1");
+  assert.equal(routeOfAddress({ pathname: "/w/acme/people/leads", hash: "" }), "clients/leads");
+  assert.equal(
+    routeOfAddress({ pathname: "/", hash: "#/clients/leads" }),
+    "clients/leads",
+    "the mockup keeps its hash",
+  );
+});
+
+test("the old name in an address moves to the word, for ever: a path, and a hash", () => {
+  assert.equal(movedAddress({ pathname: "/w/acme/clients", hash: "" }), "/w/acme/people");
+  assert.equal(movedAddress({ pathname: "/w/acme/clients/c-1/", hash: "" }), "/w/acme/people/c-1");
+  assert.equal(
+    movedAddress({ pathname: "/w/acme/clients/leads:s-1", search: "?a=1", hash: "" }),
+    "/w/acme/people/leads:s-1?a=1",
+    "the query stays",
+  );
+  assert.equal(
+    movedAddress({ pathname: "/w/acme/segments/s1", hash: "#x" }),
+    "/w/acme/lists/s1#x",
+    "the hash stays too",
+  );
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/clients/c-1" }), "/w/acme/people/c-1");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/clients?tab=1" }), "/w/acme/people?tab=1");
+  assert.equal(
+    movedAddress({ pathname: "/w/acme", hash: "#/people/c-1" }),
+    "/w/acme/people/c-1",
+    "a hash that already says the word",
+  );
+  // The word itself is where it should be: nothing moves.
+  assert.equal(movedAddress({ pathname: "/w/acme/people/c-1", hash: "" }), null);
+  assert.equal(movedAddress({ pathname: "/w/acme/lists", hash: "" }), null);
+  assert.equal(movedAddress({ pathname: "/w/acme/inbox", hash: "" }), null);
+  assert.equal(
+    movedAddress({ pathname: "/w/acme/clientsx", hash: "" }),
+    null,
+    "a route that only begins with the name",
+  );
+  assert.equal(movedAddress({ pathname: "/login/clients", hash: "" }), null, "off a workspace page");
 });

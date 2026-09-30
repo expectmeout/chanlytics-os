@@ -498,16 +498,29 @@ const surfaceAct = (act) =>
  */
 const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
-  // A route that has left the shell (an App Router page, src/surfaces/routes.ts) has no row: the frame draws its chrome
-  // around the page the layout gave it (`routePage`), by what the registry says of the route.
-  // An address under it is its page too where the route says so (`params`), and its nav item and crumbs may be asked of it.
-  const at = r.surfaceRoutes ? r.surfaceRoutes[r.page] : null;
-  const surface = !row && at && (!r.param || at.params) ? at : null;
+  // A route that has left the shell (an App Router page, src/surfaces/routes.ts) has no row for the addresses its page
+  // takes: the frame draws its chrome around the page the layout gave it (`routePage`), by what the registry says of the
+  // route and of the address. A route takes every address under it (`params`) or the ones `takes` says, and its nav item and
+  // crumbs may be asked of the param; `chrome` names an address's crumbs, what it is mounted under and whether a demo session
+  // offers an act.
+  const at = !row && r.surfaceRoutes && Object.prototype.hasOwnProperty.call(r.surfaceRoutes, r.page) ? r.surfaceRoutes[r.page] : null;
+  const takes = !!at && (!r.param || at.params === true || (!!at.takes && at.takes(r.param)));
+  const surface = takes ? at : null;
+  const chrome = surface && surface.chrome ? surface.chrome({ param: r.param, backToPeople: r.backToPeople }) : null;
   const asked = (v) => (typeof v === "function" ? v(r.param || null) : v);
   const answer = surface
-    ? { ...surface, activeNav: asked(surface.activeNav), crumbs: asked(surface.crumbs), primaryAction: surface.act ? surfaceAct(surface.act) : null, content: r.routePage }
+    ? {
+        ...surface,
+        activeNav: asked(surface.activeNav),
+        crumbs: chrome ? chrome.crumbs : asked(surface.crumbs),
+        primaryAction: surface.act ? surfaceAct(surface.act) : null,
+        content: r.routePage,
+        ...(chrome && chrome.demoAsk
+          ? { primaryAction: window.__DEMO_MODE ? <button className="btn btn-sm" onClick={r.openAsk}><Icon name="plus" size={12} /> {" " + chrome.demoAsk}</button> : null }
+          : {}),
+      }
     : row ? row.draw(r) : drawNotFound(r);
-  const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (surface && surface.mount) || r.routeKey };
+  const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (chrome && chrome.mount) || (surface && surface.mount) || r.routeKey };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 
