@@ -13,7 +13,7 @@ import type { Output } from "@/client/api";
 import { playbooksOverride } from "./surface";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 
-export interface PlaybookBody {
+interface PlaybookBody {
   name?: string | null;
   trigger: string;
   template_id: string;
@@ -26,7 +26,7 @@ export interface PlaybookBody {
 }
 
 /** Re-read the surface: for Today's approve and anything else that changes a run elsewhere. */
-export async function refreshPlaybooks(): Promise<void> {
+async function refreshPlaybooks(): Promise<void> {
   api().forget();
   await refreshSurfaces([playbooksOverride]);
 }

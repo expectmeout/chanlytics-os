@@ -39,7 +39,7 @@ function part<P>(
 }
 
 /** The one way an act is confirmed (data-bits `Confirm`): the question, what it does, a Yes that names the verb, a quiet No. */
-export interface ConfirmProps {
+interface ConfirmProps {
   question: ReactNode;
   detail?: ReactNode;
   yes?: string;
@@ -61,7 +61,7 @@ export interface ConfirmProps {
 export const confirmPart = (): ComponentType<ConfirmProps> => part<ConfirmProps>("Confirm");
 
 /** The one pill for a state (data-bits `StatePill`): its tone from contracts, its words the page's or the state's own. */
-export interface StatePillProps {
+interface StatePillProps {
   kind: string;
   value: unknown;
   label?: ReactNode;
@@ -73,14 +73,14 @@ export interface StatePillProps {
 export const statePillPart = (): ComponentType<StatePillProps> => part<StatePillProps>("StatePill");
 
 /** The one policy-class chip (data-bits `PolicyChip`): it names the class's row and follows `policy:changed`. */
-export interface PolicyChipProps {
+interface PolicyChipProps {
   cls?: string | null;
   className?: string;
 }
 export const policyChipPart = (): ComponentType<PolicyChipProps> => part<PolicyChipProps>("PolicyChip");
 
 /** One sentence under the box it belongs to, read out as it appears (data-bits `FieldError`). */
-export interface FieldErrorProps {
+interface FieldErrorProps {
   id?: string | null;
   message?: ReactNode;
   testid?: string | null;
@@ -88,7 +88,7 @@ export interface FieldErrorProps {
 export const fieldErrorPart = (): ComponentType<FieldErrorProps> => part<FieldErrorProps>("FieldError");
 
 /** The record kit's sheet (record-sheet.jsx): a modal beside the page with its title, tools, body and foot. */
-export interface RecordSheetProps {
+interface RecordSheetProps {
   id?: string | null;
   title: ReactNode;
   sub?: ReactNode;
@@ -112,7 +112,7 @@ export interface RecordSheetProps {
 export const recordSheetPart = (): ComponentType<RecordSheetProps> => part<RecordSheetProps>("RecordSheet");
 
 /** The one question where a composer's Cancel was (record-fold.jsx `UnsavedAsk`): `what` is what has not happened. */
-export interface UnsavedAskProps {
+interface UnsavedAskProps {
   onYes: () => void;
   onNo: () => void;
   busy?: boolean;
@@ -122,7 +122,7 @@ export interface UnsavedAskProps {
 export const unsavedAskPart = (): ComponentType<UnsavedAskProps> => part<UnsavedAskProps>("UnsavedAsk");
 
 /** What a composer says of its words to the rule that keeps them (record-fold.jsx `useUnsavedWork`). */
-export interface UnsavedWorkOptions {
+interface UnsavedWorkOptions {
   value: unknown;
   dirty: boolean;
   onLeave: () => void;
@@ -163,7 +163,7 @@ export function tabDraft(kind: string, key?: string | null): unknown {
 }
 
 /** One row of the workspace's autonomy matrix (data-bits `POLICY`): its class, its label, its chip and whether money locks it. */
-export interface PolicyRow {
+interface PolicyRow {
   id: string;
   label: string;
   note: string;
@@ -181,7 +181,7 @@ interface PolicyWords {
 }
 
 /** The workspace policy store the classic pages read (`window.POLICY`); the app's is built by legacy-bridge/policy-store.ts. */
-export interface PolicyStore {
+interface PolicyStore {
   WORDS?: Record<string, PolicyWords>;
   row: (id: string) => PolicyRow | null;
   modeOf: (id: string) => string | null;

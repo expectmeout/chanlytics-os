@@ -62,7 +62,6 @@ const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/br
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { currentLook } = await import(`${SRC}/surfaces/look.ts`);
 
 /** The document's root, as the head's script and the shell stamp it: Glass where it says so, and nothing else says Classic. */
 const lookIs = (look) => {
@@ -91,38 +90,28 @@ const composing = (look) => {
   return page();
 };
 
-test("the look is Glass only where the document says it is", () => {
-  lookIs(null);
-  assert.equal(currentLook(), "classic", "no look stamped: Classic");
-  lookIs("classic");
-  assert.equal(currentLook(), "classic");
-  lookIs("glass");
-  assert.equal(currentLook(), "glass");
+test("the head: Glass opens a tab's list on the surface's title, Classic keeps the tab's name for a screen reader", () => {
+  setSurfaceValue("playbooks", playbooksSample(NOW));
+  const h1 = () => {
+    freshTree();
+    return find(
+      again(() => PlaybooksPage({})),
+      (n) => n.type === "h1",
+    );
+  };
+  // Glass only where the document says so: no look stamped, Classic, a word that is not a look, and no document to ask (a server render).
+  for (const stamp of [null, "classic", "anything else"]) {
+    lookIs(stamp);
+    assert.equal(textOf(h1()), "Playbooks", `${stamp}: Classic`);
+    assert.ok(String(h1().props.className).includes("cm-sr"), "Classic: the name is a screen reader's alone");
+  }
   const root = globalThis.document.documentElement;
   delete globalThis.document.documentElement;
-  assert.equal(currentLook(), "classic", "no document to ask (a server render): Classic");
+  assert.equal(textOf(h1()), "Playbooks", "no document to ask: Classic");
   globalThis.document.documentElement = root;
-  lookIs("anything else");
-  assert.equal(currentLook(), "classic", "a word that is not a look is not Glass");
-});
-
-test("the head: Glass opens a tab's list on the surface's title, Classic keeps the tab's name for a screen reader", () => {
-  lookIs(null);
-  setSurfaceValue("playbooks", playbooksSample(NOW));
-  freshTree();
-  let title = find(
-    again(() => PlaybooksPage({})),
-    (n) => n.type === "h1",
-  );
-  assert.equal(textOf(title), "Playbooks");
-  assert.ok(String(title.props.className).includes("cm-sr"), "Classic: the name is a screen reader's alone");
   lookIs("glass");
-  title = find(
-    again(() => PlaybooksPage({})),
-    (n) => n.type === "h1",
-  );
-  assert.equal(textOf(title), "Campaigns", "Glass: the surface's name, which the strip above narrows to this tab");
-  assert.ok(!String(title.props.className).includes("cm-sr"), "and seen");
+  assert.equal(textOf(h1()), "Campaigns", "Glass: the surface's name, which the strip above narrows to this tab");
+  assert.ok(!String(h1().props.className).includes("cm-sr"), "and seen");
 });
 
 test("the playbook composer: Classic's sections as they were; Glass's four rows, each holding Classic's section", () => {

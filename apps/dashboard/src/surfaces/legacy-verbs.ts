@@ -15,7 +15,7 @@ import type { SetupSurface } from "../legacy-bridge/setup";
 import type { ApiResult } from "../client/api";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
-export interface LegacyFlash {
+interface LegacyFlash {
   tone?: string;
   msg: ReactNode;
   /** One act beside the words (an Undo that is not the toast's own, a way on): pressing it closes the toast. */

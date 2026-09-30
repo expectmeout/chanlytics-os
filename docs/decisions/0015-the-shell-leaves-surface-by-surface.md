@@ -340,7 +340,7 @@ bridge modules only they used moved with them (the amendment). What it settled, 
   takes `params` (the address may carry a tail: `routeHasPage` splits at the first `/`), `mount` and, where the chrome
   follows the address, a function for `activeNav` and `crumbs`. The page reads its route with `usePathname()`, never
   `useParams`: the App Router keys a dynamic segment by its param, so a `router.replace` between two threads would remount
-  the page and read again. `goToRoute` keeps a move that stays within one route's page (`staysOnPage`, for a route that
+  the page and read again. `goToRoute` keeps a move that stays within one route's page (`onOnePage`, for a route that
   takes an address) on the patched history, and the real-app run shows the Inbox's root element is the same node across
   thread moves. A thread pressed is a replace on a desktop (Back leaves the Inbox instead of replaying every thread read)
   and an entry of its own on a phone (Back closes it).
@@ -400,3 +400,21 @@ used moved with it (the amendment). What it settled, for the surfaces after it:
 - **Its kit step took what a stub can draw**: three buttons are the kit's `Button` (Open Reports, Open Calendar, Mark all read). The
   rest of Today's buttons are the page's own looks (the chips, the door rows, the queue's open, the leaks' acts), which no kit part
   has yet; Today waits in `KIT_PENDING` for them.
+
+## Built: Campaigns and Live (30 September 2026, branch `kit/k3-campaigns-live-leads`)
+
+Steps 7 and 8 of the order, on the pilot's mechanism and People's (`takes` and `chrome`, for the addresses a page takes under its route).
+
+**Campaigns** (step 7): Playbooks, Broadcasts and Templates are TSX in `apps/dashboard/src/surfaces/campaigns/` on `playbooks`, `broadcasts` and `templates`
+(the path says the product's word; the shell's routes are still `outbound` and `messages`, `ROUTE_WORDS`), with the reach-out rows, the sheet, the door and the
+approval, the shared head, picker, reach bar and message preview, and the twins and stores retired: `BroadcastsSeed`, `OutboundSeed`, their demo pages. 19 JSX files
+(6,061 lines) are deleted. The typed values are `playbooks`, `broadcasts`, `reach_outs` and `settings` in the seam; Today and Leads still read four names
+(`__broadcasts`, `__refreshPlaybooks`, `__reachOuts`, and the components `bcWhenWords`, `ReachOutDoor`, `ReachOutSheet`, which `surfaces/campaigns/globals.ts`
+publishes in the call that publishes the kit's names).
+
+**Live** (step 8): `apps/dashboard/src/surfaces/live/` on `live`, `LM_STORE` and the twin (`demo/pages/live-monitor.jsx`, `demo/data/live-data.jsx`) retired, three
+JSX files (1,023 lines) deleted. Live is never kept by the tab's cache: a reload must not paint a call that ended while the tab was closed. The call verbs
+(`whisperCall`, `endCall`, `handOverCall`, `refreshLive`) stay in the Inbox's bridge until that file moves.
+
+Proved equal by value (docs/decisions, "Tests"): 53,673 steps over 798 worlds for Campaigns, 0 differences, 205 planted faults caught but one argued; Live 0 differences
+over 870 steps. What a demo draws is the contracts' sample, not the twin. The kit step (Phase 4) and the Base UI parts wait: `campaigns` and `live` stand in `KIT_PENDING`.

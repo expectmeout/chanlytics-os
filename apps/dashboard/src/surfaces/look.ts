@@ -10,12 +10,12 @@
  */
 import { useSyncExternalStore } from "react";
 
-export type Look = "classic" | "glass";
+type Look = "classic" | "glass";
 
 const root = (): HTMLElement | null => (typeof document === "undefined" ? null : document.documentElement);
 
 /** The look now on the document: Glass only when it says so. */
-export function currentLook(): Look {
+function currentLook(): Look {
   return root()?.getAttribute("data-look") === "glass" ? "glass" : "classic";
 }
 

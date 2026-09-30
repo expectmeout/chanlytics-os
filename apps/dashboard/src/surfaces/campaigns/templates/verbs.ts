@@ -51,10 +51,10 @@ import {
  * another language: a row on file by its id, or a starter by its key and the
  * library language to write it from.
  */
-export type DraftBody =
+type DraftBody =
   | { brief: string; category: "marketing" | "utility"; language: string }
   | { language: string; translate: { id: string } | { starter: string; from?: string } };
-export interface CreateBody {
+interface CreateBody {
   name: string;
   language: string;
   category: string;
@@ -64,7 +64,7 @@ export interface CreateBody {
   labels?: string[];
   button?: { text: string; url: string } | null;
 }
-export interface StarterBody {
+interface StarterBody {
   keys?: string[];
   languages?: string[];
 }
