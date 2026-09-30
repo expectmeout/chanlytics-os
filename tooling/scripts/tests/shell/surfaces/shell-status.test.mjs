@@ -188,6 +188,14 @@ const shell = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
 const workspace = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const bridgeApi = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 const { ApiError } = await importSrc("apps/dashboard/src/client/api.ts");
+// The Inbox and Conversations are TSX surfaces (surfaces/inbox) on routes of their own: the frame wraps the page the layout
+// gives it as surfaces/routes.ts says, and reads what the two surfaces hold through the seam. Their overrides declare the
+// windows the shell's count still reads (INBOX_DATA, CONVERSATIONS_DATA), which the seam mirrors.
+await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts");
+await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts");
+const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
+const { cvRoute } = await importSrc("apps/dashboard/src/surfaces/inbox/cv-rules.ts");
 
 /** Surfaces that record each read. */
 const surfaces = (...keys) => {
@@ -435,8 +443,6 @@ await import("../../../../../apps/dashboard/src/legacy/pages/settings.jsx");
 // The route table the shell reads (SHELL_ROUTES, drawRoute), loaded where both lists load it: just before the shell.
 await import("../../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
 await import("../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
-// The page's rule for the word after conversations/ (window.CV_ROUTE), which the shell asks.
-await import("../../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -558,7 +564,6 @@ for (const name of [
   "SurfaceTabs",
   "AskBar",
   "ShortcutsSheet",
-  "Inbox",
   "ClientsA",
   "ClientProfile",
   "CalendarPage",
@@ -574,6 +579,9 @@ const placeAt = (hash) => {
   win.location.hash = "";
 };
 
+/** The page the layout hands the frame for a route that has left it (the surface's own page, a stand-in here). */
+const routePage = { type: "RoutePage", props: { children: [] } };
+
 /** The shell at an address, freshly mounted at its path: its tree and the tab's name it left. */
 const mount = (hash) => {
   deep = false;
@@ -582,21 +590,28 @@ const mount = (hash) => {
   placeAt(hash);
   globalThis.document.title = "Chanlytics OS";
   globalThis.ShellStatusBar = win.ShellStatusBar;
-  const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+  const tree = win.ChanlyticsApp({
+    theme: "dark",
+    themePref: "dark",
+    sidebar: "open",
+    onSidebar() {},
+    onTheme() {},
+    routePage,
+    surfaceRoutes: SURFACE_ROUTES,
+  });
   deep = true;
   return { tree, title: globalThis.document.title };
 };
 
 test("the shell names the tab from the crumbs it draws, counts what needs you, and puts the line directly under the top bar", () => {
   shell.installShell(win);
-  win.ixRouteThread = (id) => ({ id, who: "Rosa" });
-  win.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     THREADS: [
-      { id: "th-9", state: "needs" },
+      { id: "th-9", who: "Rosa", state: "needs" },
       { id: "th-2", state: "escalated" },
       { id: "th-3", state: "done" },
     ],
-  };
+  });
   const { tree, title } = mount("#/inbox/th-9");
   assert.equal(title, "(2) Rosa · Inbox · Chanlytics");
   const main = find(tree, (n) => n.props?.className === "main");
@@ -608,7 +623,7 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   // on a phone as on a desk, and each draws nothing when it has nothing to say.
   assert.equal(at("LiveCallBar"), at("Topbar") + 1, "a call in progress, first");
   assert.equal(at(win.ShellStatusBar), at("Topbar") + 2, "then the line, above the page, on a phone as on a desk");
-  win.INBOX_DATA = { THREADS: [] };
+  setSurfaceValue("inbox", { THREADS: [] });
 });
 
 test("on a real workspace a crumb, and so the tab, never names the demo's people or lists", () => {
@@ -653,20 +668,19 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
 
 test("the tab counts a real thread only when it needs you: one a teammate is answering, or one you have, is not waiting on you", () => {
   shell.installShell(win);
-  win.ixRouteThread = (id) => ({ id, who: null });
-  win.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     THREADS: [
       { id: "th-1", real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false },
       { id: "th-2", real: true, state: "escalated", needsYou: false, takenOver: false, claimedByOther: true },
       { id: "th-3", real: true, state: "escalated", needsYou: false, takenOver: true, claimedByOther: false },
     ],
-  };
+  });
   assert.equal(
     mount("#/inbox").title,
     "(1) Inbox · Chanlytics",
     "REGRESSION: a teammate's thread was counted as needing you until the Inbox itself mounted",
   );
-  win.INBOX_DATA = { THREADS: [] };
+  setSurfaceValue("inbox", { THREADS: [] });
 });
 
 test("REGRESSION: the tab keeps its name when the layout's own title lands after the shell's -- a page loaded cold said 'Chanlytics OS' until something it counted changed", () => {
@@ -706,16 +720,18 @@ test("REGRESSION: the tab keeps its name when the layout's own title lands after
 
 test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the page only call ids, so a person's profile opened the first conversation in the list", () => {
   shell.installShell(win);
-  globalThis.ConversationsPage = "ConversationsPage";
-  win.CONVERSATIONS_DATA = {
+  setSurfaceValue("conversations", {
     CONVERSATIONS: [
       { id: "c-9", who: "Rosa Díaz" },
       { id: "cv-4", who: "Emily Chen" },
     ],
-  };
+  });
+  // The frame names the trail and lights the nav; the page's own props are what the route hands it by the page's one
+  // rule (conversations-route.tsx, cvRoute), which the address's word is read by.
   const pageAt = (hash) => {
-    const { tree, title } = mount(hash);
-    return { props: find(tree, (n) => n.type === "ConversationsPage").props, title };
+    const { title } = mount(hash);
+    const cv = cvRoute(hash.split("/").slice(2).join("/") || null);
+    return { props: { channel: cv.channel, initialId: cv.id }, title };
   };
   try {
     const chat = pageAt("#/conversations/c-9");
@@ -745,26 +761,23 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
       "and the nav lights the tab, not the raw word",
     );
   } finally {
-    delete win.CONVERSATIONS_DATA;
-    delete globalThis.ConversationsPage;
+    setSurfaceValue("conversations", undefined);
   }
 });
 
 test("REGRESSION: a real workspace's WhatsApp and Email tabs filter the list -- the shell knew only the mockup's three, so it opened 'whatsapp' as a conversation nobody could find", async () => {
   shell.installShell(win);
-  globalThis.ConversationsPage = "ConversationsPage";
-  const { conversationTabs } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/conversations.ts");
-  // The strip the bridge draws for a workspace on the phone, WhatsApp, texts and email.
-  win.CONVERSATIONS_DATA = {
-    CONVERSATIONS: [{ id: "c-9", who: "Rosa Díaz" }],
-    CV_CHANNELS: conversationTabs(true, ["whatsapp", "sms", "email"]),
-  };
+  const { conversationTabs } = await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts");
+  // The strip the surface's override draws for a workspace on the phone, WhatsApp, texts and email.
+  const CV_CHANNELS = conversationTabs(true, ["whatsapp", "sms", "email"]);
+  setSurfaceValue("conversations", { CONVERSATIONS: [{ id: "c-9", who: "Rosa Díaz" }], CV_CHANNELS });
   const pageAt = (hash) => {
-    const { tree, title } = mount(hash);
-    return { props: find(tree, (n) => n.type === "ConversationsPage").props, title };
+    const { title } = mount(hash);
+    const cv = cvRoute(hash.split("/").slice(2).join("/") || null);
+    return { props: { channel: cv.channel, initialId: cv.id }, title };
   };
   try {
-    for (const tab of win.CONVERSATIONS_DATA.CV_CHANNELS.filter((t) => t.id !== "all")) {
+    for (const tab of CV_CHANNELS.filter((t) => t.id !== "all")) {
       const { props, title } = pageAt(`#/conversations/${tab.id}`);
       assert.deepEqual(
         [props.channel, props.initialId],
@@ -783,8 +796,7 @@ test("REGRESSION: a real workspace's WhatsApp and Email tabs filter the list -- 
     );
     assert.equal(pageAt("#/conversations/c-9").props.initialId, "c-9", "and a row's id still opens its row");
   } finally {
-    delete win.CONVERSATIONS_DATA;
-    delete globalThis.ConversationsPage;
+    setSurfaceValue("conversations", undefined);
   }
 });
 
@@ -809,8 +821,7 @@ test("a link to a call opens that call on Live -- the route had no place for its
 test("a page that follows its own address is one mount across it -- Settings' panes, the Inbox's threads, Broadcasts' runs, Live's calls -- and every other page's param is its own mount, the safe default", () => {
   // Run, where chrome.test.mjs used to match the Set's source text: the shell as drawn is what decides.
   shell.installShell(win);
-  for (const name of ["LiveMonitorPage", "ConversationsPage"]) globalThis[name] = name;
-  win.ixRouteThread = (id) => ({ id, who: null });
+  globalThis.LiveMonitorPage = "LiveMonitorPage";
   try {
     const key = (hash) =>
       find(mount(hash).tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
@@ -829,8 +840,6 @@ test("a page that follows its own address is one mount across it -- Settings' pa
     );
   } finally {
     delete globalThis.LiveMonitorPage;
-    delete globalThis.ConversationsPage;
-    delete win.ixRouteThread;
   }
 });
 
@@ -1424,9 +1433,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
 });
 
 test("Conversations and Live are views of the Inbox: the strip is drawn over all three, the rail lights one item, and the trail starts at the Inbox", () => {
-  win.INBOX_DATA = { THREADS: [] };
-  win.ixRouteThread = (id) => ({ id, who: null });
-  globalThis.ConversationsPage = "ConversationsPage";
+  setSurfaceValue("inbox", { THREADS: [] });
   globalThis.LiveMonitorPage = "LiveMonitorPage";
   const at = (hash) => {
     const { tree, title } = mount(hash);
@@ -1455,24 +1462,22 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   );
 
   // The trail names a tab as its chip does, from the strip the page draws (always there: the seed's, or the read's).
-  win.CONVERSATIONS_DATA = {
+  setSurfaceValue("conversations", {
     CONVERSATIONS: [],
     CV_CHANNELS: [
       { id: "all", label: "All" },
       { id: "phone", label: "Calls" },
     ],
-  };
+  });
   const calls = at("#/conversations/phone");
   assert.equal(calls.title, "Calls · Conversations · Inbox · Chanlytics", "a channel is a view of a view");
-  delete win.CONVERSATIONS_DATA;
+  setSurfaceValue("conversations", undefined);
 
   const live = at("#/live");
   assert.equal(live.nav, "live");
   assert.equal(live.tabs.props.page, "live");
   assert.equal(live.title, "Live · Inbox · Chanlytics", "REGRESSION: Live hung off a nav item that is gone");
 
-  delete win.ixRouteThread;
-  delete globalThis.ConversationsPage;
   delete globalThis.LiveMonitorPage;
 });
 
@@ -1640,7 +1645,7 @@ test("a route whose surface has not landed is an empty pane that says it is read
   try {
     const { tree } = mount("#/inbox");
     assert.ok(!byClass(tree, "skel"), "no skeleton");
-    assert.ok(!find(tree, (n) => n.type === "Inbox"), "the page is not drawn before its surface lands");
+    assert.ok(!find(tree, (n) => n.type === "RoutePage"), "the page is not drawn before its surface lands");
     const view = byClass(tree, "route-view");
     assert.equal(view.props["aria-busy"], "true", "the pane the page will fill is busy");
     const reading = byClass(tree, "route-reading");
@@ -1661,7 +1666,7 @@ test("a route whose surface has not landed is an empty pane that says it is read
     assert.equal(viewLanded.props["aria-busy"], undefined, "and is no longer busy");
     assert.ok(!byClass(landed.tree, "route-reading"), "the line goes with the wait");
     assert.ok(
-      find(landed.tree, (n) => n.type === "Inbox"),
+      find(landed.tree, (n) => n.type === "RoutePage"),
       "the page is there",
     );
   } finally {

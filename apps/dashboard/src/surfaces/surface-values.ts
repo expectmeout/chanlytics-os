@@ -16,11 +16,14 @@
  */
 import type { ReportsSurface } from "./reports/surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
+import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
   reports: ReportsSurface;
   google: GoogleSurface;
+  inbox: InboxSurface;
+  conversations: ConversationsSurface;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -65,4 +68,4 @@ function isSurfaceKey(key: string): key is SurfaceKey {
 
 // The keys as a value, so a name from the cache is checked against the same list the type is. A key added to
 // `SurfaceValues` without a line here is a type error.
-const SURFACE_KEYS: Record<SurfaceKey, true> = { reports: true, google: true };
+const SURFACE_KEYS: Record<SurfaceKey, true> = { reports: true, google: true, inbox: true, conversations: true };

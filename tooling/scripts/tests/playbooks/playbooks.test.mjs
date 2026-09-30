@@ -564,7 +564,9 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
       '{ kind: "playbook", name: String(m.meta.playbook_name) }',
     ),
   );
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));
+  assert.ok(
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
+  );
   assert.ok(
     !readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("Not available yet"),
     "no disabled channel chips until a second channel is real",

@@ -5,15 +5,16 @@
  * wordings, a button that changed its own label on the first click, a typed
  * name, commit-then-Undo, and nothing at all on the most destructive act on
  * Settings -- removing a teammate fired straight from a menu item (the
- * audit's D13). One primitive now (data-bits.jsx Confirm), pure, so every
- * harness draws it. Run here: its shape, then the three doors the audit
- * named -- the Team row, a broadcast's stop, a playbook's delete -- each
- * mounted over a fake React and pressed.
+ * audit's D13). One primitive now (the kit's Confirm, surfaces/kit/confirm),
+ * pure, so every harness draws it. Run here: its shape, then the three doors
+ * the audit named -- the Team row, a broadcast's stop, a playbook's delete --
+ * each mounted over a fake React and pressed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -131,7 +132,9 @@ await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-const { Confirm, MoreMenu, StatePill } = globalThis.window;
+// Confirm, MoreMenu and StatePill are the kit's (surfaces/kit), which seed-globals publishes under these names.
+kitHooks();
+const { Confirm, MoreMenu, StatePill } = kitPages;
 Object.assign(globalThis, { Confirm, MoreMenu, StatePill });
 
 const walk = (n, fn) => {

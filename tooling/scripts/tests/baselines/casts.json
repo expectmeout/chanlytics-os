@@ -145,12 +145,6 @@
   "apps/dashboard/src/legacy-bridge/surfaces/calendar.ts": {
     "unknownAs": 2
   },
-  "apps/dashboard/src/legacy-bridge/surfaces/conversations.ts": {
-    "unknownAs": 1
-  },
-  "apps/dashboard/src/legacy-bridge/surfaces/inbox.ts": {
-    "unknownAs": 2
-  },
   "apps/dashboard/src/legacy-bridge/surfaces/live.ts": {
     "unknownAs": 1
   },

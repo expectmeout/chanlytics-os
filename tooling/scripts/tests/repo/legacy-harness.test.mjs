@@ -447,12 +447,17 @@ test("the mockup takes the kit's components and Today's sample from bundles, loa
   assert.equal(
     tags[tags.indexOf(STUBS) + 1],
     "data/kit-globals.js",
-    "the pages here read Icon, EmptyState, FailedRead and SegmentBar by name, which the kit has drawn since decision 0015",
+    "the pages here read Icon, EmptyState, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip and TlMedia by name, which the kit has drawn since decision 0015",
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 2],
     "data/today-sample.js",
     "the demo's Today reads what installTodaySample published",
+  );
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 3],
+    "data/inbox-globals.js",
+    "the sidebar, the bell, Ask and Today read the Inbox's and Conversations' names, which surfaces/inbox/legacy-globals.ts says",
   );
 });
 
@@ -469,8 +474,23 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
   const win = { React };
   // In the browser `window` is the global scope, so the bundle's bare `React` is the page's.
   vm.runInNewContext(await kitGlobalsBundle(), { window: win, React, console });
-  for (const name of ["Icon", "EmptyState", "FailedRead", "SegmentBar"])
+  for (const name of [
+    "Icon",
+    "EmptyState",
+    "FailedRead",
+    "SegmentBar",
+    "StatePill",
+    "Confirm",
+    "MoreMenu",
+    "PolicyChip",
+    "TlMedia",
+  ])
     assert.equal(typeof win[name], "function", `${name} is published`);
+  assert.equal(
+    win.StatePill({ kind: "thread", value: "escalated" }).props.className,
+    "pill pill-warn",
+    "the pill is toned by contracts' stateOf, bundled: with no chrome bridge here, the mockup gets it too",
+  );
   assert.equal(
     win.Icon({ name: "check", size: 12 }).type,
     "svg",
@@ -694,4 +714,29 @@ test("at most one file the harness loads takes an object rest: Babel keeps each 
     sharedScope.withRests.length <= 1,
     `object rests in more than one file (take them with window.propsWithout): ${sharedScope.withRests.join(", ")}`,
   );
+});
+
+test("the Inbox's bundle publishes the demo's rows and the shell's rules under the names the pages still read", async () => {
+  const { inboxGlobalsBundle } = await import("../../serve-legacy.mjs");
+  const events = [];
+  const win = {
+    addEventListener: (type) => events.push(type),
+    dispatchEvent: () => true,
+  };
+  // In the browser `window` is the global scope, so the bundle's `window.__DEMO_MODE` and its listener are the page's.
+  vm.runInNewContext(await inboxGlobalsBundle(), { window: win, console, CustomEvent: class {} });
+  const threads = win.INBOX_DATA.THREADS;
+  assert.ok(threads.length > 0 && threads.every((t) => t.id.startsWith("th-")), "the demo's threads");
+  assert.ok(win.CONVERSATIONS_DATA.CONVERSATIONS.length > 0, "the demo's conversations");
+  assert.equal(JSON.stringify(win.IX_STORE.decisions), "{}", "no decision yet");
+  win.IX_STORE.set("th-aisha-refund", { action: "Approve", at: "12:04", kind: "decided" });
+  assert.equal(win.IX_STORE.get("th-aisha-refund").action, "Approve", "the session's decisions are kept");
+  assert.equal(win.ixWaitsOnYou(threads.find((t) => t.state === "needs")), true, "what waits on you, one rule");
+  assert.equal(
+    JSON.stringify(win.CV_ROUTE("phone:cv-1")),
+    JSON.stringify({ channel: "phone", id: "cv-1" }),
+    "a tab and a row",
+  );
+  assert.equal(win.CV_IN_CHANNEL({ channel: "sms" }, "chats"), true, "a row on a grouped tab");
+  assert.ok(events.includes("presence:changed"), "the countdowns hear the member go Away");
 });

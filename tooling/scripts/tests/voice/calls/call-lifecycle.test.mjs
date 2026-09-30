@@ -417,8 +417,8 @@ test("a copy given up on stops waking the edge, and the copy's own bound agrees"
 });
 
 test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {
-  const src = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
-  assert.ok(src.includes("Math.floor((Date.now() - c.ts) / 1000)"));
+  const src = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
+  assert.ok(src.includes("Math.floor((Date.now() - started) / 1000)"));
   assert.ok(!src.includes("Listen in"), "there is no audio to listen to; the button opens Live");
   assert.ok(src.includes('outcome === "missed"'));
 });

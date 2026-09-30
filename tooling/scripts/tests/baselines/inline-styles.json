@@ -1,6 +1,6 @@
 {
   "apps/dashboard/src/legacy/components/campaign-bits.jsx": 4,
-  "apps/dashboard/src/legacy/components/data-bits.jsx": 2,
+  "apps/dashboard/src/legacy/components/data-bits.jsx": 1,
   "apps/dashboard/src/legacy/components/sidebar.jsx": 10,
   "apps/dashboard/src/legacy/components/surface-tabs.jsx": 1,
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": 12,
@@ -24,8 +24,6 @@
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": 3,
   "apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx": 2,
   "apps/dashboard/src/legacy/pages/first-run.jsx": 1,
-  "apps/dashboard/src/legacy/pages/inbox-rail.jsx": 2,
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 5,
   "apps/dashboard/src/legacy/pages/leads-bench.jsx": 1,
   "apps/dashboard/src/legacy/pages/leads-cells.jsx": 3,
   "apps/dashboard/src/legacy/pages/leads-finder.jsx": 3,
@@ -38,6 +36,11 @@
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-sheet.jsx": 2,
   "apps/dashboard/src/legacy/pages/settings.jsx": 9,
   "apps/dashboard/src/legacy/pages/templates-real.jsx": 1,
+  "apps/dashboard/src/surfaces/inbox/pages/agent-rail.tsx": 2,
+  "apps/dashboard/src/surfaces/inbox/thread/approval.tsx": 2,
+  "apps/dashboard/src/surfaces/inbox/thread/call.tsx": 1,
+  "apps/dashboard/src/surfaces/inbox/thread/header.tsx": 1,
+  "apps/dashboard/src/surfaces/inbox/thread/timeline.tsx": 1,
   "apps/dashboard/src/surfaces/kit/charts/bar.tsx": 4,
   "apps/dashboard/src/surfaces/kit/charts/card.tsx": 3,
   "apps/dashboard/src/surfaces/kit/charts/heat.tsx": 1,
@@ -46,5 +49,6 @@
   "apps/dashboard/src/surfaces/kit/charts/pie.tsx": 3,
   "apps/dashboard/src/surfaces/kit/charts/radar.tsx": 1,
   "apps/dashboard/src/surfaces/kit/charts/radial.tsx": 2,
-  "apps/dashboard/src/surfaces/kit/meter/meter.tsx": 1
+  "apps/dashboard/src/surfaces/kit/meter/meter.tsx": 1,
+  "apps/dashboard/src/surfaces/kit/pill/state-pill.tsx": 1
 }

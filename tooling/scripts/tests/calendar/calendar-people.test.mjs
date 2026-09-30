@@ -1742,11 +1742,11 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
   assert.deepEqual([closed.bookingLinkAction.label, closed.bookingLinkAction.ready], ["Send the booking link", false]);
   assert.ok(page.includes(': e.kind === "visit" ? <Icon name="calendar" size={12} />'));
-  const composer = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const composer = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(
     composer.includes('sessionStorage.getItem("chanlytics-compose")') &&
       composer.includes('sessionStorage.removeItem("chanlytics-compose")') &&
-      composer.includes("setText((cur) => (cur && cur.trim() ? cur : carried.text));"),
+      composer.includes("setText((cur) => (cur && cur.trim() ? cur : said));"),
     "only into an empty composer, only once",
   );
   // The profile carries the workspace's own booking link, from its settings, trimmed; none set, or a blank one, is no

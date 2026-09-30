@@ -10,13 +10,14 @@
  * chats one, not the mail one. It was reachable only under All, and its count
  * was permanently zero.
  *
- * Two halves, proved apart: the strip a workspace is given (the bridge), and
- * whether a row belongs in a tab (the page's one rule, read by the filter and
+ * Two halves, proved apart: the strip a workspace is given (the surface's override), and
+ * whether a row belongs in a tab (the page's one rule, cv-rules.ts, read by the filter and
  * by the counts so a tab cannot show a number it will not then list).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { conversationTabs } from "../../../../apps/dashboard/src/legacy-bridge/surfaces/conversations.ts";
+import { conversationTabs } from "../../../../apps/dashboard/src/surfaces/inbox/conversations-surface.ts";
+import { INBOX_GLOBALS } from "../../../../apps/dashboard/src/surfaces/inbox/legacy-globals.ts";
 
 /* ------------------------------------------------------------- the strip */
 
@@ -63,28 +64,13 @@ test("the words are the ones the rest of the product uses for those wires", () =
 
 /* -------------------------------------------------------------- the rows */
 
-globalThis.window ??= {};
-globalThis.React = {
-  useState: () => [null, () => {}],
-  useMemo: (f) => f(),
-  useEffect: () => {},
-  createElement: () => null,
-  Fragment: "Fragment",
-};
-globalThis.Icon = () => null;
-globalThis.StatStrip = () => null;
-globalThis.StatCell = () => null;
-globalThis.TlMedia = () => null;
-globalThis.EmptyState = () => null;
-globalThis.FailedRead = () => null;
-globalThis.CONVERSATIONS_DATA = { CONVERSATIONS: [], CV_CHANNELS: [] };
-await import("../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const inChannel = globalThis.window.CV_IN_CHANNEL;
+// The two rules as the app publishes them for the pages that read them by name (Ask, the frame's crumbs): the page's own.
+const { CV_IN_CHANNEL: inChannel, CV_ROUTE: route } = INBOX_GLOBALS;
 
 const row = (channel) => ({ channel });
 
 test("REGRESSION: an email row is in the Email tab, whichever spelling the row carries", () => {
-  assert.ok(inChannel, "the page publishes its one membership rule");
+  assert.ok(inChannel, "the surface publishes its one membership rule");
   // The view model's spelling, which matched nothing before.
   assert.equal(inChannel(row("email"), "email"), true);
   // The mockup's, so the seeded build's own Email tab keeps working.
@@ -114,8 +100,7 @@ test("the mockup's grouped tab still groups, because the mockup still uses it", 
 /* -------------------------------------------------------------- the route */
 
 test("REGRESSION: every tab a workspace is given is a filter in the address, never a conversation's id", () => {
-  const route = globalThis.window.CV_ROUTE;
-  assert.ok(route, "the page publishes its one rule for the word after conversations/");
+  assert.ok(route, "the surface publishes its one rule for the word after conversations/");
   // The strip the bridge draws for a workspace on every wire it has. The shell knew only the mockup's three tabs, so
   // WhatsApp and Email opened "whatsapp" and "email" as conversations nobody could find, and the list stayed on All.
   for (const { id } of conversationTabs(true, ["whatsapp", "sms", "email"])) {

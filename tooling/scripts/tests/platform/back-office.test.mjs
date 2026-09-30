@@ -1070,7 +1070,7 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = globalThis.window.Confirm;
+globalThis.Confirm = kitPages.Confirm;
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.

@@ -7,11 +7,28 @@
  * always did, as `Icon`, `EmptyState`, `FailedRead` and `SegmentBar` on `window`: this is that line, and it is deleted
  * with the last page that reads a name. The app publishes it from seed-globals.ts, before any page loads; the standalone
  * mockup gets the same object from a bundle its server builds (tooling/scripts/serve-legacy.mjs, `data/kit-globals.js`).
+ * The state pill, the confirm, the more menu, the policy chip and a thread's media (`StatePill`, `Confirm`, `MoreMenu`,
+ * `PolicyChip`, `TlMedia`: data-bits.jsx's too) moved when the Inbox needed them in TSX, and are published the same way.
  *
  * Nothing here is behaviour: it is the kit's own components, and a page draws them exactly as it drew the old ones.
  */
 import { SegmentBar } from "./charts/card";
+import { Confirm } from "./confirm/confirm";
 import { EmptyState, FailedRead } from "./empty/empty";
 import { Icon } from "./icon/icon";
+import { TlMedia } from "./media/tl-media";
+import { MoreMenu } from "./more-menu/more-menu";
+import { StatePill } from "./pill/state-pill";
+import { PolicyChip } from "./policy-chip/policy-chip";
 
-export const KIT_GLOBALS = { Icon, EmptyState, FailedRead, SegmentBar };
+export const KIT_GLOBALS = {
+  Icon,
+  EmptyState,
+  FailedRead,
+  SegmentBar,
+  StatePill,
+  Confirm,
+  MoreMenu,
+  PolicyChip,
+  TlMedia,
+};

@@ -147,11 +147,7 @@
     "jsx-a11y-x/no-noninteractive-element-interactions": 1
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
-    "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/media-has-caption": 2,
-    "jsx-a11y-x/no-autofocus": 1,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
+    "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/no-static-element-interactions": 1
   },
   "apps/dashboard/src/legacy/components/deal-sheet.jsx": {
@@ -241,24 +237,12 @@
     "jsx-a11y-x/no-autofocus": 3,
     "react-hooks/exhaustive-deps": 3
   },
-  "apps/dashboard/src/legacy/pages/conversations.jsx": {
-    "react-hooks/exhaustive-deps": 5
-  },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx": {
     "jsx-a11y-x/label-has-associated-control": 1,
     "react-hooks/exhaustive-deps": 5
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/media-has-caption": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox.jsx": {
-    "react-hooks/exhaustive-deps": 4
   },
   "apps/dashboard/src/legacy/pages/integrations-real.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1

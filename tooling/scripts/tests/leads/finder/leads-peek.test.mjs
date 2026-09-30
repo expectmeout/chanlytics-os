@@ -23,6 +23,7 @@ import {
   leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitHooks, kitPages } from "../../_legacy-react.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -104,6 +105,9 @@ await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx"
 globalThis.Icon = globalThis.window.Icon = (
   await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx")
 ).Icon;
+// The pill, the menu and the question are the kit's (surfaces/kit), which seed-globals publishes on the window.
+Object.assign(globalThis.window, kitPages);
+kitHooks();
 globalThis.StatePill = globalThis.window.StatePill;
 // Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
 globalThis.MoreMenu = globalThis.window.MoreMenu;

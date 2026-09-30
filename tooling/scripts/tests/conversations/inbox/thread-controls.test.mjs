@@ -9,7 +9,7 @@
  *
  * Run against the page on a stub React, never read from it.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   toInboxThreadVM,
@@ -23,14 +23,14 @@ import {
   stepDayOf,
   zoneDayKey,
 } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, unmount, quiet, redrawWanted } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
-globalThis.window = {
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -54,96 +54,22 @@ globalThis.window = {
   __href: (route, p) => `${route}|${p.id}`,
   canDo: () => true,
   gate: () => ({}),
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-// The bridge's hook (surface-status.ts), as a record of the surfaces a page names: what moves a named surface, and so
-// draws the page again, is proved in shell/surfaces.
-const namedSurfaces = new Set();
-globalThis.useSurface = (names) => {
-  for (const k of [names].flat()) namedSurfaces.add(k);
-  return 0;
-};
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxThread, MoreMenu } = globalThis.window;
+const S = "../../../../../apps/dashboard/src/surfaces";
+const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
+const { MoreMenu } = await import(`${S}/kit/more-menu/more-menu.tsx`);
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+// The seam's own signal, on the module the header hears it from: a surface's rows landed.
+const { surfaceMoved: surfaceLanded } =
+  await import("../../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
+after(() => setSurfaceValue("inbox", undefined));
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -208,9 +134,10 @@ const conv = (over = {}) => ({
 });
 const asked = { id: "e1", reason: "human_token", details: null, state: "open", created_at: at(40) };
 const labels = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+// A new tree each time: the one before it goes away, as React unmounts it, and its effects are let go.
 const draw = (vm, props = {}) => {
-  cells = [];
-  frames.begin();
+  unmount();
+  fresh();
   return InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {}, ...props });
 };
 
@@ -268,8 +195,7 @@ test("a group with nothing in it takes no divider with it", () => {
 });
 
 test("the menu draws a hint as one short word at the item's end, apart from the meta line", () => {
-  cells = [];
-  frames.begin();
+  fresh();
   let tree = MoreMenu({
     items: [
       { label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick() {} },
@@ -277,13 +203,14 @@ test("the menu draws a hint as one short word at the item's end, apart from the 
     ],
   });
   find(tree, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props.onClick({ stopPropagation() {} });
-  frames.begin();
-  tree = MoreMenu({
-    items: [
-      { label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick() {} },
-      { label: "Find new ones", meta: "Only places not already in your leads count", onClick() {} },
-    ],
-  });
+  tree = again(() =>
+    MoreMenu({
+      items: [
+        { label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick() {} },
+        { label: "Find new ones", meta: "Only places not already in your leads count", onClick() {} },
+      ],
+    }),
+  );
   const hint = find(tree, hasClass("more-item-hint"));
   assert.equal(textOf(hint), "until tomorrow 10:00");
   assert.equal(
@@ -345,10 +272,11 @@ test("beside the wires, the person's next visit from People -- or their last -- 
     delete globalThis.window.__PEOPLE;
   }
   assert.ok(!chip(draw(vm)), "People not read yet: no chip");
-  // Drawn before People landed, it names People's surface, so it is drawn again and shows the chip then.
-  namedSurfaces.clear();
+  // Drawn before People landed, it hears People's surface, so it is drawn again and shows the chip then.
   draw(vm);
-  assert.ok(namedSurfaces.has("people"), "the header redraws when People lands");
+  quiet();
+  surfaceLanded("people");
+  assert.ok(redrawWanted(), "the header redraws when People lands");
 });
 
 test("REGRESSION: who the thread is with opens their page -- the face, the name and the line under it are one link; Actions › Open profile was the only way there", () => {
@@ -473,7 +401,14 @@ const closedConv = (over = {}) =>
   conv({ last_wa_inbound_at: at(2 * DAY), last_message_at: at(2 * DAY), messages: [m("m1", 2 * DAY)], ...over });
 
 test("the bar under the header says where the conversation stands and that the window has closed, once; the reply box is only the send that works", () => {
-  globalThis.window.__TEMPLATES = [];
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    THREADS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: { doneThisWeek: 0 },
+    templates: [],
+  });
   try {
     const tree = draw(toInboxThreadVM(closedConv(), asked, ZONE, NOW));
     const bar = find(tree, byTestId("ix-th-bar"));
@@ -487,8 +422,9 @@ test("the bar under the header says where the conversation stands and that the w
     assert.equal(textOf(find(bar, byTestId("ix-th-window"))), "Window closed");
     assert.equal(find(bar, byTestId("ix-th-window-why")), undefined, "why, not until it is asked");
     find(bar, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-    frames.begin();
-    const opened = InboxThread({ thread: toInboxThreadVM(closedConv(), asked, ZONE, NOW), channelLabels: labels });
+    const opened = again(() =>
+      InboxThread({ thread: toInboxThreadVM(closedConv(), asked, ZONE, NOW), channelLabels: labels }),
+    );
     assert.equal(
       textOf(find(opened, byTestId("ix-th-window-why"))),
       "The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only.",
@@ -504,7 +440,7 @@ test("the bar under the header says where the conversation stands and that the w
     assert.equal(textOf(opened).split("24-hour").length - 1, 1, "the window is said once, where it was asked for");
     assert.match(textOf(box), /^No approved template yet — nothing can be sent until one is\.$/);
   } finally {
-    delete globalThis.window.__TEMPLATES;
+    setSurfaceValue("inbox", undefined);
   }
 });
 
@@ -644,10 +580,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
       return true;
     },
   });
-  const redraw = () => {
-    frames.begin();
-    return InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} });
-  };
+  const redraw = () => again(() => InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {} }));
   try {
     w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(-2) }] };
     let tree = draw(vm);
@@ -845,12 +778,13 @@ test("a message that arrives while the thread is open rises into place; the ones
   const opened = draw(toInboxThreadVM(conv({ messages: two }), asked, ZONE, NOW));
   assert.equal(all(opened, hasClass("tl-arrived")).length, 0, "opening a thread animates none of it");
   // The same thread, drawn again with one more message, over the same hook state: as React draws it after a read.
-  frames.begin();
-  const more = InboxThread({
-    thread: toInboxThreadVM(conv({ messages: [...two, m("m3", 1, { body: "Or Saturday?" })] }), asked, ZONE, NOW),
-    channelLabels: labels,
-    onArchive: () => {},
-  });
+  const more = again(() =>
+    InboxThread({
+      thread: toInboxThreadVM(conv({ messages: [...two, m("m3", 1, { body: "Or Saturday?" })] }), asked, ZONE, NOW),
+      channelLabels: labels,
+      onArchive: () => {},
+    }),
+  );
   const risen = all(more, hasClass("tl-arrived"));
   assert.equal(risen.length, 1, "only the one that arrived");
   assert.equal(risen[0].props["data-mid"], "m3");

@@ -35,7 +35,7 @@ import {
 import { type SurfaceOverride, workspaceOverride } from "../surface-data";
 import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
 import { onlyOnItsPage } from "../surface-registry";
-import type { TemplateDto } from "./inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { everyPerson, viewerId } from "./people";
 
 /* ------------------------------ Broadcasts ------------------------------- */

@@ -1,12 +1,25 @@
 /**
  * The Inbox by channel and by reason: a caller with no WhatsApp thread gets
  * phone verbs, the banner says the reason's own sentence, and Conversations'
- * pills say what they mean.
+ * pills say what they mean. The thread and the pills are the TSX surface's (surfaces/inbox), drawn on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, contactMeta, emailLeftOutOf } from "@chanlytics/contracts";
+import { toInboxThreadVM, contactMeta, emailLeftOutOf, stateOf, memberWords } from "@chanlytics/contracts";
 import { readCode } from "../../_source.mjs";
+import { installLegacyReact, fresh, find, textOf } from "../../_legacy-react.mjs";
+
+installLegacyReact({
+  __chrome: { state: stateOf },
+  __identity: { member: memberWords },
+  __surfaceState: () => "live",
+  __DEMO_MODE: false,
+});
+Object.assign(globalThis, { CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } } });
+const S = "../../../../../apps/dashboard/src";
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { StatePill } = await import(`${S}/surfaces/kit/pill/state-pill.tsx`);
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -220,35 +233,87 @@ test("an email thread: email is the channel, its words carry their subject line,
 });
 
 test("the wiring: the page branches on the channel and reads the reason's sentence; the pills say what they mean", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  for (const s of [
-    '<StatePill kind="thread" value="escalated" />',
-    "says={thread.summary}",
-    "Call back",
-    'aria-label="Nothing needed — hand it back to the receptionist"',
-    "thread.hasChat === false",
-    'data-testid="ix-call-back"',
-    '`${thread.replyVia || "WhatsApp"} to ${thread.who}…`',
-  ])
-    assert.ok(page.includes(s), s);
+  const labels = { whatsapp: "WhatsApp", phone: "Phone" };
+  const said = (node) => textOf(node);
+  const withClass = (name) => (n) =>
+    String(n.props?.className || "")
+      .split(/\s+/)
+      .includes(name);
+  // A caller with no WhatsApp thread, waiting on a call back: the page draws the reason's sentence and the call, and no reply box.
+  fresh();
+  const phone = InboxThread({ thread: toInboxThreadVM(conv(), callback, ZONE, NOW), channelLabels: labels });
+  assert.ok(
+    find(phone, (n) => n.type === StatePill && n.props.kind === "thread" && n.props.value === "escalated"),
+    "the escalated pill",
+  );
+  assert.ok(said(phone).includes(callback.details), "the reason's own sentence (thread.summary)");
+  assert.ok(said(phone).includes("Call back"), "the call back");
+  assert.ok(
+    find(phone, (n) => n.props?.["data-testid"] === "ix-call-back"),
+    "the call back is a door",
+  );
+  assert.ok(
+    find(phone, (n) => n.props?.["aria-label"] === "Nothing needed — hand it back to the receptionist"),
+    "the hand back says its whole sentence to a screen reader",
+  );
+  const box = find(phone, withClass("ix-composer"));
+  assert.ok(box, "the thread has its send row");
+  assert.equal(
+    find(box, (n) => n.type === "textarea"),
+    null,
+    "no WhatsApp thread (thread.hasChat === false): no free-form reply box",
+  );
+  // A thread that has a chat: the reply box names the wire it sends on and who it is to.
+  const person = { id: "k2", display_name: null, wa_profile_name: null, phone_e164: null, email: "ana@example.com" };
+  const emailed = conv({
+    contact: { ...person, consent: "unknown", dnc: false },
+    messages: [
+      {
+        id: "m3",
+        direction: "inbound",
+        sender: "customer",
+        channel: "email",
+        type: "text",
+        body: "Can you do Saturday at 9?",
+        media: null,
+        status: "received",
+        created_at: "2026-09-06T22:30:00Z",
+        meta: { email: { subject: "Quote for Saturday", message_id: "<q1@customer.example>" } },
+      },
+    ],
+  });
+  fresh();
+  const mail = InboxThread({
+    thread: toInboxThreadVM(emailed, null, ZONE, NOW),
+    channelLabels: { ...labels, email: "Email" },
+  });
+  assert.ok(
+    find(mail, (n) => n.type === "textarea" && n.props.placeholder === "Email to ana@example.com…"),
+    "the reply box's placeholder is the wire and the person",
+  );
   for (const gone of [
     "already sent a holding reply",
     "let the AI resume",
     "Reply as the salon",
-    "Waiting on you{thread.waitingMin",
+    "Waiting on you",
     "They have only phoned",
     "Call them back",
-  ])
-    assert.ok(!page.includes(gone), `${gone} is gone`);
-  const pills = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
-  // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.
+  ]) {
+    assert.ok(!said(phone).includes(gone) && !said(mail).includes(gone), `${gone} is gone`);
+  }
+  // The pills: the words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.
+  const pill = (outcome) => OutcomePill({ outcome, channel: "whatsapp" });
   assert.ok(
-    pills.includes('<StatePill kind="thread" value="open" />') &&
-      pills.includes('<StatePill kind="thread" value="escalated" />') &&
-      !pills.includes("Customer's turn"),
+    pill("open").type === StatePill &&
+      pill("open").props.kind === "thread" &&
+      pill("open").props.value === "open" &&
+      pill("escalated").type === StatePill &&
+      pill("escalated").props.kind === "thread" &&
+      pill("escalated").props.value === "escalated" &&
+      !said(pill("open")).includes("Customer's turn"),
   );
   assert.ok(
-    /whatsapp: "WhatsApp",\s*phone: "Phone"/.test(readCode("apps/dashboard/src/legacy-bridge/surfaces/inbox.ts")),
+    /whatsapp: "WhatsApp",\s*phone: "Phone"/.test(readCode("apps/dashboard/src/surfaces/inbox/surface.ts")),
     "the phone chip has a label",
   );
 });

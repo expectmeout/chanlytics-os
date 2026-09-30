@@ -9,7 +9,7 @@
  * reply.
  *
  * Run against contracts, and the sheet itself on the stub React, through the real couriers (people-detail.ts,
- * inbox-verbs.ts, thread-pane.jsx threadVerbs) over a stubbed wire. Nothing here reads a source file.
+ * inbox-verbs.ts, surfaces/inbox/thread/thread-verbs.tsx threadVerbs over verbs.ts) over a stubbed wire. Nothing here reads a source file.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -955,7 +955,8 @@ const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 for (const f of ["record-row", "record-field", "record-fold", "record-sheet", "deal-sheet"])
   await import(`${L}/components/${f}.jsx`);
-await import(`${L}/pages/thread-pane.jsx`);
+// The Inbox's reply courier, which the app publishes for the sheet (seed-globals, from surfaces/inbox/thread/thread-verbs.tsx).
+W.threadVerbs = (await import("../../../../apps/dashboard/src/surfaces/inbox/thread/thread-verbs.tsx")).threadVerbs;
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};

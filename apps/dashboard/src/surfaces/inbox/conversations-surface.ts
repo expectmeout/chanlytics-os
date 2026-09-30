@@ -1,17 +1,20 @@
 /**
- * Slice 1: the Conversations surface flips to real data. Fetch → map through
- * the contracts viewmodel → swap the SAME global the surface reads → dispatch
- * its refresh event. Siblings keep their seeds. Realtime message inserts
- * re-run this apply (debounced in the bridge).
+ * Slice 1: the Conversations surface flips to real data (moved from legacy-bridge/surfaces/conversations.ts, decision
+ * 0015). Fetch → map through the contracts viewmodel → publish the surface's value → dispatch its refresh event.
+ * Siblings keep their seeds. Realtime message inserts re-run this apply (debounced in the bridge).
  *
- * Also the tab strip Conversations draws, one tab per wire. Part of the
- * SurfaceData seam (../surface-data.ts).
+ * Also the tab strip Conversations draws, one tab per wire. Part of the SurfaceData seam (legacy-bridge/surface-data.ts);
+ * the page reads what it publishes through `useSurface("conversations")`.
  */
-
-import { read } from "../api";
-import { workspaceZone } from "../zone";
+import { read } from "@/legacy-bridge/api";
+import { workspaceZone } from "@/legacy-bridge/zone";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { toConversationVM, toCallVM } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "../surface-data";
+import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import type { ConversationRow } from "./types";
+
+// The pages that have not moved (a person's profile, Ask) still read this under its old name.
+declareSurfaceValue("conversations", "CONVERSATIONS_DATA");
 
 /**
  * The written wires a conversation can be on, in the words the page already
@@ -50,7 +53,7 @@ export function conversationTabs(
 
 export const conversationsOverride: SurfaceOverride = {
   key: "conversations",
-  globals: ["CONVERSATIONS_DATA"],
+  value: "conversations",
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
   apply: async () => {
@@ -59,14 +62,11 @@ export const conversationsOverride: SurfaceOverride = {
       read("GET calls").catch((e: unknown) => e as Error),
       workspaceZone(),
     ]);
-    const w = window as unknown as {
-      CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[]; CALLS_READ: boolean };
-    };
     // Calls get their OWN rows: a thread answers "am I on the hook to reply",
     // a call answers "is my AI saying the right things on the phone" — the
     // second is a transcript plus audio that cannot live in a chat bubble.
     // The call row carries no decision affordance; the Inbox owns "needs you".
-    let callRows: unknown[] = [];
+    let callRows: ConversationRow[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
       callRows = callsRes.calls.map((c) => toCallVM(c, tz));
@@ -77,12 +77,10 @@ export const conversationsOverride: SurfaceOverride = {
     // rows; a chat row for them would preview a call that is already on screen.
     const threads = data.conversations.map((c) => toConversationVM(c, tz)).filter((t) => t.hasChat);
     // Newest first by REAL timestamp. The previous sort localeCompare'd the
-    // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at
-    // all — a message sent this morning listed below yesterday's calls.
-    const merged = [...threads, ...callRows].sort(
-      (a, b) => ((b as { ts?: number }).ts ?? 0) - ((a as { ts?: number }).ts ?? 0),
-    );
-    w.CONVERSATIONS_DATA = {
+    // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at all
+    // — a message sent this morning listed below yesterday's calls.
+    const merged: ConversationRow[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+    setSurfaceValue("conversations", {
       CONVERSATIONS: merged,
       // A calls read that failed is its own state: the page says so instead
       // of listing no calls (the audit's D9 family).
@@ -91,6 +89,6 @@ export const conversationsOverride: SurfaceOverride = {
         callRows.length > 0,
         threads.map((t) => t.channel),
       ),
-    };
+    });
   },
 };

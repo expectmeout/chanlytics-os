@@ -22,7 +22,7 @@ import { read } from "../api";
 import { pageClock, workspaceZone } from "../zone";
 import type { PoliciesSurface } from "../policy-store";
 import type { SurfaceOverride } from "../surface-data";
-import type { TemplateDto } from "./inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 
 /**
  * Settings · Workspace — the business's own facts, and who is on the team.

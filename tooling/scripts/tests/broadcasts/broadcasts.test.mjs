@@ -680,8 +680,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
       vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`a broadcast (${entry.via.name})`") &&
-      readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"),
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`a broadcast (${entry.via.name})`") &&
+      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
     "the thread says which broadcast, or which playbook",
   );
   assert.ok(

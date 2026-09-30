@@ -329,61 +329,6 @@
     "branches": 44,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
-    "lines": 410,
-    "branches": 58,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList/map(fn)#6": {
-    "lines": 111,
-    "branches": 50,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
-    "lines": 214,
-    "branches": 27,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ApprovalCard#1": {
-    "lines": 162,
-    "branches": 23,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::Composer#1": {
-    "lines": 228,
-    "branches": 37,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::InboxThread#1": {
-    "lines": 117,
-    "branches": 56,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TemplateSendButton#1": {
-    "lines": 93,
-    "branches": 44,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadCall#1": {
-    "lines": 183,
-    "branches": 64,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadHeader#1": {
-    "lines": 176,
-    "branches": 71,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadStatus#1": {
-    "lines": 153,
-    "branches": 47,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TlMsgEntry#1": {
-    "lines": 67,
-    "branches": 39,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy/pages/integrations-real.jsx::ConnectionRow#1": {
     "lines": 61,
     "branches": 53,

@@ -36,6 +36,19 @@ const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "ut
 // still names the two pages it draws outside the table (shared, start) and the family it fades (clients).
 const routes = fs.readFileSync(path.join(DASH, "legacy/pages/app-routes.jsx"), "utf8");
 
+/** A route's App Router page: `<route>/page.tsx`, or under an optional catch-all (`<route>/[[...thread]]/page.tsx`) where the route takes an address under it. */
+function pageFileOf(route) {
+  const dir = path.join(WORKSPACE_APP, route);
+  if (fs.existsSync(path.join(dir, "page.tsx"))) return true;
+  if (!fs.existsSync(dir)) return false;
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .some(
+      (e) =>
+        e.isDirectory() && /^\[\[\.\.\.[a-z]+\]\]$/.test(e.name) && fs.existsSync(path.join(dir, e.name, "page.tsx")),
+    );
+}
+
 /**
  * Every page key the shell's router matches on, the retired pages it routes by their move (surfaceRetiredTo), and the
  * routes that have left the shell, which the frame draws around an App Router page (surfaces/routes.ts).
@@ -71,23 +84,23 @@ test("a route with an App Router page has no row in app-routes.jsx, and a page h
   // draws no chrome around.
   for (const route of Object.keys(SURFACE_ROUTES)) {
     assert.ok(
-      fs.existsSync(path.join(WORKSPACE_APP, route, "page.tsx")),
-      `${route} is in SURFACE_ROUTES and has no app/(os)/w/[workspace]/${route}/page.tsx`,
+      pageFileOf(route),
+      `${route} is in SURFACE_ROUTES and has no app/(os)/w/[workspace]/${route}/page.tsx (or, for a route that takes an address under it, ${route}/[[...x]]/page.tsx)`,
     );
     assert.ok(
       !new RegExp(`page: "${route}"`).test(routes),
       `${route} has an App Router page and still a row in app-routes.jsx`,
     );
     assert.ok(
-      routeHasPage(route) && !routeHasPage(`${route}/x`),
-      "the route alone is the page, not an address under it",
+      routeHasPage(route) && routeHasPage(`${route}/x`) === (SURFACE_ROUTES[route].params === true),
+      "the route alone is the page, and an address under it only where the route takes one",
     );
   }
   const pages = fs
     .readdirSync(WORKSPACE_APP, { withFileTypes: true })
     .filter((e) => e.isDirectory() && !e.name.startsWith("["))
     .map((e) => e.name)
-    .filter((name) => fs.existsSync(path.join(WORKSPACE_APP, name, "page.tsx")))
+    .filter((name) => pageFileOf(name))
     .sort();
   assert.deepEqual(
     pages,

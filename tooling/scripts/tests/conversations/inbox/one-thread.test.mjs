@@ -9,18 +9,19 @@
  *
  * Run against the pages on a stub React, never read from them.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, memberWords, toInboxThreadVM, toConversationVM, toCallVM } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, settle } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 
 /* -------------------------------- a browser -------------------------------- */
 
-const listeners = {};
-globalThis.window = {
+const went = [];
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+const realFetch = globalThis.fetch;
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -43,105 +44,91 @@ globalThis.window = {
   __DEMO_MODE: false,
   canDo: () => true,
   gate: () => ({}),
-  addEventListener(name, fn) {
-    (listeners[name] = listeners[name] || []).push(fn);
-  },
-  removeEventListener(name, fn) {
-    listeners[name] = (listeners[name] || []).filter((f) => f !== fn);
-  },
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-const went = [];
-const fire = (name) => {
-  for (const fn of listeners[name] ?? []) fn();
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+const realConsoleError = console.error;
+console.error = () => {};
+after(() => {
+  Object.assign(globalThis, timers, { fetch: realFetch });
+  console.error = realConsoleError;
+});
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-// The call's card, which Conversations draws for a call no thread holds.
-globalThis.ThreadCall = globalThis.window.ThreadCall;
-await import("../../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const RealInboxThread = globalThis.window.InboxThread;
-globalThis.InboxThread = RealInboxThread;
-const { ThreadPane } = globalThis.window;
+const S = "../../../../../apps/dashboard/src";
+const { ThreadPane } = await import(`${S}/surfaces/inbox/thread/thread-pane.tsx`);
+const { threadVerbs } = await import(`${S}/surfaces/inbox/thread/thread-verbs.tsx`);
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+const { ixHeld } = await import(`${S}/surfaces/inbox/rules.ts`);
+const { OWN_VERBS, VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
+const { MoreMenu } = await import(`${S}/surfaces/kit/more-menu/more-menu.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
+// The courier reads the surfaces again behind a write (refresh-map.ts), loaded on the first one: loaded here, so it is there.
+await import(`${S}/legacy-bridge/refresh-map.ts`);
+// The runner the re-read goes through; it boots nothing.
+const stopRunner = startSurfaces([], () => () => {});
+after(() => {
+  stopRunner();
+  setSurfaceValue("inbox", undefined);
+  setSurfaceValue("conversations", undefined);
+});
+
+/* ------------------- the server: the requests the verbs make, over a fetch this test holds ------------------- */
+
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/** The writes asked, the answer each gets, and the reads the surfaces make behind them (held, when the test says). */
+const wire = {
+  writes: [],
+  held: [],
+  hold: false,
+  /** What a write answers, given its method, path and body: a Response, or nothing for the plain 200. */
+  write: null,
+  /** Called as a write arrives, before it is answered. */
+  onWrite: null,
+  /** What the accepted write's `data` says. */
+  data: () => ({}),
+  reset() {
+    this.writes.length = 0;
+    this.held.length = 0;
+    this.hold = false;
+    this.write = null;
+    this.onWrite = null;
+    this.data = () => ({});
+  },
+};
+globalThis.fetch = async (url, init = {}) => {
+  const u = new URL(String(url), "https://app.test");
+  const method = init.method ?? "GET";
+  if (method === "GET") {
+    if (wire.hold) return new Promise((res) => wire.held.push(res));
+    return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
+  }
+  const body = init.body ? JSON.parse(init.body) : undefined;
+  wire.writes.push([method, u.pathname, body]);
+  wire.onWrite?.(method, u.pathname, body);
+  const answer = wire.write?.(method, u.pathname, body);
+  return answer ?? json(200, { ok: true, data: wire.data(u.pathname) });
+};
+/** The surfaces read behind a write land (as answers that say nothing new), and every read after is answered at once. */
+const reread = () => {
+  wire.hold = false;
+  for (const res of wire.held.splice(0))
+    res(json(500, { ok: false, error: { code: "internal", message: "not read here" } }));
+};
+/** Wait, in turns of the event loop, for what the code under test does behind an await; false if it never came. */
+const until = async (cond, turns = 5000) => {
+  for (let i = 0; i < turns && !cond(); i++) await settle();
+  return cond();
+};
+/** A request's route as the conversation it names and the verb it asks: `[id, "take-over"]`. */
+const verbOf = (path) => path.split("/").slice(-2);
+
+/* --------------------------------- the pages --------------------------------- */
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -161,6 +148,7 @@ const find = (tree, pred) => {
   return hit;
 };
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
+const fire = (name) => globalThis.dispatchEvent(new Event(name));
 
 // A real thread as the Inbox's read hands it over (toInboxThreadVM's shape, the fields the pane reads).
 const rosa = {
@@ -179,29 +167,36 @@ const rosa = {
   timeline: [],
   primaryChannel: "whatsapp",
 };
+// The Inbox's read, as the surface publishes it (INBOX_DATA to the shell): the threads, and the words for the channels.
 const store = (...threads) => {
-  globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    THREADS: threads,
+    CHANNEL_LABELS: { whatsapp: "WhatsApp" },
+    INBOX_BASELINE: { doneThisWeek: 0 },
+  });
 };
-// The pane drawn alone, by the id a Conversations row carries; what it hands InboxThread is caught.
+// The pane drawn alone, by the id a Conversations row carries; what it hands InboxThread is caught: the element is
+// asked for, its props kept, and nothing is drawn in its place.
 const drawn = [];
+let catching = false;
+const drawElement = globalThis.React.createElement;
+globalThis.React.createElement = (type, p, ...kids) => {
+  if (catching && type === InboxThread) {
+    drawn.push({ ...(p || {}) });
+    return null;
+  }
+  return drawElement(type, p, ...kids);
+};
 const catchPane = () => {
   drawn.length = 0;
-  globalThis.InboxThread = (p) => {
-    drawn.push(p);
-    return null;
-  };
+  catching = true;
 };
 const releasePane = () => {
-  globalThis.InboxThread = RealInboxThread;
+  catching = false;
 };
-const pane = (props = {}) => {
-  frames.begin();
-  return ThreadPane({ threadId: "th-rosa", ...props });
-};
-const fresh = () => {
-  cells = [];
-  for (const k of Object.keys(listeners)) delete listeners[k];
-};
+const pane = (props = {}) => again(() => ThreadPane({ threadId: "th-rosa", ...props }));
 
 /* --------------------------------- the pane --------------------------------- */
 
@@ -221,27 +216,32 @@ test("its verbs reach the server with that thread -- the same verbs, from wherev
   fresh();
   catchPane();
   store(rosa);
-  const calls = [];
-  globalThis.window.__inboxVerb = async (t, verb) => {
-    calls.push([t.id, verb]);
-    return { ok: true, data: {} };
-  };
+  wire.reset();
   try {
     pane();
     const p = drawn.at(-1);
+    // One at a time: the snooze reads the workspace's zone before it asks, and the order asked is what is proved.
     p.onTakeOver("th-rosa");
+    await until(() => wire.writes.length === 1);
     p.onSnooze("th-rosa");
+    await until(() => wire.writes.length === 2);
     p.onArchive("th-rosa");
+    await until(() => wire.writes.length === 3);
     const sent = await p.onSend("th-rosa", "See you Friday!");
-    assert.deepEqual(calls, [
-      ["th-rosa", "take-over"],
-      ["th-rosa", "snooze"],
-      ["th-rosa", "archive"],
-      ["th-rosa", "reply"],
-    ]);
+    // The request names the thread by its conversation, as the route does (th-rosa is conversation c1).
+    assert.deepEqual(
+      wire.writes.map(([method, path]) => [method, ...verbOf(path)]),
+      [
+        ["POST", "c1", "take-over"],
+        ["POST", "c1", "snooze"],
+        ["POST", "c1", "archive"],
+        ["POST", "c1", "reply"],
+      ],
+    );
+    assert.deepEqual(wire.writes.at(-1)[2], { text: "See you Friday!" }, "the words the reply box sent");
     assert.equal(sent, true, "the reply box is told the server took it");
   } finally {
-    delete globalThis.window.__inboxVerb;
+    await until(() => OWN_VERBS.n === 0);
     releasePane();
   }
 });
@@ -263,6 +263,7 @@ test("a re-read that moves the thread says so on the pane; your own act does not
   fresh();
   catchPane();
   store(rosa);
+  wire.reset();
   try {
     pane();
     // A teammate handed Rosa back: the next read has her in Handled.
@@ -276,17 +277,16 @@ test("a re-read that moves the thread says so on the pane; your own act does not
     drawn.length = 0;
     store(rosa);
     pane();
-    globalThis.window.__inboxVerb = async () => {
+    wire.onWrite = () => {
       store({ ...rosa, state: "done", needsYou: false, archived: true });
       fire("surface:inbox");
-      return { ok: true, data: {} };
     };
     drawn.at(-1).onArchive("th-rosa");
-    await new Promise((r) => setTimeout(r, 0));
+    await until(() => OWN_VERBS.n === 0);
     pane();
     assert.equal(drawn.at(-1).notice, null, "REGRESSION: the pane announced your own act to you");
   } finally {
-    delete globalThis.window.__inboxVerb;
+    wire.reset();
     releasePane();
   }
 });
@@ -295,19 +295,11 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
   // The loading standard's D, the Inbox's way: the server owns the thread, so the pane still repaints from the
   // re-read, but the toast waited for write + three surfaces read (~900ms) before saying anything. It comes at
   // acceptance now; the act stays "yours" until the re-read lands, so the pane does not announce it to you.
-  const { threadVerbs } = globalThis.window;
   const said = [];
   const { verb } = threadVerbs((m) => said.push(m));
-  let reread = () => {};
-  const asked = [];
-  globalThis.window.__inboxVerb = async (_t, name, _payload, opts = {}) => {
-    asked.push([name, typeof opts.onAccepted]);
-    if (opts.onAccepted) opts.onAccepted(); // the door answered 2xx
-    await new Promise((r) => {
-      reread = r;
-    }); // the surfaces are read again, behind
-    return { ok: true, data: { message_id: name === "reply" ? "m-1" : undefined } };
-  };
+  wire.reset();
+  wire.hold = true; // the surfaces are read again, behind: held until the test lets them land
+  wire.data = (path) => ({ message_id: path.endsWith("/reply") ? "m-1" : undefined });
   try {
     for (const [name, words] of [
       ["snooze", "snoozed until tomorrow 10:00"],
@@ -317,8 +309,11 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
       ["wake", "awake"],
     ]) {
       said.length = 0;
+      wire.held.length = 0;
       const done = verb(rosa, name, {}, words);
-      await new Promise((r) => setTimeout(r, 0));
+      // The door answered 2xx and the surfaces are being read again: the re-read is out, and not yet landed.
+      assert.ok(await until(() => wire.held.length > 0), `${name}: the re-read is asked for`);
+      assert.deepEqual(verbOf(wire.writes.at(-1)[1]), ["c1", name]);
       assert.equal(said.length, 1, `${name}: said at acceptance, before the re-read landed`);
       assert.match(
         String(
@@ -328,34 +323,38 @@ test("a snooze, an archive or a take-over is said the moment the server takes it
         ),
         new RegExp(words.split(" ")[0]),
       );
-      assert.ok(globalThis.window.__threadOwnVerbs.n > 0, "and still your own act while its re-read is out");
+      assert.ok(OWN_VERBS.n > 0, "and still your own act while its re-read is out");
       reread();
       assert.equal(await done, true);
       assert.equal(said.length, 1, "said once, not again when the re-read lands");
+      wire.hold = true;
     }
     // A reply's toast carries the receipt (its Undo window), so it still waits for the server's answer.
     said.length = 0;
+    wire.held.length = 0;
     const sending = verb(rosa, "reply", { text: "See you Friday!" }, "reply on its way", true);
-    await new Promise((r) => setTimeout(r, 0));
+    assert.ok(await until(() => wire.held.length > 0), "the re-read of a reply is asked for");
     assert.equal(said.length, 0, "a reply is said with its receipt");
     reread();
     await sending;
     assert.equal(said.length, 1);
-    assert.deepEqual(asked.at(-1), ["reply", "undefined"]);
+    assert.deepEqual(
+      [verbOf(wire.writes.at(-1)[1]), wire.writes.at(-1)[2]],
+      [["c1", "reply"], { text: "See you Friday!" }],
+      "and it is the reply that was asked for, with nothing said of it before its answer",
+    );
   } finally {
-    delete globalThis.window.__inboxVerb;
+    reread();
+    wire.reset();
   }
 });
 
 test("a refused act says the refusal once, and never that it happened", async () => {
-  const { threadVerbs } = globalThis.window;
   const said = [];
   const { verb } = threadVerbs((m) => said.push(m));
-  globalThis.window.__inboxVerb = async () => ({
-    ok: false,
-    code: "conflict",
-    message: "A teammate has this conversation now.",
-  });
+  wire.reset();
+  wire.write = () =>
+    json(409, { ok: false, error: { code: "conflict", message: "A teammate has this conversation now." } });
   try {
     assert.equal(await verb(rosa, "take-over", undefined, "you have it"), false);
     assert.deepEqual(
@@ -363,7 +362,7 @@ test("a refused act says the refusal once, and never that it happened", async ()
       ["danger"],
     );
   } finally {
-    delete globalThis.window.__inboxVerb;
+    wire.reset();
   }
 });
 
@@ -371,41 +370,34 @@ test("a refused act says the refusal once, and never that it happened", async ()
 
 // Moved here from veto-ui.test.mjs, where it read inbox.jsx as a string: the hold is a function now, so it is run.
 test("a draft's Hold and your first keystroke both withdraw it on the server; a withdrawal that failed claims no hold", async () => {
-  const { threadVerbs, ixHeld } = globalThis.window;
   const said = [];
   const { hold } = threadVerbs((m) => said.push(m));
-  globalThis.window.VW_STORE = { state: {} };
-  const asked = [];
-  globalThis.window.__cancelSend = async (id) => {
-    asked.push(id);
-    return { ok: true };
-  };
+  VW_STORE.state = {};
+  wire.reset();
+  // The draft each cancel-send names: the ids asked, in order.
+  const asked = () => wire.writes.map(([, path]) => path.split("/").at(-2));
   const draft = (messageId) => ({ ...rosa, veto: { messageId, endsAtMs: Date.now() + 20_000, draft: "See you at 3" } });
   const a = draft("m-hold");
   const b = draft("m-type");
   try {
     hold(a, "hold");
     hold(b, "type");
-    await new Promise((r) => setTimeout(r, 0));
-    assert.deepEqual(asked, ["m-hold", "m-type"], "both went to the server, each for its own draft");
-    assert.ok(ixHeld(globalThis.window.VW_STORE.state, a) && ixHeld(globalThis.window.VW_STORE.state, b));
+    await until(() => said.length === 2); // each says it was held, once the server took it
+    assert.deepEqual(asked(), ["m-hold", "m-type"], "both went to the server, each for its own draft");
+    assert.ok(ixHeld(VW_STORE.state, a) && ixHeld(VW_STORE.state, b));
     hold(a, "hold");
-    assert.equal(asked.length, 2, "a draft already withdrawn is not asked about again");
+    assert.equal(asked().length, 2, "a draft already withdrawn is not asked about again");
 
     // It may already have gone out: the refusal is said, and no hold is claimed.
-    globalThis.window.__cancelSend = async () => ({ ok: false, message: "It had already been sent." });
+    wire.write = () => json(409, { ok: false, error: { code: "conflict", message: "It had already been sent." } });
     const late = draft("m-late");
     hold(late, "hold");
-    assert.ok(ixHeld(globalThis.window.VW_STORE.state, late), "the countdown stops at once");
-    await new Promise((r) => setTimeout(r, 0));
-    assert.equal(
-      ixHeld(globalThis.window.VW_STORE.state, late),
-      false,
-      "REGRESSION: the UI claimed a hold that never happened",
-    );
+    assert.ok(ixHeld(VW_STORE.state, late), "the countdown stops at once");
+    await until(() => !ixHeld(VW_STORE.state, late));
+    assert.equal(ixHeld(VW_STORE.state, late), false, "REGRESSION: the UI claimed a hold that never happened");
     assert.equal(said.at(-1).tone, "danger", "and says the server's refusal");
   } finally {
-    delete globalThis.window.__cancelSend;
+    wire.reset();
   }
 });
 
@@ -466,7 +458,7 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
   fresh();
   releasePane();
   const vm = toInboxThreadVM(convo(), null, ZONE, NOW);
-  globalThis.window.INBOX_DATA = { THREADS: [vm], CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  store(vm);
   globalThis.window.__href = (route, p) => `${route}|${p.id}`;
   const anchors = [];
   const realCreate = globalThis.document.createElement;
@@ -488,9 +480,8 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
     return a;
   };
   try {
-    frames.begin();
-    const tree = ThreadPane({ threadId: vm.id });
-    const menu = find(tree, (n) => n.type === globalThis.MoreMenu);
+    const tree = again(() => ThreadPane({ threadId: vm.id }));
+    const menu = find(tree, (n) => n.type === MoreMenu);
     assert.ok(menu, "the thread has its menu");
     const item = menu.props.items.find((it) => it.label === "Export transcript");
     assert.ok(item, "REGRESSION: Export was a button in Conversations' header only");
@@ -507,7 +498,6 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
 
 /* ------------------------------ Conversations ------------------------------ */
 
-const { ConversationsPage } = globalThis.window;
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
@@ -516,17 +506,14 @@ const textOf = (n) => {
 };
 // Conversations lists a row; the Inbox's read holds the same conversation as a thread -- one GET conversations page.
 const listed = (rows, threads = []) => {
-  globalThis.window.CONVERSATIONS_DATA = {
+  setSurfaceValue("conversations", {
     CONVERSATIONS: rows,
     CV_CHANNELS: [{ id: "all", label: "All" }],
     CALLS_READ: true,
-  };
-  globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
+  });
+  store(...threads);
 };
-const conversations = (props = {}) => {
-  frames.begin();
-  return ConversationsPage({ channel: "all", initialId: null, ...props });
-};
+const conversations = (props = {}) => again(() => ConversationsPage({ channel: "all", initialId: null, ...props }));
 // A call as the calls route returns it: a call record, with no recording stored yet.
 const call = {
   id: "k7",
@@ -562,7 +549,7 @@ test("a conversation row opens the one thread: the pane beside the list is the I
   releasePane();
   listed([toConversationVM(convo(), ZONE, NOW)], [toInboxThreadVM(convo(), null, ZONE, NOW)]);
   const tree = conversations();
-  const thread = find(tree, (n) => n.type === globalThis.InboxThread);
+  const thread = find(tree, (n) => n.type === InboxThread);
   assert.ok(thread, "REGRESSION: Conversations drew its own viewer for a chat");
   assert.equal(thread.props.thread.id, "th-c1", "the row's own thread");
   assert.equal(typeof thread.props.onSend, "function", "with the reply box's verb -- the thread can be answered here");
@@ -623,7 +610,7 @@ test("a call no thread holds opens alone, in the thread's own frame: its header,
   assert.equal(textOf(find(alone, (n) => n.props?.className === "ix-th-meta")), "Phone");
   assert.match(textOf(find(alone, byTestId("tl-call"))), /Wants to book a bridal trial/);
   assert.ok(find(alone, byTestId("ix-back")), "and the phone's Back");
-  const menu = find(alone, (n) => n.type === globalThis.MoreMenu);
+  const menu = find(alone, (n) => n.type === MoreMenu);
   assert.deepEqual(
     menu.props.items.map((it) => it.label),
     ["Open profile"],
@@ -673,7 +660,7 @@ test("a link to a conversation not in view says so where it would have opened, a
   assert.ok(missing, "the reading pane says the conversation isn't here");
   assert.match(textOf(missing), /isn't among the newest shown here/);
   assert.equal(
-    find(tree, (n) => n.type === globalThis.InboxThread),
+    find(tree, (n) => n.type === InboxThread),
     undefined,
     "REGRESSION: another customer's reply box opened in its place",
   );

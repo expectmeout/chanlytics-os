@@ -46,10 +46,12 @@
 
   <!-- Bridge stand-ins (harness only — the bundle publishes these for real) -->
   <script type="text/babel" src="data/bridge-stubs.jsx?v=7"></script>
-  <!-- The kit's components the pages below still draw by name (Icon, EmptyState, FailedRead, SegmentBar): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
-  <script src="data/kit-globals.js?v=1"></script>
+  <!-- The kit's components the pages below still draw by name (Icon, EmptyState, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip, TlMedia): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
+  <script src="data/kit-globals.js?v=2"></script>
   <!-- The demo's Today: legacy-bridge/today-sample.ts through contracts, built by the same server; it installs its surfaces where the app's globals are absent -->
   <script src="data/today-sample.js?v=2"></script>
+  <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou, CV_ROUTE, CV_IN_CHANNEL): surfaces/inbox/legacy-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
+  <script src="data/inbox-globals.js?v=1"></script>
   <!-- The Business tab's helpers: legacy-bridge/business-tab.ts through contracts, built by the same server, the object the app publishes as __businessTab -->
   <script src="data/business-tab.js?v=27"></script>
   <!-- The three: legacy-bridge/mascot built by the same server, the object the app publishes as __mascot, so the mockup's Ask has its face -->
@@ -75,9 +77,7 @@
 
   <!-- Data -->
   <script type="text/babel" src="data/constants.jsx?v=6"></script>
-  <script type="text/babel" src="data/inbox-data.jsx?v=20"></script>
   <script type="text/babel" src="data/clients-data.jsx?v=11"></script>
-  <script type="text/babel" src="data/conversations-data.jsx?v=4"></script>
   <script type="text/babel" src="data/people-data.jsx?v=14"></script>
 
   <!-- Today (Operator's brief — Agent Command primary) -->
@@ -93,14 +93,6 @@
   <script type="text/babel" src="pages/ask-home.jsx?v=6"></script>
   <script type="text/babel" src="pages/ask-real.jsx?v=29"></script>
   <script type="text/babel" src="pages/dashboard-a.jsx?v=18"></script>
-
-  <!-- Inbox -->
-  <script type="text/babel" src="pages/reach-out/reply-strip.jsx?v=1"></script>
-  <script type="text/babel" src="pages/inbox-list.jsx?v=18"></script>
-  <script type="text/babel" src="pages/inbox-thread.jsx?v=47"></script>
-  <script type="text/babel" src="pages/thread-pane.jsx?v=4"></script>
-  <script type="text/babel" src="pages/inbox-rail.jsx?v=11"></script>
-  <script type="text/babel" src="pages/inbox.jsx?v=30"></script>
 
   <!-- People (Triage-first portfolio) -->
   <script type="text/babel" src="pages/clients-bits.jsx?v=1"></script>
@@ -138,7 +130,6 @@
   <script type="text/babel" src="pages/broadcasts-run.jsx?v=2"></script>
   <script type="text/babel" src="pages/broadcasts-ledger.jsx?v=2"></script>
   <script type="text/babel" src="pages/broadcasts.jsx?v=26"></script>
-  <script type="text/babel" src="pages/conversations.jsx?v=23"></script>
   <script type="text/babel" src="pages/live-monitor.jsx?v=9"></script>
   <script type="text/babel" src="pages/calendar.jsx?v=19"></script>
   <script type="text/babel" src="pages/setup.jsx?v=10"></script>

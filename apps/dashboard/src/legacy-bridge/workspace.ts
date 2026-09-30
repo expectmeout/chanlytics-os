@@ -18,7 +18,7 @@
  */
 import { movedAddress, routeOfAddress, routeOfHash, routeOfPath, workspacePath } from "@chanlytics/contracts";
 import type { AddressParts } from "@chanlytics/contracts";
-import { routeHasPage } from "../surfaces/routes";
+import { routeHasPage, staysOnPage } from "../surfaces/routes";
 
 const LAST_KEY = "chanlytics.workspace";
 
@@ -200,7 +200,10 @@ export function setAppRouter(router: AppRouter | null): void {
 export function goToRoute(route: string, opts: GoOptions = {}, win: AddressWindow = window): void {
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
-  if (appRouter && routeHasPage(route) && !to.startsWith("#")) {
+  // A move within one route's page (`inbox/th-1` to `inbox/th-2`) stays on the patched history: the page follows the
+  // address, and a router move would ask the server for it and draw the page again.
+  const within = staysOnPage(routeOnScreen(win), route);
+  if (appRouter && routeHasPage(route) && !within && !to.startsWith("#")) {
     if (opts.replace) appRouter.replace(to);
     else if (here !== to) appRouter.push(to);
   } else if (opts.replace) win.history.replaceState(null, "", to);

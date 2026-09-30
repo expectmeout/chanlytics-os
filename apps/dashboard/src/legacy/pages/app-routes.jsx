@@ -1,4 +1,4 @@
-/* global React, Icon, Inbox, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, ConversationsPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
+/* global React, Icon, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -102,30 +102,9 @@ const ClientNotFound = ({ onNavigate }) => (
 
 // ---- The rows ---------------------------------------------------------------
 // Each takes the route as the shell resolved it (app-shell.jsx routeAt: `page` and `param` as drawn, `retiredTo`,
-// `soonState`) with the shell's doors (`navigate`, `openAsk`, `backToPeople`) and the Inbox's two preferences, and
+// `soonState`) with the shell's doors (`navigate`, `openAsk`, `backToPeople`), and
 // answers what the route draws: `activeNav` (the sidebar item it lights), `crumbs`, `pane` (a surface with its own
 // panes, full-bleed), `primaryAction` (the top bar's act, or null) and `content`.
-
-const drawInbox = ({ param, navigate, inboxDensity, showInboxAgentRail }) => {
-  // The id is passed on even when that thread is not loaded: the Inbox says
-  // it is missing, rather than opening the first thread in its place.
-  const routed = window.ixRouteThread ? window.ixRouteThread(param, window.INBOX_DATA?.THREADS) : { id: param || null, who: null };
-  const threadParam = routed.id;
-  const threadWho = routed.who;
-  return {
-    activeNav: "inbox",
-    crumbs: threadWho ? [{ label: "Inbox", to: "inbox" }, threadWho] : ["Inbox"],
-    pane: true,
-    content: (
-      <Inbox
-        density={inboxDensity}
-        showAgentRail={showInboxAgentRail}
-        initialThreadId={threadParam}
-        onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
-      />
-    ),
-  };
-};
 
 // ---- People's rows: the view they draw in, their crumb, and a row's press ---------------------------------------
 // Every People route lights People in the nav and draws a surface with its own panes (inPeople), names People as its
@@ -323,27 +302,6 @@ const drawLive = ({ param }) => {
   };
 };
 
-const drawConversations = ({ param }) => {
-  // A tab or a row's id, a chat's (its conversation's) or a call's (cv-), by the page's one rule
-  // (conversations.jsx cvRoute). The shell passed cv- ids alone, so a profile linking a chat opened the first
-  // conversation in the list; then it knew only the mockup's three tabs, so a real workspace's WhatsApp and Email
-  // opened a conversation called "whatsapp" that nobody could find. The crumb says a tab in its chip's words.
-  const cvData = window.CONVERSATIONS_DATA || {};
-  const cv = window.CV_ROUTE(param);
-  const cvTab = cv.channel !== "all" && (cvData.CV_CHANNELS || []).find((t) => t.id === cv.channel);
-  const cvWho = cv.id && ((cvData.CONVERSATIONS || []).find(c => c.id === cv.id) || {}).who;
-  return {
-    activeNav: { phone: "calls", chats: "chats", mail: "email" }[cv.channel] || "conversations",
-    crumbs: cvWho
-      ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvWho]
-      : cvTab
-        ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvTab.label]
-        : [{ label: "Inbox", to: "inbox" }, "Conversations"],
-    pane: true,
-    content: <ConversationsPage channel={cv.channel} initialId={cv.id} />,
-  };
-};
-
 const drawDealBoard = ({ openAsk }) => ({
   activeNav: "pipeline",
   crumbs: ["People", "Deal board"],
@@ -509,7 +467,6 @@ const routeGated = (drawn, { page, navigate }) => ({
 // would show the wrong entity, so a row without one costs the improvement, never correctness. People's own views and a
 // person keep their whole route: only the leads and pipeline routes, not an id that starts with the word.
 const SHELL_ROUTES = [
-  { page: "inbox", mount: "inbox", draw: drawInbox },
   { page: "clients", when: (param) => param && /^leads(:|$)/.test(param), mount: "clients/leads", draw: drawLeads },
   { page: "clients", when: (param) => param && /^pipeline(:|$)/.test(param), mount: "clients/pipeline", draw: drawPipeline },
   { page: "clients", when: (param) => param === "new-list", draw: drawNewList },
@@ -523,7 +480,6 @@ const SHELL_ROUTES = [
   { page: "tasks", draw: drawTasks },
   { page: "calendar", draw: drawCalendar },
   { page: "live", mount: "live", draw: drawLive },
-  { page: "conversations", mount: "conversations", draw: drawConversations },
   { page: "pipeline", draw: drawDealBoard },
   { page: "fleet", draw: drawFleet },
   { page: "outbound", draw: drawPlaybooks },
@@ -548,9 +504,12 @@ const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
   // A route that has left the shell (an App Router page, src/surfaces/routes.ts) has no row: the frame draws its chrome
   // around the page the layout gave it (`routePage`), by what the registry says of the route.
-  const surface = !row && !r.param && r.surfaceRoutes ? r.surfaceRoutes[r.page] : null;
-  const answer = surface ? { ...surface, content: r.routePage } : row ? row.draw(r) : drawNotFound(r);
-  const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || r.routeKey };
+  // An address under it is its page too where the route says so (`params`), and its nav item and crumbs may be asked of it.
+  const at = r.surfaceRoutes ? r.surfaceRoutes[r.page] : null;
+  const surface = !row && at && (!r.param || at.params) ? at : null;
+  const asked = (v) => (typeof v === "function" ? v(r.param || null) : v);
+  const answer = surface ? { ...surface, activeNav: asked(surface.activeNav), crumbs: asked(surface.crumbs), content: r.routePage } : row ? row.draw(r) : drawNotFound(r);
+  const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (surface && surface.mount) || r.routeKey };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 

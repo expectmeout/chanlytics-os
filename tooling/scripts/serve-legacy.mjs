@@ -12,7 +12,8 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Four files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Five files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/today-sample.js`, the demo's Today, `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
  * (see SAMPLES below). One is read from outside the tree: the kit's stylesheet (KIT_CSS below).
  *
@@ -64,6 +65,14 @@ const SAMPLES = {
     jsx: "transform",
     reactIsTheWindows: true,
   },
+  // The Inbox's and Conversations' names (surfaces/inbox/legacy-globals.ts): the demo's seeded threads and calls, the
+  // session's decisions, and the two rules the shell asks (what waits on you, which tab a row is on). Not React.
+  "/data/inbox-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/inbox/legacy-globals.ts"),
+    globalName: "__IG",
+    footer: "Object.assign(window, __IG.INBOX_GLOBALS); __IG.hearPresence();",
+    watch: "apps/dashboard/src/surfaces/inbox",
+  },
   "/data/today-sample.js": {
     entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"),
     globalName: "__TS",
@@ -109,6 +118,7 @@ function stampOf(s) {
     }
   };
   if (s.reactIsTheWindows) walk(path.join(REPO, "apps/dashboard/src/surfaces/kit"));
+  if (s.watch) walk(path.join(REPO, s.watch));
   return files.map((f) => fs.statSync(f).mtimeMs).join(":");
 }
 
@@ -137,6 +147,7 @@ async function sampleBundle(route) {
 }
 
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
+export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");

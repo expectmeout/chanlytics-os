@@ -485,9 +485,9 @@ test("what the page on screen draws from other surfaces follows its own surface,
     const modules = await Promise.all(
       [
         "surface-data",
-        "surfaces/inbox",
+        "../surfaces/inbox/surface",
         "surfaces/today",
-        "surfaces/conversations",
+        "../surfaces/inbox/conversations-surface",
         "surfaces/settings",
         "surfaces/people",
         "surfaces/broadcasts",

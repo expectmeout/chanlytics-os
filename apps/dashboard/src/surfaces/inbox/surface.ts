@@ -1,19 +1,22 @@
 /**
- * The Inbox's override: the open escalations and the threads that need a person,
- * bucketed as the page draws them, and the approved templates a reply can use.
- * Part of the SurfaceData seam (../surface-data.ts); its sibling surfaces are the
- * other modules in this folder.
+ * The Inbox's override: the open escalations and the threads that need a person, bucketed as the page draws them, and the
+ * approved templates a reply can use (moved from legacy-bridge/surfaces/inbox.ts, decision 0015). Part of the SurfaceData
+ * seam (legacy-bridge/surface-data.ts); the page reads what it publishes through `useSurface("inbox")`.
  */
-
-import { read } from "../api";
-import { workspaceZone } from "../zone";
+import { read } from "@/legacy-bridge/api";
+import { workspaceZone } from "@/legacy-bridge/zone";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { toInboxThreadVM, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "../surface-data";
+import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { inboxData } from "./store";
+import type { ApprovedTemplate, InboxBucket } from "./types";
+
+// The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
+declareSurfaceValue("inbox", "INBOX_DATA");
 
 /**
- * Slice 2: the Inbox flips to the real escalations queue. Open escalations +
- * needs_human conversations land in the "escalated" bucket (the mockup's
- * built-in take-over/hand-back UX), snoozed in "snoozed", the rest in "done".
+ * Slice 2: the Inbox flips to the real escalations queue. Open escalations + needs_human conversations land in the
+ * "escalated" bucket (the mockup's built-in take-over/hand-back UX), snoozed in "snoozed", the rest in "done".
  * Approval cards/confidence/$ stay hidden — v1.1 material, never fabricated.
  */
 interface EscalationRow extends EscalationDto {
@@ -21,7 +24,7 @@ interface EscalationRow extends EscalationDto {
 }
 
 /** The only buckets real threads can reach (Blueprint honesty rule). */
-const REAL_BUCKETS = [
+const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "escalated",
     label: "Needs you",
@@ -38,52 +41,12 @@ const REAL_BUCKETS = [
   { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
 ];
 
-/** One approved template, as the composer needs to know it. */
-export interface ApprovedTemplate {
-  id: string;
-  channel: string;
-  name: string;
-  language: string;
-  body_preview: string | null;
-  variables: unknown;
-  /**
-   * The line under the words, as Meta holds it. The route reads it out of the
-   * row's `components` (00045) so the pages get a string rather than Meta's
-   * array; null when the template has no footer, or when a row written before
-   * the sync kept components has none on file -- `templateFooter` then falls
-   * back to the starter library, which knows its own five.
-   */
-  footer?: string | null;
-  /** A text heading above the words; null when there is none, or it is a picture. */
-  header?: string | null;
-  /** The buttons under the message, as the customer sees them. */
-  buttons?: { text: string; kind: "url" | "reply" | "call" }[];
-  /**
-   * Why this product cannot send it, in the owner's words; null when it can.
-   * `sendTemplate` puts one component on the wire -- the body -- so a template
-   * needing a value anywhere else is refused BY META for every recipient.
-   */
-  blocked?: string | null;
-}
-
-/** Every template with its status, for Settings; the composer keeps ApprovedTemplate. */
-export interface TemplateDto extends ApprovedTemplate {
-  category: string | null;
-  meta_status: string;
-  quality: string | null;
-  rejected_reason: string | null;
-  synced_at: string | null;
-  /** meta: written in WhatsApp Manager. chanlytics: written here. */
-  source?: string | null;
-  /** Hidden from the composers by the workspace; Settings still lists it. */
-  hidden_at?: string | null;
-  /** The workspace's own words for it; null means its name, made words. */
-  title?: string | null;
-}
+/** The most escalations one read by id holds: the escalations read holds a hundred at most. */
+const ESCALATIONS_BY_ID = 100;
 
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
-  globals: ["INBOX_DATA", "__TEMPLATES"],
+  value: "inbox",
   // inbox:counts is NOT dispatched here — a detail-less event zeroes the
   // sidebar badge; the reseeded Inbox emits the real count itself.
   events: ["surface:inbox"],
@@ -106,12 +69,12 @@ export const inboxOverride: SurfaceOverride = {
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);
-    const w0 = window as unknown as { __TEMPLATES?: ApprovedTemplate[] | null };
+    let templates: ApprovedTemplate[] | null;
     if (tplRes instanceof Error) {
-      w0.__TEMPLATES = null;
+      templates = null;
       console.error("templates_fetch_failed", tplRes.message);
     } else {
-      w0.__TEMPLATES = (tplRes.templates ?? []).filter((t) => t.channel === "whatsapp");
+      templates = (tplRes.templates ?? []).filter((t) => t.channel === "whatsapp");
     }
     const byConv = new Map<string, EscalationRow>();
     for (const e of escData.escalations) byConv.set(e.conversation_id, e);
@@ -124,7 +87,7 @@ export const inboxOverride: SurfaceOverride = {
     // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
     // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.
     const extraRead: ConversationDto[] | null = missing.length
-      ? await read("GET conversations", { query: { ids: missing.slice(0, 100).join(",") } }).then(
+      ? await read("GET conversations", { query: { ids: missing.slice(0, ESCALATIONS_BY_ID).join(",") } }).then(
           (d) => d.conversations,
           () => null,
         )
@@ -137,27 +100,22 @@ export const inboxOverride: SurfaceOverride = {
 
     const all = [...extra, ...convData.conversations];
     const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz));
-    const w = window as unknown as {
-      INBOX_DATA?: Record<string, unknown> & {
-        CHANNEL_LABELS?: Record<string, string>;
-        INBOX_BASELINE?: Record<string, unknown>;
-      };
-    };
-    const prev = w.INBOX_DATA ?? {};
-    w.INBOX_DATA = {
+    const prev = inboxData();
+    setSurfaceValue("inbox", {
       ...prev,
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
       CHANNEL_LABELS: {
-        ...(prev.CHANNEL_LABELS ?? {}),
+        ...prev.CHANNEL_LABELS,
         whatsapp: "WhatsApp",
         phone: "Phone",
         sms: "Text",
         email: "Email",
       },
-      INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
+      INBOX_BASELINE: { ...prev.INBOX_BASELINE, doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
-    };
+      templates,
+    });
   },
 };

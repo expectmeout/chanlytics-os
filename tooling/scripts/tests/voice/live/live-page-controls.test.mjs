@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, frameWhisper, frameHandOver, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { kitPages } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -157,7 +158,7 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = globalThis.window.Confirm;
+globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../../../apps/dashboard/src/legacy/pages/live-monitor.jsx");

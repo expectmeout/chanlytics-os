@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -231,6 +231,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 Object.assign(globalThis.window, kitPages);
+kitHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
   globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {

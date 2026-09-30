@@ -108,7 +108,7 @@ globalThis.document ??= {
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.FailedRead = kitPages.FailedRead;
-globalThis.StatePill = globalThis.window.StatePill;
+globalThis.StatePill = globalThis.window.StatePill = kitPages.StatePill;
 // data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];

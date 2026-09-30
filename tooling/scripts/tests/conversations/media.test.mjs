@@ -149,17 +149,18 @@ test("the media route: member of the named workspace, stored only, a redirect th
 });
 
 test("the thread draws the attachment from one component, wherever it opens", () => {
-  const bits = readRaw("apps/dashboard/src/legacy/components/data-bits.jsx");
-  assert.ok(bits.includes("window.TlMedia = TlMedia;"));
-  assert.ok(bits.includes("if (!media || !window.__href) return null;"), "nothing without the bridge");
-  assert.ok(bits.includes('window.__href("GET messages/[id]/media", { id: media.messageId })'));
+  // The component is the kit's (surfaces/kit/media), which seed-globals publishes as window.TlMedia for the pages that
+  // still draw it by name (the harness bundle's test holds that publish).
+  const bits = readRaw("apps/dashboard/src/surfaces/kit/media/tl-media.tsx");
+  assert.ok(bits.includes("if (!media || !hasHref()) return null;"), "nothing without the bridge");
+  assert.ok(bits.includes('hrefOf("GET messages/[id]/media", { id: media.messageId })'));
   assert.ok(
     bits.includes('<audio className="tl-media tl-media-audio" controls preload="none" src={src} />'),
     "a voice note can be played",
   );
   assert.ok(bits.includes("Attachment couldn't be saved."), "a failed fetch says so instead of a broken image");
   assert.ok(
-    readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes(
+    readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
       "{entry.media && <TlMedia media={entry.media} />}",
     ),
   );

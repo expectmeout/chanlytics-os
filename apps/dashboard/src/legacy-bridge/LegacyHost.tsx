@@ -12,7 +12,7 @@ import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspac
  * Client-only mount for the legacy tree: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `inbox-data.jsx` in particular reads `window` at module scope; dropping
+ * `data/people-data.jsx` in particular reads `window` at module scope; dropping
  * ssr:false would throw during prerender.
  *
  * The fallback below is the FIRST thing every visitor sees, for the whole

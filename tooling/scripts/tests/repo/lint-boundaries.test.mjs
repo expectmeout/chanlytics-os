@@ -106,11 +106,12 @@ test("the typed client and the sign-in screens are held to the same boundary", a
 });
 
 /**
- * Where a surface's probes stand: a page that has left the shell and waits for no kit step (the next to leave: ESLint
- * lints the text, so none of its files need exist, and Reports, which leaves the rule on raw elements lifted until its
- * kit step, is the KIT_PENDING test's), and the kit it draws with.
+ * Where a surface's probes stand: a page that has left the shell and waits for no kit step (a folder no surface will
+ * take, since each that leaves waits in KIT_PENDING: ESLint lints the text, so none of its files need exist, and Reports
+ * and the Inbox, which leave the rule on raw elements lifted until their kit steps, are the KIT_PENDING test's), and the
+ * kit it draws with.
  */
-const SURFACES = ["apps/dashboard/src/surfaces/inbox/probe.tsx", "apps/dashboard/src/surfaces/kit/probe.tsx"];
+const SURFACES = ["apps/dashboard/src/surfaces/probe/probe.tsx", "apps/dashboard/src/surfaces/kit/probe.tsx"];
 
 test("a surface is browser code, linted as the dashboard's own: its layer, and the hooks rules on its TSX", async () => {
   const hookInABranch = [

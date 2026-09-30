@@ -25,7 +25,7 @@ import {
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -357,6 +357,7 @@ await import("../../../../apps/dashboard/src/legacy/components/message-preview.j
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 Object.assign(globalThis.window, kitPages);
+kitHooks();
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
   globalThis[k] = globalThis.window[k];
 const { installPolicyStore } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");

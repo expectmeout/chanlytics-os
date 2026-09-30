@@ -108,8 +108,8 @@ seeded twin of each real page and the seeds only they read live under
 app loads only in a declared demo session. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**`dynamic(ssr:false)` on the legacy app is required.** `inbox-data.jsx` does
-unguarded module-scope `window` access and throws during prerender.
+**`dynamic(ssr:false)` on the legacy app is required.** `data/people-data.jsx` and the seed publishers do
+unguarded module-scope `window` access and throw during prerender.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement

@@ -12,13 +12,12 @@
  * - A new workspace said "No conversations match this channel" and "Pick one on the left" beside an
  *   empty list (A22).
  * - A link to a conversation not in view put its notice in a grid cell of its own (A26).
- * Run against the contracts and the pages on a stub React.
+ * Run against the contracts and the pages (surfaces/inbox, TSX) on a stub React, over the rows the seam holds.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find as findNode, textOf } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -163,154 +162,42 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 const went = [];
-globalThis.window = {
-  location: {
-    pathname: "/w/marisas",
-    hash: "",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
+installLegacyReact({
   __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
+  __surfaceState: () => "live",
+  __DEMO_MODE: false,
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
+});
+Object.assign(globalThis, {
   CHANLY: {
     nav: (to) => went.push(to),
     R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
     IX_NOW: "12:04",
     CONF: { SAFE: 0.8, MED: 0.5 },
   },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
-  setTimeout: () => 1,
-  clearTimeout() {},
-  setInterval: () => 1,
-  clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
+});
+const S = "../../../../../apps/dashboard/src";
+const { ConversationsPage, OutcomePill } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
+// The one thread, which Conversations mounts for a conversation row (thread-pane.tsx).
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  // Worked out again on every draw: the page filters its list in a memo keyed on the search.
-  useMemo: (fn) => fn(),
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-// The one thread, which Conversations mounts for a conversation row (thread-pane.jsx).
-await import("../../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.InboxThread = globalThis.window.InboxThread;
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-globalThis.ThreadCall = globalThis.window.ThreadCall;
-await import("../../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const { InboxThread, ConversationsPage, OutcomePill } = globalThis.window;
-
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
+const find = (tree, pred) => findNode(tree, pred) ?? undefined;
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const withRows = (rows) => {
-  globalThis.window.CONVERSATIONS_DATA = {
+  setSurfaceValue("conversations", {
     CONVERSATIONS: rows,
     CV_CHANNELS: [{ id: "all", label: "All" }],
     CALLS_READ: true,
-  };
+  });
 };
-const page = (props = {}) => {
-  frames.begin();
-  return ConversationsPage({ channel: "all", initialId: null, ...props });
-};
+const page = (props = {}) => again(() => ConversationsPage({ channel: "all", initialId: null, ...props }));
 
 test("REGRESSION (A23): the Inbox says the same author as Conversations -- a person's reply is your team's, not 'you' for every teammate", () => {
   const vm = toInboxThreadVM(
@@ -319,8 +206,7 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
     ZONE,
     NOW,
   );
-  cells = [];
-  frames.begin();
+  fresh();
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
   // The author, not the punctuation after it: the separator used to lead into a repeat of the
   // time that already sits over the bubble, and no longer exists. "by you" must still not match
@@ -335,8 +221,7 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
     ZONE,
     NOW,
   );
-  cells = [];
-  frames.begin();
+  fresh();
   assert.equal(
     textOf(OutcomePill({ outcome: team.outcome, channel: team.channel, answeredBy: team.answeredBy })),
     "Your team replied",
@@ -352,16 +237,16 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
     "a call keeps its own words",
   );
   // A chat's way into its Inbox thread (A7) is now that it is that thread: the pane beside the list is the one thread
-  // (thread-pane.jsx), which answers, takes over and hands back here. The door to a second screen is gone with it.
-  globalThis.window.INBOX_DATA = {
+  // (thread-pane.tsx), which answers, takes over and hands back here. The door to a second screen is gone with it.
+  setSurfaceValue("inbox", {
     THREADS: [
       toInboxThreadVM(conv([msg({ id: "m1" }), ours({ sender: "human", body: "See you Friday!" })]), null, ZONE, NOW),
     ],
     CHANNEL_LABELS: { whatsapp: "WhatsApp" },
-  };
+  });
   try {
     withRows([team]);
-    cells = [];
+    fresh();
     const tree = page();
     assert.match(textOf(tree), /by your team/, "REGRESSION: a bubble did not say who wrote it");
     const thread = find(tree, (n) => n.type === InboxThread);
@@ -373,13 +258,13 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
       "one thread, not a door to a second screen",
     );
   } finally {
-    delete globalThis.window.INBOX_DATA;
+    setSurfaceValue("inbox", undefined);
   }
 });
 
 test("REGRESSION (A22): a new workspace's Conversations says there are none yet -- not that nothing matches a channel, nor to pick one on the left of an empty list", () => {
   withRows([]);
-  cells = [];
+  fresh();
   const none = page();
   assert.ok(
     !textOf(none).includes("No conversations match"),
@@ -394,7 +279,7 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
   assert.equal(went.at(-1), "start");
 
   withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
-  cells = [];
+  fresh();
   find(
     page(),
     (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"),
@@ -406,7 +291,7 @@ test("REGRESSION (A22): a new workspace's Conversations says there are none yet 
 
 test("REGRESSION (A26): a link to a conversation not in view says so inside the reading pane, not in a grid cell of its own -- and opens nobody else's", () => {
   withRows([toConversationVM(conv([msg({ id: "m1" }), ours()]), ZONE, NOW)]);
-  cells = [];
+  fresh();
   const tree = page({ initialId: "c-gone" });
   const kids = tree.props.children.filter((k) => k && typeof k === "object");
   assert.equal(kids.length, 2, "REGRESSION: the notice was a third child of a two-column grid");
@@ -436,37 +321,35 @@ test("REGRESSION: a search that stops matching the open conversation keeps it op
       dnc: false,
     },
   });
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     THREADS: [nina, rosa].map((c) => toInboxThreadVM(c, null, ZONE, NOW)),
     CHANNEL_LABELS: { whatsapp: "WhatsApp" },
-  };
+  });
   // The pane's own drawing is the one thread's (one-thread.test.mjs); here only which thread it was handed.
-  const opened = [];
-  globalThis.InboxThread = (p) => {
-    opened.push(p.thread ? p.thread.id : null);
-    return null;
-  };
+  const handedTo = (tree) => find(tree, (n) => n.type === InboxThread)?.props.thread?.id ?? null;
   try {
     withRows([toConversationVM(nina, ZONE, NOW), toConversationVM(rosa, ZONE, NOW)]);
-    cells = [];
-    const open = () => opened.at(-1);
+    fresh();
     const row = (tree, who) => find(tree, (n) => n.props?.onSelect && n.props?.c?.who === who);
     const first = page();
-    assert.equal(open(), "th-c2", "the first row opens first");
+    assert.equal(handedTo(first), "th-c2", "the first row opens first");
     row(first, "Rosa Díaz").props.onSelect(row(first, "Rosa Díaz").props.c.id);
     const chosen = page();
-    assert.equal(open(), "th-c1", "Rosa is open");
+    assert.equal(handedTo(chosen), "th-c1", "Rosa is open");
     find(
       chosen,
       (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Search names"),
     ).props.onChange({ target: { value: "gel" } });
     const searched = page();
     assert.equal(row(searched, "Rosa Díaz"), undefined, "the words hide her row");
-    assert.equal(open(), "th-c1", "REGRESSION: Nina Park's thread opened in Rosa's place, reply box and all");
+    assert.equal(
+      handedTo(searched),
+      "th-c1",
+      "REGRESSION: Nina Park's thread opened in Rosa's place, reply box and all",
+    );
     assert.equal(find(searched, byTestId("cv-missing-thread")), undefined, "and it is no link that went missing");
   } finally {
-    globalThis.InboxThread = InboxThread;
-    delete globalThis.window.INBOX_DATA;
+    setSurfaceValue("inbox", undefined);
   }
 });
 
@@ -481,15 +364,15 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     channel: "voice",
     body: "Inbound call · 3 min — Wants to book a bridal trial on October 3",
   });
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     THREADS: [toInboxThreadVM(conv([note], { id: "cv7" }), null, ZONE, NOW)],
     CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone" },
-  };
+  });
   // The route's address as the client builds it, with the workspace named (inbox-verbs.ts window.__href).
   globalThis.window.__href = (route, p) => `${route}|${p.id}|workspace=marisas`;
   try {
     withRows([rec]);
-    cells = [];
+    fresh();
     const el = {
       src: "",
       played: 0,
@@ -527,6 +410,6 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     assert.deepEqual([el.loaded, el.played], [1, 2], "the second press asks the route again, and plays");
   } finally {
     delete globalThis.window.__href;
-    delete globalThis.window.INBOX_DATA;
+    setSurfaceValue("inbox", undefined);
   }
 });

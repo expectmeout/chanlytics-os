@@ -9,12 +9,11 @@
  * Here, on a stub React: where the status sits, one state at a time, its one signal, and the demo left as it was.
  * How it looks is measured in the harness and by the nightly (thread.spec.ts).
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -85,7 +84,8 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+const timers = { setTimeout, clearTimeout, setInterval, clearInterval };
+installLegacyReact({
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -99,94 +99,18 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+after(() => Object.assign(globalThis, timers));
+// The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxThread } = globalThis.window;
+const S = "../../../../../apps/dashboard/src/surfaces";
+const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
+const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
+const { Icon } = await import(`${S}/kit/icon/icon.tsx`);
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -220,8 +144,7 @@ const textOf = (n) => {
   return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
 };
 const paneOf = (thread, over = {}) => {
-  cells = [];
-  frames.begin();
+  fresh();
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text" }, ...over });
 };
 /** The pane's own rows, top to bottom, by the class each draws. */
@@ -322,7 +245,7 @@ test("Needs you has one signal: the pill its row wears, and its wait, amber past
     const standing = find(pane, byTestId("ix-th-standing"));
     return {
       pill: !!find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
-      flag: !!find(pane, (n) => n.type === "Icon" && n.props?.name === "flag"),
+      flag: !!find(pane, (n) => n.type === Icon && n.props?.name === "flag"),
       wait: find(standing, hasClass("ix-th-standing-meta")),
     };
   };
@@ -382,9 +305,8 @@ test("words that did not reach them say so on their own bubble, whatever follows
 });
 
 test("REGRESSION: a real thread's reply box is one line with Send beside it, naming the channel it goes out on -- a three-line field over a line repeating the channel and the name", () => {
-  cells = [];
-  frames.begin();
-  const box = globalThis.window.InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
+  fresh();
+  const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
   assert.ok(box.props.className.split(" ").includes("ix-composer-row"));
   assert.equal(
     find(box, hasClass("ix-composer-foot")),
@@ -400,9 +322,8 @@ test("REGRESSION: a real thread's reply box is one line with Send beside it, nam
 });
 
 test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
-  cells = [];
-  frames.begin();
-  const box = globalThis.window.InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
+  fresh();
+  const box = InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
   assert.equal(textOf(find(box, hasClass("ix-composer-send"))), "Send");
   assert.deepEqual(keysDrawn(box), []);
   const seeded = {
@@ -475,7 +396,7 @@ test("the demo keeps its cards over its story, with no status row", () => {
   const take = find(find(pane, hasClass("ix-th-scroll")), hasClass("ix-take"));
   assert.ok(take, "its banner is where it was");
   assert.ok(
-    find(take, (n) => n.type === "Icon" && n.props?.name === "flag"),
+    find(take, (n) => n.type === Icon && n.props?.name === "flag"),
     "with its flag",
   );
 });

@@ -28,7 +28,7 @@ import {
   FALLBACK_DEFAULTS,
   unknownDetails,
 } from "@chanlytics/contracts";
-import { kitPages } from "../../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
 
@@ -184,6 +184,7 @@ await import("../../../../../apps/dashboard/src/legacy/components/record-row.jsx
 await import("../../../../../apps/dashboard/src/legacy/components/record-field.jsx");
 await import("../../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 Object.assign(globalThis.window, kitPages);
+kitHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],

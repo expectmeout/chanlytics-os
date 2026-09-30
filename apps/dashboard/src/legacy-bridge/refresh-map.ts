@@ -19,8 +19,8 @@
 import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "./surfaces/broadcasts";
 import { calendarOverride } from "./surfaces/calendar";
-import { conversationsOverride } from "./surfaces/conversations";
-import { inboxOverride } from "./surfaces/inbox";
+import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
+import { inboxOverride } from "@/surfaces/inbox/surface";
 import { liveOverride } from "./surfaces/live";
 import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "./surfaces/people";

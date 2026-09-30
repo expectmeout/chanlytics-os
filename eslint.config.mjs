@@ -282,7 +282,7 @@ export const BASE_UI_INDEX = {
  * takes it out. Only the rule on raw elements passes over a listed surface: the layers and the function limits hold it
  * as they hold the rest of src/surfaces. repo/lint-boundaries.test.mjs fails an entry that names no surface's folder.
  */
-export const KIT_PENDING = ["apps/dashboard/src/surfaces/reports"];
+export const KIT_PENDING = ["apps/dashboard/src/surfaces/reports", "apps/dashboard/src/surfaces/inbox"];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */
 export const rawElementsRule = (pending) => ({

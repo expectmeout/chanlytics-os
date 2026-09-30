@@ -269,8 +269,8 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // list as props: drawn in runs-honest.test.mjs.
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
-  const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");
-  assert.ok(inbox.includes("}, [initialThreadId]);"), "the Inbox follows a later deep-link");
+  const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
+  assert.ok(/\},\s*\[initialThreadId\],\s*\)/.test(inbox), "the Inbox follows a later deep-link");
 });
 
 test("the account menu offers the look only once contracts does: none while it is not offered, then Classic and Glass under the theme, a press handing it to the shell", async () => {

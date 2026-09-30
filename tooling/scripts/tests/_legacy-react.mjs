@@ -17,9 +17,10 @@
  * this runner's react-server condition has none: the same stub is set on that module object, so its own calls reach the
  * stub the legacy pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
  *
- * The kit's components the shell's pages still draw by name (EmptyState, FailedRead, SegmentBar: surfaces/kit/kit-globals.ts,
- * which the app publishes from seed-globals) are the kit's own here too. `Icon` stays the host element every test reads
- * by its name and its props: a page's icon is a leaf here, as it was, and the kit's own components draw the real one.
+ * The kit's components the shell's pages still draw by name (EmptyState, FailedRead, SegmentBar, StatePill, Confirm,
+ * MoreMenu, PolicyChip, TlMedia: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals) are the kit's
+ * own here too. `Icon` stays the host element every test reads by its name and its props: a page's icon is a leaf here,
+ * as it was, and the kit's own components draw the real one.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -41,6 +42,11 @@ export const kitPages = {
   EmptyState: KIT_GLOBALS.EmptyState,
   FailedRead: KIT_GLOBALS.FailedRead,
   SegmentBar: KIT_GLOBALS.SegmentBar,
+  StatePill: KIT_GLOBALS.StatePill,
+  Confirm: KIT_GLOBALS.Confirm,
+  MoreMenu: KIT_GLOBALS.MoreMenu,
+  PolicyChip: KIT_GLOBALS.PolicyChip,
+  TlMedia: KIT_GLOBALS.TlMedia,
 };
 
 const HOOKS = [
@@ -57,6 +63,15 @@ const HOOKS = [
 const reactModule = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
 )("react");
+
+/**
+ * For a test that builds its own stub React (`globalThis.React`) and draws a kit component that has hooks (MoreMenu,
+ * PolicyChip): the kit's TSX imports its hooks from "react", which has none under this runner's react-server condition,
+ * so the stub's are set on that module, as installLegacyReact does for its own. Call it once the stub is in place.
+ */
+export function kitHooks(stub = globalThis.React) {
+  for (const hook of HOOKS) if (typeof stub[hook] === "function") reactModule[hook] = stub[hook];
+}
 
 const listeners = {};
 const storage = () => {

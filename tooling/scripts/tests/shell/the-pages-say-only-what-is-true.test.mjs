@@ -16,9 +16,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toCallVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
+import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -258,6 +258,11 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React (the TSX surfaces' useSurface): read at each draw, which these tests make by hand.
+  useSyncExternalStore: (_subscribe, snapshot) => {
+    frames.key();
+    return snapshot();
+  },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
@@ -282,9 +287,10 @@ await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx")
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-globalThis.StatePill = globalThis.window.StatePill;
-await import("../../../../apps/dashboard/src/legacy/pages/conversations.jsx");
-const { OutcomePill } = globalThis.window;
+// The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
+Object.assign(globalThis.window, kitPages);
+globalThis.StatePill = kitPages.StatePill;
+const { OutcomePill } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -327,7 +333,8 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
-globalThis.PolicyChip = globalThis.window.PolicyChip;
+kitHooks();
+globalThis.PolicyChip = kitPages.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
@@ -400,13 +407,25 @@ test("with every line up and nothing waiting, the reassurance stands", () => {
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
 globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
-// The one thread, which the Inbox mounts (thread-pane.jsx): loaded first, published as the page reads it.
-await import("../../../../apps/dashboard/src/legacy/pages/thread-pane.jsx");
-globalThis.ThreadPane = globalThis.window.ThreadPane;
-await import("../../../../apps/dashboard/src/legacy/pages/inbox.jsx");
+// The Inbox (surfaces/inbox, TSX), drawn over the rows the seam holds; the one thread it mounts is thread-pane.tsx's.
+const SRC = "../../../../apps/dashboard/src";
+const { Inbox } = await import(`${SRC}/surfaces/inbox/pages/inbox-page.tsx`);
+const { InboxThread } = await import(`${SRC}/surfaces/inbox/thread/thread.tsx`);
+const { ixHoldAll } = await import(`${SRC}/surfaces/inbox/pages/hold-all.ts`);
+const { ixRouteThread } = await import(`${SRC}/surfaces/inbox/rules.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const inboxValue = () => surfaceValue("inbox");
+/** The threads a draw of the Inbox handed the one thread's pane: none while a link's notice stands. */
+const openedIn = (tree) => {
+  const opened = [];
+  walk(tree, (n) => {
+    if (n.type === InboxThread) opened.push(n.props.thread ? n.props.thread.id : null);
+  });
+  return opened.filter(Boolean);
+};
 
 test("REGRESSION: Hold all withdraws every real draft through the door the single Hold uses, stops every countdown at once, and names a draft the server would not hold", async () => {
-  assert.equal(typeof globalThis.window.ixHoldAll, "function", "Hold all is one act that can be run");
+  assert.equal(typeof ixHoldAll, "function", "Hold all is one act that can be run");
   const state = {};
   const calls = [];
   const heldWhenAsked = [];
@@ -419,7 +438,7 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
     { id: "th-1", real: true, who: "Rosa", veto: { messageId: "m1" } },
     { id: "th-2", real: true, who: "Ana", veto: { messageId: "m2" } },
   ];
-  const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
+  const result = await ixHoldAll(drafts, { state, cancelSend });
   assert.deepEqual(
     calls,
     ["m1", "m2"],
@@ -440,32 +459,24 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
 });
 
 test("REGRESSION: the shell passes a thread id on even when the Inbox has not loaded it, instead of dropping it", () => {
-  assert.equal(typeof globalThis.window.ixRouteThread, "function", "the route's thread is one rule that can be run");
+  assert.equal(typeof ixRouteThread, "function", "the route's thread is one rule that can be run");
   const threads = [{ id: "th-a", who: "Emily Chen" }];
-  assert.deepEqual(globalThis.window.ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
-  assert.deepEqual(globalThis.window.ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
-  assert.deepEqual(globalThis.window.ixRouteThread(undefined, threads), { id: null, who: null });
+  assert.deepEqual(ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
+  assert.deepEqual(ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
+  assert.deepEqual(ixRouteThread(undefined, threads), { id: null, who: null });
 });
 
 test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing notice in the pane and opens nobody else's conversation", () => {
-  const opened = [];
-  globalThis.InboxList = () => null;
-  globalThis.InboxThread = (p) => {
-    opened.push(p.thread ? p.thread.id : null);
-    return null;
-  };
-  globalThis.InboxAgentRail = () => null;
-  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  globalThis.window.INBOX_DATA = {
+  setSurfaceValue("inbox", {
     INBOX_BUCKETS: [],
     INBOX_VIEWS: [],
     CHANNEL_LABELS: {},
     INBOX_BASELINE: {},
     THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
-  };
+  });
   cells = [];
   frames.begin();
-  const tree = globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const tree = Inbox({ initialThreadId: "th-missing", showAgentRail: false });
   const missing = (() => {
     let hit = null;
     walk(tree, (n) => {
@@ -475,11 +486,7 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   })();
   assert.ok(missing, "the pane says the conversation is not among those loaded");
   assert.ok(textOf(missing).includes("isn't among the newest"), textOf(missing));
-  assert.deepEqual(
-    opened.filter(Boolean),
-    [],
-    "REGRESSION: Emily Chen's thread opened in place of the one the link named",
-  );
+  assert.deepEqual(openedIn(tree), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
 });
 
 test("REGRESSION: the missing notice holds when the Inbox is read again -- on the live salon a refresh moments later opened Emily Chen in its place", () => {
@@ -492,33 +499,20 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
   };
   globalThis.window.removeEventListener = () => {};
   try {
-    const opened = [];
-    globalThis.InboxList = () => null;
-    globalThis.InboxThread = (p) => {
-      opened.push(p.thread ? p.thread.id : null);
-      return null;
-    };
-    globalThis.InboxAgentRail = () => null;
-    globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-    const emily = {
-      id: "th-a",
-      real: true,
-      who: "Emily Chen",
-      state: "escalated",
-      needsYou: true,
-      tags: [],
-      whoMeta: "",
-    };
-    globalThis.window.INBOX_DATA = {
+    // Threads as the view model makes them: the one the link names is drawn by the real pane when it arrives.
+    const threadOf = (id, name) =>
+      toInboxThreadVM(conversation(id, name), escalation(`e-${id}`, id, "2026-08-29T12:00:00Z"), ZONE, NOW);
+    const emily = threadOf("a", "Emily Chen");
+    setSurfaceValue("inbox", {
       INBOX_BUCKETS: [],
       INBOX_VIEWS: [],
       CHANNEL_LABELS: {},
       INBOX_BASELINE: {},
       THREADS: [emily],
-    };
+    });
     const render = () => {
       frames.begin();
-      return globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+      return Inbox({ initialThreadId: "th-missing", showAgentRail: false });
     };
     const missingIn = (tree) => {
       let hit = null;
@@ -528,7 +522,7 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
       return hit;
     };
     const reread = (threads) => {
-      globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: threads };
+      setSurfaceValue("inbox", { ...inboxValue(), THREADS: threads });
       for (const fn of listeners["surface:inbox"] ?? []) fn();
     };
     cells = [];
@@ -539,16 +533,16 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
     reread([{ ...emily }]);
     assert.ok(missingIn(render()), "REGRESSION: after the re-read the notice was gone");
     assert.deepEqual(
-      opened.filter(Boolean),
+      openedIn(render()),
       [],
       "REGRESSION: Emily Chen's thread opened in place of the one the link named",
     );
 
     // The link was right, only early: when a later read brings the thread, it opens.
-    reread([{ ...emily }, { ...emily, id: "th-missing", who: "Nina Park" }]);
+    reread([{ ...emily }, threadOf("missing", "Nina Park")]);
     const arrived = render();
     assert.equal(missingIn(arrived), null, "no notice once the thread is loaded");
-    assert.equal(opened.at(-1), "th-missing", "the thread the link named opens");
+    assert.equal(openedIn(arrived).at(-1), "th-missing", "the thread the link named opens");
   } finally {
     globalThis.window.addEventListener = keep.add;
     globalThis.window.removeEventListener = keep.remove;
@@ -557,10 +551,10 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
 
 /* ---------- the composer: no Save draft that keeps nothing ---------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+const { Composer } = await import(`${SRC}/surfaces/inbox/thread/composer.tsx`);
 
 test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'Draft saved' and kept nothing", () => {
-  assert.equal(typeof globalThis.window.InboxComposer, "function", "the composer can be drawn on its own");
+  assert.equal(typeof Composer, "function", "the composer can be drawn on its own");
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -570,7 +564,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   };
   cells = [];
   frames.begin();
-  const real = globalThis.window.InboxComposer({
+  const real = Composer({
     thread: {
       id: "th-1",
       real: true,
@@ -589,7 +583,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   );
   cells = [];
   frames.begin();
-  const seed = globalThis.window.InboxComposer({
+  const seed = Composer({
     thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" },
     reply: "",
   });
@@ -619,7 +613,7 @@ test("REGRESSION: in Day view the arrows move one day -- they moved seven", asyn
 /* ---------------- the policy chip: no invented trust figures ---------------- */
 
 test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
-  const PolicyChip = globalThis.window.PolicyChip;
+  const PolicyChip = kitPages.PolicyChip;
   Object.assign(globalThis.window, {
     POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },

@@ -57,8 +57,8 @@ const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/
 const S = "apps/dashboard/src/legacy-bridge/surfaces";
 const REAL = [
   workspaceOverride,
-  (await importSrc(`${S}/conversations.ts`)).conversationsOverride,
-  (await importSrc(`${S}/inbox.ts`)).inboxOverride,
+  (await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts")).conversationsOverride,
+  (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
   (await importSrc(`${S}/today.ts`)).todayOverride,
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
   (await importSrc(`${S}/people.ts`)).peopleOverride,

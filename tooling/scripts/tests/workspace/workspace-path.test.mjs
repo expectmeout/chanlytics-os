@@ -201,8 +201,8 @@ test("a route with a page of its own goes through the App Router and is heard wh
     assert.equal(asked.length, 1, "the address it is at: no second push");
     goToRoute("reports", { replace: true }, w.win);
     assert.deepEqual(asked.at(-1), ["replace", "/w/acme/reports"], "a replace is the router's too");
-    goToRoute("inbox", {}, w.win);
-    assert.deepEqual(w.pushed, ["/w/acme/inbox"], "a route the frame's table draws is pushed, as always");
+    goToRoute("settings", {}, w.win);
+    assert.deepEqual(w.pushed, ["/w/acme/settings"], "a route the frame's table draws is pushed, as always");
     assert.equal(asked.length, 2, "and never asks the router for a page that draws nothing");
     stop();
     // With no router (a test's window, the standalone mockup) a route with a page is moved like any other.
@@ -210,6 +210,35 @@ test("a route with a page of its own goes through the App Router and is heard wh
     const m = windowAt({ pathname: "/", hash: "#/today" });
     goToRoute("reports", {}, m.win);
     assert.deepEqual(m.pushed, ["#/reports"]);
+  } finally {
+    setAppRouter(null);
+  }
+});
+
+test("a move within a page that follows its address stays on the history the page listens to: the router is asked only to arrive at the page, never to move under it", () => {
+  const w = windowAt({ pathname: "/w/acme/reports" });
+  const asked = [];
+  setAppRouter({ push: (href) => asked.push(["push", href]), replace: (href) => asked.push(["replace", href]) });
+  try {
+    goToRoute("inbox", {}, w.win);
+    assert.deepEqual(asked, [["push", "/w/acme/inbox"]], "arriving at the Inbox from another page is the router's");
+    w.win.location.pathname = "/w/acme/inbox";
+    goToRoute("inbox/th-2", {}, w.win);
+    goToRoute("inbox/th-3", { replace: true }, w.win);
+    goToRoute("inbox", { replace: true }, w.win);
+    assert.deepEqual(
+      w.pushed,
+      ["/w/acme/inbox/th-2"],
+      "a thread opened on the page is pushed on the page's own history",
+    );
+    assert.deepEqual(w.replaced, ["/w/acme/inbox/th-3", "/w/acme/inbox"], "and a replace is the page's too");
+    assert.equal(asked.length, 1, "the router was not asked to move under a page that follows its address");
+    goToRoute("conversations/whatsapp:c1", {}, w.win);
+    assert.deepEqual(
+      asked.at(-1),
+      ["push", "/w/acme/conversations/whatsapp:c1"],
+      "another page with a tail is the router's to draw",
+    );
   } finally {
     setAppRouter(null);
   }

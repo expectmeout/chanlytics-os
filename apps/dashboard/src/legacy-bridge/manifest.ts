@@ -5,7 +5,7 @@
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  * Order matters: data/ seeds globals pages/ read at module scope
- * (inbox.jsx reads CHANLY; people-data mutates CLIENT_SEGMENTS from clients-data).
+ * (dashboard-a-brief.jsx reads CHANLY; people-data mutates CLIENT_SEGMENTS from clients-data).
  *
  * The mockup's own files (legacy/demo/) are not here: a real workspace never
  * draws them, so it never downloads them. A session that declared itself a demo
@@ -37,9 +37,7 @@ import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
 import "@/legacy/components/campaign-bits.jsx";
 import "@/legacy/data/constants.jsx";
-import "@/legacy/data/inbox-data.jsx";
 import "@/legacy/data/clients-data.jsx";
-import "@/legacy/data/conversations-data.jsx";
 import "@/legacy/data/people-data.jsx";
 import "@/legacy/pages/attention-bits.jsx";
 import "@/legacy/pages/dashboard-a-brief.jsx";
@@ -53,14 +51,6 @@ import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
-// A reply to a reach-out, read: the thread's strip and the row's chip (Reach out Part 5, PR 7), before the Inbox draws them.
-import "@/legacy/pages/reach-out/reply-strip.jsx";
-import "@/legacy/pages/inbox-list.jsx";
-import "@/legacy/pages/inbox-thread.jsx";
-// The one thread, both tabs mount it: after the drawing it wraps, before the pages that use it.
-import "@/legacy/pages/thread-pane.jsx";
-import "@/legacy/pages/inbox-rail.jsx";
-import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 // People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the
@@ -110,7 +100,6 @@ import "@/legacy/pages/reach-out/reach-out-approval.jsx";
 import "@/legacy/pages/broadcasts-run.jsx";
 import "@/legacy/pages/broadcasts-ledger.jsx";
 import "@/legacy/pages/broadcasts.jsx";
-import "@/legacy/pages/conversations.jsx";
 import "@/legacy/pages/live-monitor.jsx";
 import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/setup.jsx";

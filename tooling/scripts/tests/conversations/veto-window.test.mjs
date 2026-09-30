@@ -178,10 +178,12 @@ test("the event names the usual cause rather than making someone guess", () => {
 
 /* ---- the closed-window send uses the workspace's OWN approved template ---- */
 {
-  // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+  // The seam and each surface's module beside it (legacy-bridge/surfaces/, and the surfaces that have left the shell),
+  // read as one text.
   const seam = [
     "apps/dashboard/src/legacy-bridge/surface-data.ts",
     "apps/dashboard/src/surfaces/reports/surface.ts",
+    "apps/dashboard/src/surfaces/inbox/surface.ts",
     ...fs
       .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
       .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
@@ -192,14 +194,18 @@ test("the event names the usual cause rather than making someone guess", () => {
   // satisfied by the COMMENT explaining why that name is forbidden, so the
   // only way to make the guard pass would be to delete the rationale. Same
   // trap auth-gate.test.mjs documents.
-  const verbs2 = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  const thread = read("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const verbs2 = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
+  const thread = read("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
 
   test("the approved templates are actually fetched", () => {
     // /api/v1/templates existed, was tenant-scoped and approved-only, and had
     // no caller anywhere. The composer named a template by a literal instead.
     assert.ok(seam.includes('read("GET templates")'), "the workspace's approved templates are fetched");
-    assert.match(seam, /__TEMPLATES/);
+    assert.match(
+      seam,
+      /setSurfaceValue\("inbox", \{[\s\S]*?\btemplates,\s*\}\)/,
+      "and published with the Inbox's rows",
+    );
   });
 
   test("no hardcoded template name survives in the courier", () => {

@@ -411,11 +411,11 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
 });
 
 test("a deep link to a thread that is not in view says so instead of opening someone else's", () => {
-  const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
+  const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
   assert.ok(cv.includes("const requestedMissing = !!initialId"));
   assert.ok(!cv.includes('String(c.who || "").split(" ")[0]'), "REGRESSION: 'Latest from +1'");
-  const ix = readRaw("apps/dashboard/src/legacy/pages/inbox.jsx");
-  assert.ok(ix.includes("const requestedMissing = !!initialThreadId"));
-  const pane = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  assert.ok(pane.includes('{notice && <div className="ix-notice" role="status">{notice}</div>}'));
+  const ix = readRaw("apps/dashboard/src/surfaces/inbox/pages/inbox-page.tsx");
+  assert.ok(/const requestedMissing =\s*!!initialThreadId/.test(ix));
+  const pane = readRaw("apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
+  assert.ok(/\{notice && \(\s*<div className="ix-notice" role="status">\s*\{notice\}\s*<\/div>\s*\)\}/.test(pane));
 });

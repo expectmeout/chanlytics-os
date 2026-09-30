@@ -22,7 +22,7 @@ import {
 import type { SurfaceOverride } from "../surface-data";
 import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
 import { onlyOnItsPage } from "../surface-registry";
-import type { TemplateDto } from "./inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 
 /* ------------------------------- Playbooks ------------------------------- */
 

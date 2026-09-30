@@ -31,7 +31,7 @@
     "consent/marketing-consent.test.mjs": 15,
     "consent/opt-out.test.mjs": 2,
     "conversations/conversation-vm.test.mjs": 3,
-    "conversations/inbox/inbox-channels.test.mjs": 3,
+    "conversations/inbox/inbox-channels.test.mjs": 1,
     "conversations/media.test.mjs": 11,
     "conversations/steer.test.mjs": 8,
     "conversations/veto-ui.test.mjs": 3,

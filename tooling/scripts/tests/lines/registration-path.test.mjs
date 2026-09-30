@@ -336,7 +336,7 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-globalThis.Confirm = globalThis.window.Confirm;
+globalThis.Confirm = kitPages.Confirm;
 // The record's failed read is the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
 Object.assign(globalThis.window, kitPages);
 await import("../../../../apps/dashboard/src/legacy/pages/business-record.jsx");

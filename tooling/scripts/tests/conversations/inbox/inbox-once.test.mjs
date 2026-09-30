@@ -14,8 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { hookFrames } from "../../_hook-frames.mjs";
-import { kitPages } from "../../_legacy-react.mjs";
+import { installLegacyReact, kitPages, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -94,7 +93,13 @@ const vmOf = (dto, esc = null) => toInboxThreadVM(dto, esc, ZONE, NOW);
 
 /* -------------------------------- a browser -------------------------------- */
 
-globalThis.window = {
+installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
+const S = "../../../../../apps/dashboard/src";
+const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
+Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
     hash: "",
@@ -106,154 +111,44 @@ globalThis.window = {
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  __surfaceState: () => "live",
-  __DEMO_MODE: false,
   __TEAM: null,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {
-    return true;
-  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  removeEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
-
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+});
+// The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-for (const k of [
-  "StatePill",
-  "MoreMenu",
-  "EmptyState",
-  "PolicyChip",
-  "TlMedia",
-  "FailedRead",
-  "Confirm",
-  "usePPToast",
-  "useHotkey",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
-globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
-await import("../../../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-const { InboxThread, InboxList, MoreMenu } = globalThis.window;
+const { MoreMenu } = kitPages;
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit;
-  walk(tree, (n) => {
-    if (hit === undefined && pred(n)) hit = n;
-  });
-  return hit;
-};
-const findAll = (tree, pred) => {
-  const out = new Set();
-  walk(tree, (n) => {
-    if (pred(n)) out.add(n);
-  });
-  return [...out];
-};
+const findAll = all;
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  return n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children);
-};
 const paneOf = (thread, over = {}) => {
-  cells = [];
-  frames.begin();
-  return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text" }, ...over });
+  fresh();
+  return again(() =>
+    InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text" }, ...over }),
+  );
 };
 const headOf = (pane) => find(pane, (n) => n.type === "header" && hasClass("ix-th-head")(n));
 const menuOf = (head) => find(head, (n) => n.type === MoreMenu);
-const listOf = (threads, over = {}) => {
-  frames.begin();
-  return InboxList({
-    threads,
-    allThreads: threads,
-    buckets: [{ id: "escalated", label: "Needs you", icon: "flag", count: 1 }],
-    views: [],
-    activeBucket: "escalated",
-    onBucketChange() {},
-    activeThreadId: null,
-    onSelectThread() {},
-    selected: [],
-    onToggleSelect() {},
-    onClearSelection() {},
-    ...over,
-  });
-};
+const listOf = (threads, over = {}) =>
+  again(() =>
+    InboxList({
+      threads,
+      allThreads: threads,
+      buckets: [{ id: "escalated", label: "Needs you", icon: "flag", count: 1 }],
+      views: [],
+      activeBucket: "escalated",
+      onBucketChange() {},
+      activeThreadId: null,
+      onSelectThread() {},
+      selected: [],
+      onToggleSelect() {},
+      onClearSelection() {},
+      ...over,
+    }),
+  );
 const rowOf = (tree, who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
 const dials = (tree) => findAll(tree, (n) => n.type === "a" && String(n.props?.href || "").startsWith("tel:"));
 
@@ -267,15 +162,15 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
     "REGRESSION: a strip of facts said again what the status line and the reply box say",
   );
   const pane = paneOf(vm);
-  assert.equal(find(pane, hasClass("ix-context-strip")), undefined);
+  assert.equal(find(pane, hasClass("ix-context-strip")), null);
   const head = headOf(pane);
   // The wire, once: the number was the line's other half, and it is on their profile, one tap away in the menu.
   assert.equal(textOf(find(head, hasClass("ix-th-meta"))), "WhatsApp");
-  assert.equal(find(head, hasClass("ix-channel-chip")), undefined, "REGRESSION: a chip said WhatsApp again");
+  assert.equal(find(head, hasClass("ix-channel-chip")), null, "REGRESSION: a chip said WhatsApp again");
   assert.equal(textOf(head).split("WhatsApp").length - 1, 1, `the channel once: ${textOf(head)}`);
   assert.equal(
     find(head, (n) => (n.type === "button" || n.type === "a") && /Snooze|Open profile|Call back/.test(textOf(n))),
-    undefined,
+    null,
     "REGRESSION: Snooze and Open profile beside the menu",
   );
   const items = menuOf(head)
@@ -309,7 +204,7 @@ test("a caller with no WhatsApp thread has one Call back: on the line that needs
   assert.ok(dialer && String(dialer.props.href).startsWith("tel:"), "the line's own primary action dials");
   assert.equal(
     find(find(needsYou, hasClass("ix-composer")), byTestId("ix-call-back")),
-    undefined,
+    null,
     "and the reply box does not say it again",
   );
 
@@ -351,14 +246,21 @@ test("REGRESSION: a call back is offered once whoever looks, its to-do said once
   assert.equal(callBacks(needsYou).length, 1);
   // The to-do is the band's sentence, and not said again beneath it.
   const band = find(needsYou, byTestId("ix-th-status"));
-  assert.equal(find(band, byTestId("ix-take-ask")), undefined, 'REGRESSION: "From the call" beneath the same words');
+  assert.equal(find(band, byTestId("ix-take-ask")), null, 'REGRESSION: "From the call" beneath the same words');
   assert.match(textOf(band), /Call Rosa back about the bridal trial/);
   assert.ok(!textOf(band).includes("couldn't finish it"), "the call is right above: the band says what to do");
   // The reply box, while the templates are read and with none it can send: nothing technical beneath the band's call.
-  const kept2 = globalThis.window.__TEMPLATES;
   try {
+    // What the surface holds of the approved templates: still being read (none said yet), or read and none approved.
     for (const read of [undefined, []]) {
-      globalThis.window.__TEMPLATES = read;
+      setSurfaceValue("inbox", {
+        INBOX_BUCKETS: [],
+        INBOX_VIEWS: [],
+        CHANNEL_LABELS: {},
+        INBOX_BASELINE: {},
+        THREADS: [],
+        templates: read,
+      });
       const text = textOf(paneOf(vmOf(caller, callback)));
       for (const gone of [
         "Checking which templates are approved",
@@ -369,7 +271,7 @@ test("REGRESSION: a call back is offered once whoever looks, its to-do said once
       }
     }
   } finally {
-    globalThis.window.__TEMPLATES = kept2;
+    setSurfaceValue("inbox", undefined);
   }
   // Taken over, the to-do is still said once.
   const yours = paneOf(
@@ -384,7 +286,7 @@ test("REGRESSION: a call back is offered once whoever looks, its to-do said once
       callback,
     ),
   );
-  assert.equal(find(find(yours, byTestId("ix-th-status")), byTestId("ix-take-ask")), undefined);
+  assert.equal(find(find(yours, byTestId("ix-th-status")), byTestId("ix-take-ask")), null);
 });
 
 test("on a phone, Back is the arrow alone: the top bar says Inbox over it, and '← Inbox' said it again", () => {
@@ -408,9 +310,9 @@ test("REGRESSION: the list has no head line until a search or a pick -- it said 
       asked("e2"),
     ),
   ];
-  cells = [];
+  fresh();
   let tree = listOf(threads);
-  assert.equal(find(tree, hasClass("ix-list-head")), undefined, "REGRESSION: a head saying the chip's number again");
+  assert.equal(find(tree, hasClass("ix-list-head")), null, "REGRESSION: a head saying the chip's number again");
   const box = find(find(tree, hasClass("ix-search-row")), (n) => n.type === "input" && n.props?.type === "checkbox");
   assert.equal(box.props["aria-label"], "Select all 2 conversations");
 
@@ -421,7 +323,7 @@ test("REGRESSION: the list has no head line until a search or a pick -- it said 
   tree = listOf(threads);
   assert.equal(textOf(find(tree, hasClass("ix-list-count"))).trim(), "2 matches");
 
-  cells = [];
+  fresh();
   tree = listOf(threads, { selected: [threads[0].id] });
   assert.equal(
     textOf(find(find(tree, hasClass("ix-list-head")), hasClass("ix-bulk-count"))),
@@ -462,7 +364,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   const asleep = vmOf(
     chat({ id: "c5", state: "snoozed", snooze_until: later, paused_until: later, contact: person("p5", "Sam Ortiz") }),
   );
-  cells = [];
+  fresh();
   const tree = listOf([open, mine, theirs, quiet, asleep]);
   const said = (who) => {
     const row = rowOf(tree, who);
@@ -522,17 +424,14 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
     state: "open",
     created_at: ago(20),
   });
-  const pane = InboxThread({
-    thread: vm,
-    channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" },
-  });
+  const pane = paneOf(vm, { channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } });
   const bubbles = findAll(pane, hasClass("tl-msg"));
   assert.equal(bubbles.length, 2);
   const [chatBubble, emailBubble] = bubbles;
   assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))), "Quote for Saturday");
-  assert.equal(find(chatBubble, byTestId("tl-msg-subject")), undefined, "a subject is an email's");
+  assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
   assert.ok(
-    find(emailBubble, (n) => n.type === "Icon" && n.props?.name === "mail"),
+    find(emailBubble, (n) => n.type === Icon && n.props?.name === "mail"),
     "an envelope, not a chat bubble",
   );
   assert.match(textOf(find(emailBubble, hasClass("tl-msg-meta"))), /Email/);
@@ -544,7 +443,7 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
   assert.deepEqual(order, ["subject", "body"], "what it is about, then what it says");
   assert.equal(
     find(emailBubble, byTestId("tl-msg-left-out")),
-    undefined,
+    null,
     "an email that was kept whole says nothing about it",
   );
   // An email's files are not kept: the bubble says which, or "see attached" reads as the whole of it.
@@ -560,8 +459,7 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
       },
     },
   };
-  const withFile = InboxThread({
-    thread: vmOf(chat({ contact: ana, last_wa_inbound_at: null, messages: [attached] })),
+  const withFile = paneOf(vmOf(chat({ contact: ana, last_wa_inbound_at: null, messages: [attached] })), {
     channelLabels: { email: "Email" },
   });
   assert.equal(textOf(find(withFile, byTestId("tl-msg-left-out"))).trim(), "1 attachment was not kept: floorplan.pdf.");
@@ -574,6 +472,6 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
   );
   assert.equal(
     find(pane, (n) => /24-hour WhatsApp window/.test(textOf(n)) && hasClass("ix-composer-banner")(n)),
-    undefined,
+    null,
   );
 });

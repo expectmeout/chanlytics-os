@@ -48,14 +48,14 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
 });
 
 test("the thread menu on a real workspace offers only verbs that act", () => {
-  const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
   assert.ok(
-    page.includes('...(window.__DEMO_MODE ? [{ label: "Mark as unread"'),
+    page.includes('...(demoSession() ? [{ label: "Mark as unread"'),
     "Mark as unread is demo-only until unread state exists",
   );
-  assert.ok(page.includes('{ label: "Block sender", icon: "x", danger: true'), "the demo keeps its item");
-  const block = page.indexOf('{ label: "Block sender"');
-  const gate = page.lastIndexOf("window.__DEMO_MODE", block);
+  assert.ok(/label: "Block sender",\s*icon: "x",\s*danger: true/.test(page), "the demo keeps its item");
+  const block = page.indexOf('label: "Block sender"');
+  const gate = page.lastIndexOf("demoSession()", block);
   assert.ok(gate > 0 && block - gate < 120, "Block sender is behind the demo gate");
   assert.ok(
     page.includes('{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }'),

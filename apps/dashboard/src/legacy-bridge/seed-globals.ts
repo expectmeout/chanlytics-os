@@ -31,6 +31,8 @@ import {
   importCounts,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
+import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
+import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
@@ -147,7 +149,23 @@ if (typeof window !== "undefined") {
     EmptyState: KIT_GLOBALS.EmptyState,
     FailedRead: KIT_GLOBALS.FailedRead,
     SegmentBar: KIT_GLOBALS.SegmentBar,
+    StatePill: KIT_GLOBALS.StatePill,
+    Confirm: KIT_GLOBALS.Confirm,
+    MoreMenu: KIT_GLOBALS.MoreMenu,
+    PolicyChip: KIT_GLOBALS.PolicyChip,
+    TlMedia: KIT_GLOBALS.TlMedia,
+    // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
+    // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
+    INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
+    CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA,
+    IX_STORE: INBOX_GLOBALS.IX_STORE,
+    ixWaitsOnYou: INBOX_GLOBALS.ixWaitsOnYou,
+    CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
+    CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
+    threadVerbs,
   });
+  // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
+  hearPresence();
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
