@@ -12,8 +12,9 @@
  * portal on the document's body, as it is on a page. Under the entries, room to scroll, so the page behind a modal can
  * be seen to hold still.
  *
- * Nothing typechecks this file (tooling is not a TypeScript project); the kit it draws is typechecked where it lives,
- * and the spec runs this.
+ * The dashboard's `tsc --noEmit` compiles this file and the entries it imports (apps/dashboard/tsconfig.json), so a
+ * props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck`, where no CI job runs
+ * the browser spec. Nothing lints it. The spec runs it.
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

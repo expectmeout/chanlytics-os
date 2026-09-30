@@ -8,8 +8,9 @@
  * tooling/scripts/tests/styles/kit-behaves.test.mjs those it can draw on a server, in the node suite. What an entry
  * says is made up, as every fixture's is.
  *
- * Nothing typechecks this file (tooling is not a TypeScript project); the kit it draws is typechecked where it lives,
- * and the spec and the node test run this.
+ * The dashboard's `tsc --noEmit` compiles this file (apps/dashboard/tsconfig.json includes the page that imports it),
+ * so a props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck`, where no CI job
+ * runs the browser spec. Nothing lints it. The spec and the node test run it.
  */
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";

@@ -2,7 +2,10 @@
   "//": [
     "Next resolves for the dashboard, so the base's bundler resolution stands. Next leaves a tsconfig that extends",
     "another alone (it rewrote this one's jsx before). noUncheckedIndexedAccess waits here until the dashboard's index",
-    "reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them."
+    "reads are guarded: tests/types/index-reads-are-counted.test.mjs counts them. The harness page that runs the kit's",
+    "components with behaviour of their own is compiled here too (tooling/scripts/e2e-harness/kit-behaves.tsx and the entries it",
+    "imports), so a props change it no longer meets fails typecheck: no CI job runs its browser spec. It imports the kit by",
+    "its .ts path, which allowImportingTsExtensions lets stand (noEmit is on)."
   ],
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -11,11 +14,18 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "jsx": "preserve",
+    "allowImportingTsExtensions": true,
     "incremental": true,
     "noUncheckedIndexedAccess": false,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "../../tooling/scripts/e2e-harness/kit-behaves.tsx"
+  ],
   "exclude": ["node_modules", "src/legacy"]
 }

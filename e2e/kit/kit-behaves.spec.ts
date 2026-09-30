@@ -19,11 +19,17 @@ import { kitSkeleton, trappedUnder, type SkeletonAsk } from "./kit-behaves-check
  *    and typing finds an item; a switch answers Space and the segmented control the arrows; the combobox narrows its
  *    list and chooses with the keys; the tooltip shows on hover and on focus and hides on Escape; a toast arrives in a
  *    region a screen reader hears and goes on its ×; and a field's problem reaches its box's aria-describedby and
- *    aria-invalid, and leaves it when mended. At a desk and on a phone, in both themes and both looks.
+ *    aria-invalid, and leaves it when mended; a menu's items are chosen by Enter and by a press (an item that opens a
+ *    page is a link, one of a set is marked once chosen) and a press outside closes it; the popover stays for a press
+ *    inside and closes for one outside; the select is walked and chosen from; the sheet closes for its Close and its wash;
+ *    and the sheet, an option with a sentence and a select in its field are named and described as the browser resolves
+ *    it. At a desk and on a phone, in both themes and both looks.
  * 3. In Glass, where a pane or a bar blurs what is behind it and so holds what is fixed inside it, nothing the kit pops
  *    is held: each is portaled to the body, under no ancestor that makes a containing block, and stands by its control.
- * And each check fails when what it checks is broken, shown on faults planted in the page, never on disk. It waits by
- * condition, never for a fixed time; a React or Base UI warning in the console fails the run it came in.
+ * And each check is shown to fail when what it checks is broken, on a fault planted in the page, never on disk (one
+ * fault for a check, not one for every line of it). It waits by condition, never for a fixed time; a React or Base UI
+ * warning in the console fails the run it came in. No CI job runs this spec: the harness page is compiled by the
+ * dashboard's tsc, and a pull request that changes a component, or Base UI's version, shows this run.
  *
  * Production has no gallery: the nightly skips this with a reason its skip ceiling does not count (skip-ceiling.ts).
  */
@@ -286,6 +292,160 @@ const menuKeys: Check = async (page) => {
   return out;
 };
 
+/** Whether the figure of an entry says, in its caption, what the page last heard from it. */
+const captionSays = (page: Page, entry: string, words: string) =>
+  met(
+    page,
+    ({ id, said }) => (document.querySelector(`[data-entry="${id}"] figcaption`)?.textContent ?? "").includes(said),
+    { id: entry, said: words },
+  );
+
+/** Where a press lands on the page behind a modal: its wash on a desk, the strip above a bottom sheet on a phone. */
+const washOf = (run: Run) => (run.width === "desk" ? { x: 200, y: 450 } : { x: 195, y: 40 });
+
+/**
+ * The menu acts: Enter on an item chosen by the arrows, a press on another, a link where an item opens a page, and one
+ * of a set chosen by a press; each asks the page and closes the menu, and a press outside closes it.
+ */
+const menuActs: Check = async (page) => {
+  const out: string[] = [];
+  const open = (sel: string) => met(page, (s) => !!document.querySelector(s), sel);
+  const gone = () => met(page, () => !document.querySelector(".more-menu"), null);
+  await page.getByTestId("menu-open").focus();
+  await page.keyboard.press("ArrowDown");
+  await met(page, () => document.activeElement?.classList.contains("more-item") === true, null);
+  await page.keyboard.press("Enter");
+  if (!(await captionSays(page, "menu-kit", "last chosen: Copy number")))
+    out.push("the menu: Enter on the first item did not choose it");
+  if (!(await gone())) out.push("the menu: choosing an item left the menu open");
+  else if ((await focused(page)) !== "menu-open")
+    out.push(`the menu: focus went to ${await focused(page)} after a choice`);
+  if (out.length) return out;
+  await page.getByTestId("menu-open").click();
+  await open(".more-menu");
+  await page.locator(".more-item", { hasText: "Send booking link" }).click();
+  if (!(await captionSays(page, "menu-kit", "last chosen: Send booking link")))
+    out.push("the menu: a press on an item did not choose it");
+  if (!(await gone())) out.push("the menu: it stayed open after a press on an item");
+  if (out.length) return out;
+  await page.getByTestId("menu-open").click();
+  await open(".more-menu");
+  const door = await page.evaluate(() => {
+    const link = document.querySelector<HTMLAnchorElement>(".more-menu a.more-item");
+    return { href: link?.getAttribute("href") ?? null, role: link?.getAttribute("role") ?? null };
+  });
+  if (door.href !== "#kit-person" || door.role !== "menuitem")
+    out.push(`the menu: the item that opens a page is not a link with its address (${JSON.stringify(door)})`);
+  await page.mouse.click(2, 2);
+  if (!(await gone())) return [...out, "the menu: a press outside left it open"];
+  await page.getByTestId("menu-set-open").click();
+  await open(".more-menu");
+  await page.locator(".more-item", { hasText: "Oldest first" }).click();
+  if (!(await captionSays(page, "menu-kit-set", "chosen: oldest")))
+    out.push("the menu: a press on one of a set did not choose it");
+  if (!(await gone())) out.push("the menu: it stayed open after a press on one of a set");
+  if (out.length) return out;
+  await page.getByTestId("menu-set-open").click();
+  await open(".more-menu");
+  const ticked = await page.evaluate(
+    () => document.querySelector(".more-menu [aria-checked=true]")?.textContent?.includes("Oldest first") === true,
+  );
+  if (!ticked) out.push("the menu: the set does not mark the one chosen");
+  await page.keyboard.press("Escape");
+  return out;
+};
+
+/** The popover stays open for a press inside it, and closes for one outside. */
+const popoverPresses: Check = async (page) => {
+  const out: string[] = [];
+  await page.getByTestId("popover-open").click();
+  if (!(await met(page, () => !!document.querySelector(".panel-pop"), null)))
+    return ["the popover: a press did not open it"];
+  await page.getByTestId("popover-inside").click();
+  if (!(await met(page, () => !!document.querySelector(".panel-pop"), null)))
+    out.push("the popover: a press inside closed it");
+  await page.mouse.click(2, 2);
+  if (!(await met(page, () => !document.querySelector(".panel-pop"), null)))
+    out.push("the popover: a press outside left it open");
+  return out;
+};
+
+/** The select opens, is walked by the arrows and chosen from by Enter or a press, and gives focus back to its box. */
+const selectChooses: Check = async (page) => {
+  const out: string[] = [];
+  const box = page.locator('[data-entry="select-kit"] .rec-select');
+  // A closed list stays in the page, in a positioner that is hidden: it is open while its positioner is not.
+  const closed = () => met(page, () => !document.querySelector(".pop-place:not([hidden]) .rec-combo-pop"), null);
+  await box.click();
+  if (!(await met(page, () => !!document.querySelector(".rec-combo-pop [data-highlighted]"), null)))
+    return ["the select: a press did not open its list on an option"];
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  if (!(await captionSays(page, "select-kit", "chosen: follow")))
+    out.push("the select: ArrowDown and Enter did not choose the next option");
+  if (!(await closed())) out.push("the select: choosing left its list open");
+  else if (!(await met(page, () => document.activeElement?.classList.contains("rec-select") === true, null)))
+    out.push(`the select: focus went to ${await focused(page)} after a choice, not back to its box`);
+  if (out.length) return out;
+  await box.click();
+  await page.locator(".rec-combo-opt", { hasText: "Full treatment" }).click();
+  if (!(await captionSays(page, "select-kit", "chosen: full")))
+    out.push("the select: a press on an option did not choose it");
+  await closed();
+  return out;
+};
+
+/** The sheet closes for its Close and for a press on its wash, and gives focus back to what opened it. */
+const sheetCloses: Check = async (page, run) => {
+  const out: string[] = [];
+  const gone = () => met(page, () => !document.querySelector("section.sheet"), null);
+  const wash = washOf(run);
+  for (const [how, press] of [
+    ["its Close", () => page.getByRole("button", { name: "Close", exact: true }).click()],
+    ["a press on its wash", () => page.mouse.click(wash.x, wash.y)],
+  ] as const) {
+    await page.getByTestId("sheet-open").click();
+    if (!(await met(page, () => !!document.querySelector("section.sheet"), null)))
+      return [...out, "the sheet: it did not open"];
+    await press();
+    if (!(await gone())) out.push(`the sheet: ${how} did not close it`);
+    else if ((await focused(page)) !== "sheet-open")
+      out.push(`the sheet: after ${how}, focus went to ${await focused(page)}, not back to its control`);
+    if (out.length) return out;
+  }
+  return out;
+};
+
+/** What names and describes things, as the browser resolves it: the sheet, an option with a sentence, a select in a field. */
+const namesAreWired: Check = async (page) => {
+  const out: string[] = [];
+  const holds = async (what: string, check: () => Promise<void>) => {
+    try {
+      await check();
+    } catch {
+      out.push(`${what} is not named or described as it should be`);
+    }
+  };
+  await page.getByTestId("sheet-open").click();
+  const sheet = page.getByRole("dialog", { name: "Services" });
+  await holds("the sheet", () =>
+    expect(sheet).toHaveAccessibleDescription("What you offer, and how long each takes.", { timeout: 3000 }),
+  );
+  await page.keyboard.press("Escape");
+  const radio = page.getByRole("radio", { name: "Everyone" });
+  await holds("an option with a sentence", () =>
+    expect(radio).toHaveAccessibleDescription("Every caller and every message.", { timeout: 3000 }),
+  );
+  const select = page.locator('[data-entry="select-kit"] .rec-select');
+  await holds("a select in its field (its name)", () =>
+    expect(select).toHaveAccessibleName(/Service/, { timeout: 3000 }),
+  );
+  await holds("a select in its field (its hint)", () =>
+    expect(select).toHaveAccessibleDescription(/What the proposal is for\./, { timeout: 3000 }),
+  );
+  return out;
+};
+
 /** A switch answers Space, twice; the read-only one keeps its state. */
 const switchSpace: Check = async (page) => {
   const out: string[] = [];
@@ -503,6 +663,11 @@ const CHECKS: [string, Check][] = [
   ["Tab stays inside the sheet", tabStaysInSheet],
   ["the page behind the sheet holds still", pageHoldsStill],
   ["the menu's arrows and typing", menuKeys],
+  ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
+  ["the popover stays for a press inside and closes for one outside", popoverPresses],
+  ["the select opens, is walked, and chooses", selectChooses],
+  ["the sheet closes for its Close and its wash", sheetCloses],
+  ["the sheet, an option and a select are named and described", namesAreWired],
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
@@ -747,6 +912,126 @@ test("the behaviour checks name each fault planted: Escape, Tab, the scroll, the
       new MutationObserver(unmark).observe(document.body, { subtree: true, attributes: true, childList: true });
     });
     expect((await fieldProblem(page, run))[0]).toBe("the field: a problem left its box aria-invalid=null");
+  } finally {
+    await context.close();
+  }
+});
+
+test("the other checks name each fault planted: the menu's keys and acts, the popover's press and focus, the select, the sheet's Close, the names, Space, the arrows, the toast", async ({
+  browser,
+  baseURL,
+}) => {
+  const { context, page } = await open(browser, baseURL, "desk");
+  const run: Run = { width: "desk", theme: "dark", look: "classic" };
+  /** A key swallowed, on the window in the capture phase, before Base UI or the browser hears it. */
+  const swallow = (key: string, types: string[] = ["keydown"]) =>
+    page.evaluate(
+      ({ k, kinds }) => {
+        for (const kind of kinds)
+          window.addEventListener(
+            kind,
+            (e) => {
+              if ((e as KeyboardEvent).key === k) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+              }
+            },
+            true,
+          );
+      },
+      { k: key, kinds: types },
+    );
+  /** An attribute taken off whatever a selector finds, now and as the page draws more. */
+  const strip = (selector: string, attribute: string) =>
+    page.evaluate(
+      ({ sel, attr }) => {
+        const off = () => document.querySelectorAll(sel).forEach((el) => el.removeAttribute(attr));
+        off();
+        new MutationObserver(off).observe(document.body, { subtree: true, childList: true, attributes: true });
+      },
+      { sel: selector, attr: attribute },
+    );
+  try {
+    // ArrowDown swallowed: the menu's control opens on nothing.
+    await show(page);
+    await swallow("ArrowDown");
+    expect(await menuKeys(page, run)).toEqual(["the menu: ArrowDown on its control put focus on no item"]);
+
+    // Enter swallowed: an item walked to is never chosen.
+    await show(page);
+    await swallow("Enter");
+    expect(await menuActs(page, run)).toContain("the menu: Enter on the first item did not choose it");
+
+    // A press outside swallowed before the popover hears it: it stays open.
+    await show(page);
+    await page.evaluate(() => {
+      for (const kind of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"])
+        window.addEventListener(
+          kind,
+          (e) => {
+            if (!(e.target as Element).closest(".panel-pop, [data-testid=popover-open]")) e.stopImmediatePropagation();
+          },
+          true,
+        );
+    });
+    expect(await popoverPresses(page, run)).toContain("the popover: a press outside left it open");
+
+    // The popover's control taken out of reach as it opens, so focus has nowhere to go back to.
+    await show(page);
+    await page.evaluate(() => {
+      new MutationObserver(() => {
+        if (document.querySelector(".panel-pop"))
+          document.querySelector("[data-testid=popover-open]")?.setAttribute("inert", "");
+      }).observe(document.body, { subtree: true, childList: true });
+    });
+    expect((await popoverEscape(page, run))[0]).toMatch(/^the popover: focus went to .*, not back to its control/);
+
+    // Enter swallowed: the select's option walked to is never chosen.
+    await show(page);
+    await swallow("Enter");
+    expect(await selectChooses(page, run)).toContain("the select: ArrowDown and Enter did not choose the next option");
+
+    // The sheet's Close undone before the sheet hears it.
+    await show(page);
+    await page.evaluate(() => {
+      new MutationObserver(() => {
+        const close = document.querySelector<HTMLElement>(".rec-sheet-close");
+        if (close && !close.dataset.planted) {
+          close.dataset.planted = "1";
+          close.addEventListener("click", (e) => e.stopImmediatePropagation(), true);
+        }
+      }).observe(document.body, { subtree: true, childList: true });
+    });
+    expect(await sheetCloses(page, run)).toContain("the sheet: its Close did not close it");
+
+    // The names taken off: the sheet's description, an option's sentence, a select's hint.
+    for (const [selector, attribute, said] of [
+      ["[role=dialog]", "aria-describedby", "the sheet is not named or described as it should be"],
+      ["[role=radio]", "aria-describedby", "an option with a sentence is not named or described as it should be"],
+      [".rec-select", "aria-describedby", "a select in its field (its hint) is not named or described as it should be"],
+    ] as const) {
+      await show(page);
+      await strip(selector, attribute);
+      expect(await namesAreWired(page, run)).toContain(said);
+    }
+
+    // Space undone on the switch, where the browser would press the button.
+    await show(page);
+    await swallow(" ", ["keydown", "keyup"]);
+    expect(await switchSpace(page, run)).toContain("the switch: Space did not turn it on");
+
+    // The arrows swallowed: the segmented control chooses nothing.
+    await show(page);
+    await swallow("ArrowRight");
+    expect((await segmentedArrows(page, run))[0]).toMatch(/^the segmented control: ArrowRight chose /);
+
+    // The toast's live region taken off: nothing a screen reader hears.
+    await show(page);
+    await page.evaluate(() => {
+      const off = () => document.querySelectorAll("[aria-live]").forEach((el) => el.removeAttribute("aria-live"));
+      new MutationObserver(off).observe(document.body, { subtree: true, childList: true, attributes: true });
+    });
+    expect(await toastArrives(page, run)).toContain("the toast: it arrived in no live region (null)");
   } finally {
     await context.close();
   }
