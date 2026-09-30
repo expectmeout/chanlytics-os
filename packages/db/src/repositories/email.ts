@@ -1,22 +1,35 @@
 /**
- * Email's rows: a workspace's mailbox, taking a received email in, the email a
- * reply answers, and what became of one we sent.
+ * Email's rows: a workspace's mailbox, taking a received email in, the email a reply answers, and what became of an
+ * email sent. Groups, top to bottom:
  *
- * Taking an email in goes through `ingest_inbound`, the same atomic gate every
- * channel uses (one advisory lock per identity, one replay gate on the
- * provider's id), with the sender's address as the identity. That function is
- * the hot path for every inbound message in the product and is not recreated
- * to learn a column (ingest.ts says the same of the offers answer). The two
- * things email needs around it are done here, each idempotent, so a run that
- * dies between them resumes cleanly:
+ *   the mailbox            mailboxById, mailboxFor (a published address, or a reply route: a rotated-out token still
+ *                          routes until it is revoked, 00126), mailboxOfTenant (null is a workspace with no email
+ *                          line) and stampMailboxReceived (the mailbox's health stamp, which only logs when it fails).
+ *   taking one in          ingestInboundEmail and sentEmailWithMessageId (how a sent email coming back is known),
+ *                          asked by the email_ingest job (packages/jobs/src/handlers.ts); the edge's door finds the
+ *                          mailbox with mailboxFor (apps/edge/lib/email/email-ingress.ts).
+ *   what a reply answers   lastInboundEmail (the person's latest email on one thread) and answeredReachOutEmail (the
+ *                          reach-out email a reply answers), read for the dashboard's reply routes on the member's
+ *                          client (apps/dashboard/src/server/ports/core-ports.ts, connections/email.ts).
+ *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/email-receipts.ts: stampEmailSent,
+ *   email                  sentEmailOf, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
+ *                          stampEmailLeftAs is written by core's deliver() after an email leaves.
  *
- *   before  a person the owner already gave this address to (00125) has never
- *           written from it, so no identity names them yet. The identity is
- *           written first, and the ingest then joins THAT person instead of
- *           making a second one.
- *   after   a person who arrived by email gets the address on their own row,
- *           where replies are addressed from and People shows it. Only an
- *           empty one is filled: what an owner typed is never overwritten.
+ * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
+ * one replay gate on the provider's id), with the sender's address as the identity; it is not recreated to learn a
+ * column. The two things email needs around it are each idempotent, so a run that dies between them resumes. Before:
+ * a person the owner already gave this address to (00125) has never written from it, so the identity is written first
+ * and the ingest joins that person instead of making a second. After: a person who arrived by email gets the address
+ * on their own row, only when it is empty, so what an owner typed is never overwritten (if another person was given
+ * the address in the same moment, the email is kept, the collision is logged and the owner merges them).
+ *
+ * Receipts arrive at least once and in no order. stampEmailSent and stampEmailLeftAs each merge into the row in one
+ * statement, so a stamp beside them is not overwritten; recordEmailStatus lets go a move messages_guard refuses
+ * (backwards, or off a terminal state) as a receipt out of order; suppressEmailOf stops the person's address as it is
+ * now, and only while it is still the one the email went to (00126). The reads of a thread's emails are scoped to the
+ * workspace and the conversation, so a reply cannot be threaded under another workspace's or person's message. A
+ * failed read or write throws (the mailbox stamp only logs), so the caller's retry or the provider's redelivery meets
+ * it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";

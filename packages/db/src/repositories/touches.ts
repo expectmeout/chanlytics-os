@@ -1,15 +1,26 @@
 /**
- * Who a run of any kind reached, or is about to: the touches a playbook's gap and the week's breath hold people back
- * by (contracts eligibleForPlaybook), read by the edge's hourly sweep and the dashboard's Playbooks page alike.
+ * Who a run of any kind has reached, or is about to reach, from broadcasts and broadcast_recipients: the touches that
+ * contracts eligibleForPlaybook holds a person back by, a playbook's own gap and the week's breath across every
+ * playbook. The edge's hourly playbooks sweep (through apps/edge/lib/playbooks.ts) and the dashboard's Playbooks page
+ * and broadcast composer (apps/dashboard/src/server/campaigns/playbooks.ts) read through this file, so the rule below
+ * is written once and what the page says a person waits for is what the sweep holds them for.
  *
- * Each read them itself, the same rule twice, until one of them changed, which is the day the page's "waits for the
- * breath" would stop being the sweep's. The rule, once: a person sent to, or queued for a run on its way, was touched
- * from the moment it went or is due. A run canceled or failed touched only the people it had already sent to: stopped
- * halfway, it had reached them, and read as reaching nobody it messaged them again. A run waiting for a person whose
- * day has passed touched nobody: it can never be approved (core approveRun), and the approval sheet says the next run
- * starts over. A broadcast sent by hand counts for the breath and for no playbook's gap. A run that carries a
- * proposal's link is a proposal follow-up (0006), owed once per proposal whichever playbook sent it, one since deleted
- * too.
+ * touchesSince reads every touch since a moment. followUpTouchesSince reads only the runs that carry a proposal's link,
+ * because its window is as long as a proposal waits, far longer than the breath. touchIndex folds touches into the
+ * latest one per person by any run (byAny, the breath), by each playbook (byThis, its gap) and by proposal follow-up
+ * (followUps).
+ *
+ * The rule: a person sent to, or queued for a run on its way, was touched from the moment it went or is due. A run
+ * canceled or failed touched only the people it had already sent to: stopped halfway, it had reached them, and read as
+ * reaching nobody it would message them again. A run waiting for a person whose day has passed touched nobody: it can
+ * never be approved (core approveRun), and the approval sheet says the next run starts over. A broadcast sent by hand
+ * counts for the breath and for no playbook's gap. A run that carries a proposal's link is a proposal follow-up
+ * (decision 0006), owed once per proposal whichever playbook sent it, so it is found by its params and not by its
+ * playbook: a deleted playbook leaves its runs with a null playbook_id.
+ *
+ * Both reads page (a response is capped at a thousand rows) and THROW on failure: "nobody was touched" is the reading
+ * that messages people twice. The one read that degrades is the workspace's zone: unreadable, every waiting run still
+ * holds its people.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TIMEZONE, localDate, parseParamSpecs } from "@chanlytics/contracts";

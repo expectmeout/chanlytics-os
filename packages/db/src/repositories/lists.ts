@@ -1,11 +1,26 @@
 /**
- * Saved lists: a name and the people on it (00044's segments and segment_members), read and written here and
- * nowhere else.
+ * Saved lists: a list's name, its rule and the people on it (segments and segment_members, 00044), read and written
+ * here and nowhere else. The segments routes, the playbooks, the audience of a send, the lists reader that Ask shares
+ * with the page and the list verbs all come through this file (apps/dashboard/src/server: campaigns/playbooks.ts,
+ * people/audience.ts, readers/lists.ts, verbs.ts).
  *
- * The routes, the send, the assistant and the verbs each read these tables themselves, and each read of the members
- * was one select, which PostgREST answers with at most 1000 rows: past a thousand memberships a list silently lost
- * people. Every member read here is paged. A write answers the database's error as it came, code and all, so the
- * route that called it can say the refusal in its own words.
+ * Reads: savedListsFor gives every list of one workspace with every id on it, savedListFor one list, listMemberIds one
+ * list's ids, and listRow the list a verb acts on, whose tenant_id is the workspace its role is judged in.
+ * savedListsFor and savedListFor are scoped by workspace; listRow leaves the scope to row security alone, so a list the
+ * caller cannot see is no list. Every member read is paged (readAllRows), because PostgREST answers one select with at
+ * most 1000 rows and a list would silently lose people past a thousand memberships. A smart list keeps a rule (00155)
+ * and who is on it is judged on every read (contracts savedListIds), so its ids are empty here; a list archived (00169)
+ * leaves People's rail and still resolves for the playbooks that name it.
+ *
+ * Writes: make, rename, change the rule of, add to, drop from, archive and restore, and delete a list. What a member's
+ * session may update on a list is the column grant's: name, rule and archived_at. Each write answers the database's
+ * error as it came, code and all (23505 for a name already taken), so the route can say the refusal in its own words.
+ * Row security hides an update it will not let change without raising, so archiveList reads the row back and counts,
+ * and deleteList counts what it removed.
+ *
+ * A read that names a column a database has not reached yet (rule, archived_at) answers "does not exist" and is read
+ * again without it, so every list is one kept by hand, or live, and either deploy order works; playbooksOnList does
+ * the same for playbooks' list_id (00155).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";

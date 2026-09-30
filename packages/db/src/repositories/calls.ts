@@ -1,8 +1,22 @@
 /**
- * Calls repository (Slice 3). ingest_call is the atomic gate: identity
- * resolution + upsert + metering in one round trip, idempotent on
- * (tenant_id, retell_call_id) so webhook stages and the history backfill
- * converge on one row.
+ * The calls repository: what a voice call's webhook stages and the calls sweep write to the calls table, the call's
+ * note in its customer's thread, and the reads of who a call was from. Callers are the edge's Retell webhook and calls
+ * sweep (ingestCall, recordCallNote, linkCallMessage, setCallRecording), the recording copy (setCallRecording), the
+ * Live Activity start (claimCallActivity, callerNameOf) and the dashboard's message reader (callersOf).
+ *   - ingestCall is the one door a call comes in by: the ingest_call function resolves the person, upserts the call and
+ *     meters its seconds in one round trip, idempotent on (tenant_id, retell_call_id), so each webhook stage and the
+ *     sweep's re-ingest converge on one row. It is forward-only: an event ranking below the row's status writes nothing
+ *     and answers skipped.
+ *   - linkCallMessage and setCallRecording write to an existing row and count the rows they changed: an UPDATE that RLS
+ *     excludes, or that names a row that is gone, reports success, so a write that changed nothing is logged as a noop
+ *     and never trusted for the absence of an error.
+ *   - claimCallNotification and claimCallActivity are first-caller-wins claims (notified_at, activity_started_at): true
+ *     once and false after, so a redelivery repeats neither the post-call summary nor the Live Activity start. A
+ *     database error throws, and the webhook turns a failed notification claim into a 503 so the provider redelivers.
+ *   - recordCallNote files the call as a call_summary message in the customer's thread, idempotent on its external id
+ *     (call:<retell_call_id>), so the receptionist's history holds the call.
+ * The provider's recording URL is never written to a row: calls is in the realtime publication, so every column reaches
+ * every member's browser. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";

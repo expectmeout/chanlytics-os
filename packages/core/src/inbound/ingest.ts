@@ -1,11 +1,22 @@
 /**
- * Decision 0001's ingestMessage: persist first, the thread, the replay gate.
+ * The first phase of answerInbound (./answer.ts, its only caller): the message recorded, its memory read and the ways
+ * out bound, before any gate decides whether the receptionist may speak (decision 0001).
  *
- * A short code and a sender off the pilot allowlist are recorded and not answered. Every other message is
- * persisted before anything can fail, its memory is read back, an address in the customer's own words is
- * kept, and the three ways out every later phase speaks through (wire, send, tell) are bound where the wires
- * are. A redelivery stops at the replay gate. An ingest the database refused throws IngestFailed, which
- * travels up to the webhook and its 503.
+ * ingestMessage takes the InboundContext that openInbound bound and returns Ingested (./context.ts), or nothing when
+ * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so is a
+ * sender off the pilot allowlist, which binds only the environment's own WhatsApp number and is compared as digits on
+ * both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim; processed-state is not
+ * consulted, because a missed auto-reply beats a double text. Every other message is persisted before anything can
+ * fail, its memory is read back through the persist port (a thread that cannot be read comes back UNKNOWN, and
+ * ./gates.ts hands it to a person), an address the customer gives in their own typed or tapped words is kept where none
+ * is on file, and the three ways out that every later phase speaks through are bound here, where the credentials are:
+ * wire shapes the words for the carrier (the texting footer on a first reply), send goes through the sink's one door,
+ * which re-reads consent, the pause and the workspace's status, and tell is the owner's handoff mail.
+ *
+ * Persist first is the rule: the allowlist and the short code gate the reply, never the persist. An ingest the database
+ * refused throws IngestFailed (./ports.ts) after a best-effort copy of the customer's words goes to the workspace's
+ * handoff mail; the WhatsApp door counts it into a 503, so Meta redelivers, and the SMS door refuses with a 503 and
+ * alerts the platform on the same signal.
  */
 import { shortCode, addressInMessage } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";

@@ -191,8 +191,8 @@ async function readNow(
     });
     reading = parseReplyReading(await ports.ask(replySystemPrompt(), user));
   } catch {
-    // A call that threw or ran out of time is a reply not read, not a job that failed: the read is spent, the reply
-    // is `other` for now, and it is read again later (G4).
+    // A call that threw or ran out of time is a reply not read, not a job that failed: the read is spent and the reply
+    // is `other` meanwhile. The read runs again on the schedule contracts' rereadAt gives (G4, below).
     reading = null;
   }
   return { reading, unread: reading ? null : "model_failed", now };
