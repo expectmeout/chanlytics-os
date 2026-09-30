@@ -300,10 +300,17 @@ closes the sheet, a menu and the popover and gives focus back to what opened the
 behind it holds still; a menu's arrows walk it and typing finds an item; a switch answers Space and the segmented
 control the arrows; the combobox narrows and chooses by the keys; the tooltip shows on hover and on focus and hides on
 Escape; a toast arrives in a region a screen reader hears and goes on its ×; a field's problem reaches its box's
-`aria-describedby` and `aria-invalid`. In Glass it checks that no popup is held under a blurred pane or bar. And it
+`aria-describedby` and `aria-invalid`. A menu's items are chosen by Enter and by a press, an item that opens a page is a
+link, one of a set is chosen and marked, and a press outside closes it; the popover stays for a press inside and closes
+for one outside; the select is walked and chosen from; the sheet closes for its Close and its wash; and the sheet, an
+option with a sentence and a select in its field are named and described as the browser resolves it. In Glass it checks
+that no popup is held under a blurred pane or bar. And it
 holds what each draws, state by state, to its family "on Base UI" in the gallery, so the gallery the first spec reads
 draws what the components draw; `tooling/scripts/tests/styles/kit-behaves.test.mjs` holds what a server can draw of
-them in `corepack pnpm test`. It waits by condition, never for a fixed time, and fails on faults planted in the page.
+them in `corepack pnpm test`. It waits by condition, never for a fixed time, and each check is shown to fail on a fault planted in the page (one for a
+check, not for every line of it). No CI job runs this spec, so a change to a Base UI component shows its run in the pull
+request, as does a bump of Base UI's pinned version; the dashboard's `tsc` compiles the harness page, so a props change
+that an entry no longer meets fails `corepack pnpm -r typecheck`.
 
 ### Prove a style change
 

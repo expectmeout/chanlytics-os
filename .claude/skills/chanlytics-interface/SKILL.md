@@ -100,7 +100,7 @@ token it reads moves what it feeds.
 A new primitive takes the same steps under a short name in the house's style that no stylesheet uses yet, as a family
 of its own in the gallery, with its component and type test in a folder of its own beside the others (`kit/button/`),
 which the index names it from. The kit's root holds only what its families share: the index, the stylesheet, the
-registry, `variants.ts` and `press.tsx`, so no folder of it comes near the 20 modules a folder may hold (the
+registry, `variants.ts` with its type test, and `press.tsx`, so no folder of it comes near the 20 modules a folder may hold (the
 tree-shape measure).
 
 ## Add a value
@@ -149,7 +149,7 @@ A new token says, in a comment beside it, what it is for.
 | `tooling/scripts/tests/styles/kit-behaves.test.mjs` | the running page and the gallery's families on Base UI parting (an entry on one side alone); a switch, a segmented control or a field drawn on a server otherwise than its entry; a second React, or another Base UI, in the page's bundle |
 | `tooling/scripts/tests/styles/kit-base-ui.test.mjs` | Base UI pinned with a caret or a tag, or at a version the install did not make; a licence not MIT, a peer range without the dashboard's React, or an install script anywhere in what it brings |
 | the Base UI lint (`eslint.config.mjs`, `BASE_UI_INDEX`) | Base UI's index (`@base-ui/react`) imported, or re-exported, anywhere in the dashboard: each component imports its own part |
-| `corepack pnpm check:bundle` (CI, after the build) | the workspace route's CSS past its budget |
+| `corepack pnpm check:bundle` (CI, after the build) | the workspace route's JS or CSS past its budget, within a 1% band. A component with behaviour of its own is JS, so it is this alone that turns red when a page first draws one: the raise is the author's, in that change |
 
 A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too, and the
 bundle's with `corepack pnpm check:bundle -- --update` after a dashboard build. A rise is raised with
