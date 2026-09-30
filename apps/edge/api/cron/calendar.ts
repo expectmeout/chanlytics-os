@@ -1,16 +1,34 @@
 /**
- * The calendar sweep: every hour, every workspace with a calendar connected
- * has the people its appointments name put in People — a phone in the
- * event is the key, the name as the event gives it, consent untouched.
+ * The calendar sweep: every hour, a bounded page of the workspaces with a calendar connected has the people its
+ * appointments name put in People -- a phone in the event is the key, the name as the event gives it, consent
+ * untouched.
  *
- * The same read the receptionists use (one fetch per five minutes, parsed
- * once), the same pure extraction the dashboard applies when an owner opens
- * the Calendar, so a person is created once whichever path saw them first.
- * The same appointments' addresses and numbers go to the booking door, which
- * stops a reach-out to a business that booked after it was written to.
+ * The page is only what is due, judged in the database (00245 calendars_due, through calendarDue in
+ * lib/ops/sweep-rotation.ts): CALENDAR_PER_TICK workspaces whose settings carry a feed address
+ * (config.calendar.ical_url), the never-read first, then the least recently read, none read again within calendarDue's
+ * minAgeMs. Each feed is read as the receptionists read it (feedItemsFor: one fetch per five minutes, parsed once) in
+ * the workspace's own zone, and the same pure extraction the dashboard applies when an owner opens the Calendar
+ * (peopleFromItems) picks the people, so a person is created once whichever path saw them first. addPeopleFromCalendar
+ * gets or creates by phone: a name fills only an empty one, an address only where there is none, someone who asked to
+ * be erased is not brought back by their own appointment, and each person made gets a `contact.added` event that says
+ * where they came from. The owner hears it as a row on the bell (kind calendar_people), never as a mail. The same
+ * appointments' addresses and numbers go to the booking door (bookedFromCalendar, reach_out_booked, 00227), which
+ * stops a reach-out to a business that booked after it was written to; if the door fails that is logged and counts
+ * nothing, and People has been filled all the same.
  *
- * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
- * pg_cron calls this from the database.
+ * A workspace read is stamped (markCalendarChecked, tenant_config.calendar_checked_at). So is one that could not be
+ * read (a feed that fails, settings that do not parse, no address, a throw): it is retried next hour, behind the feeds
+ * that can be read, instead of holding the first place of the page every hour.
+ *
+ * `remaining` is the due feeds beyond the page. noteBacklog (note_sweep_backlog, 00089) counts the ticks in a row that
+ * left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still does its tick and answers 503 (calendar_backlog), which
+ * sweep_health() reads and the health sweep mails to the platform: a queue growing faster than this drains it. A page
+ * that cannot be read is a 500 (an edge deployed ahead of 00245 is loud, not quiet).
+ *
+ * Called by pg_cron at :23 ('calendar-people-sweep', 00053) through trigger_calendar_sweep (request_sweep, 00086),
+ * with the Vault sweep key in x-cron-key (authorizeCron). The request is recorded in sweep_status and sweep_health()
+ * judges the answer (registered in 00107). Its lines carry `sweep: "calendar"` and, per workspace, `tenant_id`; the
+ * tick ends in one calendar_sweep with the counts.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

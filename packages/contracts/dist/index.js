@@ -10900,8 +10900,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z27] = m;
-  if (z27) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z28] = m;
+  if (z28) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -25943,8 +25943,16 @@ function pageVitalsWords(rows) {
 // src/shell/client-error.ts
 import { z as z21 } from "zod";
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
-var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
 var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 var ClientErrorInput = z21.object({
   boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
   page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
@@ -25952,9 +25960,11 @@ var ClientErrorInput = z21.object({
   message: z21.string().max(CLIENT_ERROR_LIMITS.message),
   stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
-function clientErrorOf(boundary, error, page, digest) {
+function clientErrorOf(boundary, error, page, digest, workspace) {
   const e = error instanceof Error ? error : new Error(String(error));
   const first = (page ?? "").split(/[/?#]/)[0] ?? "";
   return {
@@ -25963,7 +25973,8 @@ function clientErrorOf(boundary, error, page, digest) {
     name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
     message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
     stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
-    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null
+    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
+    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
   };
 }
 
@@ -29038,6 +29049,49 @@ function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
 }
 
+// src/workspace/event-data.ts
+import { z as z23 } from "zod";
+var SHARED_EVENT_VERSIONS = {
+  "contact.added": 1,
+  "contact.consent_changed": 1,
+  "platform.acted": 1
+};
+var wireText = z23.string();
+var ContactAddedData = z23.looseObject({
+  source: wireText,
+  title: wireText.nullish(),
+  uid: wireText.nullish(),
+  start: wireText.nullish(),
+  by: wireText.nullish(),
+  lead_id: wireText.nullish()
+});
+var ContactConsentChangedData = z23.looseObject({
+  consent: wireText,
+  source: wireText,
+  purpose: wireText.optional(),
+  previous: wireText.nullish(),
+  by: wireText.nullish(),
+  note: wireText.nullish(),
+  channel: wireText.nullish(),
+  message_external_id: wireText.nullish(),
+  message_id: wireText.nullish(),
+  words: wireText.nullish()
+});
+var PlatformActedData = z23.looseObject({
+  action: wireText,
+  by: wireText,
+  by_email: wireText.nullish(),
+  partner_id: wireText.nullish(),
+  standing: wireText.nullish(),
+  status: wireText.nullish(),
+  from: wireText.nullish()
+});
+var SHARED_EVENT_SHAPES = {
+  "contact.added": ContactAddedData,
+  "contact.consent_changed": ContactConsentChangedData,
+  "platform.acted": PlatformActedData
+};
+
 // src/workspace/password.ts
 var PASSWORD_MIN = 12;
 var PASSWORD_MAX_BYTES = 72;
@@ -29077,7 +29131,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z23 } from "zod";
+import { z as z24 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -29100,11 +29154,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z23.object({
-  code: z23.string().trim().min(1).max(64),
-  terms: z23.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z23.object({ letters: z23.boolean() }).strict();
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -29386,32 +29440,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z23.coerce.number();
-var letterSum = z23.object({ currency: z23.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z23.object({
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z23.array(z23.object({ kind: z23.string(), currency: z23.string(), count: z23.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z23.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z23.array(letterSum).default([]),
-  paid: z23.array(z23.object({ currency: z23.string(), cents: letterCents, reference: z23.string(), sent_at: z23.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z23.array(z23.object({ workspace: z23.string().nullable(), standing: z23.string(), why: z23.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z23.array(z23.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z23.array(z23.string().nullable()).default([]),
-  declined: z23.array(z23.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z23.object({ status: z23.string(), why: z23.string().nullable() }).nullable().default(null),
-  balance: z23.array(
-    z23.object({
-      currency: z23.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z23.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
@@ -29512,16 +29566,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z24.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z24.object({
-  name: z24.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z24.string().trim().max(64).nullish(),
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z24.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -29597,7 +29651,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z25 } from "zod";
+import { z as z26 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -29665,16 +29719,16 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z25.object({
-  partner_id: z25.string().uuid("That partner does not exist."),
-  why: z25.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
 
 // src/workspace/partner-invite.ts
-import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
 var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
 var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
@@ -29683,8 +29737,8 @@ function partnerCodeFrom(raw) {
   const inLink = CODE_IN_LINK.exec(typed);
   return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
-var PartnerInviteSchema = z26.object({
-  code: z26.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -29930,6 +29984,8 @@ export {
   CalendarConfigSchema,
   ClientErrorInput,
   ClosureSchema,
+  ContactAddedData,
+  ContactConsentChangedData,
   DATA_NOT_INSTRUCTIONS,
   DAYS,
   DAY_MS,
@@ -30352,6 +30408,7 @@ export {
   PartnerSecondFactorResetSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
+  PlatformActedData,
   PolicyLimitsSchema,
   ProposeLeadSearchSchema,
   QUEUE_SENDS_NOTHING,
@@ -30482,6 +30539,8 @@ export {
   SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
+  SHARED_EVENT_SHAPES,
+  SHARED_EVENT_VERSIONS,
   SHORTCUTS,
   SIGNED_BY_MAX,
   SIGNIN_RESEND_COOLDOWN_S,

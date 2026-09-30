@@ -29,7 +29,10 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
+    "00276": "held for a peer lane of the road to ten's second wave (29 Sep 2026), whose file lands at the fold; the observe lane's 00279 is a placeholder the controller numbers then",
+    "00277": "held for a peer lane of the road to ten's second wave (29 Sep 2026), whose file lands at the fold; the observe lane's 00279 is a placeholder the controller numbers then",
+    "00278": "held for a peer lane of the road to ten's second wave (29 Sep 2026), whose file lands at the fold; the observe lane's 00279 is a placeholder the controller numbers then"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -277,6 +280,7 @@
     "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80",
     "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
-    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3"
+    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
+    "00279_what_happened_is_named_audited_and_counted.sql": "b5cb58fdcb95ce3d7fe09c68457152235587b7c8a368e972c24ac3b2db5e92ad"
   }
 }

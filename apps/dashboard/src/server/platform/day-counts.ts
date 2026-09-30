@@ -27,7 +27,7 @@ export async function platformDays(office: BackOffice): Promise<PlatformDayRowDt
     replies_answered: row.replies_answered,
     replies_held: row.replies_held,
     replies_handed_off: row.replies_handed_off,
-    brain_p95_ms: row.brain_p95_ms as number | null,
+    brain_p95_ms: row.brain_p95_ms,
     provider_failures: counts(row.provider_failures),
     tokens: Number(row.tokens),
   }));

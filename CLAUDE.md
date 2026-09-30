@@ -125,6 +125,12 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
   never change; they are what alerting greps for.
+- **One logger, one request id.** Every runtime writes through `packages/channels/src/log/`: the edge's `lib/log.ts`, the
+  dashboard's `src/server/log.ts`, and core, jobs, db and Ask directly. One JSON object per line, redacted by key and by
+  shape where it is written, carrying the request's name (`request_id`) and the workspace as `tenant_id`, never `tenant`.
+  A `console` call in any of those trees is a lint error, and a name is one of the app's closed set (`LOG_EVENTS`,
+  `DASHBOARD_LOG_EVENTS`; `repo/log-events.test.mjs`). Every edge door is wrapped in `door()` or `adminDoor()`
+  (`edge/request-id-doors.test.mjs` runs each one). `docs/runbook.md`, "Read the logs", says what a line holds.
 - **A refusal on the edge is a code.** `refuse(status, code, detail?)` from `apps/edge/lib/http.ts`, the code one of
   `EDGE_ERROR_CODES` (`packages/contracts/src/shared/edge-errors.ts`), reused before one is added; the words for a
   person or for support go in `detail`. tsc refuses any other `error` at `json` and `refuse`, and
@@ -155,6 +161,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A page's styles                               | `apps/dashboard/src/legacy/styles/<surface>.css`, then its folder in `apps/dashboard/src/surfaces/<surface>/` once it moves        | None is layout-only yet: Phase 4 leaves each with display, grid, flex, gap, position, size and overflow alone                                    |
 | An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`                                                          | `tooling/scripts/tests/repo/env-manifest.test.mjs` holds the two to the same list; blank is unset                                                |
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`                                                 | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                                                                 |
+| A log line in the dashboard's server          | `log.error("event_name", { tenant_id, fields })` from `apps/dashboard/src/server/log.ts`                                           | The same logger and the same envelope; the name is one of `DASHBOARD_LOG_EVENTS`                                                                 |
 | A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                         |
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                              |
 | A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                     |

@@ -22,10 +22,10 @@ const MOST_PER_LOAD = 5;
 type Beacon = { sendBeacon?: (url: string, data: Blob) => boolean } | undefined;
 
 /** A reporter for one page load: what it sent, so the same error twice is sent once. */
-export function clientErrorReporter(nav: Beacon) {
+export function clientErrorReporter(nav: Beacon, workspace: () => string | null = () => null) {
   const sent = new Set<string>();
   return (boundary: ClientErrorBoundary, error: unknown, page: string | null, digest?: string | null): boolean => {
-    const body = clientErrorOf(boundary, error, page, digest);
+    const body = clientErrorOf(boundary, error, page, digest, workspace());
     const key = `${body.boundary}|${body.name}|${body.message}`;
     if (sent.has(key) || sent.size >= MOST_PER_LOAD) return false;
     sent.add(key);
@@ -38,8 +38,15 @@ export function clientErrorReporter(nav: Beacon) {
   };
 }
 
+/** The workspace the page's address names (`/w/<slug>/…`), or null on a page with none: the sign-in pages. */
+const heldWorkspace = (): string | null =>
+  typeof window === "undefined" ? null : (/^\/w\/([^/]+)/.exec(window.location.pathname)?.[1] ?? null);
+
 /** This page load's reporter, over the browser's own beacon. */
-export const reportClientError = clientErrorReporter(typeof navigator === "undefined" ? undefined : navigator);
+export const reportClientError = clientErrorReporter(
+  typeof navigator === "undefined" ? undefined : navigator,
+  heldWorkspace,
+);
 
 /** Sends what the shell's boundary says it caught; answers the unhook. */
 export function listenForShellErrors(

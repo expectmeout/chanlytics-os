@@ -144,10 +144,18 @@ test("a request's name: the caller's only where it is trusted to give one, else 
     withRequestId("iad1::req-0123456789", async () => {
       await Promise.resolve();
       assert.equal(requestId(), "iad1::req-0123456789", "held across what the request awaits");
-      assert.equal(edgeHeaders(AUD)["x-request-id"], "iad1::req-0123456789");
+      const h = edgeHeaders(AUD);
+      assert.equal(h["x-request-id"], "iad1::req-0123456789");
+      assert.equal(
+        verifyEdgeToken(SECRET, h["x-edge-token"], AUD).claims.rid,
+        "iad1::req-0123456789",
+        "and the same name is signed into the token, so it cannot be relabelled on the way",
+      );
     }),
   );
   await withEnv({ EDGE_CALL_SECRET: SECRET }, () => {
-    assert.equal("x-request-id" in edgeHeaders(AUD), false, "no request, no name");
+    const h = edgeHeaders(AUD);
+    assert.equal("x-request-id" in h, false, "no request, no name");
+    assert.equal(verifyEdgeToken(SECRET, h["x-edge-token"], AUD).claims.rid, null, "nor a signed one");
   });
 });

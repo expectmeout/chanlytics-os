@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -7870,6 +7870,13 @@ type Database = {
                     role: string;
                 }[];
             };
+            team_take_turn: {
+                Args: {
+                    p_actor: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
             trigger_calendar_sweep: {
                 Args: never;
                 Returns: number;
@@ -8003,18 +8010,9 @@ interface TableData {
         verified_name: string | null;
         by: string | null;
     };
-    "contact.added": {
-        source: "calendar";
-        title: string | null;
-        uid: string | null;
-        start: string;
-    };
-    "contact.consent_changed": {
-        consent: string;
-        previous: string | null;
-        source: string;
-        channel: string;
-    };
+    /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
+    "contact.added": ContactAddedData;
+    "contact.consent_changed": ContactConsentChangedData;
     "contact.email_suppressed": {
         reason: string;
     };
@@ -8106,11 +8104,7 @@ interface TableData {
     "message.sent": {
         sender: string;
     };
-    "platform.acted": {
-        action: string;
-        by: string;
-        by_email: string | null;
-    };
+    "platform.acted": PlatformActedData;
     "playbook.run": Record<string, unknown>;
     "policy.changed": {
         class: string;

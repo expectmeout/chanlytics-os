@@ -327,6 +327,7 @@ before(async () => {
   await seed("lead_preferences", { tenant_id: A, kind: "chain" }, null);
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
+  await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
 
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
@@ -655,6 +656,8 @@ const TENANT_TABLES = {
   lead_preferences: ["member", () => ({ tenant_id: A, kind: "too_far" })],
   lead_suppressions: ["member", () => ({ tenant_id: A, kind: "email", hash: "stranger", what: "email_opt_out" })],
   lead_suggestions: ["member", () => ({ tenant_id: A, business_line: "a stranger line" })],
+  // One UTC day of a workspace, counted (00279): the back office reads it through platform_metrics_read; no member does.
+  platform_metrics: ["none", () => ({ tenant_id: A, day: "2026-09-27" })],
   // A partner (0012): who brought the workspace, what they earned from it, and the card it pays with. Only the
   // service role writes any of them; the partner themselves included.
   partner_tenants: ["brought", () => ({ tenant_id: A, partner_id: ctx.partner, code_used: "stranger" })],

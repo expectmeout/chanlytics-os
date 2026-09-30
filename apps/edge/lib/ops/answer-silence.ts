@@ -16,27 +16,27 @@ import { pageOperator, type PagePorts } from "./page-operator.js";
 import { logger } from "../log.js";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
-export const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
+const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
 /** The pager's condition: one key, the day in the page itself. */
-export const ANSWER_SILENCE_PAGE_KEY = "answer_rate_zero";
+const ANSWER_SILENCE_PAGE_KEY = "answer_rate_zero";
 
-export interface SilentWorkspace {
+interface SilentWorkspace {
   tenant_id: string;
   name: string;
   asks: number;
 }
 
 /** Whether the sweep running at `nowMs` is the one that pages about yesterday. */
-export function answerSilenceDue(nowMs: number): boolean {
+function answerSilenceDue(nowMs: number): boolean {
   return new Date(nowMs).getUTCHours() < ANSWER_SILENCE_PAGE_UNTIL_HOUR;
 }
 
 /** Yesterday's UTC day, as the rollup names it. */
-export function rolledDay(nowMs: number): string {
+function rolledDay(nowMs: number): string {
   return new Date(nowMs - DAY_MS).toISOString().slice(0, 10);
 }
 
-export function describeAnswerSilence(silent: SilentWorkspace[], day: string): { subject: string; body: string } {
+function describeAnswerSilence(silent: SilentWorkspace[], day: string): { subject: string; body: string } {
   const lines = silent.map(
     (w) =>
       `  ${w.name} (${w.tenant_id}): ${w.asks} ${w.asks === 1 ? "message" : "messages"} from customers, none answered`,

@@ -23,21 +23,23 @@ import {
   withRequestId,
   requestId,
   requestIdOf,
+  verifyEdgeToken,
   REQUEST_ID_HEADER,
   type Logger as OneLogger,
   type LogFields,
 } from "./packages/channels.js";
 import { observeDb } from "./packages/db.js";
+import { env } from "./env.js";
 import type { LogEvent } from "./log-events.js";
 
 export type { LogEvent };
-export { errField, withRequestId, requestId };
+export { errField };
 
 /**
  * Fields carried by every line from one logical unit of work. Anything JSON can carry: a provider's error list or a
  * usage object rides as it is, rather than being flattened by hand at every site.
  */
-export type LogContext = LogFields;
+type LogContext = LogFields;
 
 export type Logger = OneLogger<LogEvent>;
 
@@ -65,11 +67,29 @@ function named(res: Response, id: string): Response {
 }
 
 /**
+ * The name a knock's token carries (edge-token.ts `rid`), when the token verifies for the door it was sent to: what the
+ * dashboard signed for this call. Null for no token, no secret, a token for another door or one that does not verify,
+ * and a token minted outside a request.
+ */
+function signedName(request: Request): string | null {
+  const token = request.headers.get("x-edge-token");
+  const secret = env.EDGE_CALL_SECRET;
+  if (!token || !secret) return null;
+  try {
+    const verdict = verifyEdgeToken(secret, token, new URL(request.url).pathname);
+    return verdict.ok ? (verdict.claims.rid ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A door: `handler` runs as the request it serves, named once as it enters. Every line it logs, every job it
  * schedules and every event it writes carries the name, and the answer carries it back. `trustCaller` is the admin
- * doors': the dashboard names the request it calls with (src/server/edge.ts), so a click's lines in both apps are one
- * search; a forged name on a knock the door refuses only labels the refusal's own line. Every other door is named by
- * the platform (x-vercel-id), or freshly: a webhook's delivery is its own request.
+ * doors': the dashboard names the request it calls with (src/server/edge.ts), signed into its token, so a click's lines
+ * in both apps are one search and a header cannot rename a call whose token verified; a name on a knock that carries no
+ * verified token (a refusal's, or the platform key's) is the header's, and only labels that call's own lines. Every
+ * other door is named by the platform (x-vercel-id), or freshly: a webhook's delivery is its own request.
  */
 export function door<A extends unknown[]>(
   handler: (request: Request, ...rest: A) => Promise<Response>,
@@ -77,8 +97,9 @@ export function door<A extends unknown[]>(
 ): (request: Request, ...rest: A) => Promise<Response> {
   return (request, ...rest) => {
     // A door a test calls with no request at all (the health door's GET()) is still named, freshly.
+    const trust = opts.trustCaller === true;
     const id = request?.headers
-      ? requestIdOf(request.headers, { trustCaller: opts.trustCaller === true })
+      ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
     return withRequestId(id, async () => named(await handler(request, ...rest), id));
   };

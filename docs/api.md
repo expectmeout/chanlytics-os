@@ -289,6 +289,7 @@ Writes; for any signed-in person, for themselves; counts against the `client_err
 | `message` | string | yes | at most 300 characters |
 | `stack` | string or null | yes |  |
 | `digest` | string or null | yes |  |
+| `workspace` | string or null | yes |  |
 
 ## consent
 

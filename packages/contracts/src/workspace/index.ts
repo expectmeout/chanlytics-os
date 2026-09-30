@@ -55,6 +55,14 @@ export {
 } from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
 export {
+  SHARED_EVENT_VERSIONS,
+  SHARED_EVENT_SHAPES,
+  ContactAddedData,
+  ContactConsentChangedData,
+  PlatformActedData,
+} from "./event-data";
+export type { SharedEventKind } from "./event-data";
+export {
   signupPosture,
   pendingWorkspaceOf,
   pendingCodeOf,

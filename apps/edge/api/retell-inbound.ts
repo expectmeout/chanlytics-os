@@ -1,28 +1,36 @@
 /**
- * Retell inbound-call webhook — fires when a call arrives on the number, and
- * answers with what the receptionist is told before it speaks: whose facts,
- * whose memory, the greeting, the line a transfer dials.
- * Auth: Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL while this door still reads one; what each knock
- * carried is logged (lib/voice/voice-door-auth.ts says which doors read the secret, and why).
+ * Retell inbound-call webhook — fires when a call arrives on the number, and answers with what the receptionist is
+ * told before it speaks: whose facts, whose memory, the greeting, the line a transfer dials (the shell's dynamic
+ * variables business_facts, caller_context, greeting and, when the workspace has a line to dial, handoff_number).
+ * Auth: voiceDoorAuth("inbound"): Retell's signature, or ?key=<RETELL_FN_SECRET> on the URL while this door still reads
+ * one; a knock with neither is a 401 that reads nothing and sends nothing, and what each knock that came in carried is
+ * logged (voice_door_auth; lib/voice/voice-door-auth.ts says which doors read the secret, and why).
  *
- * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the
- * tenant right is not bookkeeping — it decides whose words come out of the
- * agent's mouth. It resolves the tenant from the agent the call arrived on,
- * the same routing every other voice endpoint uses, and when it cannot it
- * returns NO context rather than guessing. A caller treated as new is a small
- * loss; a caller read someone else's conversation is not recoverable.
+ * THIS ENDPOINT SPEAKS STORED CONVERSATION BACK TO A CALLER, so getting the tenant right is not bookkeeping — it
+ * decides whose words come out of the agent's mouth. It resolves the tenant from the agent the call arrived on, the
+ * same routing every other voice endpoint uses, and when it cannot it returns NO context rather than guessing. A caller
+ * treated as new is a small loss; a caller read someone else's conversation is not recoverable.
  *
- * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What the agent is handed is
- * decided by planCallStart (lib/call-start.ts), which runs over a database in
- * memory in a test; what is left here is the key, the body, the log, the
- * alert's own suppression, and the shape Retell wants back. The same split
- * the texting door, the health route and the OAuth callback use.
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What the agent is handed is decided by planCallStart
+ * (lib/voice/call-start.ts), which runs over a database in memory in a test; what is left here is the key, the body,
+ * the log, the alert's own suppression, and the shape Retell wants back. The same split the texting door, the health
+ * route and the OAuth callback use. Past the key the answer is ALWAYS 200. Retell gives this webhook ten seconds and
+ * three tries, then connects the call to the agent anyway with the shell's own defaults — so a refusal here costs the
+ * caller the business's facts, never the call. The judgement never refuses: every way it can fall short is a fallback
+ * variable (FACTS_UNAVAILABLE, CALLER_UNKNOWN) and a line in the log: inbound_ctx_failed (an error) for a read that
+ * failed, inbound_ctx_unrouted or inbound_facts_missing (warnings) for an agent nobody routes or a workspace with no
+ * persona. A workspace whose billing stopped gets the take-a-message script instead of its facts.
  *
- * ALWAYS 200. Retell gives this webhook ten seconds and three tries, then
- * connects the call to the agent anyway with the shell's own defaults — so a
- * refusal here costs the caller the business's facts, never the call. The
- * judgement never refuses: every way it can fall short is a fallback variable
- * and a line in the log.
+ * Around the judgement it does three things, none fatal to the call:
+ *   - An agent nobody routes tells the platform through alertUnroutable, suppressed for fifteen minutes per agent, and
+ *     that note is waited for, but no longer than ALERT_BUDGET_MS.
+ *   - A caller who already has a thread takes the call's hold on it (claimControl, CALL_CONTROL_S, 00132), so the text
+ *     receptionist does not answer the same person on WhatsApp while they are on the phone; a hold that could not be
+ *     taken is logged (retell_inbound_hold_failed).
+ *   - A test of "keep my number" is proven as the call arrives (markForwardingVerified), with the one thing the call
+ *     webhook never sees: the diversion headers (custom_sip_headers).
+ * Lines carry the caller's last four digits (from_tail), never the number, with the agent and the call id; the call ends
+ * in one retell_inbound with how the facts and the memory were arrived at.
  */
 import { phoneTail, divertedNumbers } from "../lib/packages/contracts.js";
 import { markForwardingVerified } from "../lib/voice/forwarding.js";

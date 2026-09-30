@@ -842,6 +842,65 @@ bundle's budget against (`check:bundle`): LCP for the page drawn, INP for a tap 
 3. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
+## Read the logs
+
+### What a log line holds
+
+Every line the platform writes is one JSON object on stdout, from one logger (`packages/channels/src/log/`; the edge's
+`apps/edge/lib/log.ts` and the dashboard's `apps/dashboard/src/server/log.ts` re-export it, and core, jobs, db and
+channels write through it). A line holds, in this order:
+
+| Key          | What                                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `level`      | `info`, `warn` or `error`. Nothing else is written to stdout: `no-console` holds every tree.                                                                                       |
+| `event`      | The name, a closed set (`LOG_EVENTS`, `DASHBOARD_LOG_EVENTS`; `repo/log-events.test.mjs`). It never changes once shipped: alerting greps for it.                                   |
+| `request_id` | The request the line belongs to: the answer's `x-request-id`, a job's originating request (or its own row for a clock's), a delivery's platform id. Absent only outside a request. |
+| `tenant_id`  | The workspace, once the request has said which; the one spelling of it on any line.                                                                                                |
+| the fields   | The line's own, named, never positional. An `Error` is `"Name: message"`, and on an `error` line its first frames ride beside it as `<key>_stack`.                                 |
+
+A line has no clock of its own: the platform stamps it as it arrives, and so does any drain.
+
+What a line may not say is taken out where it is written, so no caller can forget (`edge/log-line.test.mjs` plants each):
+
+- **A number or an address**, by the key it is under (`to`, `from`, `phone`, `email`, `*_phone`, `*_email`): four digits, or
+  the domain. **What a person wrote** (`body`, `text`, `*_body`, `*_text`): its length.
+- **A credential**, by name (`token`, `secret`, `password`, `authorization`, `api_key`, `cookie`, `signature`, and any key
+  ending in one: a model's key included): nothing.
+- **What looks like either, in any string** (a provider's error text, an exception's message, a URL with `?key=`): an
+  address keeps its domain, an international number four digits, and a bearer token, a model or provider key, a JWT
+  and a `name=value` credential are replaced.
+
+To follow one thing from the click to the provider: take the `x-request-id` the dashboard answered with (the browser's
+network tab, or the `request_id` on any line of the route), and search it in both projects' logs. The dashboard's
+calls to the edge carry it, so the admin door's lines carry the same one; a job the request scheduled runs under it a
+minute or a day later; and the ledger's rows say it (`select * from events where request_id = '...'`).
+
+Other lines to know:
+
+- `client_error`: a page broke in someone's browser (`POST /api/v1/client-errors`, once per error per page load, twenty
+  an hour per person): which boundary caught it, the page, the error and its first frames, the workspace when they
+  hold one. Search it by `page`.
+- `breaker_open` and `breaker_closed`: a provider's breaker held its calls after five faults in a row, and let them
+  through again; `GET /api/diag` (`breakers`) says each provider's state in the instance that answered, with how many
+  times it has opened.
+- `emit_event_failed`, `paged_read_capped`: the database package's, now in the same shape.
+
+### Where the logs go
+
+Vercel keeps each invocation's stdout for its plan's retention, which is short: nothing here ships a line anywhere else,
+and nothing alerts on one. Two things are Ruben's to switch on, neither is code, and the day either is on, this section
+says so:
+
+1. **A log drain** on both Vercel projects (Settings, Log Drains) to a store that keeps thirty days and can be searched by
+   `request_id` and `event` (Axiom, Datadog, Better Stack). Then an alert on `level = error` by `event`, and on
+   `breaker_open`, so an outage that was silent is a message.
+2. **An external pinger** on `GET /api/health` (it answers 200 or 503), with SMS or push to a person: the health door is
+   the one door with no key so that a monitor outside the failure domain can page.
+
+The day's numbers are in the back office ("Each workspace's day", `platform_metrics`, counted at 00:17 UTC for the day
+before); the health sweep pages `answer_rate_zero` when a workspace's customers wrote all day and nobody answered. Who
+played a call's recording is a decision (`open_recording`, one per member per call per hour) on Settings, Activity.
+
 ## Apply a migration
 
 The practice every lane follows, since migrations began to reach production from branches before they merged

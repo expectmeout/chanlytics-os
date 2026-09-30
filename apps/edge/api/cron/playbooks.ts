@@ -1,10 +1,35 @@
 /**
- * The playbooks sweep: every hour, every running playbook whose hour it is
- * by the business's clock runs once for the day. The run itself is
- * lib/playbooks.ts, shared with "Run now" on the page.
+ * The playbooks sweep: every hour, every running playbook whose hour it is by the business's own clock runs once for
+ * the day, and so does every reach-out step. Then each business whose 6 PM it is gets its reach-out numbers as a line
+ * on its bell.
  *
- * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
- * Same-origin is not a question here; pg_cron calls this from the database.
+ * Called by pg_cron at :05 ('playbooks-sweep', 00048) through trigger_playbooks_sweep, which asks the edge every hour
+ * whatever is due (request_sweep, 00086), with the Vault sweep key in x-cron-key (authorizeCron). The request is
+ * recorded in sweep_status and sweep_health() judges the answer (registered in 00107).
+ *
+ * It works from two pages, each a bounded page (PLAYBOOKS_PER_TICK) of only what is DUE, judged in the database by each
+ * workspace's own clock and least recently run first, with the zone each was judged in (00245 playbooks_due, through
+ * lib/ops/sweep-rotation.ts; the history of why it is a page is there). A paused workspace's playbooks are not on it.
+ *   - Moments (playbooksDue). Each runs through runPlaybook (lib/playbooks.ts, shared with "Run now" on the page; the
+ *     rules are core's campaigns/run-playbook.ts): a broadcast for the people who said yes, its send scheduled, held
+ *     for a person or refused as the class's autonomy mode says (auto, veto, ask, never), recorded as a
+ *     `playbook.run` event, the day remembered on the row so the next tick runs nothing. What the database calls due
+ *     is asked again of runDueNow at the moment each runs, as "Run now" does.
+ *   - Reach-out steps (reachOutsDue). Each runs through runReachOutStep (lib/reach-out/run-step.ts, which the run-now
+ *     door calls too). The tick stops starting them at REACH_OUT_YIELD_AT_MS and counts what is left as remaining.
+ * A moment or step that could not run (its workspace paused since the page was read, its context unreadable, its run
+ * failed, or a zone the page and the edge read apart) keeps its day open, so the next hour tries it again, but is
+ * stamped tried (stampPlaybooksTried, stampReachOutStep) and moves to the back of the page: it never holds a place
+ * something that can run is waiting for. Last, tellReachOutDays writes the day's line once per workspace, until
+ * REACH_OUT_DAY_UNTIL_MS.
+ *
+ * `remaining` is what was due beyond the two pages plus the steps yielded before. noteBacklog (note_sweep_backlog,
+ * 00089) counts the ticks in a row that left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still runs its page and
+ * answers 503 (playbooks_backlog), which sweep_health() reads and the health sweep mails to the platform. Other
+ * answers: 503 without a database, 401 or 503 at the door, and 500 when the moments' page cannot be read (an edge
+ * deployed ahead of 00245 fails loudly, not quietly). A reach-out page that cannot be read is logged
+ * (reach_outs_read_failed) and the moments still run. Its lines carry `sweep: "playbooks"` and, per workspace,
+ * `tenant_id`; the tick ends in one playbooks_swept with the counts.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

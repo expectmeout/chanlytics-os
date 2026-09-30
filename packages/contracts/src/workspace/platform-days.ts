@@ -95,7 +95,7 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
   if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
   const lines = rows
     .filter((r) => r.day === day)
-    .map((r) => ({
+    .map((r): PlatformDayLineVM & { asks: number } => ({
       tenantId: r.tenant_id,
       name: r.name,
       day: r.day,
@@ -103,7 +103,7 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
       receptionist: receptionistLine(r),
       failures: failuresOf(r.provider_failures),
       silent: r.asks > 0 && r.answered === 0,
-      tone: (r.asks > 0 && r.answered === 0 ? "danger" : "plain") as Tone,
+      tone: r.asks > 0 && r.answered === 0 ? "danger" : "plain",
       asks: r.asks,
     }))
     .sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name))

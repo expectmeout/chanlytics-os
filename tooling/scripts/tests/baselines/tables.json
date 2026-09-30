@@ -72,7 +72,7 @@
   "apps/dashboard/src/server/with-route.ts": 2,
   "apps/dashboard/src/server/workspace/billing.ts": 1,
   "apps/dashboard/src/server/workspace/setup.ts": 11,
-  "apps/dashboard/src/server/workspace/team.ts": 16,
+  "apps/dashboard/src/server/workspace/team.ts": 4,
   "apps/edge/api/admin/billing.ts": 2,
   "apps/edge/api/admin/eval.ts": 1,
   "apps/edge/api/admin/google.ts": 9,

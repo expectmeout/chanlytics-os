@@ -72,7 +72,8 @@ end $$;
 -- when it loads its length and again at a seek, so the ledger keeps one row per member per call per hour: the
 -- question an audit asks is who listened, not how often the player asked. Any member may listen (the route reads the
 -- call under RLS), and a viewer may not write decisions under RLS, so this is the definer's, and checks membership
--- itself. Answers whether a row was written.
+-- itself, as team_roster does: a partner's seat counts only on a session that showed its second factor (00218).
+-- Answers whether a row was written.
 create or replace function public.recording_opened(p_call_id uuid)
 returns boolean
 language plpgsql
@@ -89,10 +90,16 @@ begin
   select c.tenant_id into v_tenant
     from public.calls c
    where c.id = p_call_id
-     and exists (select 1 from public.memberships m where m.tenant_id = c.tenant_id and m.user_id = v_actor);
+     and exists (
+       select 1 from public.memberships m
+        where m.tenant_id = c.tenant_id and m.user_id = v_actor
+          and (m.role <> 'partner' or public.session_shows_second_factor()));
   if v_tenant is null then
     raise exception 'recording_opened: no such call for this member' using errcode = 'P0002';
   end if;
+  -- The player asks twice at once (its length, and a seek): the second waits for the first's row and reads it, so the
+  -- hour holds one row and not two.
+  perform pg_advisory_xact_lock(hashtextextended('recording_opened:' || v_actor::text || ':' || p_call_id::text, 0));
   if exists (
     select 1 from public.decisions d
      where d.tenant_id = v_tenant and d.subject_type = 'call' and d.subject_id = p_call_id
@@ -112,8 +119,13 @@ comment on function public.recording_opened(uuid) is
 
 /* ------------------------------------------------ 3. a team change and its audit, one transaction -- */
 
--- Shared by the four doors below: the actor owns the workspace, and a decision this change undoes exists (a stale
--- tab's link is dropped, as recordDecision drops it, and the answer says so).
+-- Shared by the doors below. team_owner_or_refuse: the actor owns the workspace. team_take_turn: the workspace's team
+-- changes take turns. It is the lock the last-owner trigger takes at a transaction's end (00271), taken at the start of
+-- a change that counts owners, so the second of two changes counts what the first did and finds its own actor as the
+-- first left it. The doors count under it and never lock the owners' rows one after another: two owners demoting each
+-- other each held the row they were changing and waited for the other's, and the database ended one with a deadlock.
+-- team_decision: the change's row, with the undo it reverses dropped when no such decision exists (a stale tab's
+-- link, dropped as recordDecision drops it, and the answer says so).
 create or replace function public.team_owner_or_refuse(p_tenant_id uuid, p_actor uuid)
 returns void
 language plpgsql
@@ -130,6 +142,19 @@ begin
 end $$;
 revoke all on function public.team_owner_or_refuse(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.team_owner_or_refuse(uuid, uuid) to service_role;
+
+create or replace function public.team_take_turn(p_tenant_id uuid, p_actor uuid)
+returns void
+language plpgsql
+set search_path = public
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('memberships_keep_an_owner:' || p_tenant_id::text, 0));
+  -- After the wait, so an actor an earlier change demoted or removed is refused, not served on the state it left.
+  perform public.team_owner_or_refuse(p_tenant_id, p_actor);
+end $$;
+revoke all on function public.team_take_turn(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.team_take_turn(uuid, uuid) to service_role;
 
 create or replace function public.team_decision(
   p_tenant_id uuid,
@@ -163,8 +188,8 @@ end $$;
 revoke all on function public.team_decision(uuid, uuid, text, uuid, text, jsonb, text, uuid) from public, anon, authenticated;
 grant execute on function public.team_decision(uuid, uuid, text, uuid, text, jsonb, text, uuid) to service_role;
 
--- A role change and its row. The last owner stays one: the owners are locked while they are counted, so two owners
--- demoting each other at once cannot leave none.
+-- A role change and its row. The last owner stays one: the change takes its turn on the workspace's team before it
+-- counts the owners, so two owners demoting each other at once leave one, and the second is refused.
 create or replace function public.team_change_role(
   p_tenant_id uuid,
   p_actor uuid,
@@ -189,8 +214,8 @@ begin
   if v_prev is null then
     raise exception 'not_found' using errcode = 'P0002';
   end if;
+  perform public.team_take_turn(p_tenant_id, p_actor);
   if p_role <> 'owner' and v_prev = 'owner' then
-    perform 1 from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner' for update;
     select count(*) into v_owners from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner';
     if v_owners <= 1 then
       raise exception 'last_owner' using errcode = 'P0001';
@@ -237,11 +262,13 @@ begin
   if v_member.id is null then
     raise exception 'not_found' using errcode = 'P0002';
   end if;
+  perform public.team_take_turn(p_tenant_id, p_actor);
   if v_member.user_id = p_actor then
     raise exception 'self_remove' using errcode = 'P0001';
   end if;
+  -- Backstop: an actor who owns the workspace and removes another owner means two exist, so the count below is
+  -- reached only if a turn was skipped. The trigger of 00271 judges the same at the transaction's end.
   if v_member.role = 'owner' then
-    perform 1 from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner' for update;
     select count(*) into v_owners from public.memberships m where m.tenant_id = p_tenant_id and m.role = 'owner';
     if v_owners <= 1 then
       raise exception 'last_owner' using errcode = 'P0001';
@@ -333,10 +360,18 @@ returns void
 language plpgsql
 set search_path = public
 as $$
+declare
+  v_id uuid;
 begin
-  delete from public.decisions
-   where tenant_id = p_tenant_id and subject_type = 'invitation' and subject_id = p_invitation_id and verb = 'invite';
-  delete from public.invitations where tenant_id = p_tenant_id and id = p_invitation_id and accepted_at is null;
+  -- Only an invitation still open is taken back, and its row with it: one accepted or revoked in the meantime is
+  -- somebody's, and keeps the decision that says how it began.
+  delete from public.invitations
+   where tenant_id = p_tenant_id and id = p_invitation_id and accepted_at is null and revoked_at is null
+  returning id into v_id;
+  if v_id is not null then
+    delete from public.decisions
+     where tenant_id = p_tenant_id and subject_type = 'invitation' and subject_id = v_id and verb = 'invite';
+  end if;
 end $$;
 revoke all on function public.team_invite_withdraw(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.team_invite_withdraw(uuid, uuid) to service_role;
@@ -421,12 +456,13 @@ begin
      where e.kind in ('usage.llm_tokens', 'usage.ask_tokens') and e.created_at >= v_t0 and e.created_at < v_t1
      group by e.tenant_id
   ),
-  -- A send that failed, by what it came to (channels providerFetch's outcomes): `unknown` is said on the row, a
-  -- provider's 4xx is a refusal, no answer at all is a call that never left.
+  -- A send that failed, by what it came to (channels providerFetch's outcomes): `unknown` is said on the row; of the
+  -- rest, the provider's "not now" (408, 429) and no answer at all are calls that left nothing, any other 4xx a refusal.
   failure_rows as (
     select e.tenant_id,
            coalesce(e.data->>'outcome',
-                    case when e.data->>'http_status' ~ '^4[0-9][0-9]$' then 'refused'
+                    case when e.data->>'http_status' in ('408', '429') then 'retryable'
+                         when e.data->>'http_status' ~ '^4[0-9][0-9]$' then 'refused'
                          when coalesce(e.data->>'http_status', '0') = '0' then 'retryable'
                          else 'unknown' end) as outcome
       from public.events e

@@ -18,6 +18,8 @@ import {
   isEmailRequest,
   logger,
   messageIdsIn,
+  requestIdShaped,
+  withRequestId,
   type ReceivedEmail,
 } from "@chanlytics/channels";
 import {
@@ -397,6 +399,9 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"do
   // and the tick fails the job loudly rather than guessing.
   const handler = (HANDLERS as Record<string, Handler | undefined>)[job.kind];
   if (!handler) return "unknown_kind";
-  await handler(ctx, job);
+  // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
+  // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
+  // has none and runs as itself, named by its row.
+  await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
   return "done";
 }

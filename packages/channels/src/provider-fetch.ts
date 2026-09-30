@@ -40,7 +40,7 @@
 import { logger } from "./log/logger";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
-export const PROVIDER_NAMES = [
+const PROVIDER_NAMES = [
   "meta",
   "twilio",
   "retell",

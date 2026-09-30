@@ -668,6 +668,24 @@ test("a text on an approved line is answered on that line: the subaccount's own 
   });
 });
 
+test("the customer's number and words, and the line's token, are in no line of what an answered text says: the door's whole stdout, searched for what was planted", async () => {
+  const w = world();
+  w.open();
+  receptionist();
+  const from = w.customer();
+  await listening(async (log) => {
+    assert.deepEqual(await heard(await text(w.form(from), w.TOKEN)), twiml(200));
+    const said = JSON.stringify(log.lines);
+    assert.ok(log.lines.length > 0, "the door said something: this is not a search of an empty log");
+    for (const planted of [from, from.slice(1), from.slice(-7), SAID, w.TOKEN, MASTER.token])
+      assert.ok(!said.includes(planted), `${planted} is in a log line`);
+    assert.ok(
+      log.lines.every((l) => typeof l.request_id === "string" && l.request_id.length >= 8),
+      "and every line names the request it belongs to",
+    );
+  });
+});
+
 test("Twilio's 21610 on a text we send is the person's STOP: the line's sender says so, the door records it and refuses, nobody is paged, and Twilio is not asked about that person again", async () => {
   // The carrier's no on the way out, through the real sender the door makes
   // from the line and the vault, and the real send door over a database in

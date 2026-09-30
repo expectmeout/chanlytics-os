@@ -7208,6 +7208,10 @@ export type Database = {
           role: string
         }[]
       }
+      team_take_turn: {
+        Args: { p_actor: string; p_tenant_id: string }
+        Returns: undefined
+      }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }
       trigger_deadman_sweep: { Args: never; Returns: number }

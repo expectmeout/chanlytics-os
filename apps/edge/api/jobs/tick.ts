@@ -13,8 +13,7 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField, door, withRequestId } from "../../lib/log.js";
-import { requestIdShaped } from "../../lib/packages/channels.js";
+import { logger, errField, door } from "../../lib/log.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
@@ -101,44 +100,37 @@ export const POST = door(async function POST(request: Request): Promise<Response
                 : (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body),
             ...(email !== undefined ? { email } : {}),
           };
-          // The job runs as the request that scheduled it (jobs schedule() put its name in the payload): a click's
-          // reply and the send it queued are one search in the log. A job SQL scheduled has no name, and runs as
-          // this heartbeat.
-          const p = job.payload;
-          const named = requestIdShaped(p !== null && typeof p === "object" && !Array.isArray(p) ? p.request_id : null);
-          const run = (): ReturnType<typeof dispatchJob> =>
-            dispatchJob(
-              {
-                db,
-                wire,
-                alert: alertFor(db, job),
-                page: (key, subject, body) => pageOperator({ db }, key, subject, body),
-                // The phones, through Expo's push service: no per-tenant credential, one transport for all.
-                push: expoPush(),
-                provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
-                ...(intake ? { email: intake } : {}),
-                ...(leads ? { leads } : {}),
-                // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
-                // reads nothing and says so (no_model), and the reply is read again later.
-                replies: replyReader(db),
-                // A job that continues itself (a broadcast's next batch) is one
-                // more row, as this job's tenant.
-                schedule: async (kind, dueAt, payload) => {
-                  await scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload });
-                },
-                // Work the ledger holds once per subject (a reply's reading), as this job's tenant.
-                scheduleOnce: (kind, dueAt, payload) =>
-                  scheduleJobOnce(db, { tenantId: job.tenant_id, kind, dueAt, payload }),
-                deadline,
+          return dispatchJob(
+            {
+              db,
+              wire,
+              alert: alertFor(db, job),
+              page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+              // The phones, through Expo's push service: no per-tenant credential, one transport for all.
+              push: expoPush(),
+              provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
+              ...(intake ? { email: intake } : {}),
+              ...(leads ? { leads } : {}),
+              // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
+              // reads nothing and says so (no_model), and the reply is read again later.
+              replies: replyReader(db),
+              // A job that continues itself (a broadcast's next batch) is one
+              // more row, as this job's tenant.
+              schedule: async (kind, dueAt, payload) => {
+                await scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload });
               },
-              {
-                id: job.id,
-                tenant_id: job.tenant_id,
-                kind: job.kind,
-                payload: (job.payload ?? {}) as Record<string, unknown>,
-              },
-            );
-          return named ? withRequestId(named, run) : run();
+              // Work the ledger holds once per subject (a reply's reading), as this job's tenant.
+              scheduleOnce: (kind, dueAt, payload) =>
+                scheduleJobOnce(db, { tenantId: job.tenant_id, kind, dueAt, payload }),
+              deadline,
+            },
+            {
+              id: job.id,
+              tenant_id: job.tenant_id,
+              kind: job.kind,
+              payload: (job.payload ?? {}) as Record<string, unknown>,
+            },
+          );
         },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),

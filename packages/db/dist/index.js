@@ -1,133 +1,3 @@
-// src/observe.ts
-var DB_REQUEST_HEADER = "x-chanlytics-request-id";
-var OBSERVER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.db.observer");
-var observerHolder = globalThis;
-function fallbackLine(level, event, fields = {}) {
-  const text2 = JSON.stringify({ level, event, ...fields });
-  if (level === "error") console.error(text2);
-  else if (level === "warn") console.warn(text2);
-  else console.log(text2);
-}
-var FALLBACK = {
-  log: {
-    info: (event, fields) => fallbackLine("info", event, fields),
-    warn: (event, fields) => fallbackLine("warn", event, fields),
-    error: (event, fields) => fallbackLine("error", event, fields)
-  },
-  requestId: () => null
-};
-function observeDb(observer) {
-  observerHolder[OBSERVER_SLOT] = observer;
-}
-function dbLog() {
-  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
-}
-function dbRequestId() {
-  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
-}
-function namedFetch(base) {
-  return (input, init) => {
-    const send = base ?? globalThis.fetch;
-    const id = dbRequestId();
-    if (!id) return send(input, init);
-    const headers = new Headers(init?.headers);
-    headers.set(DB_REQUEST_HEADER, id);
-    return send(input, { ...init, headers });
-  };
-}
-
-// src/events.ts
-var WRITES = {
-  "billing.paused": { category: "billing", version: 1 },
-  "billing.resumed": { category: "billing", version: 1 },
-  "billing.updated": { category: "billing", version: 1 },
-  "broadcast.sent": { category: "message", version: 1 },
-  "business.recorded": { category: "setup", version: 1 },
-  "channel.connected": { category: "system", version: 1 },
-  "contact.added": { category: "contact", version: 1 },
-  "contact.consent_changed": { category: "contact", version: 1 },
-  "contact.email_suppressed": { category: "contact", version: 1 },
-  "google.connected": { category: "google", version: 1 },
-  "google.disconnected": { category: "google", version: 1 },
-  "google.linked": { category: "google", version: 1 },
-  "google.replied": { category: "google", version: 1 },
-  "google.reply_held": { category: "google", version: 1 },
-  "google.reviews": { category: "google", version: 1 },
-  "google.unlinked": { category: "google", version: 1 },
-  "ingest.allowlist_skip": { category: "ingest", version: 1 },
-  "ingest.unreachable_sender": { category: "ingest", version: 1 },
-  "ingest.unroutable": { category: "ingest", version: 1 },
-  "lead.emailed": { category: "lead", version: 1 },
-  "line.answering": { category: "setup", version: 1 },
-  "line.failed": { category: "setup", version: 1 },
-  "line.forwarding_verified": { category: "setup", version: 1 },
-  "line.released": { category: "setup", version: 1 },
-  "line.texting_approved": { category: "setup", version: 1 },
-  "line.texting_on": { category: "setup", version: 1 },
-  "line.texting_rejected": { category: "setup", version: 1 },
-  "message.send_blocked": { category: "message", version: 1 },
-  "message.send_failed": { category: "message", version: 1 },
-  "message.send_raced_cancel": { category: "message", version: 1 },
-  "message.sent": { category: "message", version: 1 },
-  "platform.acted": { category: "platform", version: 1 },
-  "playbook.run": { category: "message", version: 1 },
-  "policy.changed": { category: "system", version: 1 },
-  "policy.veto_window_skipped": { category: "policy", version: 1 },
-  "sending_domain.added": { category: "setup", version: 1 },
-  "sending_domain.held": { category: "setup", version: 1 },
-  "sending_domain.released": { category: "setup", version: 1 },
-  "sending_domain.removed": { category: "setup", version: 1 },
-  "sending_domain.resumed": { category: "setup", version: 1 },
-  "sending_domain.verified": { category: "setup", version: 1 },
-  "settings.changed": { category: "system", version: 1 },
-  "usage.ask_tokens": { category: "usage", version: 1 },
-  "usage.llm_tokens": { category: "usage", version: 1 },
-  "voice.provisioned": { category: "setup", version: 1 },
-  "webhook.auth": { category: "ingest", version: 1 },
-  "webhook.delivery": { category: "ingest", version: 1 },
-  "workspace.activated": { category: "setup", version: 1 }
-};
-var WABA_WRITE = { category: "system", version: 1 };
-function rowOf(tenantId, kind, subjectType, subjectId, data) {
-  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
-  const requestId = dbRequestId();
-  return {
-    tenant_id: tenantId,
-    kind,
-    category: write.category,
-    version: write.version,
-    subject_type: subjectType,
-    subject_id: subjectId,
-    data,
-    ...requestId ? { request_id: requestId } : {}
-  };
-}
-async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
-  return { error: error?.message ?? null };
-}
-async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
-  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
-  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
-}
-async function subjectsWith(db, tenantId, kind, subjectIds) {
-  if (!subjectIds.length) return /* @__PURE__ */ new Set();
-  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
-  if (error) throw new Error(`events: ${error.message}`);
-  return new Set((data ?? []).map((r2) => r2.subject_id).filter((id) => typeof id === "string"));
-}
-async function recordActivation(db, tenantId, milestone, via) {
-  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
-  if (error) {
-    console.error("activation_read_failed", milestone, error.message);
-    return false;
-  }
-  if (data && data.length) return false;
-  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
-  if (w.error) console.error("emit_event_failed", "workspace.activated", w.error);
-  return !w.error;
-}
-
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
@@ -155,6 +25,7 @@ import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 import { z as z25 } from "zod";
 import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -3080,8 +2951,16 @@ var PageVitalsInput = z20.object({
   vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
-var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
 var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 var ClientErrorInput = z21.object({
   boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
   page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
@@ -3089,7 +2968,9 @@ var ClientErrorInput = z21.object({
   message: z21.string().max(CLIENT_ERROR_LIMITS.message),
   stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
@@ -3138,6 +3019,41 @@ function isTimezone(raw) {
   }
 }
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var SHARED_EVENT_VERSIONS = {
+  "contact.added": 1,
+  "contact.consent_changed": 1,
+  "platform.acted": 1
+};
+var wireText = z23.string();
+var ContactAddedData = z23.looseObject({
+  source: wireText,
+  title: wireText.nullish(),
+  uid: wireText.nullish(),
+  start: wireText.nullish(),
+  by: wireText.nullish(),
+  lead_id: wireText.nullish()
+});
+var ContactConsentChangedData = z23.looseObject({
+  consent: wireText,
+  source: wireText,
+  purpose: wireText.optional(),
+  previous: wireText.nullish(),
+  by: wireText.nullish(),
+  note: wireText.nullish(),
+  channel: wireText.nullish(),
+  message_external_id: wireText.nullish(),
+  message_id: wireText.nullish(),
+  words: wireText.nullish()
+});
+var PlatformActedData = z23.looseObject({
+  action: wireText,
+  by: wireText,
+  by_email: wireText.nullish(),
+  partner_id: wireText.nullish(),
+  standing: wireText.nullish(),
+  status: wireText.nullish(),
+  from: wireText.nullish()
+});
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -3164,11 +3080,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z23.object({
-  code: z23.string().trim().min(1).max(64),
-  terms: z23.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z23.object({ letters: z23.boolean() }).strict();
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -3207,43 +3123,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z23.coerce.number();
-var letterSum = z23.object({ currency: z23.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z23.object({
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z23.array(z23.object({ kind: z23.string(), currency: z23.string(), count: z23.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z23.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z23.array(letterSum).default([]),
-  paid: z23.array(z23.object({ currency: z23.string(), cents: letterCents, reference: z23.string(), sent_at: z23.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z23.array(z23.object({ workspace: z23.string().nullable(), standing: z23.string(), why: z23.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z23.array(z23.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z23.array(z23.string().nullable()).default([]),
-  declined: z23.array(z23.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z23.object({ status: z23.string(), why: z23.string().nullable() }).nullable().default(null),
-  balance: z23.array(
-    z23.object({
-      currency: z23.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z23.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z24.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z24.object({
-  name: z24.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z24.string().trim().max(64).nullish(),
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z24.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -3272,13 +3188,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z25.object({
-  partner_id: z25.string().uuid("That partner does not exist."),
-  why: z25.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 var PARTNER_INVITE_DAYS = 14;
-var PartnerInviteSchema = z26.object({
-  code: z26.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -3302,6 +3218,136 @@ var PARTNER_INVITE_WORDS = {
   decline: "Decline",
   declining: "Declining\u2026"
 };
+
+// src/observe.ts
+var DB_REQUEST_HEADER = "x-chanlytics-request-id";
+var OBSERVER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.db.observer");
+var observerHolder = globalThis;
+function fallbackLine(level, event, fields = {}) {
+  const text2 = JSON.stringify({ level, event, ...fields });
+  if (level === "error") console.error(text2);
+  else if (level === "warn") console.warn(text2);
+  else console.log(text2);
+}
+var FALLBACK = {
+  log: {
+    info: (event, fields) => fallbackLine("info", event, fields),
+    warn: (event, fields) => fallbackLine("warn", event, fields),
+    error: (event, fields) => fallbackLine("error", event, fields)
+  },
+  requestId: () => null
+};
+function observeDb(observer) {
+  observerHolder[OBSERVER_SLOT] = observer;
+}
+function dbLog() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).log;
+}
+function dbRequestId() {
+  return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
+}
+function namedFetch(base) {
+  return (input, init) => {
+    const send = base ?? globalThis.fetch;
+    const id = dbRequestId();
+    if (!id) return send(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set(DB_REQUEST_HEADER, id);
+    return send(input, { ...init, headers });
+  };
+}
+
+// src/events.ts
+var WRITES = {
+  "billing.paused": { category: "billing", version: 1 },
+  "billing.resumed": { category: "billing", version: 1 },
+  "billing.updated": { category: "billing", version: 1 },
+  "broadcast.sent": { category: "message", version: 1 },
+  "business.recorded": { category: "setup", version: 1 },
+  "channel.connected": { category: "system", version: 1 },
+  "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
+  "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
+  "contact.email_suppressed": { category: "contact", version: 1 },
+  "google.connected": { category: "google", version: 1 },
+  "google.disconnected": { category: "google", version: 1 },
+  "google.linked": { category: "google", version: 1 },
+  "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
+  "google.reviews": { category: "google", version: 1 },
+  "google.unlinked": { category: "google", version: 1 },
+  "ingest.allowlist_skip": { category: "ingest", version: 1 },
+  "ingest.unreachable_sender": { category: "ingest", version: 1 },
+  "ingest.unroutable": { category: "ingest", version: 1 },
+  "lead.emailed": { category: "lead", version: 1 },
+  "line.answering": { category: "setup", version: 1 },
+  "line.failed": { category: "setup", version: 1 },
+  "line.forwarding_verified": { category: "setup", version: 1 },
+  "line.released": { category: "setup", version: 1 },
+  "line.texting_approved": { category: "setup", version: 1 },
+  "line.texting_on": { category: "setup", version: 1 },
+  "line.texting_rejected": { category: "setup", version: 1 },
+  "message.send_blocked": { category: "message", version: 1 },
+  "message.send_failed": { category: "message", version: 1 },
+  "message.send_raced_cancel": { category: "message", version: 1 },
+  "message.sent": { category: "message", version: 1 },
+  "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
+  "playbook.run": { category: "message", version: 1 },
+  "policy.changed": { category: "system", version: 1 },
+  "policy.veto_window_skipped": { category: "policy", version: 1 },
+  "sending_domain.added": { category: "setup", version: 1 },
+  "sending_domain.held": { category: "setup", version: 1 },
+  "sending_domain.released": { category: "setup", version: 1 },
+  "sending_domain.removed": { category: "setup", version: 1 },
+  "sending_domain.resumed": { category: "setup", version: 1 },
+  "sending_domain.verified": { category: "setup", version: 1 },
+  "settings.changed": { category: "system", version: 1 },
+  "usage.ask_tokens": { category: "usage", version: 1 },
+  "usage.llm_tokens": { category: "usage", version: 1 },
+  "voice.provisioned": { category: "setup", version: 1 },
+  "webhook.auth": { category: "ingest", version: 1 },
+  "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 }
+};
+var WABA_WRITE = { category: "system", version: 1 };
+function rowOf(tenantId, kind, subjectType, subjectId, data) {
+  const write = kind in WRITES ? WRITES[kind] : WABA_WRITE;
+  const requestId = dbRequestId();
+  return {
+    tenant_id: tenantId,
+    kind,
+    category: write.category,
+    version: write.version,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    data,
+    ...requestId ? { request_id: requestId } : {}
+  };
+}
+async function recordEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  return { error: error?.message ?? null };
+}
+async function emitEvent(db, tenantId, kind, subjectType, subjectId, data) {
+  const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
+}
+async function subjectsWith(db, tenantId, kind, subjectIds) {
+  if (!subjectIds.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.from("events").select("subject_id").eq("tenant_id", tenantId).eq("kind", kind).in("subject_id", subjectIds);
+  if (error) throw new Error(`events: ${error.message}`);
+  return new Set((data ?? []).map((r2) => r2.subject_id).filter((id) => typeof id === "string"));
+}
+async function recordActivation(db, tenantId, milestone, via) {
+  const { data, error } = await db.from("events").select("id").eq("tenant_id", tenantId).eq("kind", "workspace.activated").eq("data->>milestone", milestone).limit(1);
+  if (error) {
+    dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
+    return false;
+  }
+  if (data && data.length) return false;
+  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
+  if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
+  return !w.error;
+}
 
 // src/ai-usage.ts
 async function recordModelUsage(db, rows) {

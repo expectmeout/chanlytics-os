@@ -3,21 +3,51 @@ var CONTACT = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
 var CONTACT_SUFFIX = /_(phone|email|e164)$/;
 var WORDS_KEYS = /* @__PURE__ */ new Set(["body", "text"]);
 var WORDS_SUFFIX = /_(body|text)$/;
+var SECRET_KEY = /(?:^|[_-])(?:token|secret|password|passwd|authorization|api[_-]?key|cookie|credentials?|private[_-]?key|signature)$/i;
 var MAX_DEPTH = 6;
 var MANY_DIGITS = /\d(?:\D*\d){6,}/;
 var EMAIL = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
 var NUMBER_FLOOR = 1e6;
+var SECRET_SHAPES = [
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g,
+  /\bsk-[A-Za-z0-9_-]{16,}/g,
+  // Anthropic, and any model gateway that keys its account the same way
+  /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{8,}/g,
+  // Stripe
+  /\bwhsec_[A-Za-z0-9]{8,}/g,
+  // Stripe's webhook secret
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
+  // a JWT: a session, a Supabase key
+  /\bEAA[A-Za-z0-9]{20,}/g,
+  // Meta's access tokens
+  /\bre_[A-Za-z0-9_]{20,}/g,
+  // Resend
+  /\bya29\.[A-Za-z0-9_-]{20,}/g,
+  // Google's access tokens
+  /\bAIza[A-Za-z0-9_-]{30,}/g,
+  // Google's API keys
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}/g,
+  // Slack
+  /\bsb_secret_[A-Za-z0-9_-]{10,}/g
+  // Supabase
+];
+var NAMED_SECRET = /(?<![\w-])((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|signature|key)=)[^&\s"';,]+/gi;
+var EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+var PLUS_NUMBER = /\+\d[\d ().-]{6,}\d/g;
+var US_NUMBER = /(?<![\w-])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w-])/g;
 var isContactKey = (k) => CONTACT.has(k) || CONTACT_SUFFIX.test(k);
 var isWordsKey = (k) => WORDS_KEYS.has(k) || WORDS_SUFFIX.test(k);
+var isSecretKey = (k) => SECRET_KEY.test(k);
+var tailOf = (digits) => `\u2026${digits.replace(/\D/g, "").slice(-4)}`;
 function contact(v) {
   if (typeof v === "string") {
     const at = EMAIL.exec(v.trim());
     if (at) return `\u2026@${at[1]}`;
-    if (MANY_DIGITS.test(v)) return `\u2026${v.replace(/\D/g, "").slice(-4)}`;
+    if (MANY_DIGITS.test(v)) return tailOf(v);
     return v;
   }
-  if (typeof v === "number" && Math.abs(v) >= NUMBER_FLOOR) return `\u2026${String(Math.trunc(Math.abs(v))).slice(-4)}`;
-  if (typeof v === "bigint") return `\u2026${v.toString().replace(/\D/g, "").slice(-4)}`;
+  if (typeof v === "number" && Math.abs(v) >= NUMBER_FLOOR) return tailOf(String(Math.trunc(Math.abs(v))));
+  if (typeof v === "bigint") return tailOf(v.toString());
   if (Array.isArray(v)) return v.map(contact);
   if (v !== null && typeof v === "object") return "[redacted]";
   return v;
@@ -27,15 +57,29 @@ function lengthOnly(v) {
   if (v === null || typeof v === "boolean" || typeof v === "number") return v;
   return "[redacted]";
 }
+function credential(v) {
+  return v === null || typeof v === "boolean" ? v : "[redacted]";
+}
+function scrubText(s) {
+  let out = s;
+  for (const shape of SECRET_SHAPES)
+    out = out.replace(shape, (m) => m.startsWith("Bearer") ? "Bearer [redacted]" : "[redacted]");
+  out = out.replace(NAMED_SECRET, "$1[redacted]");
+  out = out.replace(EMAIL_IN_TEXT, (_m, domain) => `\u2026@${domain}`);
+  out = out.replace(PLUS_NUMBER, tailOf).replace(US_NUMBER, tailOf);
+  return out;
+}
 function errText(e) {
-  return `${e.name}: ${e.message}`;
+  return scrubText(`${e.name}: ${e.message}`);
 }
 function redact(key, value, depth = 0, above = /* @__PURE__ */ new Set()) {
   if (isWordsKey(key)) return lengthOnly(value);
   if (isContactKey(key)) return contact(value);
+  if (isSecretKey(key)) return credential(value);
   if (value instanceof Error) return errText(value);
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
   if (typeof value === "bigint") return value.toString();
+  if (typeof value === "string") return scrubText(value);
   if (value === null || typeof value !== "object") return value;
   if (above.has(value) || depth >= MAX_DEPTH) return "[\u2026]";
   above.add(value);
@@ -332,6 +376,7 @@ import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 import { z as z25 } from "zod";
 import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -3348,8 +3393,16 @@ var PageVitalsInput = z20.object({
   vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
-var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
 var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 var ClientErrorInput = z21.object({
   boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
   page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
@@ -3357,7 +3410,9 @@ var ClientErrorInput = z21.object({
   message: z21.string().max(CLIENT_ERROR_LIMITS.message),
   stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
+  workspace: z21.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
@@ -3405,6 +3460,36 @@ function isTimezone(raw) {
   }
 }
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var wireText = z23.string();
+var ContactAddedData = z23.looseObject({
+  source: wireText,
+  title: wireText.nullish(),
+  uid: wireText.nullish(),
+  start: wireText.nullish(),
+  by: wireText.nullish(),
+  lead_id: wireText.nullish()
+});
+var ContactConsentChangedData = z23.looseObject({
+  consent: wireText,
+  source: wireText,
+  purpose: wireText.optional(),
+  previous: wireText.nullish(),
+  by: wireText.nullish(),
+  note: wireText.nullish(),
+  channel: wireText.nullish(),
+  message_external_id: wireText.nullish(),
+  message_id: wireText.nullish(),
+  words: wireText.nullish()
+});
+var PlatformActedData = z23.looseObject({
+  action: wireText,
+  by: wireText,
+  by_email: wireText.nullish(),
+  partner_id: wireText.nullish(),
+  standing: wireText.nullish(),
+  status: wireText.nullish(),
+  from: wireText.nullish()
+});
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
   label: "Password",
@@ -3431,11 +3516,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z23.object({
-  code: z23.string().trim().min(1).max(64),
-  terms: z23.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z24.object({
+  code: z24.string().trim().min(1).max(64),
+  terms: z24.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z23.object({ letters: z23.boolean() }).strict();
+var PartnerLettersSchema = z24.object({ letters: z24.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -3474,43 +3559,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z23.coerce.number();
-var letterSum = z23.object({ currency: z23.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z23.object({
+var letterCents = z24.coerce.number();
+var letterSum = z24.object({ currency: z24.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z24.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z23.array(z23.object({ kind: z23.string(), currency: z23.string(), count: z23.coerce.number(), cents: letterCents })).default([]),
+  written: z24.array(z24.object({ kind: z24.string(), currency: z24.string(), count: z24.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z23.array(letterSum).default([]),
+  matured: z24.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z23.array(letterSum).default([]),
-  paid: z23.array(z23.object({ currency: z23.string(), cents: letterCents, reference: z23.string(), sent_at: z23.string() })).default([]),
+  voided: z24.array(letterSum).default([]),
+  paid: z24.array(z24.object({ currency: z24.string(), cents: letterCents, reference: z24.string(), sent_at: z24.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z23.array(z23.object({ workspace: z23.string().nullable(), standing: z23.string(), why: z23.string().nullable() })).default([]),
+  standing: z24.array(z24.object({ workspace: z24.string().nullable(), standing: z24.string(), why: z24.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z23.array(z23.string().nullable()).default([]),
+  brought: z24.array(z24.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z23.array(z23.string().nullable()).default([]),
-  declined: z23.array(z23.string().nullable()).default([]),
+  accepted: z24.array(z24.string().nullable()).default([]),
+  declined: z24.array(z24.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z23.object({ status: z23.string(), why: z23.string().nullable() }).nullable().default(null),
-  balance: z23.array(
-    z23.object({
-      currency: z23.string(),
+  status: z24.object({ status: z24.string(), why: z24.string().nullable() }).nullable().default(null),
+  balance: z24.array(
+    z24.object({
+      currency: z24.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z23.string().nullable()
+      next_payable_at: z24.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z24.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z24.object({
-  name: z24.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z24.string().trim().max(64).nullish(),
+var ownerEmail = z25.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z25.object({
+  name: z25.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z25.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z24.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z25.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -3539,13 +3624,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z25.object({
-  partner_id: z25.string().uuid("That partner does not exist."),
-  why: z25.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z26.object({
+  partner_id: z26.string().uuid("That partner does not exist."),
+  why: z26.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 var PARTNER_INVITE_DAYS = 14;
-var PartnerInviteSchema = z26.object({
-  code: z26.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z27.object({
+  code: z27.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -7271,15 +7356,34 @@ function cleanReply(text) {
 
 // src/tokens/edge-token.ts
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+
+// src/tokens/request-id.ts
+var REQUEST_ID_HEADER = "x-request-id";
+var SHAPE2 = /^[A-Za-z0-9._:-]{8,128}$/;
+function requestIdOf(headers2, opts) {
+  const given = opts.trustCaller ? requestIdShaped(headers2.get(REQUEST_ID_HEADER)) : null;
+  if (given) return given;
+  const platform = headers2.get("x-vercel-id")?.trim();
+  if (platform && SHAPE2.test(platform)) return platform;
+  return globalThis.crypto.randomUUID();
+}
+function requestIdShaped(value) {
+  const v = typeof value === "string" ? value.trim() : "";
+  return SHAPE2.test(v) ? v : null;
+}
+
+// src/tokens/edge-token.ts
 var EDGE_TOKEN_TTL_MS = MIN_MS;
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
+  const rid = requestIdShaped(ctx.request);
   const claims = {
     aud,
     ws: ctx.workspace ?? null,
     user: ctx.user ?? null,
     iat: nowMs,
     exp: nowMs + EDGE_TOKEN_TTL_MS,
-    nonce: randomBytes(8).toString("hex")
+    nonce: randomBytes(8).toString("hex"),
+    ...rid ? { rid } : {}
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   return `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`;
@@ -7302,22 +7406,10 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   if (claims.aud !== aud) return { ok: false, reason: "audience" };
   if (typeof claims.iat !== "number" || typeof claims.exp !== "number") return { ok: false, reason: "malformed" };
   if (nowMs > claims.exp || claims.iat > nowMs + EDGE_TOKEN_TTL_MS) return { ok: false, reason: "expired" };
-  return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
-}
-
-// src/tokens/request-id.ts
-var REQUEST_ID_HEADER = "x-request-id";
-var SHAPE2 = /^[A-Za-z0-9._:-]{8,128}$/;
-function requestIdOf(headers2, opts) {
-  const given = opts.trustCaller ? requestIdShaped(headers2.get(REQUEST_ID_HEADER)) : null;
-  if (given) return given;
-  const platform = headers2.get("x-vercel-id")?.trim();
-  if (platform && SHAPE2.test(platform)) return platform;
-  return globalThis.crypto.randomUUID();
-}
-function requestIdShaped(value) {
-  const v = typeof value === "string" ? value.trim() : "";
-  return SHAPE2.test(v) ? v : null;
+  return {
+    ok: true,
+    claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null, rid: requestIdShaped(claims.rid) }
+  };
 }
 
 // src/tokens/unsubscribe-token.ts
