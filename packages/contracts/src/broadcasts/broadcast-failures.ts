@@ -13,6 +13,8 @@ export const BROADCAST_FAILURE_WORDS: Record<string, string> = {
   wire_unavailable: "WhatsApp could not be reached",
   run_interrupted: "its send stopped partway and did not start again",
   throttled: "WhatsApp kept limiting how fast this number may send",
+  stalled: "its people or its number's credentials could not be read for half an hour",
+  after_hours: "the day's sending hours ran out while it waited",
 };
 
 /**
@@ -26,6 +28,8 @@ export const BROADCAST_FAILURE_FIX: Record<string, string> = {
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
   throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
+  stalled: "Nobody got it. Nothing is wrong with the number; send it again later.",
+  after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours.",
 };
 
 /**
@@ -43,6 +47,10 @@ const BROADCAST_FAILURE_FIX_AFTER: Record<string, (n: number) => string> = {
     `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   throttled: (n) =>
     `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  stalled: (n) =>
+    `The first ${n === 1 ? "one" : n} got it, then its reads failed. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  after_hours: (n) =>
+    `The first ${n === 1 ? "one" : n} got it before the day's sending hours ran out. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */

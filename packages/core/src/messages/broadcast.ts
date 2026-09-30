@@ -3,8 +3,10 @@ import {
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
   OUTCOME_UNKNOWN,
+  type JobNews,
   firstNameOf,
   isReachOutRun,
+  jittered,
   nextOpenMoment,
   parseParamSpecs,
   purposeOfTemplate,
@@ -12,6 +14,7 @@ import {
   resolveParams,
 } from "@chanlytics/contracts";
 import type { Delivered } from "../deliver";
+import { isNotTakenError } from "../wire-senders";
 import type {
   BroadcastBatchCommand,
   BroadcastBatchPorts,
@@ -28,6 +31,13 @@ import type {
  * keeps failing would spin the ledger until somebody canceled by hand.
  */
 export const BROADCAST_STALL_RETRY_MS = 60_000;
+
+/**
+ * How many batches in a row may reach nobody for a read that failed before the run stops and says so. A minute each
+ * (BROADCAST_STALL_RETRY_MS), so about half an hour: a vault or a database that has not answered for that long is an
+ * outage, and a run that waited through the evening would send at night the words written for the day.
+ */
+export const BROADCAST_STALLS_MAX = 30;
 
 /** The one wire a broadcast goes out on: the door is asked with it, and so is whether it could be bound. */
 const BROADCAST_CHANNEL = "whatsapp";
@@ -70,7 +80,7 @@ class ThrownAtTheDoor {
  * could not be read waits, and nobody is told to reconnect a number that may well be connected. A number that IS
  * absent is the door's answer, per person, as it always was.
  */
-async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<boolean> {
+async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow, cmd: BroadcastBatchCommand): Promise<boolean> {
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
     await ports.alert({
@@ -85,7 +95,7 @@ async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<bo
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
     console.error("broadcast_wire_unavailable", b.id, unbound);
-    await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    await stall(ports, b, cmd, "credentials");
     // The platform hears it, as a reply's wait is heard (sendQueued): a store that stays unreadable is its condition.
     await ports
       .page?.(
@@ -119,7 +129,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // A reach-out's run has no recipients here: its sends are the reach-out clock's (Part 3). A job that reached one
   // would end it as sent to nobody, and the clock would claim nothing more from it.
   if (isReachOutRun(b.audience)) return;
-  if (!(await mayGoNow(ports, b))) return;
+  if (!(await mayGoNow(ports, b, cmd))) return;
   // Only while still scheduled: a cancel that landed between the read above
   // and this write is the row's answer, and the batch sends nothing.
   if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;
@@ -147,6 +157,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // workspace's own words for the slots that name it are read once.
   const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink, timezone } = await ports.facts();
+  if (await ranIntoTheNight(ports, b, cmd, timezone)) return;
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
 
   // The people on the batch and what they were already sent, read once for
@@ -174,8 +185,11 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   };
   const skip = (contactId: string, reason: string) => mark(contactId, { state: "skipped", reason });
 
-  /** One person, to the wire and back. "stop" when the run cannot go on past them; "wait" when WhatsApp said not now. */
-  const one = async (r: RecipientRow): Promise<"go on" | "stop" | "wait"> => {
+  /**
+   * One person, to the wire and back. "stop" when the run cannot go on past them; "throttled" when WhatsApp said not
+   * now; "unreachable" when the request never reached WhatsApp at all (giveBack).
+   */
+  const one = async (r: RecipientRow): Promise<Verdict> => {
     const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) {
       await skip(r.contact_id, "erased");
@@ -260,6 +274,9 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
         proactive: true,
         body: words,
         template: { name: b.template_name, language: b.template_language, params },
+        // A send WhatsApp provably did not take (a connection that never opened, its "not now") is handed back rather
+        // than written as failed: this person waits in the queue, and the run waits with them (00280).
+        holdIfNotTaken: true,
         // A run's message names its playbook, so a thread reads "by the Win-back playbook".
         meta: {
           source: "broadcast",
@@ -273,9 +290,11 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
             : {}),
         },
       })
-      .catch((e: unknown) => {
+      .catch((e: unknown): NotTaken => {
+        if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
         throw new ThrownAtTheDoor(e);
       });
+    if (out.outcome === "not_taken") return giveBack(ports, b.id, r.contact_id, out.status !== 0);
     if (out.outcome === "sent") {
       // The claim's "nobody knows" is settled: a sent row carries no reason.
       await mark(r.contact_id, { state: "sent", reason: null, message_id: out.messageId });
@@ -285,10 +304,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       await skip(r.contact_id, out.reason);
       return "go on";
     }
-    if (out.throttled) {
-      await releaseThrottled(ports, b.id, r.contact_id);
-      return "wait";
-    }
+    if (out.throttled) return giveBack(ports, b.id, r.contact_id, true);
     await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
     await stopForTheWire(ports, b, out);
@@ -307,7 +323,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // batch rather than guessing; and one person's failure is never the
     // batch's: the people after them are still reached. The door itself is
     // the exception (ThrownAtTheDoor).
-    let verdict: "go on" | "stop" | "wait";
+    let verdict: Verdict;
     try {
       verdict = await one(r);
     } catch (e) {
@@ -316,7 +332,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       continue;
     }
     if (verdict === "stop") return;
-    if (verdict === "wait") return backOff(ports, b, cmd, timezone);
+    if (verdict === "throttled" || verdict === "unreachable") return backOff(ports, b, cmd, timezone, verdict);
     // A breath between two sends, none after the last: the next batch is a job away.
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
@@ -325,25 +341,139 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   if (remaining > 0) {
     // Still wanted? A cancel during this batch stops here.
     if ((await ports.state(b.id)) !== "sending") return;
-    // A batch that reached nobody waits before the next: every read failed,
+    // A batch that reached nobody waits before the next, a bounded number of times (stall): every read failed,
     // and trying again this second is how a failing read spins the ledger.
-    if (batch.length > 0 && marked === 0)
-      await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0) await stall(ports, b, cmd, "people");
     else await ports.scheduleNext(b.id);
     return;
   }
 
   const { sent, held } = await ports.tally(b.id);
   await ports.finish(b.id, { sent, held });
-  // The run FINISHED. Said as what it is, not as a job that did not finish,
-  // which is what every alert from this file was kept as until 00141, so two
-  // completed broadcasts were counted into Today's "6 jobs did not finish".
-  await ports.alert({
+  await ports.alert(finishedNews(b, sent, held));
+}
+
+/** How one person's turn ended: the next goes on, the run stops, or it backs off (throttled, or never reached). */
+type Verdict = "go on" | "stop" | "throttled" | "unreachable";
+
+/**
+ * The run FINISHED. Said as what it is, not as a job that did not finish, which is what every alert from this file was
+ * kept as until 00141, so two completed broadcasts were counted into Today's "6 jobs did not finish". And as many as it
+ * reached, of how many: a run that reached nobody is not "sent".
+ */
+function finishedNews(b: { id: string; name: string }, sent: number, held: number): JobNews {
+  const why = "no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish";
+  const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+  return {
     kind: "broadcast_sent",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” sent`,
-    body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`,
+    subject: sent > 0 ? `Broadcast “${b.name}” sent` : `Broadcast “${b.name}” reached nobody`,
+    body:
+      sent > 0
+        ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.`
+        : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`,
+  };
+}
+
+/**
+ * A run that waited (WhatsApp's "not now", a network that would not connect, a read that failed) looks at the clock
+ * again before it sends: a wait that ran into the night ends the run, rather than sending tonight, or tomorrow, the
+ * words written for today. True when it has ended.
+ */
+async function ranIntoTheNight(
+  ports: BroadcastBatchPorts,
+  b: { id: string; name: string },
+  cmd: BroadcastBatchCommand,
+  timezone: string,
+): Promise<boolean> {
+  const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
+  if (!waited || !nextOpenMoment(timezone, new Date(ports.now())).moved) return false;
+  await stopAfterHours(ports, b);
+  return true;
+}
+
+/**
+ * WhatsApp did not take the message, and the claim goes back (release), named for what happened. A 429 or 408 is its
+ * "not now" (reached); no answer at all is a WhatsApp this run could not reach. The run waits either way (backOff).
+ */
+async function giveBack(
+  ports: BroadcastBatchPorts,
+  broadcastId: string,
+  contactId: string,
+  reached: boolean,
+): Promise<Verdict> {
+  await release(ports, broadcastId, contactId, reached ? "throttled" : "not_taken");
+  return reached ? "throttled" : "unreachable";
+}
+
+/** What the door's refusal to take a send becomes here: its status, 0 when WhatsApp was never reached. */
+type NotTaken = { outcome: "not_taken"; status: number };
+
+/** "N people got it", "One person got it", "Nobody got it", or nothing when the count could not be read. */
+function gotIt(sent: number | null): string {
+  if (sent === null) return "";
+  return sent === 0 ? "Nobody got it." : sent === 1 ? "One person got it." : `${sent} people got it.`;
+}
+
+/**
+ * A batch that reached nobody because a read failed (the number's credentials, or its people) waits a minute and tries
+ * again, the count carried in the job; past BROADCAST_STALLS_MAX in a row it stops and the owner is told. Before, it
+ * waited a minute for ever: a vault out from 7:50 PM to 11 PM re-queued the run a hundred and ninety times, then sent
+ * the day's template at 11 PM.
+ */
+async function stall(
+  ports: BroadcastBatchPorts,
+  b: { id: string; name: string },
+  cmd: BroadcastBatchCommand,
+  what: "credentials" | "people",
+): Promise<void> {
+  const stalls = (cmd.stalls ?? 0) + 1;
+  if (stalls <= BROADCAST_STALLS_MAX) {
+    const at = new Date(ports.now() + jittered(BROADCAST_STALL_RETRY_MS, ports.random));
+    await ports.scheduleNext(b.id, at, { ...(cmd.waits ? { waits: cmd.waits } : {}), stalls });
+    return;
+  }
+  // The tally is best effort: a database that has not answered for half an hour may not answer for it either.
+  const sent = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null,
+  );
+  await ports.fail(b.id, "stalled");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast “${b.name}” stopped`,
+    body: [
+      `${what === "credentials" ? "This workspace's WhatsApp credentials" : "The people on it"} could not be read for about half an hour, so the rest was not sent.`,
+      gotIt(sent),
+      "Nothing is wrong with the number; send it again later.",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  });
+}
+
+/** A run that waited and woke outside the day's sending hours stops there, and the owner is told. */
+async function stopAfterHours(ports: BroadcastBatchPorts, b: { id: string; name: string }): Promise<void> {
+  const sent = await ports.tally(b.id).then(
+    (t) => t.sent,
+    () => null,
+  );
+  await ports.fail(b.id, "after_hours");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast “${b.name}” stopped`,
+    body: [
+      "It was waiting to go on when the day's sending hours ran out, so the rest was not sent.",
+      gotIt(sent),
+      "Send it again tomorrow.",
+    ]
+      .filter(Boolean)
+      .join(" "),
   });
 }
 
@@ -373,46 +503,64 @@ async function stopForTheWire(
 }
 
 /**
- * WhatsApp said "not now" before it took the message (channels graphThrottled): nothing left, so the claim is released
- * as throttled (00216) and this person waits in the queue with everyone after them, rather than be burned as refused
- * with the rest of the list behind them. Every other failure keeps its claim: a timeout or a 5xx may have been taken
- * all the same. A database without 00216 refuses the release; the run waits all the same, and this one person keeps
- * the claim, which is what every throttled person got before.
+ * WhatsApp did not take the message: it said "not now" (channels graphThrottled, a 429), or the request never reached
+ * it (a connection that never opened: providerFetch's `retryable`). Nothing left, so the claim is released, named for
+ * which (00216 `throttled`, 00280 `not_taken`), and this person waits in the queue with everyone after them, rather
+ * than be burned as refused with the rest of the list behind them. Every other failure keeps its claim: a timeout or a
+ * 5xx may have been taken all the same. A database without the migration refuses the release; the run waits all the
+ * same, and this one person keeps the claim, which is what such a person got before.
  */
-async function releaseThrottled(ports: BroadcastBatchPorts, broadcastId: string, contactId: string): Promise<void> {
-  await ports
-    .mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null })
-    .catch((e: unknown) => {
-      console.error("broadcast_release_refused", contactId, e instanceof Error ? e.message : String(e));
-    });
+async function release(
+  ports: BroadcastBatchPorts,
+  broadcastId: string,
+  contactId: string,
+  reason: "throttled" | "not_taken",
+): Promise<void> {
+  await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }).catch((e: unknown) => {
+    console.error("broadcast_release_refused", contactId, e instanceof Error ? e.message : String(e));
+  });
 }
 
 /**
- * WhatsApp is limiting the number: the batch stops where it is, and the run tries again after its next wait
- * (BROADCAST_THROTTLE_WAITS_MS), carrying the count. Past the last wait, or when the next try would fall outside the
- * day's sending hours, it stops and says why instead: a run waiting into the night would send tomorrow the words
- * written for today, which is why a late approval is refused too.
+ * WhatsApp is limiting the number, or could not be reached at all: the batch stops where it is, and the run tries
+ * again after its next wait (BROADCAST_THROTTLE_WAITS_MS, drawn a little longer at random), carrying the count. Past
+ * the last wait, or when the next try would fall outside the day's sending hours, it stops and says why instead: a run
+ * waiting into the night would send tomorrow the words written for today, which is why a late approval is refused
+ * too. A WhatsApp nobody can reach is the platform's condition too, and pages it (once per window, the pager's quiet).
  */
 async function backOff(
   ports: BroadcastBatchPorts,
   b: { id: string; name: string },
   cmd: BroadcastBatchCommand,
   timezone: string,
+  why: "throttled" | "unreachable",
 ): Promise<void> {
   const waited = cmd.waits ?? 0;
   const wait = BROADCAST_THROTTLE_WAITS_MS[waited];
-  const at = wait === undefined ? null : new Date(ports.now() + wait);
+  const at = wait === undefined ? null : new Date(ports.now() + jittered(wait, ports.random));
+  if (why === "unreachable")
+    await ports
+      .page?.(
+        `unreachable:${BROADCAST_CHANNEL}`,
+        `${BROADCAST_CHANNEL}: a broadcast could not reach the provider`,
+        `Broadcast ${b.id} could not open a connection to WhatsApp; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`,
+      )
+      ?.catch(() => undefined);
   if (at && !nextOpenMoment(timezone, at).moved) {
-    await ports.scheduleNext(b.id, at, waited + 1);
+    await ports.scheduleNext(b.id, at, { waits: waited + 1 });
     return;
   }
   const { sent } = await ports.tally(b.id);
-  await ports.fail(b.id, "throttled");
+  await ports.fail(b.id, why === "throttled" ? "throttled" : "wire_unavailable");
+  const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
     route: "broadcasts",
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
-    body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`,
+    body:
+      why === "throttled"
+        ? `WhatsApp kept limiting how fast this number may send ${until}, so the rest was not sent. ${gotIt(sent)} WhatsApp lifts these limits on its own; send it again later.`
+        : `WhatsApp could not be reached ${until}, so the rest was not sent. ${gotIt(sent)} Nothing is wrong with the number; send it again later.`,
   });
 }

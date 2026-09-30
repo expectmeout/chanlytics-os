@@ -286,12 +286,6 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
     h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'),
     "the person's row still carries what the run needs",
   );
-  assert.ok(
-    h.includes(
-      'await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id, ...(waits ? { waits } : {}) });',
-    ),
-    "the next batch is one more row, as this tenant, now unless the batch stalled or WhatsApp said not now",
-  );
   assert.ok(h.includes('recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally)'));
   // Not one port answers from a read whose error it dropped. Every one of them
   // is a question the run then acts on, and `{ data }` alone turns a read that
@@ -456,8 +450,8 @@ test('the job carries WhatsApp\'s "not now" through: the person back in the queu
   assert.deepEqual(later[0].payload, { broadcast_id: "b1", waits: 3 }, "the count rides to the next batch");
   const wait = later[0].dueAt.getTime() - before;
   assert.ok(
-    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] + 5_000,
-    `the third wait, ${wait} ms`,
+    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] * 1.2 + 5_000,
+    `the third wait, drawn up to a fifth longer, ${wait} ms`,
   );
 });
 
@@ -487,8 +481,8 @@ test("a wire that could not be bound claims nobody: the run stays as it was, its
   assert.deepEqual(sent, [], "nobody is told WhatsApp could not be reached, or to reconnect a number that may work");
   assert.deepEqual(
     later.map(([kind, , payload]) => [kind, payload]),
-    [["broadcast_send", { broadcast_id: "b1" }]],
-    "the batch is tried again",
+    [["broadcast_send", { broadcast_id: "b1", stalls: 1 }]],
+    "the batch is tried again, the stall counted in the job",
   );
   assert.ok(later[0][1].getTime() >= before + BROADCAST_STALL_RETRY_MS, "a while later, not this second");
 });

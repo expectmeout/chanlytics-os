@@ -45,6 +45,8 @@ export interface SendQueuedPorts {
   retry(dueAt: Date, payload: SendQueuedCommand["payload"]): Promise<void>;
   /** Epoch ms; injected so the wait is testable. */
   now?: () => number;
+  /** The draw a wait is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
 }
 
 /** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
@@ -164,11 +166,11 @@ export interface BroadcastBatchPorts {
   /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
   state(id: string): Promise<string | null>;
   /**
-   * The next batch, as this tenant, through the same door the dashboard uses; now unless told when. `waits` is how
-   * many times running WhatsApp has said "not now", carried to the next batch; a batch scheduled without it starts
-   * the count again.
+   * The next batch, as this tenant, through the same door the dashboard uses; now unless told when. `carry` is what
+   * the run has waited through so far (BatchCarry), carried to the next batch; a batch scheduled without it starts
+   * the counts again.
    */
-  scheduleNext(id: string, dueAt?: Date, waits?: number): Promise<void>;
+  scheduleNext(id: string, dueAt?: Date, carry?: BatchCarry): Promise<void>;
   /** Who got it and who was held, once nobody is queued. */
   tally(id: string): Promise<{ sent: number; held: number }>;
   /** sending → sent, and the event with the tally. */
@@ -177,11 +179,20 @@ export interface BroadcastBatchPorts {
   alert(news: JobNews): Promise<void>;
   now(): number;
   sleep(ms: number): Promise<void>;
+  /** The draw a wait is lengthened by (contracts jittered); Math.random when absent. */
+  random?: () => number;
 }
-export interface BroadcastBatchCommand {
+/** What a run has waited through, carried from one batch to the next in the job's payload. */
+export interface BatchCarry {
+  /**
+   * How many times WhatsApp said "not now", or could not be reached at all, running (BROADCAST_THROTTLE_WAITS_MS).
+   */
+  waits?: number;
+  /** How many batches in a row reached nobody because a read failed, the credentials' or the people's (BROADCAST_STALLS_MAX). */
+  stalls?: number;
+}
+export interface BroadcastBatchCommand extends BatchCarry {
   tenantId: string;
   broadcastId: string;
   deadline: number;
-  /** How many times running WhatsApp has said "not now" before this batch (BROADCAST_THROTTLE_WAITS_MS); 0 when absent. */
-  waits?: number;
 }
