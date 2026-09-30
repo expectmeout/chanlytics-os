@@ -7,8 +7,7 @@
  */
 import { DAY_MS, HOUR_MS, toLiveVM, type CallDto, type ChannelDto } from "@chanlytics/contracts";
 import type { LiveSurface } from "./surface";
-
-const ZONE = "America/New_York";
+import { DEMO_ZONE } from "../demo-zone";
 
 /** The demo's Live as of `now`: what `useSurface("live")` answers for a workspace that has read its own. */
 export function liveSample(now = new Date()): LiveSurface {
@@ -78,5 +77,5 @@ export function liveSample(now = new Date()): LiveSurface {
       last_inbound_at: iso(90_000),
     },
   ];
-  return toLiveVM(calls, channels, ZONE, now);
+  return toLiveVM(calls, channels, DEMO_ZONE, now);
 }

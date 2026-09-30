@@ -20,8 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { PlaybookCardVM, PlaybooksSurface, PlaybookTriggerOption } from "./surface";
-
-const ZONE = "America/New_York";
+import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
 
@@ -61,7 +60,7 @@ function card(
     triggerLabel: t?.label ?? dto.trigger,
     triggerHint: t?.hint ?? "",
     schedule: scheduleLine(dto),
-    next: nextRunLabel(dto, ZONE, now),
+    next: nextRunLabel(dto, DEMO_ZONE, now),
     named: null,
     off: null,
   };
@@ -182,7 +181,7 @@ export function playbooksSample(now = new Date()): PlaybooksSurface {
   }));
   return {
     rows,
-    timezone: ZONE,
+    timezone: DEMO_ZONE,
     countsRead: true,
     calendar: "ok",
     triggers,

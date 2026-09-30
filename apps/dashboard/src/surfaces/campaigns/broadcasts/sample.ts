@@ -25,8 +25,7 @@ import {
   type BroadcastDto,
 } from "@chanlytics/contracts";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
-
-const ZONE = "America/New_York";
+import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
 
@@ -136,7 +135,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
       counts: { queued: 22, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
     }),
     dto("b-sample-1", "A quick note", {}),
-  ].map((d) => toBroadcastVM(d, ZONE, now));
+  ].map((d) => toBroadcastVM(d, DEMO_ZONE, now));
   return {
     rows,
     templates: ["quick_note", "monthly_offer", "winback_offer"].map((key) => approved(key, iso(-7 * DAY))),
