@@ -123,7 +123,7 @@ as unknown as                       186
 as never                             13
 non-null assertions, x!             130
 index reads the compiler lets pass  450   in 113 files
-table names outside packages/db     521
+table names outside packages/db     515
 unnamed durations                    69   in 36 files
 literal style values               1093   in 22 stylesheets
 primitives outside the kit         2169   selectors naming 864 classes
