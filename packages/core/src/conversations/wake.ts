@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, conversationMoveAllowed } from "@chanlytics/contracts";
 import type { Thread, ThreadPorts } from "./ports";
 
 export type WakePorts = Pick<ThreadPorts, "wake" | "record">;
@@ -14,7 +14,7 @@ export async function wake(
   cmd: { conv: Pick<Thread, "id" | "tenant_id" | "state"> },
 ): Promise<{ state: "open"; decision_id: string }> {
   const { conv } = cmd;
-  if (conv.state !== "snoozed") throw new AppError("conflict", "This thread is not snoozed.", 409);
+  if (!conversationMoveAllowed("wake", conv.state)) throw new AppError("conflict", "This thread is not snoozed.", 409);
   if (!(await ports.wake(conv.id)))
     throw new AppError("conflict", "Could not wake this thread — reload and try again.", 409);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});

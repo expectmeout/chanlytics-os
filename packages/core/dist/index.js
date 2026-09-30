@@ -7277,6 +7277,7 @@ function visitStartTime(v, tz) {
     new Date(ms(v.start))
   );
 }
+var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -8000,6 +8001,42 @@ var RECORDING_NOTE2 = {
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
 };
+var ANY = CONVERSATION_STATES;
+var CONVERSATION_MOVES = {
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  take_over: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user" }
+  },
+  /** A person's reply claims the thread as a take-over does, and touches it. */
+  reply_claim: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
+  },
+  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
+  /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
+  snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
+  /** A person ends a snooze early. */
+  wake: { from: ["snoozed"], to: "open", sets: { snooze_until: null } },
+  /** Closed, never deleted: released completely. A later message reopens it. */
+  archive: { from: ANY, to: "archived", sets: { paused_until: null, assignee_user_id: null } },
+  /** The receptionist hands the thread to a person (an escalation, a message it cannot read, a call's callback). */
+  hand_off: { from: ANY, to: "needs_human", sets: { paused_until: "until" } },
+  /** The owner answered from the WhatsApp Business app: the receptionist paused under them, the thread touched. */
+  owner_echo: { from: ANY, to: "needs_human", sets: { paused_until: "until", last_message_at: "now" } },
+  /** ingest_inbound: a customer's message reopens a closed or snoozed thread, never one a person has. */
+  reopen: { from: ["archived", "snoozed"], to: "open", sets: { snooze_until: null } },
+  /** expire_stale_pauses: a pause ran out with no escalation still open. */
+  pause_expired: { from: ["needs_human"], to: "open", sets: { paused_until: null, assignee_user_id: null } },
+  /** wake_stale_snoozes: a snooze ran out. */
+  snooze_expired: { from: ["snoozed"], to: "open", sets: { snooze_until: null } }
+};
+function conversationMoveAllowed(move, state) {
+  return CONVERSATION_MOVES[move].from.includes(state);
+}
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -12669,7 +12706,7 @@ async function snooze(ports, cmd) {
 // src/conversations/wake.ts
 async function wake(ports, cmd) {
   const { conv } = cmd;
-  if (conv.state !== "snoozed") throw new AppError("conflict", "This thread is not snoozed.", 409);
+  if (!conversationMoveAllowed("wake", conv.state)) throw new AppError("conflict", "This thread is not snoozed.", 409);
   if (!await ports.wake(conv.id))
     throw new AppError("conflict", "Could not wake this thread \u2014 reload and try again.", 409);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});

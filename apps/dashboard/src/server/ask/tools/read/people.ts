@@ -162,6 +162,11 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
     contact_id: id,
     route: `clients/${id}`,
     name: vm.name,
+    // Where they stand, as their People row and people.search say it: the row's rule (contracts personStateFor, for
+    // the member asking) under the page's own view model. Without it an answer read the stored thread states below,
+    // and a thread the member holds, still needs_human in storage, read "Needs you".
+    state: vm.stateLabel,
+    state_detail: vm.stateDetail || null,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
     // The deal's fact says its value at every stage (0008), and where its proposal lives: the host, never the address.
