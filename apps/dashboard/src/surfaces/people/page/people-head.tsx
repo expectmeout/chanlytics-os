@@ -47,5 +47,6 @@ export function usePeopleStanding(scope: PeopleScope | null): void {
     : scope === "pipeline"
       ? pipelineSentence(people, now, zone)
       : peopleSentence(people.aggregates);
-  useStanding(scope ? { title: scope === "pipeline" ? "Pipeline" : "People", sentence } : null);
+  // A scope is picked in the page's own strip (People | Leads | Pipeline), so neither has a way back above its name (D1).
+  useStanding(scope ? { title: scope === "pipeline" ? "Pipeline" : "People", sentence, back: null } : null);
 }
