@@ -39,10 +39,11 @@ export const DB_PATHS = [
   "packages/core/src/deliver.ts",
   "packages/jobs/src/handlers.ts",
   "apps/dashboard/src/server/ports/campaign-ports.ts",
-  // what the two --check steps compare with the database
+  // what the --check steps and the snapshot suite compare with the database (supabase/schema.sql is under supabase/)
   "tooling/scripts/gen/schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",
   "tooling/scripts/gen/db-types.mjs",
+  "tooling/scripts/gen/schema-snapshot.mjs",
   // the workflow, this decision, and what the workflow installs
   ".github/workflows/database.yml",
   "tooling/scripts/checks/db-paths-changed.mjs",

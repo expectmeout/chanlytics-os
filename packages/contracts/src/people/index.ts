@@ -104,6 +104,7 @@ export {
   listMembers,
   savedListIds,
   savedListLookup,
+  listNamer,
   listNeeds,
   listsFor,
   resolveList,

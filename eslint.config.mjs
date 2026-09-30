@@ -291,7 +291,7 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
  * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
  * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
- * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
+ * (Ask Rewired, the phone app), which join as those land, by the day repo/lint-boundaries.test.mjs's IN_FLIGHT names. repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
  */
@@ -304,6 +304,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/lines",
   "packages/contracts/src/notes",
   "packages/contracts/src/playbooks",
+  "packages/contracts/src/reach-out",
   "packages/contracts/src/reports",
   "packages/contracts/src/shared",
   "packages/core/src/inbound",
@@ -313,6 +314,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/mascot",
+  "apps/dashboard/src/legacy-bridge/reach-out",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/connections",
@@ -332,12 +334,13 @@ export const LIMITED_TREES = [
   "apps/edge/lib/google",
   "apps/edge/lib/ops",
   "apps/edge/lib/packages",
+  "apps/edge/lib/partners",
   "apps/edge/lib/sms",
 ];
 
 /**
  * The held trees where a function still takes more than four parameters (measured 28 September 2026: 48 functions,
- * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
+ * db's widest at 7 and today-sample's at 11; Reach out's timetable and the partners' ledger joined on 29 September). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
 export const WIDE_PARAMS = [
@@ -345,6 +348,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ai",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
+  "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",
@@ -355,6 +359,7 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
   "apps/edge/lib/google",
+  "apps/edge/lib/partners",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);

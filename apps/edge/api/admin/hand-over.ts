@@ -25,13 +25,11 @@ import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
-import { frameHandOver } from "../../lib/packages/contracts.js";
+import { frameHandOver, isE164 } from "../../lib/packages/contracts.js";
 import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
 
 const L = logger();
-
-const E164 = /^\+[1-9]\d{6,14}$/;
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/hand-over");
@@ -41,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
   const body = await readBody<{ call_id?: string; line?: string }>(request);
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
-  if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !E164.test(line)) {
+  if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !isE164(line)) {
     return refuse(400, "bad_request", "call_id + line (E.164) required");
   }
 

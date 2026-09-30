@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";
 import { authorizeAdmin } from "../lib/admin-auth.js";
 import { pg } from "../lib/pg.js";
+import { migrationsLine } from "../lib/ops/migration-head.js";
 import { brainSummary } from "../lib/receptionist/budget.js";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.js";
@@ -343,10 +344,7 @@ async function migrationHead(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { migrations: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("migration_head");
-    if (error) return { migrations: { error: error.message.slice(0, 200) } };
-    const row = (data ?? [])[0];
-    return { migrations: { head: row?.head ?? null, applied: row?.applied ?? 0 } };
+    return { migrations: await migrationsLine(db) };
   } catch (e) {
     return { migrations: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }

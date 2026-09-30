@@ -30,6 +30,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { pauseMsOf } from "@chanlytics/contracts";
 
 /** The environment's own pilot line: the one number whose credentials come from the environment. */
 const ENV_PHONE_ID = "109990000000001";
@@ -58,7 +59,6 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-const { PAUSE_MS } = await import(at("packages/core/src/inbound/steps.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
 after(() => {
   setPg(null);
@@ -969,7 +969,8 @@ test("a workspace that never chose its hours pauses for the default day, and an 
   assert.deepEqual(await answer(res), [200, { ok: true }]);
   assert.equal(w.tables.conversations.length, 1);
   const until = Date.parse(w.tables.conversations[0].paused_until);
-  assert.ok(until >= t0 + PAUSE_MS && until <= t1 + PAUSE_MS, `the default: ${w.tables.conversations[0].paused_until}`);
+  const day = pauseMsOf(null);
+  assert.ok(until >= t0 + day && until <= t1 + day, `the default: ${w.tables.conversations[0].paused_until}`);
 
   const lost = await deliver(
     w.change(

@@ -1,14 +1,7 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
-export {
-  askModel,
-  streamModel,
-  formatRejected,
-  messageTextOf,
-  ANTHROPIC_MESSAGES_URL,
-  ANTHROPIC_VERSION,
-} from "./models/anthropic";
+export { askModel, streamModel, formatRejected } from "./models/anthropic";
 export type {
   ModelAsk,
   ModelDeps,
@@ -52,7 +45,6 @@ export {
   updateLiveCall,
   stopCall,
   getRetellLlm,
-  needsHydration,
   fetchRecording,
   verifyRetellSignature,
 } from "./voice/voice-retell";
@@ -129,7 +121,6 @@ export {
   isValidSipPassword,
   RETELL_ORIGINATION,
   LINE_COSTS,
-  isE164,
   isAreaCode,
 } from "./lines/lines";
 export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";

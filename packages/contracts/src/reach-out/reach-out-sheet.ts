@@ -6,6 +6,7 @@
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
+import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.
 import { plural } from "../shared/words";
 import type {
@@ -25,7 +26,7 @@ export const REACH_OUT_SHEET_WORDS = {
     "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: "Starts today. The first run waits on you. After that, a run gives you thirty minutes to stop it.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
   slotsHint: "click to insert · each is filled per lead, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
@@ -174,7 +175,7 @@ export function startWords(s: ReachOutStartDto): { tone: "good" | "warn" | "plai
     case "sent":
       return {
         tone: "good",
-        text: `Planned ${n}. They go in each business's hours; you have thirty minutes to stop them.`,
+        text: `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`,
       };
     case "held":
       switch (s.reason) {

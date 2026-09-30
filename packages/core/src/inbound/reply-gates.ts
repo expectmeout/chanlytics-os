@@ -1,7 +1,23 @@
 /**
- * The gates between a readable message and the model, in order: its age, a yes to confirm, the thread's pause
- * and the day's cap, the token budget, the workspace's billing pause, and the mode in force. A gate that stops
- * the message returns; a message that passes them all returns GO.
+ * The gates between a message the receptionist can read and the model, in the order answerInbound (./answer.ts, their
+ * only caller) runs them. Each takes the Answering context and the customer's words, and returns GO to pass the message
+ * on or nothing when it stops here.
+ *
+ * lateOrConfirmed: a message past the reply horizon is a person's, and a late one inside it is still answered
+ * (steps.ts ageVerdict). A yes to a program is confirmed before anything can hold it, in the campaign's own filed
+ * opt-in words (contracts optInConfirmation), as a system message: never a model call, sent whatever the reply mode,
+ * and not held back by a thread a person holds. A marketing yes (YES OFFERS) that arrives by text is recorded, not
+ * confirmed, because offers go by WhatsApp. A yes whose confirmation did not go out is escalated and told, never
+ * only logged.
+ *
+ * heldForThePerson: the thread's pause and its day's reply cap, the workspace's day of model tokens (off when its limit
+ * is 0 or absent), the billing pause, and the mode in force (./gates.ts modeInForce). Only 'auto' and 'veto', and a
+ * workspace with a persona, go on to the model; a hold the owner chose for one person alerts once per open hold.
+ *
+ * A stop marks the message processed and, unless a person already holds the thread, escalates it under its own reason
+ * and tells the owner, so a customer at a limit is never left to a log line. Each stop logs an event of its own (the
+ * thread's pause and the workspace's billing pause are two), and those names do not change. The pure verdicts, limits
+ * and copy are steps.ts's; the token count comes through the budget port.
  */
 import { optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";

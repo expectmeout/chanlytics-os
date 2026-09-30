@@ -35,6 +35,8 @@ import {
   copiesAmong,
   castsIn,
   tableNames,
+  rpcNames,
+  importsMatching,
   durationsIn,
   inlineStyles,
   SOURCE,
@@ -47,6 +49,8 @@ export const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
 const DIRECTORY_LIMIT = 20;
 const COPY_LIMIT = 3;
+/** The suffix of a tables.json key that counts a file's `.rpc("…")` calls rather than its `.from("…")`. */
+export const RPC_KEY = "::rpc";
 
 /** The code that ships: the two apps and the packages' sources. Tests and specs are not held to a function's size. */
 const SRC = repoFiles(["apps", "packages"]);
@@ -56,6 +60,20 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "e2e"]);
 const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
+const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
+/**
+ * What a door does not import (specifiers as written, so the edge's relative facade of a package is a pattern of its
+ * own beside the package): a repository (`@chanlytics/db`, or supabase-js, which is one's client) and a provider client
+ * (`@chanlytics/channels`, whose `providerFetch` and wires are the providers' own). A door that holds one holds a rule
+ * or a table query the layer behind it should. The edge's `lib/pg` handle is not named: nearly every door takes it to
+ * pass on, and the tables ratchet already counts the ones that query it.
+ */
+export const DOOR_FORBIDS = [
+  /^@chanlytics\/(db|channels)$/,
+  /^@supabase\/supabase-js$/,
+  /(^|\/)lib\/packages\/(db|channels)(\.js)?$/,
+];
 /**
  * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
  * classic scripts (legacy/) and the static files the browser loads as they are (public/) — and less the home itself.
@@ -166,15 +184,27 @@ export const MEASURES = [
       "Name the shape and parse it, or narrow it with a type guard: a value laundered through unknown, told it is never, or told it is not null is a type the compiler no longer checks. An index read that can miss is guarded (const first = rows[0]; if (!first) …), never asserted with !.",
   },
   {
+    // A file's `.from("…")` count under its path, and its `.rpc("…")` count under `<path>${RPC_KEY}`: a SQL function
+    // called by name outside packages/db is a table read or written there all the same.
     name: "table names outside packages/db",
     file: "tables.json",
-    measure: () =>
-      perFile(
-        SRC.filter((f) => !f.startsWith("packages/db/")),
-        tableNames,
-      ),
+    measure: () => {
+      const outside = SRC.filter((f) => !f.startsWith("packages/db/"));
+      const rpcs = perFile(outside, rpcNames);
+      return {
+        ...perFile(outside, tableNames),
+        ...Object.fromEntries(Object.entries(rpcs).map(([f, n]) => [f + RPC_KEY, n])),
+      };
+    },
     advice:
-      "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+      "A table, and a SQL function, is named once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "route files that hold a repository or a provider client",
+    file: "route-doors.json",
+    measure: () => perFile(ROUTES, (sf) => importsMatching(sf, DOOR_FORBIDS)),
+    advice:
+      "A route file is a door: it verifies, parses its input and answers, and everything else is a call into lib/ (the edge), src/server (the dashboard) or a core verb. Read or write through a repository behind that call, and reach a provider through a wire in packages/channels behind it too.",
   },
   {
     name: "unnamed durations",

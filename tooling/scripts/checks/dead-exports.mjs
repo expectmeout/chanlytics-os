@@ -20,6 +20,12 @@
  * knip runs from its own bin under the node running this, never through `pnpm`:
  * pnpm is corepack's here, and a bare `pnpm` is not on every machine's PATH.
  *
+ * knip enters each package at its barrel (`src/index.ts`), and every barrel names its exports, so to knip each
+ * of a package's public values is used. The packages' pass below reads them as code instead: a value a package's
+ * barrel exports and no module outside its own declaring one mentions is counted under its module, beside knip's
+ * findings (`unimportedExports`, _ast.mjs). The public names are the built bundle's, so run it after a build, as CI
+ * does.
+ *
  * A finding is a bug report, not an instruction: an export knip cannot see a
  * use of may be read through a string, a dynamic import or a test double. Look
  * before deleting; hold the count without looking.
@@ -29,6 +35,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bank, compare, writeBaseline } from "../tests/_ratchet.mjs";
+import { repoFiles, parse, bundleExports, unimportedExports } from "../tests/_ast.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const BASELINE = path.join(ROOT, "tooling/scripts/tests/baselines/dead-exports.json");
@@ -48,6 +55,27 @@ export function knipCommand(args) {
     }
     if (path.dirname(dir) === dir) throw new Error("knip is not installed: corepack pnpm install");
   }
+}
+
+const PACKAGES = ["channels", "contracts", "core", "db", "jobs"];
+const isBarrel = (f) => /(^|\/)index\.ts$/.test(f);
+
+/** `{ file: n }`: each package module's public values that no other module imports (the pass knip cannot make). */
+export function packagePass() {
+  const everything = [...repoFiles(["apps", "packages"]), ...repoFiles(["tooling/scripts", "e2e"])];
+  const now = {};
+  for (const p of PACKAGES) {
+    const own = (f) => f.startsWith(`packages/${p}/src/`);
+    const modules = everything.filter((f) => own(f) && !isBarrel(f) && !/\.type-test\.ts$/.test(f));
+    const readers = everything.filter((f) => !(own(f) && isBarrel(f)));
+    const found = unimportedExports(
+      modules.map((file) => ({ file, sf: parse(file) })),
+      bundleExports(parse(`packages/${p}/dist/index.js`)),
+      readers.map((file) => ({ file, sf: parse(file) })),
+    );
+    for (const [file, names] of Object.entries(found)) now[file] = names.length;
+  }
+  return now;
 }
 
 function main() {
@@ -78,6 +106,7 @@ function main() {
     const n = (issue.exports?.length ?? 0) + (issue.types?.length ?? 0);
     if (n > 0) now[issue.file] = n;
   }
+  for (const [file, n] of Object.entries(packagePass())) now[file] = (now[file] ?? 0) + n;
 
   const was = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : null;
   if (update || raise) {

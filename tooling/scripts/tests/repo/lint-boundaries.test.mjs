@@ -34,8 +34,9 @@
  *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
  *     decision 0015 rather than joining;
  *
- * less the trees of the programs in flight (IN_FLIGHT: Ask, Reach out, the
- * phone app, partners), which join as those land, as eslint.config.mjs says.
+ * less the trees of the programs in flight (IN_FLIGHT: Ask Rewired and the
+ * phone app), which join as those land, as eslint.config.mjs says, each by the
+ * day its program's entry names.
  *
  * Nothing here reads the config's text; it asks ESLint.
  */
@@ -44,6 +45,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
+import { DAY_MS } from "@chanlytics/contracts";
 import config, {
   FUNCTION_LIMITS,
   HELD_TYPED,
@@ -377,24 +379,70 @@ test("a tree is held once the ratchet holds nothing in it, and every tree it nam
 /**
  * The trees of the programs in flight, which join LIMITED_TREES as those land: until then each program holds its own
  * functions to the ratchet, which may raise with a reason, where the lint could not. A tree leaves this list in the
- * change that lists it there.
+ * change that lists it there. Each program says the day it was granted the exemption and the day it ends: past that
+ * day the test below fails, and the program's trees join LIMITED_TREES, or the day moves in a change that says why.
+ * Reach out (Part 7, #1329) and partners (0020, #1206) have landed: their emptied trees are held.
  */
 const IN_FLIGHT = {
-  "Ask Rewired": [
-    "packages/contracts/src/ask",
-    "packages/contracts/src/ask-proposals",
-    "apps/dashboard/src/server/ask",
-    "apps/dashboard/src/legacy-bridge/ask",
-  ],
-  "Reach out": [
-    "packages/contracts/src/reach-out",
-    "apps/edge/lib/reach-out",
-    "apps/dashboard/src/legacy-bridge/reach-out",
-  ],
-  "the phone app": ["packages/contracts/src/mobile"],
-  partners: ["apps/edge/lib/partners"],
+  "Ask Rewired": {
+    since: "28 September 2026",
+    until: "13 October 2026",
+    trees: [
+      "packages/contracts/src/ask",
+      "packages/contracts/src/ask-proposals",
+      "apps/dashboard/src/server/ask",
+      "apps/dashboard/src/legacy-bridge/ask",
+    ],
+  },
+  "the phone app": {
+    since: "28 September 2026",
+    until: "13 October 2026",
+    trees: ["packages/contracts/src/mobile"],
+  },
 };
-const inFlight = Object.values(IN_FLIGHT).flat();
+const inFlight = Object.values(IN_FLIGHT).flatMap((p) => p.trees);
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+/** A day as the lists write it, `13 October 2026`, as the UTC midnight that starts it; NaN for any other spelling. */
+function dayOf(text) {
+  const m = /^(\d{1,2}) ([A-Z][a-z]+) (\d{4})$/.exec(text);
+  const month = m ? MONTHS.indexOf(m[2]) : -1;
+  return month < 0 ? NaN : Date.UTC(Number(m[3]), month, Number(m[1]));
+}
+
+test("each program in flight names the day its exemption began and the day it ends, and that day has not passed", () => {
+  for (const [program, { since, until, trees }] of Object.entries(IN_FLIGHT)) {
+    assert.ok(
+      Number.isFinite(dayOf(since)) && Number.isFinite(dayOf(until)),
+      `${program}: "since" and "until" are days`,
+    );
+    assert.ok(dayOf(since) < dayOf(until), `${program}: the exemption ends after it began`);
+    assert.ok(trees.length > 0, `${program}: the trees it exempts`);
+    assert.ok(
+      Date.now() < dayOf(until) + DAY_MS,
+      `${program}'s exemption from the lint's limits ended on ${until}: add its emptied trees to LIMITED_TREES in eslint.config.mjs and take it out of IN_FLIGHT, or move the day in a change that says why`,
+    );
+  }
+});
+
+test("a day is read as the lists write it, and nothing else is a day", () => {
+  assert.equal(dayOf("13 October 2026"), Date.UTC(2026, 9, 13));
+  assert.equal(dayOf("1 January 2027"), Date.UTC(2027, 0, 1));
+  for (const bad of ["2026-10-13", "13 Oct 2026", "October 13, 2026", ""]) assert.ok(Number.isNaN(dayOf(bad)), bad);
+});
 
 /** What the lint's limits read: TypeScript under apps/ and packages/, as the ratchet's file set has it. */
 const typescript = repoFiles(["apps", "packages"]).filter((f) => /\.tsx?$/.test(f));

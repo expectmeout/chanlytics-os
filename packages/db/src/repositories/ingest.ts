@@ -4,7 +4,13 @@
  * dedupe; everything else is plain row work.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing, HOUR_MS } from "@chanlytics/contracts";
+import {
+  CARRIER_CONSENT_SOURCE,
+  conversationPatch,
+  normalizePhone,
+  type PurposeBearing,
+  HOUR_MS,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 import { emitEvent } from "../events";
 
@@ -468,7 +474,7 @@ export async function recordEchoAndPause(
   if (error?.code === "23505" && p.externalId) return;
   const { error: perr } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: new Date().toISOString() })
+    .update(conversationPatch("owner_echo", { until: p.pausedUntilIso, now: new Date().toISOString() }))
     .eq("id", conv.id)
     .eq("tenant_id", p.tenantId);
   if (perr) console.error("record_echo_pause_failed", perr.message);
@@ -501,7 +507,7 @@ export async function pauseConversation(
 ): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
-    .update({ state: "needs_human", paused_until: pausedUntilIso })
+    .update(conversationPatch("hand_off", { until: pausedUntilIso }))
     .eq("id", conversationId)
     .eq("tenant_id", tenantId)
     .select("id");

@@ -9,7 +9,7 @@
  * the page's.
  */
 import { REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { REPORT_RANGES, dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
+import { dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
 import { templateTitle } from "../templates/template-titles";
 import { sumOf } from "../shared/numbers";
 
@@ -234,5 +234,3 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     },
   };
 }
-
-export const CAMPAIGN_REPORT_RANGES = REPORT_RANGES;

@@ -120,7 +120,7 @@ test("Start says what really happened, each reason in its own words; within the 
   assert.equal(said("empty", "nobody"), "Saved. Nobody on this search can be written to yet; it looks again each day.");
   assert.equal(
     said("sent", null, 1),
-    "Planned 1 email. They go in each business's hours; you have thirty minutes to stop them.",
+    "Planned 1 email. They go in each business's hours; you have 30 minutes to stop them.",
   );
   assert.equal(said("unreached", null), "Saved. The first run is planned within the hour.");
   assert.equal(said("off", "paused"), "Saved. It is paused, so nothing was planned.");

@@ -24,7 +24,6 @@ export {
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
-  SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
   judgeShadowSpecs,
@@ -52,7 +51,6 @@ export {
 export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody, UsageMonthDto } from "./usage";
 export {
   DATA_NOT_INSTRUCTIONS,
-  FENCE_TAGS,
   PROFILE_NAME_MAX,
   fenceActed,
   fenced,

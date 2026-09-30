@@ -41,6 +41,21 @@ test("the measure sees the shell's JSX and the packages' TypeScript", () => {
   assert.ok(core.length > 5, "core parsed as TypeScript");
 });
 
+// The doors' measure, kept honest the same way: if the route trees stopped being read (a moved folder, a changed
+// pattern), the number would fall to zero and the ratchet would pass. Both trees hold offenders until the doors are
+// thinned; the day one has none, this asserts the other still does, and the measure retires with the last.
+test("the doors' measure reads the edge's doors and the dashboard's routes", () => {
+  const doors = Object.keys(MEASURES.find((m) => m.file === "route-doors.json").measure());
+  assert.ok(
+    doors.some((f) => f.startsWith("apps/edge/api/")),
+    "a door of the edge is read",
+  );
+  assert.ok(
+    doors.some((f) => f.startsWith("apps/dashboard/app/api/")),
+    "a route of the dashboard is read",
+  );
+});
+
 // The duration measure on a module written for it: each line marked `yes` holds one length of time written as a
 // bare number per mark, and nothing else in it is one: a count, a size, seconds, metres, a change of unit, a nudge,
 // an index, a zero delay, or a minute already named. A name without its unit hides no length of time (LEASE,

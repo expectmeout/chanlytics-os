@@ -136,17 +136,6 @@ function injectionQuestion() {
     }
   };
 }
-var FENCE_TAGS = [
-  "customer",
-  "profile_name",
-  "transcript",
-  "review",
-  "reply",
-  "record",
-  "conversation",
-  "places",
-  "note"
-];
 function defang(text) {
   return text.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
@@ -167,6 +156,182 @@ function promptSafeName(name) {
   const flat = defang(name).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!flat) return null;
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
+}
+
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
+// src/playbooks/playbook-time.ts
+var SWEEP_TICK_MS = 5 * MIN_MS;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
+}
+
+// src/shared/words.ts
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+
+// src/playbooks/playbook-triggers.ts
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Visit reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  {
+    id: "visited",
+    label: "After the visit",
+    list: null,
+    cls: "reengage",
+    kind: "visit",
+    hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
+var PLAYBOOK_STATES = ["running", "paused"];
+var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms2) {
+  const minutes = Math.round(ms2 / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+var PLAYBOOK_NAME_MAX = 80;
+var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
+function triggerOf(id) {
+  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
+}
+function triggerOffered(t, dealsOn) {
+  if (t.kind === "reach_out") return false;
+  return t.kind !== "deal" || dealsOn;
+}
+function policyClassOffered(cls, dealsOn) {
+  if (cls === "outreach") return true;
+  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
+  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
 
 // src/config/workspace-config/policy-classes.ts
@@ -197,12 +362,12 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+    note: `the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
   },
   reviews: {
     name: "Google reviews",
@@ -220,7 +385,7 @@ var POLICY_CLASS_WORDS = {
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -451,44 +616,6 @@ function purposeOfTemplate(category) {
 }
 function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
-}
-
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
 }
 
 // src/calendar/feed-url.ts
@@ -779,6 +906,7 @@ var BookingRulesSchema = z4.object({
   notes: z4.array(z4.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E164.test(s);
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z4.object({
   address: z4.string().max(300).optional(),
@@ -1628,7 +1756,6 @@ var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 function leadMonth(zone, at3) {
   const d = dayInZone(zone, at3.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
@@ -2330,7 +2457,6 @@ var MONEY_PATTERNS = [
 function namesMoney(text) {
   return MONEY_PATTERNS.some((p) => p.test(text));
 }
-var HELD_LINE_KINDS = ["price", "money", "booking", "faq"];
 var HELD_LINES = {
   en: {
     price: "Good question! A member of our team will follow up here with the details shortly.",
@@ -2403,6 +2529,13 @@ var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var REPLY_CAP_DEFAULT = 20;
 var PAUSE_HOURS_DEFAULT = 24;
+function pauseHoursOf(limits) {
+  const stored = PolicyLimitsSchema.shape.pause_hours.safeParse(limits?.pause_hours);
+  return stored.success && stored.data !== void 0 ? stored.data : PAUSE_HOURS_DEFAULT;
+}
+function pauseMsOf(limits) {
+  return pauseHoursOf(limits) * HOUR_MS;
+}
 function hardLimitsWords(limits) {
   const stored = (v) => {
     const n = Number(v);
@@ -2413,7 +2546,7 @@ function hardLimitsWords(limits) {
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
     pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
-    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
+    hours: pauseHoursOf(limits)
   };
 }
 function replyDelayMs(mode, limits) {
@@ -2959,7 +3092,6 @@ function openingVerdict(code2, reading, stepLanguage) {
 var DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"];
 var isDraftWhy = (v) => DRAFT_WHYS.includes(v);
 var DRAFT_NEEDS_MS = 25e3;
-var DRAFT_MAX = 4e3;
 var DRAFT_NOTICE_MAX = 240;
 var SILENT_MODE = "never";
 function draftRefusal(f) {
@@ -3339,7 +3471,6 @@ function leadPhoneState(phone) {
   if (!phone) return "none";
   return phoneDialable(phone) ? "ok" : "invalid";
 }
-var LEAD_EMAIL_REASON = /^email:/;
 function classify(plan, answer, facts, emailState, inArea, phoneState) {
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
@@ -4229,10 +4360,6 @@ function endingOfRound(x) {
   if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
   return "few_new_matches";
 }
-
-// src/shared/words.ts
-var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 
 // src/leads/lead-words.ts
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -5191,7 +5318,6 @@ var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
-var ASK_RETENTION_DAYS = 90;
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -5759,134 +5885,6 @@ var ASK_MODEL = MODEL_ROUTES.ask.model;
 function askModelProfile(name) {
   const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
   return ASK_MODEL_PROFILES[id];
-}
-
-// src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * MIN_MS;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
-}
-
-// src/playbooks/playbook-triggers.ts
-var PLAYBOOK_TRIGGERS = [
-  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
-  {
-    id: "new_week",
-    label: "Welcome",
-    list: "new_week",
-    cls: "campaign",
-    kind: "list",
-    hint: "First contact in the last 7 days"
-  },
-  {
-    id: "phoned_only",
-    label: "Save our number",
-    list: "phoned_only",
-    cls: "reengage",
-    kind: "list",
-    hint: "Only ever phoned, never texted"
-  },
-  {
-    id: "everyone_monthly",
-    label: "The month's offer",
-    list: null,
-    cls: "campaign",
-    kind: "cadence",
-    hint: "Everyone who said yes, on a cadence"
-  },
-  {
-    id: "visit_tomorrow",
-    label: "Visit reminder",
-    list: null,
-    cls: "booking",
-    kind: "visit",
-    hint: "The day before an appointment on the calendar"
-  },
-  {
-    id: "visited",
-    label: "After the visit",
-    list: null,
-    cls: "reengage",
-    kind: "visit",
-    hint: "The day after a visit, when nothing is booked next"
-  },
-  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
-  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    list: "lapsed",
-    cls: "reengage",
-    kind: "list",
-    hint: "No visit in 45 days, and nothing booked"
-  },
-  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
-  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
-  {
-    id: "saved_list",
-    label: "On a list",
-    list: null,
-    cls: "campaign",
-    kind: "saved",
-    hint: "Everyone on a list: one of People's, or one you keep"
-  },
-  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
-  {
-    id: "proposal_waiting",
-    label: "Proposal follow-up",
-    list: null,
-    cls: "follow_up",
-    kind: "deal",
-    hint: "A proposal waiting with nothing back"
-  },
-  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
-  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
-  {
-    id: "lead_first",
-    label: "Businesses a search found",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "The first email of a reach-out"
-  },
-  {
-    id: "after_step",
-    label: "After the step before",
-    list: null,
-    cls: "outreach",
-    kind: "reach_out",
-    hint: "A nudge, days after the step before"
-  }
-];
-var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
-  (t) => t.kind !== "reach_out"
-);
-var PLAYBOOK_STATES = ["running", "paused"];
-var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
-var PLAYBOOK_NAME_MAX = 80;
-var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
-function triggerOf(id) {
-  return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
-}
-function triggerOffered(t, dealsOn) {
-  if (t.kind === "reach_out") return false;
-  return t.kind !== "deal" || dealsOn;
-}
-function policyClassOffered(cls, dealsOn) {
-  if (cls === "outreach") return true;
-  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
-  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
 
 // src/ask-proposals/spec.ts
@@ -8140,6 +8138,13 @@ function savedListLookup(saved) {
     if (!l) return null;
     const rule = l.rule == null ? null : asListRule(l.rule);
     return { rule, ids: l.ids, readable: l.rule == null || rule !== null };
+  };
+}
+function listNamer(saved) {
+  return (token2) => {
+    const ref = parseListToken(token2);
+    if (!ref) return null;
+    return ref.kind === "builtin" ? PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null : saved.find((l) => l.id === ref.id)?.name ?? null;
   };
 }
 function listNeeds(rule, lookup = () => null) {
@@ -16102,6 +16107,55 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/conversations/conversation-moves.ts
+var ANY = CONVERSATION_STATES;
+var CONVERSATION_MOVES = {
+  /** A person takes the thread: the receptionist paused until `until`, the snooze gone, the thread theirs. */
+  take_over: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user" }
+  },
+  /** A person's reply claims the thread as a take-over does, and touches it. */
+  reply_claim: {
+    from: ANY,
+    to: "needs_human",
+    sets: { paused_until: "until", snooze_until: null, assignee_user_id: "user", last_message_at: "now" }
+  },
+  /** The receptionist resumes: nothing paused, snoozed or claimed. */
+  hand_back: { from: ANY, to: "open", sets: { paused_until: null, snooze_until: null, assignee_user_id: null } },
+  /** Put aside until `until`; a snooze does not mute the receptionist, so the pause and the claim go. */
+  snooze: { from: ANY, to: "snoozed", sets: { snooze_until: "until", paused_until: null, assignee_user_id: null } },
+  /** A person ends a snooze early. */
+  wake: { from: ["snoozed"], to: "open", sets: { snooze_until: null } },
+  /** Closed, never deleted: released completely. A later message reopens it. */
+  archive: { from: ANY, to: "archived", sets: { paused_until: null, assignee_user_id: null } },
+  /** The receptionist hands the thread to a person (an escalation, a message it cannot read, a call's callback). */
+  hand_off: { from: ANY, to: "needs_human", sets: { paused_until: "until" } },
+  /** The owner answered from the WhatsApp Business app: the receptionist paused under them, the thread touched. */
+  owner_echo: { from: ANY, to: "needs_human", sets: { paused_until: "until", last_message_at: "now" } },
+  /** ingest_inbound: a customer's message reopens a closed or snoozed thread, never one a person has. */
+  reopen: { from: ["archived", "snoozed"], to: "open", sets: { snooze_until: null } },
+  /** expire_stale_pauses: a pause ran out with no escalation still open. */
+  pause_expired: { from: ["needs_human"], to: "open", sets: { paused_until: null, assignee_user_id: null } },
+  /** wake_stale_snoozes: a snooze ran out. */
+  snooze_expired: { from: ["snoozed"], to: "open", sets: { snooze_until: null } }
+};
+function conversationPatch(move, ...input) {
+  const m = CONVERSATION_MOVES[move];
+  const given = input[0] ?? {};
+  const patch = { state: m.to };
+  for (const [column, from] of Object.entries(m.sets)) {
+    const value = from === null ? null : given[from];
+    if (value === void 0) throw new Error(`${move} needs ${from} for ${column}`);
+    patch[column] = value;
+  }
+  return patch;
+}
+function conversationMoveAllowed(move, state) {
+  return CONVERSATION_MOVES[move].from.includes(state);
+}
+
 // src/deals/deal-amount.ts
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
@@ -21094,7 +21148,7 @@ var REACH_OUT_SHEET_WORDS = {
   opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
   stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
   stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: "Starts today. The first run waits on you. After that, a run gives you thirty minutes to stop it.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
   slotsHint: "click to insert \xB7 each is filled per lead, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
@@ -21216,7 +21270,7 @@ function startWords(s) {
     case "sent":
       return {
         tone: "good",
-        text: `Planned ${n}. They go in each business's hours; you have thirty minutes to stop them.`
+        text: `Planned ${n}. They go in each business's hours; you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop them.`
       };
     case "held":
       switch (s.reason) {
@@ -23267,7 +23321,6 @@ function toCampaignReportVM(dto) {
     }
   };
 }
-var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/reports/report-facts.ts
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -23407,7 +23460,7 @@ function domainsOf(dto, nowMs) {
   }));
 }
 var shareOf = (n, of) => of ? `${pct(n, of)}% (${n})` : String(n);
-function chainRowOf(c, nowMs, tz) {
+function chainLineOf(c, nowMs, tz) {
   const sum = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum("written");
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
@@ -23433,7 +23486,7 @@ function chainRowOf(c, nowMs, tz) {
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
 }
-function stepRowOf(root, s) {
+function stepLineOf(root, s) {
   const name = `${s.n + 1} \xB7 ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
   if (s.hand)
     return {
@@ -23514,8 +23567,8 @@ function toReachOutReportVM(raw, nowMs = Date.now()) {
   }));
   const sources = [];
   for (const c of dto.chains) {
-    sources.push(chainRowOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepRowOf(c.root_id, s));
+    sources.push(chainLineOf(c, nowMs, dto.timezone));
+    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
   }
   return {
     present: dto.has_reach_out,
@@ -29762,7 +29815,6 @@ export {
   ASK_MODEL_PROFILES,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
-  ASK_RETENTION_DAYS,
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -29816,7 +29868,6 @@ export {
   CALL_KEY_PREFIX,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
-  CAMPAIGN_REPORT_RANGES,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_CONSENT_SOURCE,
@@ -29841,6 +29892,7 @@ export {
   CONSENT_STATES,
   CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
+  CONVERSATION_MOVES,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
@@ -29886,7 +29938,6 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
-  DRAFT_MAX,
   DRAFT_NEEDS_MS,
   DRAFT_NOTICE_MAX,
   DRAFT_WHYS,
@@ -29909,7 +29960,6 @@ export {
   FEED_CHECK_WORDS,
   FEED_GUIDES,
   FEED_MAX_BYTES,
-  FENCE_TAGS,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
@@ -29943,7 +29993,6 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
-  HELD_LINE_KINDS,
   HELD_REASONS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
@@ -29985,7 +30034,6 @@ export {
   LEAD_DAY_CAP_USD,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_DRAFT_NOTE,
-  LEAD_EMAIL_REASON,
   LEAD_EMAIL_STATES,
   LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
@@ -30038,7 +30086,6 @@ export {
   LEAD_QUESTION_MIN_EVIDENCE,
   LEAD_QUESTION_THRESHOLD,
   LEAD_QUESTION_WAIT_LINE,
-  LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
   LEAD_REVIEW_ACT_WORDS,
@@ -30234,9 +30281,9 @@ export {
   PLAYBOOK_TOUCH_WINDOW_MS,
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_MS,
+  PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
-  POLICY_CLASS_NONE,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
@@ -30394,7 +30441,6 @@ export {
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
-  SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
   SHORTCUTS,
@@ -30632,7 +30678,9 @@ export {
   consultsHeldWords,
   contactMeta,
   contactName,
+  conversationMoveAllowed,
   conversationOfNeedsKey,
+  conversationPatch,
   coversSpan,
   csvCell,
   customerDomainOf,
@@ -30671,6 +30719,7 @@ export {
   defaultParamSpecs,
   defaultSlotKinds,
   defaultTemplate,
+  delayWords,
   deltaOf,
   describeNow,
   describeOpenings,
@@ -30844,6 +30893,7 @@ export {
   isDealSheetMode,
   isDealStage,
   isDraftWhy,
+  isE164,
   isForwardingMode,
   isFreeMail,
   isHeldDraft,
@@ -30980,6 +31030,7 @@ export {
   listDraftFieldLines,
   listFactWords,
   listMembers,
+  listNamer,
   listNeeds,
   listRuleMatches,
   listRuleParts,
@@ -31119,6 +31170,8 @@ export {
   partnerVM,
   partnerWorkspacesVM,
   passwordProblem,
+  pauseHoursOf,
+  pauseMsOf,
   pausedGreetingFor,
   pausedVoiceFacts,
   pendingCodeOf,

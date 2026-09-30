@@ -28,7 +28,7 @@ import { edgeFnUrl } from "../../lib/lines/lines.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { formatPhoneDisplay, type EdgeErrorCode } from "../../lib/packages/contracts.js";
+import { formatPhoneDisplay, isE164, type EdgeErrorCode } from "../../lib/packages/contracts.js";
 import { createVoiceAgent } from "../../lib/voice/voice-agent.js";
 import {
   planVoiceProvision,
@@ -62,8 +62,6 @@ interface Body {
   agent_id?: string;
   apply?: boolean;
 }
-
-const E164 = /^\+[1-9]\d{6,14}$/;
 
 function requestOf(body: Body): VoiceProvisionRequest {
   const area =
@@ -347,7 +345,7 @@ async function buyInAreaCode(
   );
   if (!w.ok) return { ok: false, step: "number", status: w.status, detail: w.body };
   const bought = typeof w.body?.phone_number === "string" ? w.body.phone_number : "";
-  if (!E164.test(bought))
+  if (!isE164(bought))
     return { ok: false, step: "number", status: 502, detail: "the provider answered without a phone number" };
   const numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
   const answer = { phone_number: bought, bought: true, area_code: areaCode, pinned, type: numberType };

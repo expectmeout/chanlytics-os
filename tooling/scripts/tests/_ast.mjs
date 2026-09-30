@@ -35,6 +35,7 @@ import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { builtinModules } from "node:module";
 import { ROOT } from "./_source.mjs";
 
 export const SOURCE = /\.(ts|tsx|js|jsx|mjs)$/;
@@ -474,9 +475,9 @@ const NOT_A_TABLE = new Set([
   "String",
 ]);
 
-/** `.from("<table>")`: a table named by its string, in this file. `Buffer.from("…")` is not one. */
-export function tableNames(sf) {
-  let n = 0;
+/** `.from("<table>")`: each table named by its string in this file, once per call. `Buffer.from("…")` is not one. */
+export function tablesNamedIn(sf) {
+  const names = [];
   const visit = (m) => {
     if (
       ts.isCallExpression(m) &&
@@ -487,13 +488,168 @@ export function tableNames(sf) {
       ts.isStringLiteralLike(m.arguments[0]) &&
       /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text)
     ) {
-      n++;
+      names.push(m.arguments[0].text);
     }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return names;
+}
+
+/**
+ * `.rpc("<function>", …)`: a SQL function called by its string, in this file. The tables ratchet counts it beside
+ * `.from("<table>")`: a door or a reader that calls a function is reading or writing a table all the same.
+ */
+export function rpcNames(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isRpcCall(m)) n++;
     ts.forEachChild(m, visit);
   };
   visit(sf);
   return n;
 }
+
+const isRpcCall = (m) =>
+  ts.isCallExpression(m) &&
+  ts.isPropertyAccessExpression(m.expression) &&
+  m.expression.name.text === "rpc" &&
+  m.arguments.length >= 1 &&
+  ts.isStringLiteralLike(m.arguments[0]) &&
+  /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
+
+/**
+ * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and
+ * `import x = require("…")`. `typeOnly` is true when nothing the statement names survives compilation (`import type`,
+ * `export type`, or an import whose every name is `type`). A dynamic import is never type-only.
+ */
+export function importsOf(sf) {
+  const out = [];
+  const visit = (n) => {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteral(n.moduleSpecifier)
+    ) {
+      out.push({ specifier: n.moduleSpecifier.text, typeOnly: statementIsTypeOnly(n) });
+    } else if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) {
+      const e = n.moduleReference.expression;
+      if (ts.isStringLiteral(e)) out.push({ specifier: e.text, typeOnly: n.isTypeOnly });
+    } else if (
+      ts.isCallExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      n.arguments.length >= 1 &&
+      ts.isStringLiteralLike(n.arguments[0])
+    ) {
+      out.push({ specifier: n.arguments[0].text, typeOnly: false });
+    } else if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
+      out.push({ specifier: n.argument.literal.text, typeOnly: true });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+function statementIsTypeOnly(n) {
+  if (ts.isExportDeclaration(n)) {
+    if (n.isTypeOnly) return true;
+    const named = n.exportClause && ts.isNamedExports(n.exportClause) ? n.exportClause.elements : null;
+    return !!named && named.length > 0 && named.every((e) => e.isTypeOnly);
+  }
+  const clause = n.importClause;
+  if (!clause) return false; // `import "x"`: a side effect, never a type
+  if (clause.isTypeOnly) return true;
+  if (clause.name) return false;
+  const named = clause.namedBindings;
+  return !!named && ts.isNamedImports(named) && named.elements.length > 0 && named.elements.every((e) => e.isTypeOnly);
+}
+
+/**
+ * How many of a file's imports name one of `forbidden` (module specifiers as patterns), types left out: an import that
+ * survives compilation is the one that holds the module's code in the file. A specifier is read as written, so a
+ * relative facade (`../lib/pg.js`) and its package (`@chanlytics/db`) are two patterns.
+ */
+export function importsMatching(sf, forbidden) {
+  return importsOf(sf).filter((i) => !i.typeOnly && forbidden.some((re) => re.test(i.specifier))).length;
+}
+
+/** The names a built bundle exports: its `export { a, b as c }` clauses of its own (esbuild writes one, at the end). */
+export function bundleExports(sf) {
+  const out = new Set();
+  for (const st of sf.statements) {
+    if (!ts.isExportDeclaration(st) || st.moduleSpecifier || !st.exportClause || !ts.isNamedExports(st.exportClause))
+      continue;
+    for (const e of st.exportClause.elements) out.add(e.name.text);
+  }
+  return out;
+}
+
+/** The values a module declares with `export`: a function, a class, an enum, a `const`/`let`/`var` binding. */
+function exportedValues(sf) {
+  const out = [];
+  for (const st of sf.statements) {
+    if (!(ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)))
+      continue;
+    if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) out.push(d.name.text);
+    } else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) {
+      out.push(st.name.text);
+    }
+  }
+  return out;
+}
+
+/** Every identifier a file writes, and every string that could name one (`m["toVM"]`, a name read through a string). */
+function namesIn(sf) {
+  const out = new Set();
+  const visit = (n) => {
+    if (ts.isIdentifier(n)) out.add(n.text);
+    else if (ts.isStringLiteralLike(n) && /^[A-Za-z_$][\w$]*$/.test(n.text)) out.add(n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * A package's exported values that no other module imports: `{ file: [name, …] }` over `modules`, the package's own
+ * modules, for each value its barrel makes public (`publicNames`) that no file of `readers` but its own mentions.
+ * The caller leaves the package's barrels out of `readers`: a barrel re-exports a name, it does not read it. knip
+ * enters each package at its barrel, so to knip every one of these is public and used; this is the pass it cannot
+ * make. A name another module happens to share counts as read, so the count is a floor.
+ */
+export function unimportedExports(modules, publicNames, readers) {
+  const readBy = new Map();
+  for (const { file, sf } of readers) {
+    for (const name of namesIn(sf)) {
+      if (!publicNames.has(name)) continue;
+      if (!readBy.has(name)) readBy.set(name, new Set());
+      readBy.get(name).add(file);
+    }
+  }
+  const out = {};
+  for (const { file, sf } of modules) {
+    for (const name of exportedValues(sf)) {
+      if (!publicNames.has(name)) continue;
+      const by = readBy.get(name);
+      if (!by || [...by].every((f) => f === file)) (out[file] ??= []).push(name);
+    }
+  }
+  return out;
+}
+
+/** The package a bare specifier names (`@scope/name`, `name`), or null for a relative path or a Node built-in. */
+export function packageOf(specifier) {
+  if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) return null;
+  const parts = specifier.split("/");
+  const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+  return NODE_BUILTINS.has(name) ? null : name;
+}
+
+const NODE_BUILTINS = new Set(builtinModules);
+/** How many `.from("<table>")` calls this file makes: what the tables ratchet counts. */
+export const tableNames = (sf) => tablesNamedIn(sf).length;
 
 /* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
 

@@ -7,6 +7,7 @@
  */
 
 import { MIN_MS, HOUR_MS } from "../shared/time";
+import { PolicyLimitsSchema } from "./workspace-config/policy-classes";
 
 /** A currency by its code, before or after a figure: USD 45, 45 EUR, 450 MXN. */
 const CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
@@ -96,8 +97,7 @@ export function namesMoney(text: string): boolean {
 }
 
 /** Why layer two replaced a reply: a price, money, a booking or a service question under "ask". */
-export const HELD_LINE_KINDS = ["price", "money", "booking", "faq"] as const;
-export type HeldLineKind = (typeof HELD_LINE_KINDS)[number];
+export type HeldLineKind = "price" | "money" | "booking" | "faq";
 
 /**
  * The words a customer gets instead of a held reply, in the language the
@@ -347,12 +347,30 @@ export const REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 /**
  * The two limits a workspace is seeded with and Autonomy states: automatic
  * replies to one person in a day, and the hours a person's reply keeps the
- * receptionist off a thread. The runtime keeps its own copies (the edge's
- * MAX_REPLIES_PER_DAY and PAUSE_MS, the dashboard server's PAUSE_MS), and a test
- * holds the edge's equal to these.
+ * receptionist off a thread. The runtime keeps its own copy of the cap (core's
+ * MAX_REPLIES_PER_DAY), and a test holds it equal to this one; every pause reads
+ * pauseHoursOf.
  */
 export const REPLY_CAP_DEFAULT = 20;
 export const PAUSE_HOURS_DEFAULT = 24;
+
+/**
+ * How long a person's touch keeps the receptionist off a thread, in hours, from
+ * the reply policy's limits. A stored `pause_hours` counts when it is one the
+ * reply policy's schema allows, which is all `PUT policies` and the Autonomy
+ * dial write (a whole number from 1 to 168); anything else, or nothing, is the
+ * default day. The pause, the handoff email and the pane's words all read this,
+ * so none of them can say one number and apply another.
+ */
+export function pauseHoursOf(limits: { pause_hours?: unknown } | null | undefined): number {
+  const stored = PolicyLimitsSchema.shape.pause_hours.safeParse(limits?.pause_hours);
+  return stored.success && stored.data !== undefined ? stored.data : PAUSE_HOURS_DEFAULT;
+}
+
+/** The same pause in ms, for a `paused_until`. */
+export function pauseMsOf(limits: { pause_hours?: unknown } | null | undefined): number {
+  return pauseHoursOf(limits) * HOUR_MS;
+}
 
 /**
  * The hard limits in an owner's words (the wiring audit's S6). The card called
@@ -377,7 +395,7 @@ export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
     pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
-    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT,
+    hours: pauseHoursOf(limits),
   };
 }
 

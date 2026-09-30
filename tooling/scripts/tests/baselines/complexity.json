@@ -625,8 +625,8 @@
     "depth": 3
   },
   "apps/edge/api/whatsapp.ts::POST#1": {
-    "lines": 186,
-    "branches": 54,
+    "lines": 185,
+    "branches": 52,
     "depth": 8
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {

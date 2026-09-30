@@ -14,7 +14,7 @@ import {
   type DecisionVerb,
   type DecisionSubject,
   type TenantId,
-  HOUR_MS,
+  pauseMsOf,
 } from "@chanlytics/contracts";
 import { listRow, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
@@ -253,16 +253,14 @@ export async function resolveOpenEscalation(
   else if (!data || data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
 }
 
-const PAUSE_MS = 24 * HOUR_MS;
-
 /**
  * How long a human's touch keeps the receptionist off a thread.
  *
  * Settings promises "stays paused for N hours" from the reply policy's
  * `pause_hours`, and the WhatsApp edge honoured it — but a take-over or a
  * reply from the dashboard paused for a hard-coded day, so an owner who set
- * two hours was told one number and given another. Every pause reads the row;
- * a missing or unreadable limit falls back to the day it always was.
+ * two hours was told one number and given another. Every pause reads the row
+ * through contracts' pauseMsOf, the rule the edge and the pane read too.
  */
 export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number> {
   const { data } = await ctx.supabase
@@ -272,8 +270,7 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
     .eq("class", "reply")
     .is("subject_type", null)
     .maybeSingle();
-  const hours = Number((data?.limits as { pause_hours?: unknown } | null)?.pause_hours);
-  return Number.isFinite(hours) && hours >= 1 ? hours * 3600 * 1000 : PAUSE_MS;
+  return pauseMsOf(data?.limits as { pause_hours?: unknown } | null);
 }
 
 /**

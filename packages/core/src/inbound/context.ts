@@ -6,13 +6,13 @@
  * read these and never rebind them. The shapes they add, the ingest's and the mode in force, are declared
  * here too, so each phase is handed one type.
  */
-import { phoneTail, fallbackMessages } from "@chanlytics/contracts";
+import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "@chanlytics/contracts";
 import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Delivered } from "../deliver";
 import { replyPosture } from "./reply-posture";
 import type { InboundHandoff, InboundPorts, InboundSink } from "./ports";
-import { MAX_REPLIES_PER_DAY, PAUSE_MS } from "./steps";
+import { MAX_REPLIES_PER_DAY } from "./steps";
 import type { ThreadState } from "./thread";
 import type { InboundInput } from "./answer";
 
@@ -58,10 +58,10 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const notifyTarget: InboundHandoff["target"] = { tenantId, notifications: notif, isEnvDefault };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
-  const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1000 : PAUSE_MS;
-  // The number the handoff email states. It reads the same limit the pause
-  // does, so the email and Settings never disagree about it.
-  const pauseHours = Math.round(pauseMs / 3600000);
+  const pauseMs = pauseMsOf(replyLimits);
+  // The number the handoff email states, read by the rule the pause and
+  // Settings read, so the three never disagree about it.
+  const pauseHours = pauseHoursOf(replyLimits);
   return {
     ports,
     n,

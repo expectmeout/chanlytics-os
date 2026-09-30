@@ -30,3 +30,5 @@ export { spokenDuration, toCallVM } from "./call-vm";
 export type { CallVM } from "./call-vm";
 export { standingOf, replyWaitsOnYou } from "./standing";
 export type { StandingInput, Standing, StandingVerdict } from "./standing";
+export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
+export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";

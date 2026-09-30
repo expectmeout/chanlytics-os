@@ -1,14 +1,12 @@
 /**
- * Exports: a transcript as a text file, a call as a text file, everyone as a
- * CSV. Pure — the routes fetch, these format.
+ * Exports as files: a conversation's transcript and a call as text, everyone as a CSV, and the attachment response
+ * that carries each (or streams the whole workspace's). Pure: the four export routes (calls/[id]/export,
+ * contacts/export, conversations/[id]/export and export) fetch, and these format and name the download, so each
+ * function is run by its tests and the routes only wire them to rows. The privacy policy promises a person's access
+ * as well as deletion; these are the access.
  *
- * Until now "Export transcript" was a menu item that opened an overlay stubbed
- * outside demos, and the privacy policy promised "access or deletion" while
- * only deletion existed. Each function here is executed by its tests; the
- * routes only wire them to rows.
- *
- * Times are written in the business's own zone, once, in the header, so a
- * file read months later still says which clock it used.
+ * Times are written in the business's own zone, once, in the header, so a file read months later still says which
+ * clock it used.
  */
 import { callLength, csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";

@@ -1,11 +1,19 @@
 /**
- * What the hourly sweeps read (00245): a bounded page of what is due, judged in the database, with the exact count of
- * what is due beyond it. The playbooks sweep used to read a page of every running playbook and judge due-ness after,
- * so a due playbook waited behind a page of ones that had run today or were hours from their hour, and what it said
- * it could not reach counted those too: a deployment with twenty-six daily playbooks called itself backlogged every
- * hour of the day, and twenty-five in a paused workspace held the page for every workspace on the platform. The
- * service role asks these (the edge's sweeps); a read that fails throws, so a database without the function is a sweep
- * that says so, never a quiet tick.
+ * What the hourly sweeps read to find their work, and the one stamp they write to keep it moving (00245). The database
+ * judges what is due; each read answers a bounded page of it, the longest waiting first, with the exact count of what
+ * is due beyond the page (`remaining`), so what a sweep says it could not reach never counts a row that was not due.
+ * Judging in the database is what keeps a due row from waiting behind rows that are not, and one paused workspace's
+ * playbooks from holding the page for every workspace.
+ *   duePlaybooks         the running playbooks of one kind (moment or reach_out) due at a moment by their
+ *                        workspace's own clock (playbooks_due), each with the zone it was judged in. A paused
+ *                        workspace's are not due.
+ *   dueCalendars         the workspaces whose calendar feed was never read, or not since a moment (calendars_due),
+ *                        each with its zone. A row whose calendar has no address is not a feed and is never due.
+ *   stampPlaybooksTried  a due moment that could not run this tick is stamped last_run_at with its day left open,
+ *                        which sorts it behind the moments that can run, so it never holds the page's first places.
+ * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
+ * lib/ops/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
+ * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS } from "@chanlytics/contracts";
