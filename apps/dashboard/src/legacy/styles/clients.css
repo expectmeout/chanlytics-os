@@ -2687,19 +2687,18 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    A rail and a list, two clear panes on the page's light under the head Glass adds (kit/head), 24px in from the window as
    the scope strip is. Inside a pane every row and field is an inset, never glass on glass, and coral is the one act. Each
    rule names the look inside :where(), so it weighs what the rule it restyles weighs and comes after it; none matches in
-   Classic. "Under a head" is a page region that opens with the kit's header, which is how the frame stands it too
-   (components.css), so Leads, which draws no head yet, keeps the spacing it has.
+   Classic. The head is the frame's (kit/head/frame-head.tsx), so the rules hold on the look alone.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) > .clients {
+  :where([data-look="glass"]) .main-scroll > .clients {
     height: auto;
     flex: 1 1 0;
     min-height: 0;
-    padding: 0 24px 16px;
+    padding: 0 var(--gutter-page) 16px;
     column-gap: 14px;
     background: transparent;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) > .clients > .stabs-people {
+  :where([data-look="glass"]) .main-scroll > .clients > .stabs-people {
     margin: 0 0 8px;
   }
   /* The head stands in the page's own gutter, where the scope strip and the panes do. */
@@ -2708,31 +2707,31 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   }
 
   /* The rail: a pane of its own, its groups on the pane without rules between them, the picked list an inset. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail {
+  :where([data-look="glass"]) .main-scroll .cl-rail {
     border: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-section + .cl-rail-section,
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-foot {
+  :where([data-look="glass"]) .main-scroll .cl-rail-section + .cl-rail-section,
+  :where([data-look="glass"]) .main-scroll .cl-rail-foot {
     border-top: 0;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-label {
+  :where([data-look="glass"]) .main-scroll .cl-rail-label {
     font-family: var(--font-mono);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-row {
+  :where([data-look="glass"]) .main-scroll .cl-rail-row {
     border-radius: var(--surface-inset-radius);
     padding: 6px 10px;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-row:hover {
+  :where([data-look="glass"]) .main-scroll .cl-rail-row:hover {
     background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-row.active {
+  :where([data-look="glass"]) .main-scroll .cl-rail-row.active {
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-rail-newseg {
+  :where([data-look="glass"]) .main-scroll .cl-rail-newseg {
     border-style: solid;
     border-color: var(--surface-inset-edge);
     border-radius: var(--radius-full);
@@ -2741,12 +2740,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   }
 
   /* The list: a clear pane with the look's rim. The page's standing line is the head's sentence now. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-main {
+  :where([data-look="glass"]) .main-scroll .cl-main {
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-main::after {
+  :where([data-look="glass"]) .main-scroll .cl-main::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -2758,63 +2757,63 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
       linear-gradient(#000 0 0);
     pointer-events: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-standing {
+  :where([data-look="glass"]) .main-scroll .pl-standing {
     display: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-controls {
+  :where([data-look="glass"]) .main-scroll .cl-controls {
     border-bottom: 0;
     background: transparent;
     padding: 14px 16px 6px;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-search-wrap {
+  :where([data-look="glass"]) .main-scroll .cl-search-wrap {
     border-radius: var(--radius-full);
     border-color: var(--surface-inset-edge);
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
     padding: 7px 14px;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-section {
+  :where([data-look="glass"]) .main-scroll .cl-section {
     padding: 10px 16px 6px;
   }
   /* The table is an inset on the pane. Its pinned cells paint their own ground over the others (--pl-row), so that ground
      is the inset's, opaque: the token that lays its fill over the pane and the page. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-table-wrap {
+  :where([data-look="glass"]) .main-scroll .cl-table-wrap {
     margin: 0 14px;
     border-color: var(--surface-inset-edge);
     border-radius: var(--surface-inset-radius);
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table {
+  :where([data-look="glass"]) .main-scroll .pl-table {
     --pl-row: var(--surface-inset-solid);
     --pl-hover: color-mix(in oklab, var(--surface-inset-solid) 92%, var(--ink));
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table tbody tr:hover,
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table tbody tr.focused {
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr:hover,
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.focused {
     --pl-row: var(--pl-hover);
     background: var(--pl-hover);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table tbody tr.selected {
+  :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected {
     --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-inset-solid);
   }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-list-action {
+  :where([data-look="glass"]) .main-scroll .cl-list-action {
     border-color: var(--surface-inset-edge);
     border-radius: var(--surface-inset-radius);
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-table thead th,
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table thead th.cl-sel,
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-table thead th.pl-pin {
+  :where([data-look="glass"]) .main-scroll .cl-table thead th,
+  :where([data-look="glass"]) .main-scroll .pl-table thead th.cl-sel,
+  :where([data-look="glass"]) .main-scroll .pl-table thead th.pl-pin {
     font-family: var(--font-mono);
     background: var(--surface-inset-solid);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-table-foot {
+  :where([data-look="glass"]) .main-scroll .cl-table-foot {
     background: transparent;
   }
   /* The bar a selection becomes is the control layer: glass, a capsule, floating at the foot of the pane. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .cl-bulk {
+  :where([data-look="glass"]) .main-scroll .cl-bulk {
     border: 0;
     background: var(--surface-control-fill);
     backdrop-filter: var(--surface-control-blur);
@@ -2895,10 +2894,10 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    edge. Each rule names the look inside :where() and none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pl-sec-head > th {
+  :where([data-look="glass"]) .main-scroll .pl-sec-head > th {
     background: var(--surface-inset-solid);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main.has-peek {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek {
     flex-direction: row;
     gap: 14px;
     border-radius: 0;
@@ -2906,17 +2905,17 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: none;
     overflow: visible;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main.has-peek::after {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek::after {
     content: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main.has-peek > .cl-main-scroll {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek > .cl-main-scroll {
     flex: 1 1 0;
     min-width: 0;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);
     box-shadow: var(--surface-pane-depth);
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main.has-peek > .pk {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek > .pk {
     position: relative;
     inset: auto;
     flex: none;
@@ -2926,26 +2925,26 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     box-shadow: var(--surface-pane-depth);
     overflow: hidden;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main.has-peek .cl-table-wrap {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek .cl-table-wrap {
     margin-right: 14px;
   }
   /* The board is a column of panes, one to a stage, on the page itself: no pane round them, and so no glass on glass. */
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main:has(.pipe-board) {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board) {
     border-radius: 0;
     background: none;
     box-shadow: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main:has(.pipe-board)::after {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board)::after {
     content: none;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
+  :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main:has(.pipe-board) .cl-controls {
     padding-inline: 0;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-board {
+  :where([data-look="glass"]) .main-scroll .pipe-board {
     gap: 14px;
     padding: 14px 0 24px;
   }
-  :where([data-look="glass"]) .main-scroll:has(> header:first-child) .pipe-col {
+  :where([data-look="glass"]) .main-scroll .pipe-col {
     padding: 14px;
     border-radius: var(--surface-pane-radius);
     background: var(--surface-pane-fill);

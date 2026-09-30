@@ -670,10 +670,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
 
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
-  // The crumbs, told to the head Glass draws in the frame's places (the bridge's, absent in the standalone mockup).
+  // The crumbs, told to the head Glass draws in the frame's places (the bridge's, absent in the standalone mockup). Leads is
+  // a scope of People, picked in the page's own strip (People | Leads), so its head is People's, as its canvas draws it.
+  const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
   React.useEffect(() => {
-    if (look === "glass" && window.__chrome && window.__chrome.crumbsShown) window.__chrome.crumbsShown(drawn.crumbs);
-  }, [drawn.crumbs, look]);
+    if (look === "glass" && window.__chrome && window.__chrome.crumbsShown)
+      window.__chrome.crumbsShown(leadsScope ? drawn.crumbs.slice(0, -1) : drawn.crumbs);
+  }, [drawn.crumbs, look, leadsScope]);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);

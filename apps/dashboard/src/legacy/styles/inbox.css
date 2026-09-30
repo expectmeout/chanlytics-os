@@ -2348,3 +2348,39 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+
+/* The boxes are for a selection (the canvases draw none until one starts): a row's shows when a pointer is on it or
+   it is picked, never for the open thread alone; the select-all shows once anything is picked, or under the pointer. */
+:where([data-look="glass"]) .ix-thread.active:not(.selected, :hover, :focus-visible) .ix-thread-check { opacity: 0; }
+:where([data-look="glass"]) .ix-checkall { opacity: 0; transition: opacity 120ms; }
+:where([data-look="glass"]) .ix-list:has(.ix-thread.selected) .ix-checkall,
+:where([data-look="glass"]) .ix-checkall:focus-within { opacity: 1; }
+@media (hover: hover) {
+  :where([data-look="glass"]) .ix-list:hover .ix-checkall { opacity: 1; }
+}
+/* A phone's buckets are the one capsule the scope strip is, the picked one its lozenge (canvas, the phone boards). */
+@media (max-width: 900px) {
+  :where([data-look="glass"]) .ix-buckets {
+    display: flex;
+    gap: 2px;
+    margin: 0 14px 6px;
+    padding: 3px;
+    border-bottom: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-control-fill);
+    box-shadow: var(--surface-control-depth);
+  }
+  :where([data-look="glass"]) .ix-bucket {
+    flex: 1;
+    justify-content: center;
+    margin: 0;
+    padding: 7px 10px;
+    border-bottom: 0;
+    border-radius: var(--radius-full);
+  }
+  :where([data-look="glass"]) .ix-bucket .ix-bucket-label { flex: none; }
+  :where([data-look="glass"]) .ix-bucket.active {
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+  }
+}

@@ -227,8 +227,11 @@ function quietProofBeat(quiet: NonNullable<TodayVM["quiet"]>, nav: Nav) {
   );
 }
 
-/** The lines that are not numbers. thread.spec reads a failed reply here by this testid and .brief-beat. */
-function recapBeats(vm: TodayVM, nav: Nav) {
+/**
+ * The lines that are not numbers. thread.spec reads a failed reply here by this testid and .brief-beat. The card draws
+ * them under its figures in Classic; in Glass the brief beside the queue draws them (brief-pane.tsx), once.
+ */
+export function recapBeats(vm: TodayVM, nav: Nav) {
   const { recap, quiet } = vm;
   return (
     <div className="brief-beats tc-beats" data-testid="today-recap">
@@ -279,7 +282,8 @@ function recapBeats(vm: TodayVM, nav: Nav) {
   );
 }
 
-export const TodayCard = () => {
+/** `beats`: whether the lines that are not numbers are drawn here (Classic) or by the brief (Glass). */
+export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
   useMoved(["today", "reports"]);
   const [open, setOpen] = useState<TodayFigureId | null>(null);
   // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
@@ -316,7 +320,7 @@ export const TodayCard = () => {
         )}
       </div>
       {figures && figuresRow(figures, { open, setOpen, nav })}
-      {recapBeats(vm, nav)}
+      {beats && recapBeats(vm, nav)}
       {(period || reportsFailed) && (
         <div className="tc-foot">
           {period ? (

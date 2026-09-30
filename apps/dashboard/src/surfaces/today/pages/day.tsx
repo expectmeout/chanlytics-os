@@ -115,6 +115,33 @@ type GlyphFor = (b: TodayDayItemVM) => string | null;
 /** What a press on an appointment opens: its person, else the Calendar. */
 type Open = (b: TodayDayItemVM) => void;
 
+/**
+ * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The card and the
+ * strip (strip.tsx, Glass) read this one derivation. The calendar's `now` is null when today is not in its span, and a
+ * playbook's `candidates` when the server could not count it; todayDay reads the first only on today's frame, where it
+ * is a number, and its own types (CalendarLike, PlaybookCardLike) say neither null: what the surfaces published is
+ * handed over as the JSX handed it.
+ */
+export function dayVmOf(
+  C: CalendarSurface | undefined,
+  P: PlaybooksSurface | undefined,
+  people: PeopleSurface | undefined,
+): TodayDayVM | null {
+  if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
+  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, (P ? P.rows : null) as PlaybookCardLike[] | null, people || null);
+  return vm.frames.length ? vm : null;
+}
+
+/** The day as the strip reads it: the reads the card makes, the derivation the card makes. */
+export function useDayVm(): TodayDayVM | null {
+  useMoved(["calendar", "playbooks", "people"]);
+  return dayVmOf(
+    borrowed<CalendarSurface>("__CALENDAR"),
+    borrowed<PlaybooksSurface>("__PLAYBOOKS"),
+    borrowed<PeopleSurface>("__PEOPLE"),
+  );
+}
+
 /** The day's head: its title, when the next time is open, and the door to the Calendar. */
 function dayHead(vm: TodayDayVM, nav: Nav) {
   return (
@@ -273,12 +300,8 @@ export const TodayDay = () => {
   }
   // No calendar connected: silent on purpose. Nothing has failed, there is nothing to retry, and the invitation
   // to connect one is the Calendar page's card to make -- not a fault reported on a page about today's work.
-  if (C.vm.feed.state !== "ok") return stepsOnly;
-  // The calendar's `now` is null when today is not in its span, and a playbook's `candidates` when the server could not
-  // count it; todayDay reads the first only on today's frame, where it is a number, and its own types (CalendarLike,
-  // PlaybookCardLike) say neither null: what the surfaces published is handed over as the JSX handed it.
-  const vm = TODAY_HELPERS.day(C.vm as CalendarLike, (P ? P.rows : null) as PlaybookCardLike[] | null, people || null);
-  if (!vm.frames.length) return stepsOnly;
+  const vm = dayVmOf(C, P, people);
+  if (!vm) return stepsOnly;
   const open: Open = (b) => nav(b.person ? `clients/${b.person.id}` : "calendar");
   // The channel a known person uses, as People knows it: a chat, or calls only.
   const peopleRows = people ? people.rows : [];

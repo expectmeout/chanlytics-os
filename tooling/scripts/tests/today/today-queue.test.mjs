@@ -455,7 +455,8 @@ test("the wiring: one row component for People and Today, the queue in the comma
     "<TodayQueue vm={vm} />",
     "vm.queue.rows",
     'data-testid="brief-live-call"',
-    'useMoved("live")',
+    // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
+    "useLiveNow()",
     'useMoved("broadcasts")',
     "queueVerb(flash, r, also)",
   ])

@@ -10,19 +10,18 @@
  * a count badge over a list that already says its count. The seed left with the mockup's stand-in: the mockup drew
  * this page from its sample (legacy-bridge/today-sample.ts), which is gone.
  */
-import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import type { LiveVM, TodayQueueRowVM, TodayVM } from "@chanlytics/contracts";
+import type { TodayQueueRowVM, TodayVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { Icon } from "../../kit/icon/icon";
+import { useLook } from "../../kit/look/look";
 import { inboxVerb } from "../../inbox/verbs";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, borrowed, canDo, gate, refusalFlash, surfaceFailed, useMoved, useToast } from "../shell";
+import { appNavigate, canDo, gate, refusalFlash, surfaceFailed, useMoved, useToast } from "../shell";
+import { liveClock, useLiveNow } from "./live-now";
 import { broadcastsRead, runRows, runsPending, type Nav, type Say, type VerbKind } from "./queue-runs";
-
-/** The heartbeat rule's clock: the rail redraws once a second while a call is up. */
-const TICK_MS = 1000;
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -30,21 +29,10 @@ export const AgentCommand = () => {
   return vm ? <TodayQueue vm={vm} /> : null;
 };
 
-const tqClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
+// The call in progress, above the list while it lasts (Classic; Glass says it in the strip, strip.tsx, and hides this rail).
 const LiveRail = ({ nav }: { nav: Nav }) => {
-  useMoved("live");
-  const [nowMs, setNowMs] = useState(Date.now());
-  const L = borrowed<LiveVM>("__LIVE");
-  // The heartbeat rule, re-applied between refreshes, the way the Live page does.
-  const live = L ? L.now.filter((c) => nowMs - (c.heartbeatAtMs || c.startedAtMs || 0) < L.heartbeatMs) : [];
-  const count = live.length;
-  useEffect(() => {
-    if (!count) return undefined;
-    const t = window.setInterval(() => setNowMs(Date.now()), TICK_MS);
-    return () => window.clearInterval(t);
-  }, [count]);
-  if (!count) return null;
+  const { live, nowMs } = useLiveNow();
+  if (!live.length) return null;
   return live.map((c) => {
     const last = [...c.transcript].reverse().find((t) => t.speaker !== "whisper");
     const elapsed = Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
@@ -52,7 +40,7 @@ const LiveRail = ({ nav }: { nav: Nav }) => {
       <div key={c.callId} className="tq-live" data-testid="brief-live-call">
         <span className="live-dot" />
         <span className="tq-live-text">
-          <b>{c.who}</b> is on the line · {tqClock(elapsed)}
+          <b>{c.who}</b> is on the line · {liveClock(elapsed)}
           {last ? (
             <span className="tq-live-last">
               {" · "}
@@ -158,16 +146,25 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verbKind: Ver
   });
 }
 
-/** The head: the title, what the rows hold in words (contracts', with the runs waiting), and the door to the Inbox. */
-function queueHead(vm: TodayVM, runsCount: number, nav: Nav) {
+/**
+ * The head: the title, what the rows hold in words (contracts', with the runs waiting), and the door to the Inbox. In
+ * Glass the count stands before the title as its canvas draws it (E3), and the door carries its arrow.
+ */
+function queueHead(vm: TodayVM, runsCount: number, nav: Nav, head: { glass: boolean; count: number }) {
   return (
     <div className="tq-head">
+      {head.glass && (
+        <span className="tq-num tabular" data-testid="today-queue-count">
+          {head.count}
+        </span>
+      )}
       <span className="tq-title">Need you</span>
       <span className="tq-sub">
         {[...vm.queue.parts, TODAY_HELPERS.runsSub(runsCount)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
       </span>
       <button type="button" className="tq-open" onClick={() => nav("inbox")}>
         Open Inbox
+        {head.glass && <Icon name="arrow-right" size={11} />}
       </button>
     </div>
   );
@@ -228,6 +225,7 @@ function queueFoot(rowsCut: number, runsCut: number, nav: Nav) {
 
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   useMoved("broadcasts");
+  const glass = useLook() === "glass";
   const [toastNode, ppFlash] = useToast();
   const nav: Nav = (to) => appNavigate(to);
   // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8).
@@ -256,7 +254,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
-      {queueHead(vm, runsCount, nav)}
+      {queueHead(vm, runsCount, nav, { glass, count: total })}
       <LiveRail nav={nav} />
       {queueList(vm, drawn, runs, total)}
       {queueFoot(rowsCut, runsCut, nav)}

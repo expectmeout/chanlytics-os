@@ -183,7 +183,7 @@ function BroadcastsReal({ data, initialSegment = null, initialRun = null, initia
           the words and the send button never appeared on the same screen: an owner
           scrolled past the preview to reach Send, which is the wrong direction of
           travel for the only irreversible control on the surface. */}
-        {openId ? null : writing ? (glass ? bcComposerGlass(v) : bcComposer(v)) : bcLedger(v)}
+        {openId ? null : writing ? (glass ? bcComposerGlass(v) : bcComposer(v)) : bcLedger(v, glass)}
       </div>
 
       {toastNode}

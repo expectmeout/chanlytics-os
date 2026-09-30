@@ -358,7 +358,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   for (const s of [
     'data-testid="today-day"',
     'if (C.vm.feed.state === "unavailable") {',
-    'if (C.vm.feed.state !== "ok") return stepsOnly;',
+    // The day's one derivation (dayVmOf), which the card and Glass's strip both read: a feed that is not ok is no day.
+    'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
+    "const vm = dayVmOf(C, P, people);",
     'data-testid="today-day-frame"',
     'testid="today-day-item"',
     'nav(b.person ? `clients/${b.person.id}` : "calendar")',

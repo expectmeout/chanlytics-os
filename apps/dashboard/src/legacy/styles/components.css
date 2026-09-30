@@ -3900,3 +3900,10 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .bc-band-part[data-tone="warn"] .bc-band-n {
   color: var(--warn-ink);
 }
+
+/* The sidebar as the canvases draw it (E3 and the five after it): the places in one list without the groups' labels,
+   each at the page's reading size, and no Collapse: the sidebar is as tall as its places. */
+:where([data-look="glass"]) .sidebar-label { display: none; }
+:where([data-look="glass"]) .sidebar-section + .sidebar-section { margin-top: 0; }
+:where([data-look="glass"]) .sb-collapse { display: none; }
+:where([data-look="glass"]) .nav-item { padding: 10px 12px; font-size: var(--text-md); }

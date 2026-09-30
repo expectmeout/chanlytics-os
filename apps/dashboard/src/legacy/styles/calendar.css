@@ -635,3 +635,32 @@
 
 /* Three verbs and a Close on one row at 480px is a clipped word: they wrap. */
 .cal-ev-foot-left { flex-wrap: wrap; }
+
+/* ====================================================================
+   Glass: the Calendar (no canvas of its own; the panes the other surfaces wear). The board is one clear pane under the
+   frame's head, at the page's gutter, its toolbar on the page above it; the sticky day heads take the pane's solid so a
+   scrolled board keeps them legible. Each rule names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+:where([data-look="glass"]) .main-scroll > .calendar { padding: 0 var(--gutter-page) 16px; }
+:where([data-look="glass"]) .calendar > .cal-bar { padding: 2px 0 12px; }
+:where([data-look="glass"]) .calendar > .cal-body {
+  position: relative;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden auto;
+}
+:where([data-look="glass"]) .calendar > .cal-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .calendar :is(.cal-corner, .cal-dayhead) { background: var(--surface-pane-solid); }
+:where([data-look="glass"]) .calendar > .cal-foot { padding-top: 12px; }

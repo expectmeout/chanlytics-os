@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { tabDraft } from "../../legacy-parts";
 import { canDo, demoSession, gateTitle, useLegacyToast } from "../../legacy-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { useLook } from "../../kit/look/look";
 import { useSurface } from "../../use-surface";
 import { PlaybookComposer } from "./composer";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
@@ -110,6 +111,7 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
     setSlot(null);
     setComposing(true);
   };
+  const glass = useLook() === "glass";
   const onEdit = (e: PlaybookCardVM) => {
     setComposing(false);
     setEditing(e);
@@ -118,7 +120,7 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
   return (
     <div className="reports pb-page" data-testid="playbooks-real">
       <div className="rp-body cm-page pb-body">
-        {pbHead({ rows, chains, triggers, unused, startNew })}
+        {pbHead({ rows, chains, triggers, unused, startNew, glass })}
         {pbGone(initialPlaybook, rows, linkedChainHere, Array.isArray(reachOuts)) && (
           <EmptyState
             kind="line"
