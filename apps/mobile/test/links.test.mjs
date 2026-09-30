@@ -20,6 +20,23 @@ test("a workspace link names its workspace and the page route, today when it nam
   assert.equal(workspaceLinkOf("/w/acme#/https://evil.example").route, "today", "a hash that is no route is Today");
 });
 
+test("a workspace link's route is the path's, as the site writes an address now, else the hash's", () => {
+  assert.deepEqual(workspaceLinkOf("/w/acme-plumbing/inbox"), { slug: "acme-plumbing", route: "inbox" });
+  assert.deepEqual(workspaceLinkOf("https://app.chanlytics.com/w/acme/inbox/th-abc"), {
+    slug: "acme",
+    route: "inbox/th-abc",
+  });
+  assert.deepEqual(workspaceLinkOf("/w/acme/inbox/th-abc/"), { slug: "acme", route: "inbox/th-abc" });
+  assert.deepEqual(workspaceLinkOf("chanlytics:///w/acme/clients/abc-123"), {
+    slug: "acme",
+    route: "clients/abc-123",
+  });
+  assert.deepEqual(workspaceLinkOf("/w/acme/admin/billing?billing=success"), { slug: "acme", route: "admin/billing" });
+  assert.equal(workspaceLinkOf("/w/acme/inbox#/clients").route, "inbox", "the path wins over a hash left in it");
+  assert.equal(workspaceLinkOf("/w/acme/https://evil.example").route, "today", "a path that is no route is Today");
+  assert.equal(workspaceLinkOf("/w/acme/Inbox").route, "today", "and so is one the bridge would refuse");
+});
+
 test("anything else is not a link into a workspace", () => {
   for (const p of ["/", "/today", "/login", "/u/abc", "/p/abc", "/w/", "/w//x", "/signup", "not a url at all"]) {
     assert.equal(workspaceLinkOf(p), null, p);
