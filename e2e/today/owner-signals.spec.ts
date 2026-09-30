@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { routeOf } from "../address";
 import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals";
 
 /**
@@ -74,7 +75,7 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
       .getByTestId("today-leak-unreachable")
       .getByRole("button", { name: /Open People/ })
       .click();
-    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:opted_in");
+    await expect.poll(() => routeOf(page.url())).toBe("clients/seg:opted_in");
     await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(said);
   });
 

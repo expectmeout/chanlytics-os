@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 
 /**
@@ -115,7 +116,7 @@ test.describe("People on a real workspace", () => {
 
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    await expect(page).toHaveURL(/#\/clients\/[0-9a-f-]{36}$/);
+    await expect(page).toHaveURL(atRoute(/^clients\/[0-9a-f-]{36}$/));
     await assertMeasuredOnly(page, "the profile");
 
     // Who they are, then what is happening, then everything that happened. The Last exchange card quoted the
@@ -243,7 +244,7 @@ test.describe("People on a real workspace", () => {
       await page.locator(".cl-rail-row.smart", { hasText: "Asked, never booked" }).click();
       await expect(page.getByTestId("list-action")).toBeVisible();
       await expect(page.getByTestId("list-action")).toContainText(/said yes|Nobody/);
-      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:asked_never_booked");
+      await expect.poll(() => routeOf(page.url())).toBe("clients/seg:asked_never_booked");
     } else {
       expect(has("Booked")).toBe(false);
       expect(has("Asked, never booked")).toBe(false);
@@ -255,7 +256,7 @@ test.describe("People on a real workspace", () => {
       ["pipeline", "#/clients", "people-standing"],
     ]) {
       await page.goto(`/#/${gone}`);
-      await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe(lands);
+      await expect.poll(() => routeOf(page.url()), { message: `${gone} retires into People` }).toBe(lands);
       // The Leads scope draws its own standing line, not People's: the old address lands on the scope, not beside it.
       await expect(page.getByTestId(standing)).toBeVisible();
     }
@@ -278,13 +279,11 @@ test.describe("People on a real workspace", () => {
       await page.goto("/#/clients/pipeline");
       await expect(page.getByTestId("people-standing")).toBeVisible();
       await expect(page.getByTestId("pipeline")).toHaveCount(0);
-      await expect
-        .poll(() => new URL(page.url()).hash, { message: "People's own address takes its place" })
-        .toBe("#/clients");
+      await expect.poll(() => routeOf(page.url()), { message: "People's own address takes its place" }).toBe("clients");
       return;
     }
     await tab.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/pipeline");
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await expect(page.getByTestId("pipeline")).toBeVisible();
     await expect(page.getByTestId("scope-pipeline")).toHaveAttribute("aria-selected", "true");
     // Its rows are People's, grouped; a row opens its person's deal in a peek beside the rows, whose door opens their
@@ -308,7 +307,7 @@ test.describe("People on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("state-filter")).toContainText("Quiet");
     await page.getByTestId("state-filter").locator("button").click();
-    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
+    await expect.poll(() => routeOf(page.url())).toBe("clients");
     const saved = (
       (await (await apiGet(page, "/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }
     ).lists;
@@ -424,7 +423,7 @@ test.describe("People on a real workspace", () => {
     // The send is in the page's More menu, in plain words, beside the one button to the thread.
     await page.getByTestId("person-more").click();
     await page.getByRole("menuitem", { name: /Send booking link/ }).click();
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^inbox\//);
   });
 
   test("the keyboard walks the rows: ↓ focuses, Enter opens the profile", async ({ page }) => {
@@ -472,12 +471,12 @@ test.describe("People on a real workspace", () => {
       const n = Number(said.split(" ")[0]);
       await needs.click();
       // Needs you is a list (decision 0009): the count opens it, by its own address.
-      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/seg:needs_you");
+      await expect.poll(() => routeOf(page.url())).toBe("clients/seg:needs_you");
       await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(n);
       for (const p of await page.locator(".cl-row-bucket-pill").allInnerTexts())
         expect(p.trim().toLowerCase()).toBe("needs you");
       await needs.click();
-      await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
+      await expect.poll(() => routeOf(page.url())).toBe("clients");
     }
 
     // Every row still says its own words and its own state -- what the strip said.

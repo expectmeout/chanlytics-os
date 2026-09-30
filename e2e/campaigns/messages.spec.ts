@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute } from "../address";
 import { apiGet } from "../workspace";
 
 /**
@@ -90,11 +91,11 @@ test.describe("Templates on a real workspace", () => {
     await expect(strip.locator(".stabs-tab")).toHaveCount(3);
     // The route is still `messages`: only what a person reads changed.
     await strip.getByRole("button", { name: "Templates" }).click();
-    await expect(page).toHaveURL(/#\/messages/);
+    await expect(page).toHaveURL(atRoute(/^messages/));
     await expect(page.getByTestId("messages-real")).toBeVisible();
     await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Templates");
     await strip.getByRole("button", { name: "Broadcasts" }).click();
-    await expect(page).toHaveURL(/#\/broadcasts/);
+    await expect(page).toHaveURL(atRoute(/^broadcasts/));
     await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Broadcasts");
   });
 });

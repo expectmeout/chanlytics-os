@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { atRoute } from "./address";
 import { activeWorkspace, apiGet, scoped } from "./workspace";
 
 /**
@@ -67,7 +68,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(page.locator(".set-nav-row").first()).toHaveText(/Profile/);
     for (const label of await page.locator(".set-nav-row").allInnerTexts()) expect(label).not.toMatch(/^Setup\b/);
     await page.goto("/#/admin/setup");
-    await expect(page).toHaveURL(/#\/start$/);
+    await expect(page).toHaveURL(atRoute(/^start$/));
     await expect(page.getByTestId("first-run")).toBeVisible();
   });
 
@@ -114,7 +115,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
       // The button says it twice, at length and in a phone's two words (#968); either way it continues.
       await expect(start).toContainText("Continue setting up");
       await start.click();
-      await expect(page).toHaveURL(/#\/start/);
+      await expect(page).toHaveURL(atRoute(/^start/));
       await expect(page.getByTestId("first-run")).toBeVisible();
       return;
     }
@@ -141,7 +142,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await page.keyboard.press("Control+k");
     const line = page.getByTestId("ask-real");
     await expect(line).toBeVisible();
-    await expect(page, "the first run stays where it is under the Line").toHaveURL(/#\/start/);
+    await expect(page, "the first run stays where it is under the Line").toHaveURL(atRoute(/^start/));
     await expect(page.getByTestId("first-run")).toBeAttached();
     expect(await line.innerText(), "no key is drawn").not.toMatch(/[↵⌘]|\besc\b/i);
     await expect(line.locator(".ask-rows-label", { hasText: "Ask about setting up" })).toBeVisible();
@@ -190,6 +191,6 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("today-queue")).toBeVisible();
-    await expect(page).toHaveURL(/#\/today/);
+    await expect(page).toHaveURL(atRoute(/^today/));
   });
 });

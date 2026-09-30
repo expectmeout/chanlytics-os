@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute } from "../address";
 import { apiGet } from "../workspace";
 
 /**
@@ -59,7 +60,7 @@ test.describe("Saved lists on People", () => {
     await page.goto("/#/segments");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("people-standing")).toBeVisible();
-    await expect(page).toHaveURL(/#\/clients$/);
+    await expect(page).toHaveURL(atRoute(/^clients$/));
     await expect(page.getByTestId("lists-real")).toHaveCount(0);
     const res = await apiGet(page, "/api/v1/segments");
     const { data } = await res.json();
@@ -67,7 +68,7 @@ test.describe("Saved lists on People", () => {
     // A computed list's own route: People, that list picked, its step under the head, never a Coming Soon card.
     await page.goto("/#/segments/needs_you");
     await page.waitForLoadState("networkidle");
-    await expect(page).toHaveURL(/#\/clients\/seg:needs_you$/);
+    await expect(page).toHaveURL(atRoute(/^clients\/seg:needs_you$/));
     await expect(page.getByTestId("smart-filter")).toContainText("Needs you");
     await expect(page.getByTestId("list-action")).toBeVisible();
     await expect(page.locator("text=Coming soon")).toHaveCount(0);

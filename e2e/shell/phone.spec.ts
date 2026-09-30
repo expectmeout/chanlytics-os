@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute, routeOf } from "../address";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -159,7 +160,7 @@ test.describe("Phone shell on a real workspace", () => {
     const tabs = page.getByTestId("phone-tabs").getByRole("button");
     await expect(tabs).toHaveText(["Today", "Inbox", "Calendar", "People", "More"]);
     await tabs.filter({ hasText: "Calendar" }).click();
-    await expect(page).toHaveURL(/#\/calendar/);
+    await expect(page).toHaveURL(atRoute(/^calendar/));
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".ix-list")).toBeVisible();
@@ -194,7 +195,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await page.getByTestId("phone-tabs").getByRole("button", { name: "People" }).click();
-    await expect(page).toHaveURL(/#\/clients/);
+    await expect(page).toHaveURL(atRoute(/^clients/));
     await page.goto("/#/conversations");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".cv-list")).toBeVisible();
@@ -426,7 +427,7 @@ test.describe("Phone shell on a real workspace", () => {
     const pipeline = page.getByTestId("people-phone-bar").getByRole("tab", { name: "Pipeline" });
     if ((await pipeline.count()) === 0) return;
     await pipeline.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/pipeline");
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await fits("pipeline-phone-bar");
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
@@ -904,34 +905,34 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(inbox).toHaveText(/^Needs you/);
     await swipe(300, 90);
-    await expect(page).toHaveURL(/#\/conversations/);
+    await expect(page).toHaveURL(atRoute(/^conversations/));
     await expect(inbox).toHaveText(/^Conversations/);
     await swipe(90, 300);
-    await expect(page).toHaveURL(/#\/inbox/);
+    await expect(page).toHaveURL(atRoute(/^inbox/));
     await expect(inbox).toHaveText(/^Needs you/);
     await swipe(90, 300);
     await page.waitForTimeout(800);
-    await expect(page, "nothing before the first tab").toHaveURL(/#\/inbox$/);
+    await expect(page, "nothing before the first tab").toHaveURL(atRoute(/^inbox$/));
 
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("people-phone-scopes")).toBeVisible();
     await swipe(300, 90);
     // The address is the tab's own route: the Leads view draws its strip once Leads is read.
-    await expect(page).toHaveURL(/#\/clients\/leads/);
+    await expect(page).toHaveURL(atRoute(/^clients\/leads/));
 
     await page.goto("/#/outbound");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
     await swipe(300, 90);
-    await expect(page).toHaveURL(/#\/broadcasts/);
+    await expect(page).toHaveURL(atRoute(/^broadcasts/));
 
     // Settings' sections are the same strip on a phone (25 Sep): Business, then Team.
     await page.goto("/#/admin/workspace");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".stabs.stabs-settings")).toBeVisible();
     await swipe(300, 90);
-    await expect(page).toHaveURL(/#\/admin\/team/);
+    await expect(page).toHaveURL(atRoute(/^admin\/team/));
   });
 
   /**
@@ -1005,7 +1006,7 @@ test.describe("Phone shell on a real workspace", () => {
       expect(Math.abs((await top()) - start), `${word} moved the tabs from under the thumb`).toBeLessThanOrEqual(1);
     }
     await page.locator(".crumbs .crumb-link").first().click();
-    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
+    await expect.poll(() => routeOf(page.url())).toBe("clients");
   });
 
   /** A door is a link (23 Sep): who a thread is with opened their page only from the Actions menu. */
@@ -1024,7 +1025,7 @@ test.describe("Phone shell on a real workspace", () => {
       "the face, the name and the line under it, a thumb tall",
     ).toBeGreaterThanOrEqual(40);
     await who.click();
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/[\w-]+$/);
+    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/[\w-]+$/);
     await expect(page.locator(".cl-profile")).toBeVisible();
   });
 });

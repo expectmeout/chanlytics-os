@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute } from "../address";
 import { apiGet } from "../workspace";
 
 /**
@@ -86,7 +87,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const link = page.getByTestId("channel-messages");
     if (await link.count()) {
       await link.click();
-      await expect(page).toHaveURL(/#\/messages/);
+      await expect(page).toHaveURL(atRoute(/^messages/));
       await expect(page.getByTestId("messages-real")).toBeVisible();
     }
   });

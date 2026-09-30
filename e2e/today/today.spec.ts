@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 import { expectAwayAddsUp, expectLeaksWellFormed, expectNoQueueRepeat, expectWarningsFirst } from "../signals";
 import { WAITING_PLACES, WAITING_QUESTION, WAITING_SEARCH_NAME, refuseAnswers, waitingSearch } from "../waiting-search";
@@ -86,7 +87,7 @@ test.describe("Today on a real workspace", () => {
     const door = page.getByTestId("today-card").getByRole("button", { name: /Open Reports/ });
     await expect(door).toHaveCount(1);
     await door.click();
-    await expect(page).toHaveURL(/#\/reports/);
+    await expect(page).toHaveURL(atRoute(/^reports/));
     await page.waitForLoadState("networkidle");
     // Reports' messages tile, over the same range, prints the same count (the tiles are one list since #928, each
     // named by data-tile).
@@ -188,7 +189,7 @@ test.describe("Today on a real workspace", () => {
     const answer = row.getByRole("button", { name: "Answer", exact: true });
     await expect(answer).toBeInViewport({ ratio: 1 });
     await answer.click();
-    await expect.poll(() => new URL(page.url()).hash).toBe(`#/${search.route}`);
+    await expect.poll(() => routeOf(page.url())).toBe(search.route);
     // Landed on this search's left-out pile, with its question over it: the three places it asks about, and no
     // place from the other search.
     const strip = page.getByTestId("lead-strip");

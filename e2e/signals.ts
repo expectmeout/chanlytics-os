@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { routeOf } from "./address";
 
 /**
  * What the product tells an owner they could not have seen, checked the way a
@@ -20,6 +21,8 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /** Where every "nobody has said yes to offers" leads (contracts GET_YES_ROUTE). */
 export const GET_YES_HASH = "#/broadcasts/get-yes";
+/** The route it is, as the app's address names it (a path since decision 0015). */
+export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
 
 /**
  * The WHOLE QR is on screen, under a crumb that says why the person is there.
@@ -31,7 +34,7 @@ export const GET_YES_HASH = "#/broadcasts/get-yes";
  * be scanned, so the image itself must be entirely in view.
  */
 export async function expectQrInView(page: Page): Promise<void> {
-  await expect.poll(() => new URL(page.url()).hash).toBe(GET_YES_HASH);
+  await expect.poll(() => routeOf(page.url())).toBe(GET_YES_ROUTE);
   const section = page.getByTestId("bc-optin");
   await expect(section).toBeVisible();
   await expect(section).toContainText("Get their yes");
