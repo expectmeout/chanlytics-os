@@ -92,8 +92,10 @@ test("the exemption list names files that are repo-wide lints, and stays small",
   // asserts a policy ACROSS the repo -- "every write names a workspace", "every
   // env var is declared where it is read" -- never because pinning one module's
   // text was convenient. Six was the considered number; growth needs an argument
-  // in the PR, and this makes that argument compulsory rather than optional.
-  assert.ok(baseline.lint.length <= 8, `the exemption list is ${baseline.lint.length}; it is meant to be a handful`);
+  // in the PR, and this makes that argument compulsory rather than optional. Nine since 29 September 2026:
+  // ai/flag-registry.test.mjs holds that every switch the edge reads is listed with an owner and a day, which is
+  // env-manifest.test.mjs's kind of lint (a declaration where it is read) and cannot be run, only read.
+  assert.ok(baseline.lint.length <= 9, `the exemption list is ${baseline.lint.length}; it is meant to be a handful`);
   for (const f of baseline.lint) {
     assert.ok(
       fs.existsSync(path.join(ROOT, DIR, f)),

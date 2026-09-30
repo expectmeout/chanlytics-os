@@ -118,6 +118,13 @@ globalThis.React = {
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+// The bridge's hook (surface-status.ts), as a record of the surfaces a page names: what moves a named surface, and so
+// draws the page again, is proved in shell/surfaces.
+const namedSurfaces = new Set();
+globalThis.useSurface = (names) => {
+  for (const k of [names].flat()) namedSurfaces.add(k);
+  return 0;
+};
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of [
   "StatePill",
@@ -336,16 +343,10 @@ test("beside the wires, the person's next visit from People -- or their last -- 
     delete globalThis.window.__PEOPLE;
   }
   assert.ok(!chip(draw(vm)), "People not read yet: no chip");
-  // Drawn before People landed, it listens for People (surface:clients) and draws the chip then.
-  const heard = [];
-  const keep = globalThis.window.addEventListener;
-  globalThis.window.addEventListener = (type) => heard.push(type);
-  try {
-    draw(vm);
-  } finally {
-    globalThis.window.addEventListener = keep;
-  }
-  assert.ok(heard.includes("surface:clients"), "the header redraws when People lands");
+  // Drawn before People landed, it names People's surface, so it is drawn again and shows the chip then.
+  namedSurfaces.clear();
+  draw(vm);
+  assert.ok(namedSurfaces.has("people"), "the header redraws when People lands");
 });
 
 test("REGRESSION: who the thread is with opens their page -- the face, the name and the line under it are one link; Actions › Open profile was the only way there", () => {

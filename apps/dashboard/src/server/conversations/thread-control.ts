@@ -2,7 +2,7 @@ import "server-only";
 import { MIN_MS } from "@chanlytics/contracts";
 import { claimControl, releaseControl } from "@chanlytics/db";
 import { deployment } from "../deployment";
-import { callEdge, edgeAnswered } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
 
 /** A draft rewritten by the model at the edge: as long as its door may take, so a timeout here is the door's own. */
 const STEER_TIMEOUT_MS = MIN_MS;
@@ -46,10 +46,10 @@ export async function letThreadControlGo(tenantId: string, conversationId: strin
 export async function steerDraft(
   messageId: string,
   text: string,
-): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: string }> {
+): Promise<{ ok: true; messageId: string; text: string } | { ok: false; reason: EdgeReason }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const r = await callEdge("/api/admin/steer", { message_id: messageId, text }, { timeoutMs: STEER_TIMEOUT_MS });
-  const j = (r.body ?? {}) as { ok?: boolean; message_id?: string; text?: string; error?: string };
+  const j = (r.body ?? {}) as { ok?: boolean; message_id?: string; text?: string };
   if (edgeAnswered(r) && j.ok && j.message_id) return { ok: true, messageId: j.message_id, text: j.text ?? "" };
-  return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}` };
+  return { ok: false, reason: edgeReasonOf(r) };
 }

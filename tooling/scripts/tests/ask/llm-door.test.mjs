@@ -27,7 +27,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 // Each test file is its own process: this is the whole environment. No
@@ -182,7 +182,14 @@ const usage = (ws, input, output, agoMs) => ({
   },
   created_at: ago(agoMs),
 });
+/** How many of the case workspaces the world holds: each is active and billed, so the model may be asked for it. */
+const WORKSPACES = 50;
 function use(tables = { events: [] }, faults = {}, rpcs = {}) {
+  // The gate the port asks before Ask spends the platform's key (mayUseModelFor): the workspace is active and billed.
+  const ids = Array.from({ length: WORKSPACES }, (_, i) => T(i + 1));
+  tables.tenants ??= ids.map((id) => ({ id, status: "active", left_empty_at: null }));
+  tables.billing_accounts ??= ids.map((tenant_id) => ({ tenant_id, mode: "stripe", status: "active" }));
+  tables.ai_usage ??= [];
   const db = fakeDb(tables, faults, rpcs);
   setPg(db);
   return db;
@@ -511,7 +518,7 @@ test("the budget spent: the day's rows add up to the cap, so the knock is refuse
 
 /* -------------------------------- the model's no --------------------------- */
 
-test("the model's refusal is forwarded as it came -- its status and its body, as JSON -- and a model that cannot be reached is a 502; neither writes a usage row", async () => {
+test("the API's refusal of the request is forwarded in its own shape; a model that gave no answer -- a 429, or none at all after the fallback -- is a 503 model_unreachable, never 'the model refused'; each is one row of the ledger and none is an Ask usage event", async () => {
   const ws = T(4);
   const tables = { events: [] };
   use(tables);
@@ -520,43 +527,75 @@ test("the model's refusal is forwarded as it came -- its status and its body, as
       new Response(
         JSON.stringify({
           type: "error",
-          error: { type: "rate_limit_error", message: "This request would exceed your organization's rate limit." },
+          error: { type: "invalid_request_error", message: "output_config.format: a schema this model does not take" },
         }),
-        { status: 429, headers: { "content-type": "application/json" } },
+        { status: 400, headers: { "content-type": "application/json" } },
       ),
   );
   const res = await knock(ws, turn());
-  assert.equal(res.status, 429);
+  assert.equal(res.status, 400);
   assert.equal(res.headers.get("content-type"), "application/json");
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.deepEqual(
     await res.json(),
     {
       type: "error",
-      error: { type: "rate_limit_error", message: "This request would exceed your organization's rate limit." },
+      error: { type: "invalid_request_error", message: "output_config.format: a schema this model does not take" },
     },
-    "the API's own words: the palette reads the type",
+    "the API's own words: the palette reads the message to drop what the model would not take",
   );
-  assert.equal(refused.calls.length, 1);
+  assert.equal(refused.calls.length, 1, "asking again anywhere gets the same answer, so the fallback is not asked");
   assert.equal(tables.events.length, 0, "no tokens were spent, so none are counted");
 
   const bare = wired(() => new Response("", { status: 400 }));
   assert.deepEqual(
     await answer(await knock(ws, turn())),
-    [400, { ok: false, error: "model_failed", detail: "model 400" }],
+    [400, { type: "error", error: { type: "invalid_request_error", message: "status 400" } }],
     "a refusal without a body still says what the status was",
   );
   assert.equal(bare.calls.length, 1);
 
+  // A 429 is "not now": no answer came, said as such -- never as the model's refusal.
+  const busy = wired(
+    () =>
+      new Response(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "rate limit" } }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      }),
+  );
+  assert.deepEqual(await answer(await knock(ws, turn())), [
+    503,
+    { ok: false, error: "model_unreachable", detail: "model 429" },
+  ]);
+  assert.equal(busy.calls.length, 1, "Ask's route asks once: the person is waiting");
+
+  // A connection that drops: asked again on the fallback model once, then said unreachable.
   const down = wired(() => {
     throw new TypeError("fetch failed");
   });
-  assert.deepEqual(await answer(await knock(ws, turn())), [502, { ok: false, error: "model_unreachable" }]);
-  assert.equal(down.calls.length, 1);
-  assert.equal(tables.events.length, 0);
+  assert.deepEqual(await answer(await knock(ws, turn())), [
+    503,
+    { ok: false, error: "model_unreachable", detail: "model timeout" },
+  ]);
+  assert.deepEqual(
+    down.calls.map((c) => c.body.model),
+    ["claude-opus-5", MODEL_ROUTES.ask.fallback],
+    "the fallback was asked before the stream began",
+  );
+  assert.equal(tables.events.length, 0, "no Ask usage event for a round that never answered");
+  assert.deepEqual(
+    tables.ai_usage.map((r) => [r.purpose, r.outcome, r.model_asked, r.input_tokens]),
+    [
+      ["ask", "rejected", "claude-opus-5", 0],
+      ["ask", "rejected", "claude-opus-5", 0],
+      ["ask", "unreachable", "claude-opus-5", 0],
+      ["ask", "unreachable", "claude-opus-5", 0],
+    ],
+    "the ledger keeps what each did not come to",
+  );
 });
 
-test("a count that cannot be read is zero, never a refusal: the turn goes through, and its row is still written for the next read to count", async () => {
+test("a count that cannot be read holds the turn (503 read_failed): the platform's key is not spent on a day nobody could count, and it is not counted as zero", async () => {
   const ws = T(5);
   const tables = { events: [] };
   use(
@@ -569,14 +608,12 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
     },
   );
   const net = model();
-  const res = await knock(ws, turn());
-  assert.equal(res.status, 200);
-  await res.text();
-  assert.equal(net.calls.length, 1);
-  assert.deepEqual(
-    tables.events.map((e) => [e.tenant_id, e.kind, e.data.input_tokens, e.data.output_tokens]),
-    [[ws, ASK_USAGE_KIND, 1200, 42]],
-  );
+  assert.deepEqual(await answer(await knock(ws, turn())), [
+    503,
+    { ok: false, error: "read_failed", detail: "Ask's day could not be counted just now." },
+  ]);
+  assert.equal(net.calls.length, 0, "nothing reached the model");
+  assert.equal(tables.events.length, 0, "and no round was written");
 });
 
 test("a day past a thousand turns is counted whole: the database sums the day (00240), so no page of 1,000 rows can cut it, where .limit(2000) once stopped at the thousandth", async () => {

@@ -29,6 +29,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     jobs_finished: 7,
     jobs_failed: 90,
     page_vitals: 30,
+    ai_usage: 400,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
@@ -45,7 +46,10 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     words,
     /Background jobs, which carry a message while it is sent, are removed 7 days after they finish, or 90 days after they fail\./,
   );
-  assert.match(words, /How fast each page loaded, with no person or workspace attached, is kept for 30 days\./);
+  assert.match(
+    words,
+    /How fast each page loaded, with no person or workspace attached, is kept for 30 days, and what each model call cost for 400 days\./,
+  );
   assert.match(words, /Everything else stays while the workspace exists\.$/);
 });
 

@@ -1,12 +1,27 @@
 /**
- * The judge, as the runner uses it (PRD §7.1, E4): one structured call per
- * batch of at most 25 places, the facts capped and quoted, the answer kept by
- * operation id so a replayed page pays nothing twice. A refusal is asked once
- * more; refused twice, the batch is Needs review with the reason "the judge
- * could not read these". A 429, a 5xx or no answer throws, and the ledger's
- * waits retry the job.
+ * The judge as the runner uses it (PRD §7.1, E4): what is shown, and one batch asked of the port the edge binds.
+ *
+ *   - factsOf / fact: a place's listing facts as the judge sees them, each one line without control characters and at
+ *     most FACT_MAX characters, never a page's own words.
+ *   - judgeBatch: one call for a batch of at most 25 places (contracts LEAD_JUDGE_BATCH), asked once and once more when
+ *     the answer is a refusal, a capped answer or out of its shape; refused twice, the batch is Needs review with the
+ *     reason JUDGE_REFUSED_REASON. A 429, a 5xx or no answer is thrown, and the jobs ledger's waits retry the job. The
+ *     answer comes back by place ref with the judgment to keep, under the operation id (opIdFor) so a replayed page pays
+ *     nothing twice.
+ *   - JUDGE_TIMEOUT_MS and PAGE_READ_ALLOWANCE_MS: the registry's bound for one call (contracts MODEL_ROUTES.lead_judge),
+ *     and why the runner's margin (rules.ts JUDGE_MARGIN_MS) leaves room for it in a tick.
+ *
+ * The call itself is channels' leadJudge over the edge's model port (apps/edge/lib/leads/lead-wires.ts), which writes each
+ * call to the usage ledger for the search's workspace (`tenantId`) and, while the switch is on, puts each place's criteria
+ * to a second model in shadow (decision 0023). Nothing of that is seen here: the verb takes a LeadJudge and returns answers.
  */
-import { judgeOpId, type JudgePlaceAnswer, type LeadSearchPlan, type PlaceFacts } from "@chanlytics/contracts";
+import {
+  judgeOpId,
+  MODEL_ROUTES,
+  type JudgePlaceAnswer,
+  type LeadSearchPlan,
+  type PlaceFacts,
+} from "@chanlytics/contracts";
 import type { LeadJudge } from "@chanlytics/channels";
 import type { CleanPlace } from "./clean";
 import type { CollectJudgment } from "./ports";
@@ -14,12 +29,11 @@ import type { CollectJudgment } from "./ports";
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
 /**
- * How long one judge call may take, said once here: apps/edge/lib/leads/lead-wires.ts
- * binds it on the client (with no retry of the SDK's own, so this is the real
- * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
- * started with less time left than it may take.
+ * How long one judge call may take: the registry's route for the judge (contracts MODEL_ROUTES.lead_judge), which the
+ * model port bounds each call by (no retry, no fallback: an overload is the ledger's retry), and the runner's
+ * JUDGE_MARGIN_MS covers it, so a call is never started with less time left than it may take.
  */
-export const JUDGE_TIMEOUT_MS = 28_000;
+export const JUDGE_TIMEOUT_MS: number = MODEL_ROUTES.lead_judge.timeoutMs;
 
 /**
  * Why 28 and not more. A collect is claimed up to CLAIM_FOR_MS (20s) into a
@@ -79,11 +93,13 @@ export async function judgeBatch(
   plan: LeadSearchPlan,
   places: PlaceFacts[],
   opId: string,
+  /** The search's workspace: the usage ledger's row for each call. */
+  tenantId?: string,
 ): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const a = await judge.judge(plan, places);
+    const a = await judge.judge(plan, places, tenantId);
     if ("refused" in a) {
       last = a;
       continue;

@@ -24,16 +24,19 @@
  * reason in the pull request; below it fails until the fall is banked, so the budget
  * follows the route down and does not drift back up.
  *
- *   corepack pnpm check:bundle                 # after a build: compare
- *   corepack pnpm check:bundle -- --update     # bank what fell, nothing else
- *   corepack pnpm check:bundle -- --raise      # write the sums as measured, a rise included; or seed
+ *   corepack pnpm check:bundle                          # after a build: compare
+ *   corepack pnpm check:bundle -- --update              # bank what fell, nothing else
+ *   corepack pnpm check:bundle -- --raise js=2300       # raise a budget by the growth argued, in gzipped bytes
+ *   corepack pnpm check:bundle -- --raise               # seed a missing budget, as measured
  *
  * `--update` banks only what fell, by the ratchets' rule (_ratchet.mjs, `UPDATE_BASELINES=1`), the JavaScript and
- * the CSS each on its own: a sum that fell past the band is banked at its new number, and one that rose keeps its
- * budget, so it stays a red build. `--raise` is the one way a budget goes up (`UPDATE_BASELINES=raise` for the
- * ratchets), in the same diff as its row under "Rises" in docs/debt.md, with the reason in the pull request, and the
- * one way a missing budget is seeded: with none, each sum is new, which is a rise. `bankBudget` is the decision, and
- * repo/bundle-budget.test.mjs holds it.
+ * the CSS each on its own: a sum that fell is banked at its new number, inside the band too, and one that rose keeps
+ * its budget, so a rise past the band stays a red build. `--raise` is the one way a budget goes up
+ * (`UPDATE_BASELINES=raise` for the ratchets), in the same diff as its row under "Rises" in docs/debt.md, with the
+ * reason in the pull request, and it raises by the growth the row argues (`js=<bytes>`, `css=<bytes>`), never to the
+ * sums as measured: a build passes within the band, so a raise to what was measured banked every growth that had crept
+ * in under it, argued by nobody (about 12 of the 21 KB regained after #1210). With no budget it seeds one as measured:
+ * each sum is new, which is a rise. `bankBudget` is the decision, and repo/bundle-budget.test.mjs holds it.
  *
  * `--next <dir>` and `--baseline <file>` point it elsewhere, for its test.
  */
@@ -54,18 +57,33 @@ const COMMAND = "corepack pnpm check:bundle";
 
 /**
  * The budget a bank writes, from the sums measured now and the budget (null when there is none). Plainly: the
- * JavaScript and the CSS each on its own, a sum below the band banked as measured and any other kept at its budget,
- * so a rise, within the band or past it, never moves it; a sum the budget does not name is not written. With
- * `raise`: the sums as measured. A missing budget is seeded only by a raise (null otherwise: write nothing), as
- * _ratchet.mjs's `bank` seeds one. Banking what was just banked changes nothing.
+ * JavaScript and the CSS each on its own, a sum that fell banked as measured and any other kept at its budget, so a
+ * rise, within the band or past it, never moves it; a sum the budget does not name is not written. `argued` raises a
+ * sum by the growth its row argues, and nothing more: the budget plus the argument, whatever was measured. A missing
+ * budget is seeded only by `raise` (null otherwise: write nothing), as _ratchet.mjs's `bank` seeds one. Banking what
+ * was just banked changes nothing.
  */
-export function bankBudget(measured, budget, { raise = false, band = BAND } = {}) {
-  if (raise) return Object.fromEntries(KINDS.map((k) => [k, measured[k]]));
-  if (!budget) return null;
+export function bankBudget(measured, budget, { raise = false, argued = {} } = {}) {
+  if (!budget) return raise ? Object.fromEntries(KINDS.map((k) => [k, measured[k]])) : null;
   const out = {};
   for (const k of KINDS) {
     const was = budget[k];
-    if (typeof was === "number") out[k] = measured[k] < was * (1 - band) ? measured[k] : was;
+    // A sum the budget does not name is new: a raise seeds it, as it seeds a missing budget.
+    if (typeof was !== "number") {
+      if (raise) out[k] = measured[k];
+      continue;
+    }
+    out[k] = typeof argued[k] === "number" ? was + argued[k] : Math.min(was, measured[k]);
+  }
+  return out;
+}
+
+/** The growth `--raise` argues, from the words after it: `js=2300`, `css=410` (gzipped bytes). */
+export function arguedGrowth(args) {
+  const out = {};
+  for (const a of args) {
+    const m = /^(js|css)=(\d+)$/.exec(a);
+    if (m) out[m[1]] = Number(m[2]);
   }
   return out;
 }
@@ -144,7 +162,14 @@ function main() {
   const measured = { js: now.js.gzip, css: now.css.gzip };
   if (update || raise) {
     const was = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : null;
-    const banked = bankBudget(measured, was, { raise });
+    const argued = arguedGrowth(args);
+    if (raise && was && Object.keys(argued).length === 0)
+      fail(
+        `a raise says by how much: ${COMMAND} -- --raise js=<bytes> css=<bytes>, the gzipped growth its row under ` +
+          `"Rises" in docs/debt.md argues (measured now: ${JSON.stringify(measured)}, budget: ${JSON.stringify(was)})`,
+        2,
+      );
+    const banked = bankBudget(measured, was, { raise, argued });
     if (banked) {
       fs.writeFileSync(BASELINE, JSON.stringify(banked, null, 2) + "\n");
       console.log(`budget written to ${path.relative(ROOT, BASELINE)}`);
@@ -166,9 +191,8 @@ function main() {
     fail(
       `the workspace route grew past its budget (${BAND * 100}% band):\n  ${rose.join("\n  ")}\n\n` +
         `Find what grew it, and keep it off the route (a dynamic import, a lighter module). A budget that must ` +
-        `rise is raised with ${COMMAND} -- --raise after a build (or by writing ${JSON.stringify(measured)} to ` +
-        `baselines/bundle-budget.json), in the same diff as its row under "Rises" in docs/debt.md, with the ` +
-        `reason in the pull request.`,
+        `rise is raised by the growth it argues, ${COMMAND} -- --raise js=<bytes> css=<bytes> after a build, in the ` +
+        `same diff as its row under "Rises" in docs/debt.md, with the reason in the pull request.`,
     );
   }
   if (fell.length) {

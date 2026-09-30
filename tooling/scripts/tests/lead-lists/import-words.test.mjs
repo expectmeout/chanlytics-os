@@ -26,6 +26,14 @@ import {
   regionOf,
   websiteHostOf,
 } from "@chanlytics/contracts";
+import {
+  COLUMN_SHARE,
+  columnShare,
+  isHeaderRow,
+  matchColumns,
+  phoneShaped,
+} from "../../../../packages/contracts/src/shared/csv.ts";
+import { leadImportColumns } from "../../../../packages/contracts/src/leads/lead-import.ts";
 
 const TZ = "America/Chicago";
 const NOW = Date.parse("2026-09-28T17:00:00.000Z");
@@ -271,4 +279,37 @@ test("a lead a list brought is from your list, never from Google Maps, and a cho
     [false, true],
     "a choice drew nothing, so Remove the ones you haven't touched gives nothing back",
   );
+});
+
+test("REGRESSION: a list of leads finds its columns by People's CSV rules: one header rule, one share, one phone shape", () => {
+  // leadImportColumns copied matchColumns' header rule, its 0.6 share and its two helpers word for word (scorecard row
+  // 67), so a fix to how a phone column is recognised landed in one import and not the other. Both read shared/csv's
+  // now; each decision below is the shared function's, made by both readers over the same file.
+  assert.equal(COLUMN_SHARE, 0.6);
+  const cell = (i) => (i < 6 ? `(512) 555-01${String(10 + i)}` : "n/a");
+  const phones = (filled) => Array.from({ length: 10 }, (_, i) => ["Row " + i, i < filled ? cell(i % 6) : "n/a"]);
+  const files = [
+    ["a name and a number in the first row: no header", [["Ana Cruz", "512-555-0142"], ...phones(6)]],
+    ["an address in the first row: no header", [["ana@example.com", "Ana"], ...phones(6)]],
+    ["words alone in the first row: a header", [["Name", "Something"], ...phones(6)]],
+    ["six of ten cells a phone: the phone column", [["Name", "Something"], ...phones(6)]],
+    ["five of ten cells a phone: not a phone column", [["Name", "Something"], ...phones(5)]],
+    [
+      "a seven-digit number is no phone",
+      [["Name", "Something"], ...Array.from({ length: 10 }, (_, i) => ["Row " + i, "555-01" + (10 + i)])],
+    ],
+  ];
+  for (const [what, rows] of files) {
+    const people = matchColumns(rows);
+    const leads = leadImportColumns(rows);
+    assert.equal(people.header, isHeaderRow(rows[0]), `${what}: People's header rule`);
+    assert.equal(leads.header, isHeaderRow(rows[0]), `${what}: the leads' header rule`);
+    if (!people.header) continue;
+    const body = rows.slice(1);
+    const wantsPhone = columnShare(body, 1, phoneShaped) >= COLUMN_SHARE;
+    assert.equal(people.columns.phone === 1, wantsPhone, `${what}: People's phone column`);
+    assert.equal(leads.columns.phone === 1, wantsPhone, `${what}: the leads' phone column`);
+  }
+  assert.equal(phoneShaped("(512) 555-0142"), true);
+  assert.equal(phoneShaped("555-0142"), false, "seven digits: People's stricter floor, the leads' too");
 });

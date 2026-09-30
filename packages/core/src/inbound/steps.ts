@@ -5,7 +5,14 @@
  * nothing here reads the database, the store or the clock unless it is
  * handed one.
  */
-import { replyDelayMs, violatesNoPrices, policyAskClass, resolveFacts } from "@chanlytics/contracts";
+import {
+  replyDelayMs,
+  violatesNoPrices,
+  namesMoney,
+  heldLine,
+  policyAskClass,
+  resolveFacts,
+} from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
 
 export const PAUSE_MS = 24 * 3600 * 1000; // human echo pauses the bot for 24h
@@ -73,6 +80,8 @@ export interface LayerTwoIn {
   brainCfg: BrainConfig;
   policy: Record<string, { mode: string }> | null | undefined;
   intent: string | null;
+  /** The language the model answered in (its record's), so a replaced reply is said in it. */
+  language?: string | null;
   /** What the platform knows independently of what was typed; the number to call resolves over both. */
   known?: KnownFacts | null;
 }
@@ -83,14 +92,16 @@ export interface LayerTwoOut {
   escalationReason: string;
   /** A price in the draft blocked the send outright. */
   priceBlocked: boolean;
-  /** The class under "ask" this reply fell into, if any. */
-  askClass: "booking" | "faq" | null;
+  /** Money in the draft or in the model's intent: a person answers (the charter). */
+  moneyHeld: boolean;
+  /** The class under "ask" (or money's "never") this reply fell into, if any. */
+  askClass: "booking" | "faq" | "money" | null;
   /** Whether the model had already done what the prompt asked (null when no class applied). */
   complied: boolean | null;
 }
 
 /**
- * The sentence that tells a customer who cannot wait what to do, or nothing.
+ * The number that tells a customer who cannot wait what to do, or null.
  *
  * The number is the one the facts resolve to (resolveFacts): what the owner
  * typed, else the line the receptionist answers, formatted for a person. A
@@ -99,43 +110,51 @@ export interface LayerTwoOut {
  * workspace does not have -- because "call undefined." is what a customer was
  * sent when phone_display was read raw.
  */
-function urgentLine(x: Pick<LayerTwoIn, "brainCfg" | "known">): string {
-  const phone = resolveFacts(x.brainCfg, x.known).phone_display.value;
-  return phone ? ` For anything urgent, call ${phone}.` : "";
+function urgentPhone(x: Pick<LayerTwoIn, "brainCfg" | "known">): string | null {
+  return resolveFacts(x.brainCfg, x.known).phone_display.value ?? null;
 }
 
 /**
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
- * defense. A price in the draft blocks the send outright. Under "ask", a
- * booking or a service/pricing question is a person's to answer: a reply
- * that still carries the booking link, or still answers, is replaced with
- * the handoff line; one that complied keeps its words. Either way the
- * thread is a person's now, and the Inbox says why.
+ * defense. A price in the draft blocks the send outright. Money -- a refund, a
+ * discount, a deposit, a payment term, named in the draft or read as the
+ * model's intent -- is a person's, whatever the model's record says (the
+ * charter's locked row). Under "ask", a booking or a service/pricing question
+ * is a person's to answer: a reply that still carries the booking link, or
+ * still answers, is replaced with the handoff line; one that complied keeps
+ * its words. Every replacement is said in the answer's language
+ * (contracts heldLine). Either way the thread is a person's now, and the Inbox
+ * says why.
  */
 export function layerTwo(x: LayerTwoIn): LayerTwoOut {
   let { replyText, escalate, escalationReason } = x;
-  const urgent = urgentLine(x);
+  const phone = urgentPhone(x);
   let priceBlocked = false;
+  const moneyHeld = x.intent === "money" || namesMoney(replyText);
   if (violatesNoPrices(replyText)) {
     priceBlocked = true;
-    replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly.${urgent}`;
+    replyText = heldLine("price", x.language, phone);
     escalate = true;
     escalationReason = "policy_block";
   }
-  const askClass = policyAskClass(x.policy, x.intent);
+  const askClass = moneyHeld ? "money" : policyAskClass(x.policy, x.intent);
   let complied: boolean | null = null;
   if (askClass) {
     const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
     complied = askClass === "booking" ? !carriesLink : escalate;
-    if (askClass === "booking" && carriesLink) {
-      replyText = `A member of our team will confirm your booking with you shortly.${urgent}`;
+    if (askClass === "money" && !priceBlocked) {
+      // Words about money are never kept, even ones that only promise a person: the line says the same, and nothing
+      // the model wrote about a refund or a term reaches the customer.
+      replyText = heldLine("money", x.language, phone);
+    } else if (askClass === "booking" && carriesLink) {
+      replyText = heldLine("booking", x.language, phone);
     } else if (askClass === "faq" && !escalate) {
-      replyText = `A member of our team will get back to you with the details shortly.${urgent}`;
+      replyText = heldLine("faq", x.language, phone);
     }
     escalate = true;
     escalationReason = "policy_ask";
   }
-  return { replyText, escalate, escalationReason, priceBlocked, askClass, complied };
+  return { replyText, escalate, escalationReason, priceBlocked, moneyHeld, askClass, complied };
 }
 
 /**

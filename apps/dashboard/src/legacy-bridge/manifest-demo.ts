@@ -15,6 +15,13 @@
  * itself a demo (window.__DEMO_MODE). Chanlytics.html, the standalone mockup, is such a session: it loads the files
  * manifest.ts lists and then these, and legacy-harness.test.mjs holds it to the two lists in that order.
  */
+import "@/legacy/demo/data/dashboard-data.jsx";
+import "@/legacy/demo/data/store-data.jsx";
+import "@/legacy/demo/data/fleet-data.jsx";
+import "@/legacy/demo/data/pipeline-data.jsx";
+import "@/legacy/demo/data/live-data.jsx";
+import "@/legacy/demo/data/calendar-data.jsx";
+import "@/legacy/demo/data/reports-data.jsx";
 import "@/legacy/demo/data/tasks-data.jsx";
 import "@/legacy/demo/pages/segments.jsx";
 import "@/legacy/demo/pages/agent-store.jsx";

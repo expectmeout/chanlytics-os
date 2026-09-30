@@ -3,7 +3,7 @@
  * and the day's cap, the token budget, the workspace's billing pause, and the mode in force. A gate that stops
  * the message returns; a message that passes them all returns GO.
  */
-import { optInConfirmation, tokenBudgetSpent } from "@chanlytics/contracts";
+import { optInConfirmation, tokenBudgetSpent, tokenCapOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, threadVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
@@ -141,7 +141,7 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   // every reply writes. Over it the receptionist stops and says so, exactly
   // as it does at the reply cap: a margin is a setting, not an accident, and
   // a customer at the cap is never abandoned to a log line.
-  const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
+  const tokenCap = tokenCapOf(replyLimits);
   if (tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (tokenBudgetSpent(replyLimits, used)) {

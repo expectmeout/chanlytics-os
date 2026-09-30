@@ -139,6 +139,21 @@ before(async () => {
     verb: "archive",
   });
   await seed("events", { tenant_id: A, kind: "message.received" });
+  // One model call kept in dollars (00273): the service role's model port writes it, a member of the workspace reads it.
+  await seed(
+    "ai_usage",
+    {
+      tenant_id: A,
+      purpose: "ask",
+      model_asked: "claude-opus-5-5",
+      model: "claude-opus-5-5",
+      outcome: "answered",
+      input_tokens: 10,
+      output_tokens: 5,
+      usd: 0.0002,
+    },
+    null,
+  );
   ctx.notification = await seed("notifications", { tenant_id: A, kind: "alert", title: "tenancy", body: "probe" });
   await seed("notification_reads", { tenant_id: A, user_id: ctx.viewerId }, null);
   await seed("notification_marks", { notification_id: ctx.notification, user_id: ctx.viewerId }, null);
@@ -446,6 +461,22 @@ const TENANT_TABLES = {
     }),
   ],
   events: ["member", () => ({ tenant_id: A, kind: "message.received" })],
+  // The model ledger (00273) and the metering view over it (security invoker): members read their workspace's calls, and
+  // nobody signed in writes one.
+  ai_usage: [
+    "member",
+    () => ({
+      tenant_id: A,
+      purpose: "ask",
+      model_asked: "claude-opus-5-5",
+      model: "claude-opus-5-5",
+      outcome: "answered",
+    }),
+  ],
+  usage_ledger: [
+    "member",
+    () => ({ tenant_id: A, meter: "model", purpose: "ask", model: "claude-opus-5-5", quantity: 1 }),
+  ],
   notifications: ["member", () => ({ tenant_id: A, kind: "alert", title: "stranger", body: "probe" })],
   notification_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],

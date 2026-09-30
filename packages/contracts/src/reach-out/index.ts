@@ -204,6 +204,7 @@ export {
   isReplyIntent,
   isUnread,
   replySystemPrompt,
+  replyIntentQuestion,
   replyUserContent,
   parseReplyReading,
   replyTextOf,

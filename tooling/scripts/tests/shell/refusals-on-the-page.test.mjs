@@ -67,6 +67,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: this test draws once
 globalThis.document = {
   body: {},
   addEventListener() {},

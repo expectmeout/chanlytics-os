@@ -14,6 +14,13 @@ export interface AskTurnShape {
   v: 1;
   /** The model and the effort the rounds ran at. */
   model: string;
+  /**
+   * The model that answered, in the API's own name (a fallback's when the edge asked one), and the first 16 hex of the
+   * sha256 of the turn's system blocks: what the answer was written from (scorecard move 10). A turn stored before has
+   * neither key.
+   */
+  answered_by: string | null;
+  prompt_hash: string;
   effort: string;
   surface: string | null;
   scope_kind: string | null;

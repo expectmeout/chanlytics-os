@@ -152,7 +152,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
       </button>
       {open && (
         <>
-          <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div className="more-backdrop" role="presentation" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
           <div className={`more-menu ${align === "left" ? "align-left" : "align-right"}${escape ? " escape" : ""}`} role="menu" onClick={(e) => e.stopPropagation()}>
             {items.map((it, i) => {
               if (it.divider) return <div key={i} className="more-divider" />;
@@ -251,7 +251,7 @@ const usePPToast = () => {
     // stopPropagation: portal events bubble through the REACT tree, so a toast
     // rendered inside an overlay (Ask modal, dialogs) would otherwise trigger
     // the overlay's close-on-click and kill the undo.
-    <div className="pp-toast-stack" onClick={(e) => e.stopPropagation()}>
+    <div className="pp-toast-stack" role="presentation" onClick={(e) => e.stopPropagation()}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -302,7 +302,7 @@ window.useHotkey = useHotkey;
 // trapTab(e, box) from the dialog's keydown when e.key is "Tab". It counts only what Tab actually stops at
 // (tabStops(box)), not a control taken out of the tab order (tabindex -1: a radiogroup's unchosen options) nor one
 // with no box on screen (a closed fold's head and fields, hidden). Counting either, the wrap waited on a control Tab
-// never reached, and focus walked out of an aria-modal dialog. calendar-real.jsx's crTrapTab still counts both.
+// never reached, and focus walked out of an aria-modal dialog.
 const TAB_STOP_KINDS = 'button, a[href], input, select, textarea, [tabindex]';
 const tabStopsIn = (box) =>
   Array.from(box.querySelectorAll(TAB_STOP_KINDS)).filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0);
@@ -317,6 +317,50 @@ const trapTab = (e, box) => {
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 };
 Object.assign(window, { trapTab, tabStops: tabStopsIn, propsWithout: (props, keys) => Object.fromEntries(Object.entries(props).filter(([k]) => !keys.includes(k))) });
+
+// ---- A dialog holds focus while it is open ----
+// trapFocus(box): focus goes into the dialog (the box itself, so a phone's keyboard stays down), Tab stays inside it
+// (trapTab), and release() puts focus back on the control that opened it, as the record kit's sheet does. Escape is the
+// page's own. dialogRef(key) is the ref that does it for an element's life, one per key as `leaving` is, carrying
+// `leaving`'s way out too. The modals outside the record kit take one of these.
+// What had focus outside every modal: a sheet that autofocuses a field has taken focus by the time it is held.
+let focusedOutside = null;
+document.addEventListener("focusin", (e) => { if (!(e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) focusedOutside = e.target; });
+const trapFocus = (box) => {
+  if (!box || !box.addEventListener) return () => {};
+  const at = document.activeElement;
+  const from = at && box.contains(at) && focusedOutside ? focusedOutside : at;
+  if (!box.contains(at)) {
+    if (box.getAttribute("tabindex") === null) box.setAttribute("tabindex", "-1");
+    box.focus({ preventScroll: true });
+  }
+  const onKey = (e) => { if (e.key === "Tab") trapTab(e, box); };
+  box.addEventListener("keydown", onKey);
+  return () => {
+    box.removeEventListener("keydown", onKey);
+    if (from && from !== document.body && from.isConnected !== false && from.focus) from.focus({ preventScroll: true });
+  };
+};
+const dialogRefs = new Map();
+const dialogRef = (key) => {
+  const had = dialogRefs.get(key);
+  if (had) return had;
+  const leave = window.leaving ? window.leaving(key) : null;
+  let release = null;
+  const ref = (el) => {
+    if (release) { release(); release = null; }
+    if (el) release = trapFocus(el);
+    if (leave) leave(el);
+  };
+  dialogRefs.set(key, ref);
+  return ref;
+};
+
+// A span or div drawn as a control is a button to a keyboard with role="button", a tab stop and keyPress(fn) as its onKeyDown:
+// Enter and Space, pressed on the element itself and never typed in a field inside it. A real button is better where one fits.
+const keyPress = (fn) => (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); fn(e); }
+};
 
 // ---- A thumb's gestures ------------------------------------------------------------------------
 // One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
@@ -863,6 +907,9 @@ Object.assign(window, { holdStill, routeDoor });
 // where the permission's own words would mislead -- snoozing is an `approve` act.
 // Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
+// Whether the member, as they are acting (View-as included), stands on this rung or above it: contracts' roleAtLeast,
+// through the role store the bridge completes (legacy-bridge/identity.ts). With nothing to say who is looking: no.
+const mayAtLeast = (rung) => !!(window.ST_STORE && window.ST_STORE.mayAtLeast && window.ST_STORE.mayAtLeast(rung));
 const gateTitle = (a, doing) => {
   const said = window.__roleGate ? window.__roleGate(window.ST_STORE ? window.ST_STORE.myRole() : "viewer", a, doing) : null;
   return said ? said.reason : "Your role can't do this.";
@@ -890,7 +937,7 @@ const gatedProps = (reason) => {
   };
 };
 const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
-Object.assign(window, { canDo, gateTitle, gate, gatedProps });
+Object.assign(window, { canDo, mayAtLeast, gateTitle, gate, gatedProps });
 
 // ---- Attachments in a thread (real sessions) ---------------------------
 // The bytes live in a private bucket; the route answers with a five-minute
@@ -1171,7 +1218,7 @@ const refusalToast = (r, what = null) => {
   const why = (r && r.message) || "That didn't go through.";
   return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast });
+Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

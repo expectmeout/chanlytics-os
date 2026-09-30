@@ -256,6 +256,7 @@ export type {
 } from "./leads";
 export { leadsFirstDayWays } from "./lead-first-day";
 export {
+  LEAD_IMPORT_MAX_BYTES,
   LEAD_LIST_MAX,
   LEAD_LIST_VIAS,
   LEAD_IMPORT_WORDS,
@@ -290,6 +291,7 @@ export type {
 } from "./lead-import";
 export {
   judgeQuestions,
+  judgeShadowCalls,
   judgeAsked,
   judgeSystemPrompt,
   judgeUserContent,

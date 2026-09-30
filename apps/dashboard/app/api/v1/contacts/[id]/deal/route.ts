@@ -15,6 +15,7 @@ import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 import { currentDealOf } from "@/server/people/deals";
 import { log } from "@/server/log";
+import { dbRefusal } from "@/server/with-route";
 
 const Body = z
   .object({
@@ -94,7 +95,7 @@ export const POST = write({
       ...(input.lost_reason ? { p_lost_reason: input.lost_reason } : {}),
       ...(input.clear?.length ? { p_clear: input.clear } : {}),
     });
-    if (error) throw new AppError("validation", error.message);
+    if (error) throw dbRefusal(error);
     const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null };
     if (r.error || !r.deal) {
       // A key the sentences lack, or no deal and no error: an answer this route does not know. Logged raw before

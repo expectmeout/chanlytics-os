@@ -33,6 +33,8 @@ import {
   type AskedPurpose,
 } from "@chanlytics/contracts";
 import { type SurfaceOverride, workspaceOverride } from "../surface-data";
+import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
+import { onlyOnItsPage } from "../surface-registry";
 import type { TemplateDto } from "./inbox";
 import { everyPerson, viewerId } from "./people";
 
@@ -128,6 +130,9 @@ export const broadcastsOverride: SurfaceOverride = {
   globals: ["__BROADCASTS"],
   events: ["surface:broadcasts"],
   refreshOnMessageInserts: true,
+  // A message moves a run's replies: read again only while its page is on screen, and once when it comes back
+  // (surface-registry.ts).
+  refreshWhen: onlyOnItsPage("broadcasts", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [bc, people, saved, tpl, ch, cfg, tz] = await Promise.all([
       read("GET broadcasts"),

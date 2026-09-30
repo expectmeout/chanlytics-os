@@ -39,6 +39,7 @@ import { resnapshotSurface } from "../surface-cache";
 import { read } from "../api";
 import { workspaceZone } from "../zone";
 import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
+import { onlyOnItsPage } from "../surface-registry";
 import type { SurfaceOverride } from "../surface-data";
 
 /* ------------------------------- People ---------------------------------- */
@@ -386,6 +387,9 @@ export const peopleOverride: SurfaceOverride = {
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
   // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload.
   refreshOnTables: [...DEFAULT_REFRESH_TABLES, "deals", "person_notes", "segments", "segment_members"],
+  // A message re-reads People only while People is on screen, and once when it comes back (surface-registry.ts): every
+  // page of it was read again for each message, on whatever page the owner was looking at. Its own tables, always.
+  refreshWhen: onlyOnItsPage("people", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read
     // brings back, so the tab's own saves are laid over it. A read that overlapped no save takes the server's views as

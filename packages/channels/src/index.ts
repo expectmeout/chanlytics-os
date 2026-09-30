@@ -1,6 +1,25 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
+export {
+  askModel,
+  streamModel,
+  formatRejected,
+  messageTextOf,
+  ANTHROPIC_MESSAGES_URL,
+  ANTHROPIC_VERSION,
+} from "./models/anthropic";
+export type {
+  ModelAsk,
+  ModelDeps,
+  ModelReply,
+  ModelStreamReply,
+  ModelMessage,
+  ModelBlock,
+  ModelOutcome,
+} from "./models/anthropic";
+export { askSystemOne, SYSTEM_ONE_URL } from "./models/typesafe";
+export type { SystemOneAsk, SystemOneReply } from "./models/typesafe";
 export { normalizeInbound, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
 export type {
   WaConfig,

@@ -1,18 +1,9 @@
-/* global React, Icon, FailedRead, StatePill */
+/* global React, Icon, FailedRead, StatePill, useSurface */
 // Below the day's card: the few things worth a look that no row above says on its own, and what happened while the
 // owner was away. Each reads a surface the page already holds (Reports, People, the bell) and the words are
 // contracts/today.ts todayLeaks / todayAwayGrouped through window.__today. Nothing is computed on the page; every
 // number here is the same number on the page it links to. The period card and the journey that stood here are gone:
 // the period is one line at the foot of the day's card, and the reach list's one fact is a row below.
-const useTwTick = (key) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    const names = key.split(",");
-    names.forEach((n) => window.addEventListener(n, bump));
-    return () => names.forEach((n) => window.removeEventListener(n, bump));
-  }, [key]);
-};
-
 const twNav = (to) => window.appNavigate && window.appNavigate(to);
 const twFailed = (key) => !!(window.__surfaceFailed && window.__surfaceFailed(key));
 // The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
@@ -32,7 +23,7 @@ const twSurface = (key) => (window.todaySurface ? window.todaySurface(key) : win
 // (hidden), so Ask, the tests and a phone run read the same line. Width is read as the Calendar reads it (crPhone).
 const twPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 const TodayLeaks = () => {
-  useTwTick("surface:reports,surface:clients,surface:today");
+  useSurface(["reports", "people", "today"]);
   const [open, setOpen] = React.useState(null);
   const R = twSurface("__REPORTS");
   const P = twSurface("__PEOPLE");
@@ -99,7 +90,7 @@ const TodayLeaks = () => {
 // count from People, the page it opens. One quiet row, drawn only when something is pinned; a list that isn't here now
 // is left out (contracts todayPins), and comes back with its list.
 const TodayPins = () => {
-  useTwTick("surface:clients");
+  useSurface("people");
   const P = twSurface("__PEOPLE");
   if (!P || !window.__lists || !window.__lists.pinned) return null;
   const pins = window.__lists.pinned();

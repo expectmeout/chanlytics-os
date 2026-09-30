@@ -23,6 +23,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
@@ -689,6 +690,9 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
           facts_used: ["hours"],
           language: "en",
           model: "claude-opus-5",
+          // Stamped with the prompt on the wire (its hash) and the settings' version, so an eval names what it ran.
+          prompt_hash: createHash("sha256").update(system).digest("hex").slice(0, 16),
+          config_version: null,
         },
         usage: { input_tokens: 900, output_tokens: 20 },
       },
@@ -706,7 +710,11 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
   );
   assert.equal(body.prompt_chars, system.length);
   assert.equal(body.timezone, TZ);
-  assert.equal(wrote(db).length, 0, "a dry run over the real brain still writes nothing");
+  assert.deepEqual(
+    wrote(db).map((s) => s.table),
+    ["ai_usage", "ai_usage"],
+    "a dry run over the real brain writes nothing to a customer's thread: only what it spent, one ledger row per call",
+  );
 });
 
 test("a second argument that is not a port -- the { params } a framework may hand a route -- carries no generateReply, so the real brain answers just the same", async () => {

@@ -7040,3 +7040,139 @@ test("every round names the message it follows on, for the cache diagnostics (th
   assert.deepEqual(s.requests[0].diagnostics, { previous_message_id: "msg_t1b" }, "the previous turn's last message");
   assert.deepEqual(r.shape.message_ids, ["msg_t2a"]);
 });
+
+test("a turn is stamped with what it was written from: the model that answered its last round (a fallback's when the edge asked one) and the hash of its system blocks", async () => {
+  const { ctx } = threadWorld();
+  const used = (messageId, model) => ({
+    usage: {
+      messageId,
+      model,
+      cacheMiss: null,
+      inputTokens: 100,
+      cacheReadTokens: 800,
+      cacheCreationTokens: 0,
+      outputTokens: 20,
+    },
+  });
+  const s = sentAs([
+    ROUND([tool("inbox", { action: "search", words: "parking" }, "t-s")], used("msg_a", "claude-opus-5-5")),
+    ROUND([answer("Nobody asked about parking.")], used("msg_b", "claude-sonnet-5")),
+  ]);
+  const r = await runAskTurn(turn(ctx, { text: "Who asked about parking?" }).input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(
+    r.shape.answered_by,
+    "claude-sonnet-5",
+    "the round that came back last named the model that answered it",
+  );
+  const system = s.requests[0].system.map((b) => b.text).join("\n");
+  assert.equal(r.shape.prompt_hash, createHash("sha256").update(system).digest("hex").slice(0, 16));
+  assert.match(r.shape.prompt_hash, /^[0-9a-f]{16}$/);
+  // A stream that never said its model leaves the stamp null, never a guess.
+  const quiet = sentAs([ROUND([answer("Fine.")], used("msg_c", null))]);
+  const q = await runAskTurn(turn(threadWorld().ctx, { text: "Anything?" }).input, ports(quiet.round));
+  assert.equal(q.shape.answered_by, null);
+});
+
+test("the act tools look a row up in the turn's workspace, whatever the session may read: another workspace's conversation, message, call or escalation is not here (defect 26)", async () => {
+  // A member of two workspaces reads both through RLS, so the row a model was handed in one is visible from the other:
+  // the lookup itself must ask for the turn's workspace. These rows are B's, under ids the model may name in A's turn.
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const theirs = { tenant_id: B };
+  const T2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
+  const t = tables({
+    conversations: [conversation(C1), conversation(C2, theirs)],
+    messages: [message(M1, C1), message(T2, C2, { ...theirs, sender: "ai", direction: "outbound", status: "queued" })],
+    calls: [call(K1), call(K2, { ...theirs, status: "ongoing" })],
+    // The only open escalation on A's thread C1 is B's row: it must not be resolved from A.
+    escalations: [
+      { id: E1, tenant_id: B, conversation_id: C1, state: "open", created_at: iso(NOW.getTime() - 600_000) },
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "owner", TZ, NOW);
+  const p = (name, input) => buildProposal(tc, name, input);
+  assert.match(
+    (await p("propose_thread_verb", { conversation_id: C2, verb: "snooze" })).result,
+    /no such conversation in this workspace/,
+  );
+  assert.match(
+    (await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" })).result,
+    /no open escalation on that thread/,
+    "an escalation of another workspace's is not this thread's",
+  );
+  assert.match(
+    (await p("propose_reply", { action: "draft", conversation_id: C2, text: "Hello", voice: "you" })).result,
+    /no such conversation in this workspace/,
+  );
+  assert.match(
+    (await p("propose_reply", { action: "steer", message_id: T2, instruction: "shorter" })).result,
+    /no such message in this workspace/,
+  );
+  assert.match(
+    (await p("propose_whisper", { call_id: K2, text: "Offer Friday" })).result,
+    /no such call in this workspace/,
+  );
+  // The same lookups on this workspace's own rows go through, so the refusal above is the workspace's and not a broken read.
+  assert.equal((await p("propose_thread_verb", { conversation_id: C1, verb: "snooze" })).isError, false);
+  assert.equal(
+    (await p("propose_reply", { action: "draft", conversation_id: C1, text: "Hello", voice: "you" })).isError,
+    false,
+  );
+  // Every one of those lookups asked for the turn's workspace.
+  for (const table of ["conversations", "messages", "calls", "escalations"]) {
+    const reads = tc.ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
+    assert.ok(reads.length > 0, table);
+    assert.ok(
+      reads.every((q) => q.filters.some((f) => f[1] === "tenant_id" && f[2] === A)),
+      `${table}: every read is scoped`,
+    );
+  }
+});
+
+test("the reply card refuses a person who texted STOP at the draft, by the one consent rule, and lets through one whose consent is not known (defect 32)", async () => {
+  const asked = async (consent, dnc = false) => {
+    const t = tables({ conversations: [conversation(C1, { contacts: { ...contact, consent, dnc } })] });
+    const tc = newToolContext(ctxFor(t), A, "owner", TZ, NOW);
+    return buildProposal(tc, "propose_reply", {
+      action: "draft",
+      conversation_id: C1,
+      text: "See you Saturday",
+      voice: "you",
+    });
+  };
+  // The state the door writes when they text STOP is consent = opted_out, with the do-not-contact flag untouched.
+  assert.match((await asked("opted_out")).result, /Rosa opted out; nothing can be sent to them/);
+  assert.match((await asked("opted_in", true)).result, /Rosa opted out/);
+  for (const ok of ["opted_in", "unknown", null]) assert.equal((await asked(ok)).isError, false, String(ok));
+});
+
+test("a reply card that names a refund, a discount or a payment term carries the price warning, as a price does (the charter, on the card)", async () => {
+  const t = tables();
+  const tc = newToolContext(ctxFor(t), A, "owner", TZ, NOW);
+  const warned = async (text) =>
+    (await buildProposal(tc, "propose_reply", { action: "draft", conversation_id: C1, text, voice: "you" })).proposal
+      .payload.price_warning;
+  assert.equal(await warned("A full colour is $90."), true);
+  assert.equal(await warned("Sí, te hacemos un descuento."), true);
+  assert.equal(await warned("We can refund the deposit."), true);
+  assert.equal(await warned("See you Saturday at ten."), false);
+});
+
+test("a thread a teammate holds is said as theirs, never as the receptionist answering; the order is who it waits on, then a teammate, then snoozed, then opted out (defect 16)", async () => {
+  const { threadState } = await import(at("apps/dashboard/src/server/ask/thread-state.ts"));
+  const row = (over) => ({
+    needsYou: false,
+    takenOver: false,
+    claimedByOther: false,
+    state: "open",
+    optedOut: false,
+    ...over,
+  });
+  assert.equal(threadState(row({ claimedByOther: true })), "a teammate is answering");
+  assert.equal(threadState(row({})), "answering");
+  assert.equal(threadState(row({ needsYou: true, claimedByOther: true })), "needs you");
+  assert.equal(threadState(row({ takenOver: true, claimedByOther: true })), "waiting on you");
+  assert.equal(threadState(row({ claimedByOther: true, state: "snoozed" })), "a teammate is answering");
+  assert.equal(threadState(row({ state: "snoozed", optedOut: true })), "snoozed");
+  assert.equal(threadState(row({ optedOut: true })), "opted out");
+});

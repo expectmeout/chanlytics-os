@@ -18,6 +18,7 @@ import {
   googleFillsOf,
   parseTenantConfigResult,
   receptionistOf,
+  withStoredKeysKept,
   type BrainConfig,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
@@ -53,7 +54,9 @@ export async function receptionistFromWhatIsKnown(ctx: RouteContext, tenantId: s
   // failure is a fault in the builder, said as one rather than stored.
   const next = TenantConfigWriteSchema.safeParse({ ...parsed.config, brain });
   if (!next.success) throw new AppError("internal", "The receptionist could not be set up from what is known.", 500);
-  const put = await putTenantConfig(ctx.supabase, tenantId, next.data, row.version, ctx.userId);
+  // The whole column is written: what the read left out of the stored row is kept (withStoredKeysKept).
+  const kept = withStoredKeysKept(next.data, row.config);
+  const put = await putTenantConfig(ctx.supabase, tenantId, kept, row.version, ctx.userId);
   if (!put.ok) {
     // A colleague's save landed between the read and the write. Where none was set up and it set one up, theirs
     // stands; anything else is the settings' own conflict, and a second press reads what is there now.
@@ -61,6 +64,6 @@ export async function receptionistFromWhatIsKnown(ctx: RouteContext, tenantId: s
       return { wrote: false };
     throw new AppError("conflict", SETTINGS_REFUSED[put.reason], 409);
   }
-  await recordSettingsChanged(ctx, tenantId, row.config, next.data, put.row.version);
+  await recordSettingsChanged(ctx, tenantId, row.config, kept, put.row.version);
   return { wrote: true };
 }
