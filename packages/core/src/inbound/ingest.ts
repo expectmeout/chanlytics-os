@@ -24,7 +24,8 @@ import type { IngestResult, Json } from "@chanlytics/db";
 import type { Wire } from "../deliver";
 import { IngestFailed } from "./ports";
 import type { ThreadState } from "./thread";
-import { errField, type InboundContext, type Ingested } from "./context";
+import { errField } from "@chanlytics/channels";
+import type { InboundContext, Ingested } from "./context";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
 // provider can undo: the customer's words go to the workspace mailbox as a

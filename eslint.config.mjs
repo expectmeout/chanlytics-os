@@ -454,24 +454,25 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: EDGE_MAY_NOT_IMPORT }],
     },
   },
-  // The two modules that are allowed to do what the block above forbids.
-  {
-    files: ["apps/edge/lib/log.ts"],
-    rules: { "no-console": "off" },
-  },
+  // The one module that is allowed to do what the block above forbids: the edge reads its environment here. Logging is
+  // not its own: the logger is packages/channels/src/log/logger.ts, the one place a line reaches stdout.
   {
     files: ["apps/edge/lib/env.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
-  // The dashboard's server logs through one logger too (src/server/log.ts): one JSON object per line, named by
-  // its event, carrying the request it belongs to. Ask's modules keep their own lines until the Ask lane moves them.
+  // The dashboard's server, its auth routes, Ask's modules and the packages log through the one logger too
+  // (packages/channels log/, re-exported as src/server/log.ts): one JSON object per line, named by its event,
+  // carrying the request it belongs to. The exceptions, each with the program that owns it:
+  //   - the logger's own writer, and db's until an app hands it the logger (packages/db observe.ts);
+  //   - db's realtime subscription, which runs in the browser and is #1333's (decision 0019).
   {
-    files: ["apps/dashboard/src/server/**/*.ts", "apps/dashboard/app/api/**/*.ts"],
-    ignores: [
-      "apps/dashboard/src/server/log.ts",
-      "apps/dashboard/src/server/ask/**",
-      "apps/dashboard/app/api/v1/ask/**",
+    files: [
+      "apps/dashboard/src/server/**/*.ts",
+      "apps/dashboard/app/api/**/*.ts",
+      "apps/dashboard/app/auth/**/*.ts",
+      "packages/*/src/**/*.ts",
     ],
+    ignores: ["packages/channels/src/log/logger.ts", "packages/db/src/observe.ts", "packages/db/src/realtime.ts"],
     rules: { "no-console": "error" },
   },
 

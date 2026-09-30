@@ -75,7 +75,7 @@ export async function peopleVisits(
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
-    log.error("calendar_parse_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed)
@@ -105,7 +105,7 @@ export async function withVisits(
   consult_first: boolean;
 }> {
   const pv = await peopleVisits(ctx, tenantId, rows, now, known).catch((e: unknown) => {
-    log.error("people_visits_failed", { tenant: tenantId, error: e instanceof Error ? e.message : String(e) });
+    log.error("people_visits_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   });
   if (!pv)

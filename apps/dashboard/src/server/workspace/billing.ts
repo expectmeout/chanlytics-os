@@ -34,7 +34,7 @@ export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
     list.map(async (tenantId) => {
       const r = await edgeBilling({ op: "end", tenant_id: tenantId });
       if (r.status !== 200)
-        log.error("account_delete_plan_not_ended", { tenant: tenantId, status: r.status, body: r.body });
+        log.error("account_delete_plan_not_ended", { tenant_id: tenantId, status: r.status, answer: r.body });
     }),
   );
 }

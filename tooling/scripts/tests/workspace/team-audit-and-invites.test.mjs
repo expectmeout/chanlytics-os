@@ -45,40 +45,9 @@ test("no second audit table — one ledger, one shape, one place to look", () =>
   assert.match(sql, /alter table public\.decisions drop constraint if exists decisions_verb_check;/);
 });
 
-test("every mutating team op writes to it", () => {
-  for (const verb of ["change_role", "remove_member", "revoke_invite", "invite"]) {
-    assert.ok(service.includes(`"${verb}"`), `${verb} is never recorded`);
-  }
-  assert.equal(
-    service.split("noteTeamChange(").length - 1,
-    6,
-    "one definition, five call sites: a new invitation is recorded too, once its email is on its way",
-  );
-});
-
-test("the audit runs on the CALLER's client, so the actor cannot be spoofed", () => {
-  // decisions_acting_member_insert already admits an acting member, so this
-  // needs no privilege the request does not have — and actor_user_id comes
-  // from the session rather than from an argument somebody passed.
-  // Through the one ledger writer now (verbs.ts recordDecision), on the caller's client, with the card's mark and an undo's link riding along.
-  assert.ok(
-    service.includes("await recordDecision(ctx, tenantId, subjectType, subjectId, verb, payload as Json);"),
-    "the actor is the session (ask-commit.test.mjs runs the writer)",
-  );
-});
-
-test("a failed audit row never fails the change that already happened", () => {
-  // The role change is committed by the time this runs. Throwing here would
-  // report failure for something that succeeded, which is worse than a gap.
-  assert.ok(service.includes('log.error("team_audit_failed"'));
-  assert.ok(!/throw new Error\("team_audit/.test(service));
-});
-
-test("removal records what the row said, because the row is gone", () => {
-  // After the delete there is no membership left to ask what role they held.
-  assert.ok(service.includes("had_role: target.role"));
-  assert.ok(service.includes("removed_user_id: target.user_id"));
-});
+// The team's changes and their rows are one transaction in the database now (00277: team_change_role, team_remove,
+// team_join, team_invite), each run and its rules proved on a real Postgres by
+// database/team-changes-and-their-audit.db.test.mjs, and the service's half by team-writes.test.mjs.
 
 test("the routes hand the caller through", () => {
   assert.match(teamIdRoute, /setMemberRole\(\s*ctx,/);

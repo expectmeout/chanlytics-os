@@ -15,13 +15,13 @@ import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { mail, reachesTenant } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../../lib/packages/contracts.js";
 
 const L = logger();
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/you-are-live");
   if (!auth.ok) return auth.response;
   const db = pg();
@@ -72,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   // Only the workspace's own people: without an address of theirs there is nobody to tell.
   if (!reachesTenant(target)) {
-    L.info("you_are_live_unaddressed", { tenant: tenantId });
+    L.info("you_are_live_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address" });
   }
   const parsed = parseTenantConfigResult(cfg.data?.config);
@@ -95,6 +95,6 @@ export async function POST(request: Request): Promise<Response> {
     todayUrl: `${dashboardOrigin()}/w/${encodeURIComponent(tenant.data.slug)}#/today`,
   });
   const sent = await mail(target, message);
-  L.info("you_are_live_sent", { tenant: tenantId, sent });
+  L.info("you_are_live_sent", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
-}
+});

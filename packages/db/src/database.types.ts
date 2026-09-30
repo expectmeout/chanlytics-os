@@ -1226,6 +1226,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1237,6 +1238,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1248,6 +1250,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1262,6 +1265,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1273,6 +1277,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1284,6 +1289,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1298,6 +1304,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1309,6 +1316,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1320,6 +1328,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1334,6 +1343,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1345,6 +1355,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1356,6 +1367,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1370,6 +1382,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1381,6 +1394,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1392,6 +1406,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1406,6 +1421,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1417,6 +1433,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1428,6 +1445,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1442,6 +1460,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1453,6 +1472,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1464,6 +1484,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1478,6 +1499,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1489,6 +1511,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1500,6 +1523,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1514,6 +1538,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1525,6 +1550,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1536,6 +1562,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1550,6 +1577,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1561,6 +1589,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1572,6 +1601,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1586,6 +1616,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1597,6 +1628,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1608,6 +1640,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1622,6 +1655,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1633,6 +1667,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1644,6 +1679,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1658,6 +1694,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1669,6 +1706,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1680,6 +1718,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1694,6 +1733,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1705,6 +1745,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1716,6 +1757,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1730,6 +1772,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1741,6 +1784,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1752,6 +1796,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -1766,6 +1811,7 @@ export type Database = {
           data: Json
           id: string
           kind: string
+          request_id: string | null
           subject_id: string | null
           subject_type: string | null
           tenant_id: string
@@ -1777,6 +1823,7 @@ export type Database = {
           data?: Json
           id?: string
           kind: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id: string
@@ -1788,6 +1835,7 @@ export type Database = {
           data?: Json
           id?: string
           kind?: string
+          request_id?: string | null
           subject_id?: string | null
           subject_type?: string | null
           tenant_id?: string
@@ -4020,6 +4068,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      platform_metrics: {
+        Row: {
+          answered: number
+          asks: number
+          brain_p95_ms: number | null
+          day: string
+          messages_in: Json
+          messages_out: Json
+          provider_failures: Json
+          replies_answered: number
+          replies_handed_off: number
+          replies_held: number
+          rolled_at: string
+          tenant_id: string
+          tokens: number
+        }
+        Insert: {
+          answered?: number
+          asks?: number
+          brain_p95_ms?: number | null
+          day: string
+          messages_in?: Json
+          messages_out?: Json
+          provider_failures?: Json
+          replies_answered?: number
+          replies_handed_off?: number
+          replies_held?: number
+          rolled_at?: string
+          tenant_id: string
+          tokens?: number
+        }
+        Update: {
+          answered?: number
+          asks?: number
+          brain_p95_ms?: number | null
+          day?: string
+          messages_in?: Json
+          messages_out?: Json
+          provider_failures?: Json
+          replies_answered?: number
+          replies_handed_off?: number
+          replies_held?: number
+          rolled_at?: string
+          tenant_id?: string
+          tokens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_metrics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       playbooks: {
         Row: {
@@ -6273,6 +6377,33 @@ export type Database = {
         Returns: Json
       }
       platform_admin_add: { Args: { p_email: string }; Returns: string }
+      platform_answer_silence: {
+        Args: { p_day?: string }
+        Returns: {
+          asks: number
+          name: string
+          tenant_id: string
+        }[]
+      }
+      platform_metrics_read: {
+        Args: { p_days?: number }
+        Returns: {
+          answered: number
+          asks: number
+          brain_p95_ms: number
+          day: string
+          messages_in: Json
+          messages_out: Json
+          name: string
+          provider_failures: Json
+          replies_answered: number
+          replies_handed_off: number
+          replies_held: number
+          tenant_id: string
+          tokens: number
+        }[]
+      }
+      platform_metrics_roll: { Args: { p_day?: string }; Returns: number }
       platform_overview: {
         Args: never
         Returns: {
@@ -6844,6 +6975,7 @@ export type Database = {
           why_it_fits: string
         }[]
       }
+      recording_opened: { Args: { p_call_id: string }; Returns: boolean }
       release_conversation_control: {
         Args: {
           p_by: string
@@ -6862,6 +6994,7 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      request_id_of_caller: { Args: never; Returns: string }
       request_sweep: {
         Args: { p_path: string; p_sweep: string; p_timeout_ms?: number }
         Returns: number
@@ -7034,6 +7167,69 @@ export type Database = {
         }
         Returns: Json
       }
+      team_change_role: {
+        Args: {
+          p_actor: string
+          p_membership_id: string
+          p_role: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_decision: {
+        Args: {
+          p_actor: string
+          p_payload: Json
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_undo_of: string
+          p_verb: string
+          p_via: string
+        }
+        Returns: Json
+      }
+      team_invite: {
+        Args: {
+          p_actor: string
+          p_email: string
+          p_role: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_invite_withdraw: {
+        Args: { p_invitation_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      team_join: {
+        Args: {
+          p_actor: string
+          p_email: string
+          p_role: string
+          p_tenant_id: string
+          p_user_id: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      team_owner_or_refuse: {
+        Args: { p_actor: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      team_remove: {
+        Args: {
+          p_actor: string
+          p_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       team_roster: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -7044,6 +7240,10 @@ export type Database = {
           membership_id: string
           role: string
         }[]
+      }
+      team_take_turn: {
+        Args: { p_actor: string; p_tenant_id: string }
+        Returns: undefined
       }
       trigger_calendar_sweep: { Args: never; Returns: number }
       trigger_call_reconcile: { Args: never; Returns: number }

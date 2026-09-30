@@ -11,6 +11,7 @@ import {
   renderTemplate,
   resolveParams,
 } from "@chanlytics/contracts";
+import { errField, logger } from "@chanlytics/channels";
 import type { Delivered } from "../deliver";
 import type {
   BroadcastBatchCommand,
@@ -31,6 +32,9 @@ export const BROADCAST_STALL_RETRY_MS = 60_000;
 
 /** The one wire a broadcast goes out on: the door is asked with it, and so is whether it could be bound. */
 const BROADCAST_CHANNEL = "whatsapp";
+
+/** A broadcast's own lines, by name: a batch or a person it could not read, a wire it could not bind. */
+const broadcastLog = logger();
 
 /**
  * A failure of the wire itself rather than of one person's send: no
@@ -84,7 +88,7 @@ async function mayGoNow(ports: BroadcastBatchPorts, b: BroadcastRow): Promise<bo
   }
   const unbound = await ports.wireUnavailable(BROADCAST_CHANNEL);
   if (unbound) {
-    console.error("broadcast_wire_unavailable", b.id, unbound);
+    broadcastLog.error("broadcast_wire_unavailable", { broadcast_id: b.id, reason: unbound });
     await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     // The platform hears it, as a reply's wait is heard (sendQueued): a store that stays unreadable is its condition.
     await ports
@@ -162,7 +166,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
     } catch (e) {
       unreadable = true;
-      console.error("broadcast_batch_unreadable", b.id, e instanceof Error ? e.message : String(e));
+      broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField(e) });
     }
   }
 
@@ -312,7 +316,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       verdict = await one(r);
     } catch (e) {
       if (e instanceof ThrownAtTheDoor) throw e.error;
-      console.error("broadcast_person_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
+      broadcastLog.error("broadcast_person_unreadable", { contact_id: r.contact_id, error: errField(e) });
       continue;
     }
     if (verdict === "stop") return;
@@ -383,7 +387,11 @@ async function releaseThrottled(ports: BroadcastBatchPorts, broadcastId: string,
   await ports
     .mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null })
     .catch((e: unknown) => {
-      console.error("broadcast_release_refused", contactId, e instanceof Error ? e.message : String(e));
+      broadcastLog.error("broadcast_release_refused", {
+        broadcast_id: broadcastId,
+        contact_id: contactId,
+        error: errField(e),
+      });
     });
 }
 

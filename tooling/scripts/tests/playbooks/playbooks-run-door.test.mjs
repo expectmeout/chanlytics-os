@@ -27,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
 import { localDate } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 
 // Each test file is its own process: this is the whole environment. No
 // mailbox, so a run nobody is told about tells nobody; no Supabase
@@ -397,7 +398,7 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
     "every recipient row names the run and the workspace",
   );
   assert.deepEqual(
-    w.tables.jobs.map((j) => [j.tenant_id, j.kind, j.payload, j.due_at]),
+    w.tables.jobs.map((j) => [j.tenant_id, j.kind, withoutRequestId(j.payload), j.due_at]),
     [[A, "broadcast_send", { broadcast_id: run.id }, run.scheduled_for]],
     "the send is on the ledger, due when the run is",
   );

@@ -57,7 +57,7 @@ export function edgeHeaders(
   const id = requestId();
   if (id) h[REQUEST_ID_HEADER] = id;
   const secret = process.env.EDGE_CALL_SECRET;
-  if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);
+  if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, { ...ctx, request: id });
   else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
   return h;
 }

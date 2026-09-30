@@ -14,10 +14,10 @@ import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { askNoteModel, suggestNotes } from "../../lib/notes.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "notes" });
   const db = pg();
   if (!db) {
@@ -33,4 +33,4 @@ export async function POST(request: Request): Promise<Response> {
   const out = await suggestNotes({ db, L, ask: askNoteModel, nowMs: Date.now() });
   L.info("notes_swept", { looked: out.looked, asked: out.asked, suggested: out.suggested, ended: out.ended });
   return json(200, { ok: true, ...out });
-}
+});

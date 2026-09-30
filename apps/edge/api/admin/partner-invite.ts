@@ -12,14 +12,14 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { errorMessage, readBody, workspaceOf } from "../../lib/admin-door.js";
 import { platformFrom, post } from "../../lib/ops/notify.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { getPartnerInviteMail } from "../../lib/packages/db.js";
 import { partnerInviteEmail } from "../../lib/packages/contracts.js";
 
 const L = logger();
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/partner-invite");
   if (!auth.ok) return auth.response;
   const from = platformFrom();
@@ -45,6 +45,6 @@ export async function POST(request: Request): Promise<Response> {
     signInUrl: `${dashboardOrigin()}/login?email=${encodeURIComponent(invite.email)}`,
   });
   const sent = await post(from, [invite.email], message.subject, message.body);
-  L.info("partner_invite_sent", { tenant: at.tenantId, sent });
+  L.info("partner_invite_sent", { tenant_id: at.tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
-}
+});

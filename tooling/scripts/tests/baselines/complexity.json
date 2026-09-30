@@ -1,6 +1,6 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 215,
+    "lines": 208,
     "branches": 40,
     "depth": 2
   },
@@ -545,8 +545,8 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 488,
-    "branches": 75,
+    "lines": 472,
+    "branches": 74,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
@@ -845,7 +845,7 @@
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 160,
+    "lines": 154,
     "branches": 29,
     "depth": 2
   },
@@ -866,7 +866,7 @@
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
     "lines": 236,
-    "branches": 30,
+    "branches": 28,
     "depth": 3
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {

@@ -23,6 +23,6 @@ export async function sendPartnerInvite(
     { workspace: tenantId, timeoutMs: PARTNER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
   );
   if (!edgeAnswered(r))
-    log.error("partner_invite_failed", { tenant: tenantId, status: r.status, error: r.body?.error });
+    log.error("partner_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
   return edgeAnswered(r);
 }

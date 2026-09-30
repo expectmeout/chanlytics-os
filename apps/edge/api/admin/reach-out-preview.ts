@@ -15,7 +15,7 @@ import { json } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 import { askTokensLast24h, recordAskUsage } from "../../lib/ask-gateway.js";
 import {
   ASK_TOKENS_DAY,
@@ -100,7 +100,7 @@ async function recordPreviewSpend(
   });
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
   const body = await readBody<Body>(request);
@@ -130,4 +130,4 @@ export async function POST(request: Request): Promise<Response> {
     });
     return json(500, { ok: false, error: "preview_failed" });
   }
-}
+});

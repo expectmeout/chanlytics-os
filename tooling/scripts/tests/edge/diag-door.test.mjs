@@ -29,6 +29,7 @@ import {
   CALL_ANALYSIS_FIELDS,
 } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { logLineOf } from "../_log-lines.mjs";
 
 // The door reads the environment at call time, except META_APP_ID, which it
 // reads once at import -- so the app it introspects tokens as is fixed here,
@@ -61,6 +62,9 @@ const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/ops/page-operator.ts"));
 const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { GET } = await import(at("apps/edge/api/diag.ts"));
+const { resetBreakers } = await import(at("apps/edge/lib/packages/channels.ts"));
+// Core's own build, which carries its own inlined copy of channels.
+const { whatsappSender } = await import(at("packages/core/dist/index.js"));
 after(() => setPg(null));
 
 const AUD = "/api/diag";
@@ -851,6 +855,7 @@ test("the report answers part by part in one order; a part that cannot read says
     "whatsapp",
     "brain",
     "migrations",
+    "breakers",
   ];
   const every = {
     WHATSAPP_ACCESS_TOKEN: "wa-token-value-nobody-may-see",
@@ -978,4 +983,44 @@ test("a voice line whose agent runs on no Retell LLM, or whose LLM cannot be rea
   } finally {
     retell.restore();
   }
+});
+
+test("each provider's breaker, as the instance holds it: a send core made that faulted five times opens Meta's, the log says so once, and the report reads the breaker the send was counted by", async () => {
+  resetBreakers();
+  use();
+  const lines = [];
+  const real = console.warn;
+  console.warn = (...args) => {
+    const line = logLineOf(args);
+    if (line) lines.push(line);
+  };
+  const down = wire((req) => {
+    if (req.url.startsWith("https://graph.facebook.com/")) return { status: 503, body: { error: "unavailable" } };
+    throw new Error(`unexpected request ${req.method} ${req.url}`);
+  });
+  try {
+    // Core's own copy of channels sends (packages/core's build inlines it); the door reads the edge's.
+    const send = whatsappSender({ accessToken: "wa-token", phoneId: "111222333" });
+    for (let i = 0; i < 5; i++) await send("+15555550100", { body: "hello" });
+  } finally {
+    down.restore();
+    console.warn = real;
+  }
+  const opened = lines.filter((l) => l.event === "breaker_open");
+  assert.deepEqual(
+    opened.map((l) => [l.provider, l.failures, l.status]),
+    [["meta", 5, 503]],
+    "the breaker's opening is one line, with the provider and the fault that opened it",
+  );
+  const body = await read();
+  const meta = body.breakers.find((b) => b.provider === "meta");
+  assert.equal(meta.open, true, "the report reads the breaker core's send was counted by");
+  assert.equal(meta.failures, 5);
+  assert.equal(meta.opened, 1, "and how many times it has opened in this instance");
+  assert.ok(Date.parse(meta.open_until) > Date.now(), "and says until when it holds");
+  assert.ok(
+    body.breakers.filter((b) => b.provider !== "meta").every((b) => !b.open && b.failures === 0),
+    "every other provider, closed",
+  );
+  resetBreakers();
 });

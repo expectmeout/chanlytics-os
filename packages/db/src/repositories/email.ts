@@ -34,6 +34,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { ingestInbound, type IngestResult } from "./ingest";
+import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
@@ -114,8 +115,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     // does not guess which one it is, and the email is kept either way.
     if (error && error.code !== "23505")
       throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error)
-      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error) dbLog().error("ingest_email_address_taken", { tenant_id: p.tenantId, contact_id: out.contact_id });
   }
   return out;
 }
@@ -136,7 +136,7 @@ export async function sentEmailWithMessageId(db: Db, tenantId: string, rfcMessag
 
 export async function stampMailboxReceived(db: Db, mailboxId: string, at: string): Promise<void> {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
-  if (error) console.error("mailbox_stamp_failed", error.message);
+  if (error) dbLog().error("mailbox_stamp_failed", { mailbox_id: mailboxId, error: error.message });
 }
 
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */

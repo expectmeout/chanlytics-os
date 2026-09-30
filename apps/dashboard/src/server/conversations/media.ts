@@ -1,4 +1,6 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@chanlytics/db";
 import { AppError } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
 import { log } from "@/server/log";
@@ -21,7 +23,7 @@ export function inWorkspace(tenantId: string, storagePath: string): boolean {
  */
 export async function signedMediaUrl(tenantId: string, storagePath: string, seconds = 300): Promise<string | null> {
   if (!inWorkspace(tenantId, storagePath)) {
-    log.error("signed_media_url_refused", { tenant: tenantId });
+    log.error("signed_media_url_refused", { tenant_id: tenantId });
     throw new AppError("not_found", "This workspace has no such attachment.");
   }
   const { data, error } = await serviceDb().storage.from("media").createSignedUrl(storagePath, seconds);
@@ -30,4 +32,21 @@ export async function signedMediaUrl(tenantId: string, storagePath: string, seco
     return null;
   }
   return data?.signedUrl ?? null;
+}
+
+/**
+ * Who opened a call's recording goes on the ledger before the recording is signed (00277 recording_opened): an
+ * `open_recording` decision as the member, one per member per call per hour, since the thread's player asks again at
+ * a seek. A recording is a customer's voice, and who listened is what an audit asks. A row that could not be written
+ * refuses the recording rather than serve it unrecorded; a database 00277 has not reached yet serves it, and says so.
+ */
+export async function recordingOpened(db: SupabaseClient<Database>, callId: string): Promise<void> {
+  const { error } = await db.rpc("recording_opened", { p_call_id: callId });
+  if (!error) return;
+  if (error.code === "PGRST202") {
+    log.warn("recording_audit_unavailable", { call_id: callId });
+    return;
+  }
+  log.error("recording_audit_unavailable", { call_id: callId, code: error.code ?? null, error: error.message });
+  throw new AppError("internal", "The recording could not be opened just now. Try again in a moment.", 503);
 }

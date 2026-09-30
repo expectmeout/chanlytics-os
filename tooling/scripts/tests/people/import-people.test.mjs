@@ -197,7 +197,7 @@ test("a decision the ledger will not take never refuses people who are on file: 
   assert.equal(said.length, 1);
   assert.equal(said[0][0], "import_decision_failed");
   assert.deepEqual(JSON.parse(said[0][1]), {
-    tenant: A,
+    tenant_id: A,
     import_id: IMPORT,
     added: 2,
     existed: 0,

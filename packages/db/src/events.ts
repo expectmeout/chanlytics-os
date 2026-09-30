@@ -9,10 +9,21 @@
  * `version` (00264, events.version) is the version of the kind's data. It is raised when a kind's shape changes, so a
  * reader can tell an old row from a new one. Every kind starts at 1, and the migrations' own inserts are version 1 by
  * the column's default.
+ *
+ * `request_id` (00277) names the request a row was written in, so the ledger joins the log: a failed write is logged
+ * as `emit_event_failed` through the one logger, with the same name.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ActivationMilestone, WabaEventKind } from "@chanlytics/contracts";
+import {
+  SHARED_EVENT_VERSIONS,
+  type ActivationMilestone,
+  type ContactAddedData,
+  type ContactConsentChangedData,
+  type PlatformActedData,
+  type WabaEventKind,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
+import { dbLog, dbRequestId } from "./observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,8 +50,9 @@ interface TableData {
     verified_name: string | null;
     by: string | null;
   };
-  "contact.added": { source: "calendar"; title: string | null; uid: string | null; start: string };
-  "contact.consent_changed": { consent: string; previous: string | null; source: string; channel: string };
+  /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
+  "contact.added": ContactAddedData;
+  "contact.consent_changed": ContactConsentChangedData;
   "contact.email_suppressed": { reason: string };
   "google.connected": { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null };
   "google.disconnected": { email: string | null; location: string | null; revoked: boolean };
@@ -71,7 +83,7 @@ interface TableData {
   "message.send_failed": { http_status: number; body: string | null; reason: string } & Open;
   "message.send_raced_cancel": { wamid: string | null };
   "message.sent": { sender: string };
-  "platform.acted": { action: string; by: string; by_email: string | null };
+  "platform.acted": PlatformActedData;
   "playbook.run": Record<string, unknown>;
   "policy.changed": { class: string; mode: string; fields: string[]; by: string; via?: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
@@ -106,8 +118,8 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "broadcast.sent": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
-  "contact.added": { category: "contact", version: 1 },
-  "contact.consent_changed": { category: "contact", version: 1 },
+  "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
+  "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "contact.email_suppressed": { category: "contact", version: 1 },
   "google.connected": { category: "google", version: 1 },
   "google.disconnected": { category: "google", version: 1 },
@@ -131,7 +143,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "message.send_failed": { category: "message", version: 1 },
   "message.send_raced_cancel": { category: "message", version: 1 },
   "message.sent": { category: "message", version: 1 },
-  "platform.acted": { category: "platform", version: 1 },
+  "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
   "playbook.run": { category: "message", version: 1 },
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
@@ -164,6 +176,10 @@ function rowOf<K extends EmittedKind>(
   data: EventData[K],
 ) {
   const write = kind in WRITES ? WRITES[kind as keyof TableData] : WABA_WRITE;
+  // The request this row was written in (00277): the one a person's click, a webhook's delivery or a job's
+  // originating request was named. Absent outside one; the column's own default then reads the header the database
+  // client sent, which is how a SQL function's rows say it too.
+  const requestId = dbRequestId();
   return {
     tenant_id: tenantId,
     kind,
@@ -172,6 +188,7 @@ function rowOf<K extends EmittedKind>(
     subject_type: subjectType,
     subject_id: subjectId,
     data: data as Json,
+    ...(requestId ? { request_id: requestId } : {}),
   };
 }
 
@@ -187,7 +204,14 @@ export async function recordEvent<K extends EmittedKind>(
   subjectId: string | null,
   data: EventData[K],
 ): Promise<{ error: string | null }> {
-  const { error } = await db.from("events").insert(rowOf(tenantId, kind, subjectType, subjectId, data));
+  const row = rowOf(tenantId, kind, subjectType, subjectId, data);
+  let { error } = await db.from("events").insert(row);
+  // A database 00277 has not reached has no request_id column (PostgREST: PGRST204): the row is written without the
+  // name rather than lost, so the apps and the migration may land in either order.
+  if (error?.code === "PGRST204" && "request_id" in row) {
+    const { request_id: _name, ...unnamed } = row;
+    ({ error } = await db.from("events").insert(unnamed));
+  }
   return { error: error?.message ?? null };
 }
 
@@ -201,7 +225,7 @@ export async function emitEvent<K extends EmittedKind>(
   data: EventData[K],
 ): Promise<void> {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
-  if (error) console.error("emit_event_failed", kind, error);
+  if (error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind, error });
 }
 
 /**
@@ -244,11 +268,11 @@ export async function recordActivation(
     .eq("data->>milestone", milestone)
     .limit(1);
   if (error) {
-    console.error("activation_read_failed", milestone, error.message);
+    dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
     return false;
   }
   if (data && data.length) return false;
   const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
-  if (w.error) console.error("emit_event_failed", "workspace.activated", w.error);
+  if (w.error) dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: w.error });
   return !w.error;
 }

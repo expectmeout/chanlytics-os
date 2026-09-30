@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { logLineOf } from "../../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -75,7 +76,12 @@ const both = (harbor, bayside) => [
   membership(B, bayside, "bayside", "2026-02-01T00:00:00Z"),
 ];
 const inA = `?workspace=${A}`;
-const ctxFor = (tables, params = {}) => ({ supabase: fakeDb(tables), userId: USER, email: "ada@example.com", params });
+const ctxFor = (tables, params = {}, rpcs = {}) => ({
+  supabase: fakeDb(tables, {}, rpcs),
+  userId: USER,
+  email: "ada@example.com",
+  params,
+});
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
 const post = (body) => new Request("http://localhost/api/v1/x", { method: "POST", body: JSON.stringify(body) });
 async function refused(p, code, status, why) {
@@ -417,7 +423,8 @@ test("a stored recording is a redirect to a link signed for this request: the <a
       }),
     ],
   };
-  const res = await recording.GET.run(get(), ctxFor(tables, { id: L3 }));
+  const ctx = ctxFor(tables, { id: L3 }, { recording_opened: () => true });
+  const res = await recording.GET.run(get(), ctx);
   assert.equal(
     res.status,
     302,
@@ -427,6 +434,51 @@ test("a stored recording is a redirect to a link signed for this request: the <a
     res.headers.get("location") || "",
     new RegExp(`/object/sign/media/${B}/calls/k\\.wav\\?token=abc$`),
     "the stored copy, signed now",
+  );
+  assert.deepEqual(
+    ctx.supabase.seen.filter((s) => s.rpc),
+    [{ rpc: "recording_opened", args: { p_call_id: L3 } }],
+    "who listened is on the ledger, as the member, before the link leaves",
+  );
+});
+
+test("a recording is served only once the ledger has it: a row that cannot be written refuses the recording, and a database 00277 has not reached yet serves it and says so", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    calls: [
+      call(L3, B, {
+        recording: { storage_path: `${B}/calls/k.wav`, fetch_state: "stored", mime: "audio/wav", bytes: 10 },
+      }),
+    ],
+  };
+  const lines = [];
+  const real = { warn: console.warn, error: console.error };
+  console.warn = (...args) => lines.push(logLineOf(args));
+  console.error = (...args) => lines.push(logLineOf(args));
+  const failing = (code, message) => () => {
+    throw Object.assign(new Error(message), { code });
+  };
+  try {
+    const refusedAudit = ctxFor(tables, { id: L3 }, { recording_opened: failing("42501", "permission denied") });
+    await refused(
+      recording.GET.run(get(), refusedAudit),
+      "internal",
+      503,
+      "an unrecorded listen is not served: the redirect is never built",
+    );
+    const notThere = ctxFor(tables, { id: L3 }, { recording_opened: failing("PGRST202", "function not found") });
+    const res = await recording.GET.run(get(), notThere);
+    assert.equal(res.status, 302, "before the migration lands, playback works as it did");
+  } finally {
+    Object.assign(console, real);
+  }
+  assert.deepEqual(
+    lines.map((l) => [l.level, l.event]),
+    [
+      ["error", "recording_audit_unavailable"],
+      ["warn", "recording_audit_unavailable"],
+    ],
+    "each failure is said, at its own weight",
   );
 });
 
@@ -441,7 +493,13 @@ test("a recording whose path names another workspace is never signed: the signer
       memberships: both("viewer", "operator"),
       calls: [call(L3, B, { recording: { storage_path, fetch_state: "stored", mime: "audio/wav", bytes: 10 } })],
     };
-    await refused(recording.GET.run(get(), ctxFor(tables, { id: L3 })), "not_found", 404, why);
+    const ctx = ctxFor(tables, { id: L3 }, { recording_opened: () => true });
+    await refused(recording.GET.run(get(), ctx), "not_found", 404, why);
+    assert.deepEqual(
+      ctx.supabase.seen.filter((s) => s.rpc),
+      [],
+      `${why}: nobody listened, so nothing is on the ledger`,
+    );
   }
   assert.equal(signedUrls.length, before, "nothing was asked of storage");
 });

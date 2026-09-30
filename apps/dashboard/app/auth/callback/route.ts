@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callbackPlan, landingAfter, OAUTH_FAILED } from "@/server/auth/oauth-callback";
+import { log } from "@/server/log";
 
 /**
  * GET /auth/callback -- where a provider sends the browser back.
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
   let to = plan.to;
   // The provider refused, or Supabase did on its behalf, before there was a
   // code to exchange. The reason is in the query and nowhere else on this side.
-  if (plan.refused) console.warn("oauth_provider_refused", JSON.stringify(plan.refused));
+  if (plan.refused) log.warn("oauth_provider_refused", { ...plan.refused });
   if (plan.exchange) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(plan.exchange);
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
       // A code that did not exchange -- used twice, expired (five minutes), or
       // opened in a browser that never started the sign-in -- is a sign-in
       // to try again, not an error page.
-      console.warn("oauth_exchange_failed", JSON.stringify({ message: error.message.slice(0, 120) }));
+      log.warn("oauth_exchange_failed", { message: error.message.slice(0, 120) });
       to = OAUTH_FAILED;
     } else {
       // An account with an authenticator shows its code before it lands anywhere (0013).

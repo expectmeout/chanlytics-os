@@ -14,7 +14,7 @@ import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 /** What a workflow may page for, and the subject its page carries. */
 const OUTSIDE_CONDITIONS = {
@@ -29,7 +29,7 @@ const DETAIL_MAX = 4000;
 const isCondition = (v: unknown): v is OutsideCondition =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(OUTSIDE_CONDITIONS, v);
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/page", { platformKey: true });
   if (!auth.ok) return auth.response;
   if (auth.via !== "key") return refuse(403, "platform_only", "the platform's key pages; a workspace's token does not");
@@ -52,4 +52,4 @@ export async function POST(request: Request): Promise<Response> {
   const outcome = await pageOperator({ db }, `outside:${condition}`, OUTSIDE_CONDITIONS[condition], detail);
   logger().info("outside_page", { condition, outcome });
   return json(200, { ok: true, condition, outcome });
-}
+});

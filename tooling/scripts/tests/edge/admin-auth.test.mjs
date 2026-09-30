@@ -190,34 +190,3 @@ test("a door that names the platform's key as its credential: the key still open
     "each key-only knock on an edge with the secret, and whether it came in",
   );
 });
-
-test("a door names its request with the dashboard's id, so a click's lines in both apps are one search; a knock without a sane one gets a name of its own", async () => {
-  const { logger } = await importSrc("apps/edge/lib/log.ts");
-  const seen = [];
-  const real = console.log;
-  console.log = (text) => seen.push(JSON.parse(text));
-  try {
-    await (async () => {
-      knock({ "x-edge-token": token(), "x-request-id": "iad1::req-0123456789" });
-      logger({ tenant: "ws-1" }).info("admin_whisper", { chars: 3 });
-    })();
-    await (async () => {
-      knock({ "x-edge-token": token(), "x-request-id": "not a name!" });
-      logger().info("admin_whisper", {});
-    })();
-  } finally {
-    console.log = real;
-  }
-  assert.deepEqual(seen[0], {
-    level: "info",
-    event: "admin_whisper",
-    request_id: "iad1::req-0123456789",
-    tenant: "ws-1",
-    chars: 3,
-  });
-  assert.match(
-    seen[1].request_id,
-    /^[0-9a-f-]{36}$/,
-    "a header that is no name is not taken: the door names it itself",
-  );
-});

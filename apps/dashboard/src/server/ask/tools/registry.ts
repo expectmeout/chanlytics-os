@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { log } from "@/server/log";
 import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
   NO_ACTION,
@@ -365,10 +366,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
     );
     return { result: json(out), isError, label };
   } catch (e) {
-    console.error(
-      "ask_tool_failed",
-      JSON.stringify({ tool: calledName(run.name, run.input), error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("ask_tool_failed", { tool: calledName(run.name, run.input), error: e });
     return { result: json({ error: "that read failed; say so and answer with what you have" }), isError: true, label };
   }
 }
@@ -385,10 +383,7 @@ export async function buildProposal(
     if (!parsed.ok) return refuse(parsed.error);
     return await parsed.def.build(t, parsed.data);
   } catch (e) {
-    console.error(
-      "ask_proposal_failed",
-      JSON.stringify({ tool: calledName(name, input), error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("ask_proposal_failed", { tool: calledName(name, input), error: e });
     return refuse("that could not be checked; say so and suggest the page");
   }
 }

@@ -85,6 +85,7 @@ import {
   syncAnswer,
   heldCampaignAnswer,
 } from "../../lib/lines/line-ops.js";
+import { adminDoor } from "../../lib/log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -110,7 +111,7 @@ const WRITES: Record<WritingOp, (c: LineCall) => Promise<Response>> = {
   "registration-status": registrationStatus,
 };
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/lines");
   if (!auth.ok) return auth.response;
   const body = await readBody<LinesBody>(request);
@@ -128,7 +129,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!call.ok) return call.response;
   const run = Object.hasOwn(WRITES, op) ? WRITES[op as WritingOp] : null;
   return run ? run(call.value) : respond(UNKNOWN_LINE_OP);
-}
+});
 
 /** Local numbers to choose from, with the monthly cost: a question to the provider, not to the database. */
 async function search(choice: LineProviderChoice, body: LinesBody): Promise<Response> {

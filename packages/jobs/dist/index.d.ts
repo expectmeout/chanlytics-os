@@ -162,6 +162,12 @@ declare function deferJob(db: Db, job: {
  * claim_due_jobs) runs whatever is due, so there is no second system to tell,
  * no publish that can be lost after the row is written, and no orphan to clean
  * up. Service-role territory (§8): never called with a session client.
+ *
+ * A job scheduled while a request is being served carries that request's name
+ * in its payload (`request_id`), and the tick runs the job under it: a click's
+ * reply, the send it queued and the send's lines are one search in the log. A
+ * payload that names one already keeps it, so a job a job schedules (a
+ * broadcast's next batch) carries the request that started the chain.
  */
 
 interface ScheduleParams {

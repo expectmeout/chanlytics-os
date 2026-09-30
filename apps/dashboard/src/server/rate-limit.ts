@@ -175,6 +175,8 @@ export const RATE = {
   view_set: { limit: 60, windowMs: MIN_MS, noun: "view changes" },
   /** A page load's timings (vitals), sent each time a tab is put away: sixty a minute is a loop, not a person. */
   vitals: { limit: 60, windowMs: MIN_MS, noun: "page timings" },
+  /** An error a page hit, sent by its boundary once per error per load: twenty an hour is a broken page, not a flood. */
+  client_errors: { limit: 20, windowMs: HOUR_MS, noun: "error reports" },
   /** A lead search: a provider run and a judge on the platform's account (the door reserves the month; this stops a loop). */
   lead_search: { limit: 10, windowMs: HOUR_MS, noun: "lead searches" },
   /** An answer to the question after 25, or a Stop. */

@@ -1,5 +1,5 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export { providerFetch, answerObject, breakerOf, resetBreakers } from "./provider-fetch";
+export { providerFetch, answerObject, breakerOf, breakerStates, resetBreakers } from "./provider-fetch";
 export type { Provider, ProviderReply, ProviderCall, SendOutcome } from "./provider-fetch";
 export { askModel, streamModel, formatRejected } from "./models/anthropic";
 export type {
@@ -324,7 +324,10 @@ export {
 } from "./google/google-profile";
 export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
 export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
-export { requestIdOf, REQUEST_ID_HEADER } from "./tokens/request-id";
+export { requestIdOf, requestIdShaped, REQUEST_ID_HEADER } from "./tokens/request-id";
+export { logger, errField } from "./log/logger";
+export type { Logger, LogFields, LogLevel } from "./log/logger";
+export { withRequestId, requestId, noteTenant, requestTenant } from "./log/request";
 export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
 export {
   signUnsubscribeToken,

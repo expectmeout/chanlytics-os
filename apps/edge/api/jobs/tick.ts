@@ -13,7 +13,7 @@
  */
 import { json, refuse } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, door } from "../../lib/log.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { alertFor } from "../../lib/ops/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
@@ -59,7 +59,7 @@ function massFailureBody(c: { claimed: number; done: number; failed: number; gav
   );
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -171,4 +171,4 @@ export async function POST(request: Request): Promise<Response> {
     L.error("jobs_tick_failed", { error: errField(e) });
     return refuse(503, "query_failed", errField(e));
   }
-}
+});

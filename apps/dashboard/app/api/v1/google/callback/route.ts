@@ -55,7 +55,7 @@ export const GET = read({
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
       log.error("google_connect_failed", {
-        tenant: tenantId,
+        tenant_id: tenantId,
         reason,
         detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null,
       });

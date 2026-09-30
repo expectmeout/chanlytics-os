@@ -169,8 +169,12 @@ test("the timings ride on the overview, and a read that fails takes nothing else
     platform_partner_balances: () => [],
     platform_partner_workspaces: () => [],
   };
-  const service = (p75) =>
-    fakeDb({ waitlist: [] }, {}, { sweep_health: () => [], jobs_backlog: () => 0, page_vitals_p75: p75 });
+  const service = (p75, days = () => []) =>
+    fakeDb(
+      { waitlist: [] },
+      {},
+      { sweep_health: () => [], jobs_backlog: () => 0, page_vitals_p75: p75, platform_metrics_read: days },
+    );
   setServiceClient(
     service(() => [{ metric: "INP", page: null, samples: 12, p75: 180, since: "2026-09-26T00:00:00Z" }]),
   );

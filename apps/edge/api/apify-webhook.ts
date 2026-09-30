@@ -13,7 +13,7 @@
  */
 import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { logger, errField } from "../lib/log.js";
+import { logger, errField, door } from "../lib/log.js";
 import {
   planApifyIngress,
   tokenMatches,
@@ -28,7 +28,7 @@ import { scheduleJobOnce } from "../lib/packages/jobs.js";
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ door: "apify_webhook" });
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -112,4 +112,4 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
   }
-}
+});

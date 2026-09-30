@@ -13,6 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
+import { log } from "@/server/log";
 
 /**
  * What every tool runs in, and the helpers the reads and the acts share.
@@ -186,10 +187,7 @@ export function json(v: unknown): string {
 export const unread =
   (t: ToolContext, tool: string, read: string) =>
   (e: unknown): null => {
-    console.error(
-      "ask_tool_read_failed",
-      JSON.stringify({ tool, read, tenant: t.tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("ask_tool_read_failed", { tool, read, tenant_id: t.tenantId, error: e });
     return null;
   };
 

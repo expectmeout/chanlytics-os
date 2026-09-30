@@ -229,13 +229,23 @@ const CORE_WALL_EXCEPTIONS = {
   },
 };
 
-/** Whether core may import this: its own modules, contracts, and the types (never a value) of db and channels. */
-const coreMayImport = ({ specifier, typeOnly }) =>
+/**
+ * The one value a verb may take from channels: the platform's own logger (packages/channels/src/log). What it could
+ * not write is a line in the request's log, not a provider.
+ */
+const LOG_NAMES = new Set(["errField", "logger"]);
+
+/**
+ * Whether core may import this: its own modules, contracts, the types (never a value) of db and channels, and
+ * channels' logger.
+ */
+const coreMayImport = ({ specifier, typeOnly, names = [] }) =>
   specifier.startsWith(".") ||
   specifier === "@chanlytics/contracts" ||
   // The normalised inbound message is the channels package's shape and the inbound verb speaks it, so the TYPE
   // crosses. A VALUE from channels would be a provider inside a verb, which is a port, not a widening.
-  (typeOnly && (specifier === "@chanlytics/db" || specifier === "@chanlytics/channels"));
+  (typeOnly && (specifier === "@chanlytics/db" || specifier === "@chanlytics/channels")) ||
+  (specifier === "@chanlytics/channels" && names.length > 0 && names.every((name) => LOG_NAMES.has(name)));
 
 test("a core verb knows no database, framework, provider or environment", () => {
   // A verb takes the world through its ports; the adapter in apps/dashboard/src/server/ports/core-ports.ts is where

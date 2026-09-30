@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 import { resendWebhookSignature } from "@chanlytics/channels";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -65,13 +66,14 @@ const received = (to, over = {}) => ({
   created_at: new Date().toISOString(),
   data: { email_id: "rcv_1", from: "ana@example.com", to, subject: "Quote", ...over },
 });
-const jobsOf = (t) => t.jobs.map((j) => [j.tenant_id, j.kind, j.payload]);
+const jobsOf = (t) => t.jobs.map((j) => [j.tenant_id, j.kind, withoutRequestId(j.payload)]);
 
 test("a received email becomes one intake job for the workspace whose address it names, and nothing about the email is read in the request", async () => {
   const t = world();
   assert.equal(await post(received(["Best Movers <bestmovers@mail.chanlytics.com>"])), 200);
   assert.deepEqual(jobsOf(t), [["t-a", "email_ingest", { mailbox_id: "mb-a", received_id: "rcv_1" }]]);
   assert.ok(Date.parse(t.jobs[0].due_at) <= Date.now(), "due now: the heartbeat takes it within seconds");
+  assert.match(t.jobs[0].payload.request_id, /^[0-9a-f-]{36}$/, "the job carries the request that scheduled it");
 });
 
 test("a reply route's token names its workspace, and a rotated-out token still does until it is revoked", async () => {

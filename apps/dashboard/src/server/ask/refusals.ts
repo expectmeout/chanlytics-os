@@ -1,4 +1,5 @@
 import "server-only";
+import type { DashboardLogEvent } from "@/server/log";
 import { featureRejected } from "./sse";
 
 /**
@@ -9,8 +10,8 @@ import { featureRejected } from "./sse";
  */
 type Dropped = "replay" | "context" | "examples" | "format";
 
-/** The line each drop logs, once a turn. */
-export const DROP_EVENTS: Record<Dropped, string> = {
+/** The line each drop logs, once a turn: typed as the dashboard's log names, so tsc holds each to that set. */
+export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
   replay: "ask_replay_rejected",
   context: "ask_context_rejected",
   examples: "ask_examples_rejected",

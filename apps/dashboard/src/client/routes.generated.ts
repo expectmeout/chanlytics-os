@@ -102,6 +102,7 @@ export const ROUTES = {
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
+  "POST client-errors": { method: "POST", path: "/api/v1/client-errors" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
   "POST contacts/[id]/notes": { method: "POST", path: "/api/v1/contacts/[id]/notes" },
@@ -309,6 +310,7 @@ export type Routes = {
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
+  "POST client-errors": typeof import("../../app/api/v1/client-errors/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
   "POST contacts/[id]/notes": typeof import("../../app/api/v1/contacts/[id]/notes/route").POST;

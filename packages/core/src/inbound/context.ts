@@ -16,15 +16,6 @@ import { MAX_REPLIES_PER_DAY } from "./steps";
 import type { ThreadState } from "./thread";
 import type { InboundInput } from "./answer";
 
-/**
- * An error rendered for a log field: name and message, never a stack blob.
- * The edge's lib/log.ts has the same two lines; this is the verb's, because a
- * verb may not import the edge.
- */
-export function errField(e: unknown): string {
-  return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-}
-
 /** What a phase returns when the message goes on to the next one. A phase that stops the message returns nothing. */
 export const GO = Symbol("go on");
 

@@ -100,7 +100,7 @@ async function* usagePages(
   }
   // Reached only by exhausting the bound. Silence here is the defect this file
   // was fixed for, one cap further out.
-  logger().error("usage_read_capped", { tenant: tenantId, cap });
+  logger().error("usage_read_capped", { tenant_id: tenantId, cap });
 }
 
 async function usageRows(
@@ -135,7 +135,7 @@ export async function tokensLast24h(
   tenantId: string,
   stopAt = Number.POSITIVE_INFINITY,
 ): Promise<number> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   try {
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {

@@ -42,6 +42,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00203 added 'partners', the sweep that makes a partner's held earnings payable.
   // 00215 added 'purge_jobs', the nightly purge of the ledger's finished rows.
   // 00255 added 'purge_page_vitals', the nightly purge of the page timings.
+  // 00277 added 'platform_metrics_roll', the nightly count of each workspace's day.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -58,6 +59,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "partitions",
       "partners",
       "pauses",
+      "platform_metrics_roll",
       "playbooks",
       "purge_ask",
       "purge_cron_history",
@@ -128,6 +130,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "partitions",
     "partners",
     "pauses",
+    "platform_metrics_roll",
     "playbooks",
     "purge_ask",
     "purge_cron_history",

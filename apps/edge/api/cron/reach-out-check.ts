@@ -18,12 +18,12 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { uncheckedWaiting } from "../../lib/packages/db.js";
 import { checkSends } from "../../lib/reach-out/check.js";
 import { coldLane } from "../../lib/reach-out/sender.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const started = Date.now();
   const L = logger({ sweep: "reach_out_check" });
   const db = pg();
@@ -60,4 +60,4 @@ export async function POST(request: Request): Promise<Response> {
     L.error("reach_out_check_sweep_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
-}
+});

@@ -32,6 +32,5 @@ export const DELETE = write({
   scope: workspace,
   role: "owner",
   rate: "team",
-  handle: async ({ ctx, member }) =>
-    await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), ctx.userId),
+  handle: async ({ ctx, member }) => await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member")),
 });

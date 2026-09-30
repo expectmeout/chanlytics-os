@@ -73,7 +73,7 @@ function httpsUrl(u: string): string {
 }
 
 async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
-  const L = logger({ tenant: tenantId });
+  const L = logger({ tenant_id: tenantId });
   const key = cacheKey(tenantId, url);
   const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
@@ -169,7 +169,7 @@ interface OpeningsData {
  * or a feed that could not be read.
  */
 export async function openingsData(rt: TenantRuntime, now = new Date()): Promise<OpeningsData | null> {
-  const L = logger({ tenant: rt.tenantId });
+  const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
   const profile = rt.brain?.profile;
   if (!url || !profile || !rt.timezone) return null;
@@ -224,7 +224,7 @@ export async function visitsFor(
   who: { phone: string | null; name: string | null },
   now = new Date(),
 ): Promise<string | null> {
-  const L = logger({ tenant: rt.tenantId });
+  const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
   if (!url || !rt.timezone || (!who.phone && !who.name)) return null;
   try {

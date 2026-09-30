@@ -170,7 +170,11 @@ export function connectAnswer(r: ConnectResult, listing: ListingView): { answer:
     };
   }
   return {
-    log: { event: "google_connected", fields: { pending: r.pending, email: r.connection.google_email } },
+    // The account's domain, never the owner's address: a log line says what happened, not who it happened to.
+    log: {
+      event: "google_connected",
+      fields: { pending: r.pending, email_domain: r.connection.google_email?.split("@")[1] ?? null },
+    },
     answer: {
       status: 200,
       body: {

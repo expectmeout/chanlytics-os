@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, PurposeBearing, SchemaSet, DealFacts, PersonRowDto, NameableContact } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -1224,6 +1224,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1235,6 +1236,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1246,6 +1248,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1260,6 +1263,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1271,6 +1275,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1282,6 +1287,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1296,6 +1302,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1307,6 +1314,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1318,6 +1326,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1332,6 +1341,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1343,6 +1353,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1354,6 +1365,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1368,6 +1380,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1379,6 +1392,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1390,6 +1404,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1404,6 +1419,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1415,6 +1431,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1426,6 +1443,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1440,6 +1458,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1451,6 +1470,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1462,6 +1482,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1476,6 +1497,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1487,6 +1509,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1498,6 +1521,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1512,6 +1536,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1523,6 +1548,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1534,6 +1560,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1548,6 +1575,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1559,6 +1587,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1570,6 +1599,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1584,6 +1614,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1595,6 +1626,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1606,6 +1638,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1620,6 +1653,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1631,6 +1665,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1642,6 +1677,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1656,6 +1692,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1667,6 +1704,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1678,6 +1716,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1692,6 +1731,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1703,6 +1743,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1714,6 +1755,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1728,6 +1770,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1739,6 +1782,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1750,6 +1794,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -1764,6 +1809,7 @@ type Database = {
                     data: Json;
                     id: string;
                     kind: string;
+                    request_id: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
                     tenant_id: string;
@@ -1775,6 +1821,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id: string;
@@ -1786,6 +1833,7 @@ type Database = {
                     data?: Json;
                     id?: string;
                     kind?: string;
+                    request_id?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
                     tenant_id?: string;
@@ -4018,6 +4066,62 @@ type Database = {
                     user_id?: string;
                 };
                 Relationships: [];
+            };
+            platform_metrics: {
+                Row: {
+                    answered: number;
+                    asks: number;
+                    brain_p95_ms: number | null;
+                    day: string;
+                    messages_in: Json;
+                    messages_out: Json;
+                    provider_failures: Json;
+                    replies_answered: number;
+                    replies_handed_off: number;
+                    replies_held: number;
+                    rolled_at: string;
+                    tenant_id: string;
+                    tokens: number;
+                };
+                Insert: {
+                    answered?: number;
+                    asks?: number;
+                    brain_p95_ms?: number | null;
+                    day: string;
+                    messages_in?: Json;
+                    messages_out?: Json;
+                    provider_failures?: Json;
+                    replies_answered?: number;
+                    replies_handed_off?: number;
+                    replies_held?: number;
+                    rolled_at?: string;
+                    tenant_id: string;
+                    tokens?: number;
+                };
+                Update: {
+                    answered?: number;
+                    asks?: number;
+                    brain_p95_ms?: number | null;
+                    day?: string;
+                    messages_in?: Json;
+                    messages_out?: Json;
+                    provider_failures?: Json;
+                    replies_answered?: number;
+                    replies_handed_off?: number;
+                    replies_held?: number;
+                    rolled_at?: string;
+                    tenant_id?: string;
+                    tokens?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "platform_metrics_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
             };
             playbooks: {
                 Row: {
@@ -6694,6 +6798,42 @@ type Database = {
                 };
                 Returns: string;
             };
+            platform_answer_silence: {
+                Args: {
+                    p_day?: string;
+                };
+                Returns: {
+                    asks: number;
+                    name: string;
+                    tenant_id: string;
+                }[];
+            };
+            platform_metrics_read: {
+                Args: {
+                    p_days?: number;
+                };
+                Returns: {
+                    answered: number;
+                    asks: number;
+                    brain_p95_ms: number;
+                    day: string;
+                    messages_in: Json;
+                    messages_out: Json;
+                    name: string;
+                    provider_failures: Json;
+                    replies_answered: number;
+                    replies_handed_off: number;
+                    replies_held: number;
+                    tenant_id: string;
+                    tokens: number;
+                }[];
+            };
+            platform_metrics_roll: {
+                Args: {
+                    p_day?: string;
+                };
+                Returns: number;
+            };
             platform_overview: {
                 Args: never;
                 Returns: {
@@ -7409,6 +7549,12 @@ type Database = {
                     why_it_fits: string;
                 }[];
             };
+            recording_opened: {
+                Args: {
+                    p_call_id: string;
+                };
+                Returns: boolean;
+            };
             release_conversation_control: {
                 Args: {
                     p_by: string;
@@ -7432,6 +7578,10 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            request_id_of_caller: {
+                Args: never;
+                Returns: string;
             };
             request_sweep: {
                 Args: {
@@ -7671,6 +7821,75 @@ type Database = {
                 };
                 Returns: Json;
             };
+            team_change_role: {
+                Args: {
+                    p_actor: string;
+                    p_membership_id: string;
+                    p_role: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_decision: {
+                Args: {
+                    p_actor: string;
+                    p_payload: Json;
+                    p_subject_id: string;
+                    p_subject_type: string;
+                    p_tenant_id: string;
+                    p_undo_of: string;
+                    p_verb: string;
+                    p_via: string;
+                };
+                Returns: Json;
+            };
+            team_invite: {
+                Args: {
+                    p_actor: string;
+                    p_email: string;
+                    p_role: string;
+                    p_tenant_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_invite_withdraw: {
+                Args: {
+                    p_invitation_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
+            team_join: {
+                Args: {
+                    p_actor: string;
+                    p_email: string;
+                    p_role: string;
+                    p_tenant_id: string;
+                    p_user_id: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
+            team_owner_or_refuse: {
+                Args: {
+                    p_actor: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
+            team_remove: {
+                Args: {
+                    p_actor: string;
+                    p_id: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             team_roster: {
                 Args: {
                     p_tenant_id: string;
@@ -7683,6 +7902,13 @@ type Database = {
                     membership_id: string;
                     role: string;
                 }[];
+            };
+            team_take_turn: {
+                Args: {
+                    p_actor: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
             };
             trigger_calendar_sweep: {
                 Args: never;
@@ -7775,6 +8001,9 @@ type Database = {
  * `version` (00264, events.version) is the version of the kind's data. It is raised when a kind's shape changes, so a
  * reader can tell an old row from a new one. Every kind starts at 1, and the migrations' own inserts are version 1 by
  * the column's default.
+ *
+ * `request_id` (00277) names the request a row was written in, so the ledger joins the log: a failed write is logged
+ * as `emit_event_failed` through the one logger, with the same name.
  */
 
 type Db$m = SupabaseClient<Database>;
@@ -7814,18 +8043,9 @@ interface TableData {
         verified_name: string | null;
         by: string | null;
     };
-    "contact.added": {
-        source: "calendar";
-        title: string | null;
-        uid: string | null;
-        start: string;
-    };
-    "contact.consent_changed": {
-        consent: string;
-        previous: string | null;
-        source: string;
-        channel: string;
-    };
+    /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
+    "contact.added": ContactAddedData;
+    "contact.consent_changed": ContactConsentChangedData;
     "contact.email_suppressed": {
         reason: string;
     };
@@ -7917,11 +8137,7 @@ interface TableData {
     "message.sent": {
         sender: string;
     };
-    "platform.acted": {
-        action: string;
-        by: string;
-        by_email: string | null;
-    };
+    "platform.acted": PlatformActedData;
     "playbook.run": Record<string, unknown>;
     "policy.changed": {
         class: string;
@@ -8080,7 +8296,44 @@ interface ServiceClientConfig {
     url: string;
     serviceRoleKey: string;
 }
+/** Every call names the request it is made for (observe.ts), so a row the ledger takes in it says which. */
 declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<Database>;
+
+/**
+ * What packages/db asks of the process it runs in: somewhere to write a line, and the name of the request it serves.
+ *
+ * Both belong to channels (its logger, its request store), which db may not import: db sits under every other package
+ * (lint-boundaries). So db takes them as a port. The edge's lib/log.ts and the dashboard's server/log.ts hand in the
+ * one logger when they load (`observeDb`), and db's lines then go out as every other line does, redacted and carrying
+ * the request's name. Before it, db wrote twenty positional console lines that no query could read.
+ *
+ * The port lives on globalThis under a registered symbol, not in this module: core and jobs inline their own copy of
+ * db, and a port handed to one copy would be unseen by the others.
+ *
+ * The same name rides to the database. A client this module makes sends it on every call (DB_REQUEST_HEADER), and
+ * the ledger's rows take it from there (00277: events.request_id), whether TypeScript or a SQL function wrote them.
+ */
+/** A line's fields: what JSON can carry. */
+type Fields = Record<string, unknown>;
+interface DbLog {
+    info(event: string, fields?: Fields): void;
+    warn(event: string, fields?: Fields): void;
+    error(event: string, fields?: Fields): void;
+}
+interface DbObserver {
+    log: DbLog;
+    /** The request the code running now serves, or null outside one. */
+    requestId(): string | null;
+}
+/** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
+declare const DB_REQUEST_HEADER = "x-chanlytics-request-id";
+/** Hand db the process's logger and request store. The edge and the dashboard call it once, as their logger loads. */
+declare function observeDb(observer: DbObserver): void;
+/**
+ * A fetch that names the request it is made for: the database client's transport, so a SQL function writing to the
+ * ledger in that request can say which it was. A call outside a request goes as it came.
+ */
+declare function namedFetch(base?: typeof fetch): typeof fetch;
 
 /**
  * Ingestion repositories — the edge's write surface (service-role client).
@@ -10529,30 +10782,6 @@ declare function subscribeWorkspaceChanges(client: SupabaseClient<Database>,
 /** Called with the table a change was told for, its event, and a row of the workspace and a call's status. */
 onChange: OnChange, opts?: SubscribeOptions): () => void;
 
-/**
- * Reading a whole answer out of PostgREST, which does not give you one.
- *
- * `api.max_rows` (supabase/config.toml) caps EVERY response at 1000 rows, and
- * it does it silently: no error, no flag, no partial-content status the client
- * library surfaces — a query matching 4000 rows answers with 1000 and looks
- * exactly like a query matching 1000. A `.limit(2000)` does not raise the cap
- * either; it lowers a ceiling that is already lower.
- *
- * So an unbounded read is not "read everything", it is "read the first
- * thousand and believe it", and the reads that were written that way are the
- * ones that go quietly wrong as a workspace grows: a touch history that stops
- * holding the week's breath, a set of seen reviews that starts re-announcing
- * old reviews as new, the people on a saved list that stop counting past the
- * thousandth. Each of those is correct on every small workspace and wrong on
- * exactly the large ones nobody tests against.
- *
- * `readAllRows` pages until the answer is short, so the caller gets the whole
- * set or a loud line saying it did not. The caller MUST order by something
- * unique — a range over an unstable order repeats and skips rows across page
- * boundaries — which is why every call site names a tiebreak column. One
- * pager for the edge and the dashboard: the edge wraps it with its own logger
- * (apps/edge/lib/paged.ts).
- */
 /** `api.max_rows` in supabase/config.toml. A page is a whole one or the last one. */
 declare const MAX_ROWS = 1000;
 /** More than any workspace holds; a bound so a runaway read cannot exhaust a lambda. */
@@ -10660,4 +10889,4 @@ declare function dueCalendars(db: Db, p: {
     tenantId?: string;
 }): Promise<DuePage<DueCalendar>>;
 
-export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type UsageMonthRow, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, migrationHead, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peopleCursorOf, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subjectsWith, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, usageMonth, watchedEvents, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AiFailures, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, type EmittedKind, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MigrationHead, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type UsageMonthRow, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activityTokensOf, addToList, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, erasureDigests, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, migrationHead, monthSent, moveSend, namedFetch, namesOfPeople, notesForReceptionist, observeDb, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peopleCursorOf, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, purgeAiUsage, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, stuckClaims, subjectsWith, subscribeWorkspaceChanges, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, usageMonth, watchedEvents, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

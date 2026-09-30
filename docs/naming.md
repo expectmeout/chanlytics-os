@@ -51,8 +51,9 @@ code does not keep a rule everywhere yet, the rule says where, and what holds th
 
 - **A set of names is declared once and tested both ways**: everything used is declared, everything declared is used.
   The activity log's kinds are `EVENT_KINDS` (`repo/event-kinds.test.mjs`) and the edge's log names `LOG_EVENTS`
-  (`repo/log-events.test.mjs`); the dashboard's `console` names are in no set yet, and a test that declares them is
-  owed. Event kinds are `domain.verb`; job kinds, log events and notification kinds are snake_case, the domain first
+  (`repo/log-events.test.mjs`); the dashboard's server names are `DASHBOARD_LOG_EVENTS`
+  (`apps/dashboard/src/server/log.ts`), held by the same test, and a line names its workspace `tenant_id`, never
+  `tenant`. Event kinds are `domain.verb`; job kinds, log events and notification kinds are snake_case, the domain first
   (`lead_round_start`). A log or event name never changes once it ships: alerting greps for it, so the four `a2p.*`
   log events keep theirs.
 - **An error code is a code.** It is snake_case and names the failure (`not_found`, `rate_limited`,

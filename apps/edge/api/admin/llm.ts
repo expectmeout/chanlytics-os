@@ -36,7 +36,7 @@ import {
 import type { GatewayPurpose } from "../../lib/ask-gateway.js";
 import { mayUseModelFor, recordCall, streamModelCall } from "../../lib/model.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -50,7 +50,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const budgetSeen = new Map<string, { at: number; used: number }>();
 const BUDGET_TTL_MS = MIN_MS;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const tIn = Date.now();
   const auth = authorizeAdmin(request, "/api/admin/llm");
   if (!auth.ok) return auth.response;
@@ -79,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!db) return refuse(503, "no_database");
   const modelPurpose = modelPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
-    L.warn("ask_gateway_may_not_spend", { tenant: tenantId, purpose });
+    L.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
     return refuse(402, "payment_required", "Ask is off while this workspace is paused or its plan has ended.");
   }
   const seen = budgetSeen.get(tenantId);
@@ -92,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
     budgetSeen.set(tenantId, { at: Date.now(), used });
   }
   if (used >= ASK_TOKENS_DAY) {
-    L.warn("ask_budget_spent", { tenant: tenantId, used, cap: ASK_TOKENS_DAY });
+    L.warn("ask_budget_spent", { tenant_id: tenantId, used, cap: ASK_TOKENS_DAY });
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });
   }
 
@@ -114,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
       L.error("ask_gateway_unreachable", { status: up.status, error: up.error.slice(0, 200), fell_back: up.fellBack });
       return refuse(503, "model_unreachable", `model ${up.status || "timeout"}`);
     }
-    L.error("ask_gateway_refused", { status: up.status, body: up.detail });
+    L.error("ask_gateway_refused", { status: up.status, detail: up.detail });
     // The API's refusal of the request, in its own shape: the dashboard reads its message.
     return new Response(
       JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: up.error } }),
@@ -124,14 +124,14 @@ export async function POST(request: Request): Promise<Response> {
       },
     );
   }
-  if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant: tenantId, asked: up.asked, model: up.model });
+  if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant_id: tenantId, asked: up.asked, model: up.model });
   // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
   // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
   const modelMs = Date.now() - t0;
   const stream = teeUsage(up.body, async (usage, stopReason) => {
     const latency = Date.now() - t0;
     L.info("ask_gateway_turn", {
-      tenant: tenantId,
+      tenant_id: tenantId,
       ...usage,
       model: up.model,
       stop_reason: stopReason,
@@ -167,4 +167,4 @@ export async function POST(request: Request): Promise<Response> {
       "server-timing": `gateway;dur=${gatewayMs}, model;dur=${modelMs}`,
     },
   });
-}
+});

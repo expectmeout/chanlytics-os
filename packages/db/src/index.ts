@@ -6,6 +6,8 @@ export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { migrationHead } from "./ops";
 export type { MigrationHead } from "./ops";
 export { createServiceClient } from "./service-client";
+export { observeDb, namedFetch, DB_REQUEST_HEADER } from "./observe";
+export type { DbLog, DbObserver } from "./observe";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,

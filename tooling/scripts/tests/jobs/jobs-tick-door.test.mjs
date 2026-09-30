@@ -22,6 +22,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 import { at, KEY, answer, wire } from "../_cron-doors-world.mjs";
 
 const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEAD_FROM: "Pager <pager@platform.test>" };
@@ -480,7 +481,7 @@ test("a workspace whose vault did not answer is not a workspace that holds none:
       "both jobs are done: one refused at the wire, one handed to a fresh job",
     );
     assert.deepEqual(
-      log.said("wa_credentials_for_tenant_failed").map((l) => [l.stream, l.tenant, l.error]),
+      log.said("wa_credentials_for_tenant_failed").map((l) => [l.stream, l.tenant_id, l.error]),
       [["error", blip.T, "vault unavailable"]],
       "the read's failure is said, under the name alerting greps for",
     );
@@ -517,7 +518,11 @@ test("a workspace whose vault did not answer is not a workspace that holds none:
     [["outbound_send", "scheduled"]],
     "one fresh job, for a heartbeat that can read the vault",
   );
-  assert.deepEqual(fresh[0].payload, { ...waiting.job.payload, resumes: 1 }, "the same send, counting its fresh jobs");
+  assert.deepEqual(
+    withoutRequestId(fresh[0].payload),
+    { ...waiting.job.payload, resumes: 1 },
+    "the same send, counting its fresh jobs",
+  );
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 
@@ -649,7 +654,7 @@ test("a texting line the vault did not answer for is not a workspace with no lin
     fresh.map((j) => [j.kind, j.state ?? "scheduled"]),
     [["outbound_send", "scheduled"]],
   );
-  assert.deepEqual(fresh[0].payload, { ...waiting.job.payload, resumes: 1 });
+  assert.deepEqual(withoutRequestId(fresh[0].payload), { ...waiting.job.payload, resumes: 1 });
   assert.ok(Date.parse(fresh[0].due_at) >= before + 60_000, "a while on, not this second");
 });
 

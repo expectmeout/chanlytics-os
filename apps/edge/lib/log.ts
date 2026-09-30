@@ -1,96 +1,113 @@
 /**
- * Structured logging for the edge.
+ * Structured logging for the edge: the platform's one logger (packages/channels log/), typed by the edge's names.
  *
- * There were 75 console call sites across the edge and the packages it bundles,
- * and FIVE of them mentioned a tenant. The shapes were ad hoc too — some passed
- * a JSON string, some bare values, some an Error's message — so the log was not
- * queryable even in principle. The practical consequence is that "what happened
- * to this business's line yesterday?" could not be answered, which is the
- * question every incident starts with.
+ * There were 75 console call sites across the edge and the packages it bundles, and FIVE of them mentioned a tenant.
+ * The shapes were ad hoc too, so the log was not queryable even in principle, and "what happened to this business's
+ * line yesterday?" could not be answered, which is the question every incident starts with. This module's first
+ * version (21 September) gave every line one envelope; the implementation now lives in channels, so the dashboard's
+ * server and the packages write the same line (level, event, request_id, tenant_id, fields redacted by key).
  *
- * The design constraint that shaped this: EVENT NAMES DO NOT CHANGE. They are
- * the stable identifier anything downstream greps for, and renaming them to
- * make a logger look tidy would break the one thing already working. What
- * changes is that every line carries the same envelope — level, event, tenant,
- * and a correlation id — so lines can be joined into the story of one message.
- * The names are a closed set, LOG_EVENTS (log-events.ts): a line names its
- * event with one of them or it does not compile.
+ * The design constraint that shaped this: EVENT NAMES DO NOT CHANGE. They are the stable identifier anything
+ * downstream greps for. The names are a closed set, LOG_EVENTS (log-events.ts): a line names its event with one of
+ * them or it does not compile. The workspace is `tenant_id`, one spelling (repo/log-events.test.mjs holds it).
  *
- * Vercel captures stdout per invocation, so one JSON object per line is the
- * whole transport. No dependency, no shipping, no sampling.
- *
- * The correlation id is the request's (bindRequestId): a door the dashboard calls names its request with the
- * dashboard's own id (channels requestIdOf), so a click's lines in both apps' logs are one search.
+ * Every door names the request it serves (`door`): the platform's id for the invocation (x-vercel-id), or the
+ * dashboard's own for a door it calls (an admin door trusts the caller's x-request-id), and answers it back in
+ * x-request-id. The name is run, never entered (AsyncLocalStorage.run): it holds for what the door awaits and ends
+ * with it, so a request can never lend its name to the next one the instance serves (edge/request-id-doors.test.mjs).
+ * packages/db logs through the same logger: this module hands it in as it loads.
  */
-import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  logger as oneLogger,
+  errField,
+  withRequestId,
+  requestId,
+  requestIdOf,
+  verifyEdgeToken,
+  REQUEST_ID_HEADER,
+  type Logger as OneLogger,
+  type LogFields,
+} from "./packages/channels.js";
+import { observeDb } from "./packages/db.js";
+import { env } from "./env.js";
 import type { LogEvent } from "./log-events.js";
 
 export type { LogEvent };
-
-type LogLevel = "info" | "warn" | "error";
+export { errField };
 
 /**
- * Fields carried by every line from one logical unit of work. Anything JSON
- * can carry: a provider's error list or a usage object rides as it is, rather
- * than being flattened by hand at every site.
+ * Fields carried by every line from one logical unit of work. Anything JSON can carry: a provider's error list or a
+ * usage object rides as it is, rather than being flattened by hand at every site.
  */
-export type LogContext = Record<string, unknown>;
+type LogContext = LogFields;
 
-/** The request this invocation serves, once a door has named it. */
-const serving = new AsyncLocalStorage<{ id: string }>();
-
-/**
- * Name the request this invocation serves: every line logged after it, in this handler and whatever it awaits, carries
- * `request_id`. Called where a door has read its request (admin-auth's authorizeAdmin); synchronous, so the name holds
- * for the rest of the handler that called it.
- */
-export function bindRequestId(id: string): void {
-  serving.enterWith({ id });
-}
-
-function emit(level: LogLevel, event: string, fields: LogContext): void {
-  // Undefined keys are dropped rather than serialised as null: a field that is
-  // absent because it does not apply should not read as a field that is known
-  // to be empty.
-  const payload: Record<string, unknown> = { level, event };
-  const id = serving.getStore()?.id;
-  if (id) payload.request_id = id;
-  for (const [k, v] of Object.entries(fields)) {
-    if (v === undefined) continue;
-    // The envelope's two keys are the logger's own. A field named `event` once
-    // replaced a line's name with the id it named, and nothing could grep for
-    // the line; such a field rides under `<key>_field` instead.
-    payload[k === "event" || k === "level" || k === "request_id" ? `${k}_field` : k] = v;
-  }
-  const line = JSON.stringify(payload);
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
-  else console.log(line);
-}
-
-export interface Logger {
-  info(event: LogEvent, fields?: LogContext): void;
-  warn(event: LogEvent, fields?: LogContext): void;
-  error(event: LogEvent, fields?: LogContext): void;
-  /** A logger with more context bound — e.g. per message inside a batch. */
-  child(extra: LogContext): Logger;
-}
+export type Logger = OneLogger<LogEvent>;
 
 /**
- * A logger with context bound to it. Pass the tenant once, at the point where
- * it becomes known, and every line beneath it carries it — which is the only
- * way this stays true as code moves around.
+ * A logger with context bound to it. Pass the workspace once, as `tenant_id`, at the point where it becomes known,
+ * and every line beneath it carries it: the only way this stays true as code moves around.
  */
 export function logger(base: LogContext = {}): Logger {
-  return {
-    info: (event, fields) => emit("info", event, { ...base, ...fields }),
-    warn: (event, fields) => emit("warn", event, { ...base, ...fields }),
-    error: (event, fields) => emit("error", event, { ...base, ...fields }),
-    child: (extra) => logger({ ...base, ...extra }),
+  return oneLogger<LogEvent>(base);
+}
+
+// packages/db writes its lines through this logger and names the request it writes for from this store.
+observeDb({ log: oneLogger(), requestId });
+
+/** The answer, carrying the request's name. A response whose headers are fixed (a redirect) is copied to carry it. */
+function named(res: Response, id: string): Response {
+  try {
+    res.headers.set(REQUEST_ID_HEADER, id);
+    return res;
+  } catch {
+    const copy = new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+    copy.headers.set(REQUEST_ID_HEADER, id);
+    return copy;
+  }
+}
+
+/**
+ * The name a knock's token carries (edge-token.ts `rid`), when the token verifies for the door it was sent to: what the
+ * dashboard signed for this call. Null for no token, no secret, a token for another door or one that does not verify,
+ * and a token minted outside a request.
+ */
+function signedName(request: Request): string | null {
+  const token = request.headers.get("x-edge-token");
+  const secret = env.EDGE_CALL_SECRET;
+  if (!token || !secret) return null;
+  try {
+    const verdict = verifyEdgeToken(secret, token, new URL(request.url).pathname);
+    return verdict.ok ? (verdict.claims.rid ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A door: `handler` runs as the request it serves, named once as it enters. Every line it logs, every job it
+ * schedules and every event it writes carries the name, and the answer carries it back. `trustCaller` is the admin
+ * doors': the dashboard names the request it calls with (src/server/edge.ts), signed into its token, so a click's lines
+ * in both apps are one search and a header cannot rename a call whose token verified; a name on a knock that carries no
+ * verified token (a refusal's, or the platform key's) is the header's, and only labels that call's own lines. Every
+ * other door is named by the platform (x-vercel-id), or freshly: a webhook's delivery is its own request.
+ */
+export function door<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
+  opts: { trustCaller?: boolean } = {},
+): (request: Request, ...rest: A) => Promise<Response> {
+  return (request, ...rest) => {
+    // A door a test calls with no request at all (the health door's GET()) is still named, freshly.
+    const trust = opts.trustCaller === true;
+    const id = request?.headers
+      ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
+      : globalThis.crypto.randomUUID();
+    return withRequestId(id, async () => named(await handler(request, ...rest), id));
   };
 }
 
-/** An error rendered for a log field: name and message, never a stack blob. */
-export function errField(e: unknown): string {
-  return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+/** An admin door: named by the dashboard's request when it says one (door, trustCaller). */
+export function adminDoor<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
+): (request: Request, ...rest: A) => Promise<Response> {
+  return door(handler, { trustCaller: true });
 }

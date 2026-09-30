@@ -1,57 +1,164 @@
 import "server-only";
-import { AsyncLocalStorage } from "node:async_hooks";
+import { logger, noteTenant, requestId, withRequestId, type Logger } from "@chanlytics/channels";
+import { observeDb } from "@chanlytics/db";
 
 /**
- * The dashboard's one logger: one JSON object per line, the edge's shape (apps/edge/lib/log.ts), and every line
- * carries the request it belongs to.
+ * The dashboard's server logs through the platform's one logger (packages/channels log/), the edge's too: one JSON
+ * object per line, every line carrying the request it belongs to, its fields redacted by key.
  *
- * It had none. A hundred and twenty-five console calls wrote three shapes (a JSON string, positional values, a bare
- * message), and no line said which request it came from. "What happened to this click?" meant matching timestamps
- * by eye across two apps' logs. Now with-route names each request (channels requestIdOf) and runs the handler inside
- * that name. Every line logged beneath it carries `request_id`, the answer carries it back to the browser, and a call
- * to the edge carries it to the edge's own lines (edge.ts).
+ * It had none, then a copy (#1332). A hundred and twenty-five console calls wrote three shapes (a JSON string,
+ * positional values, a bare message), and no line said which request it came from; #1332 gave the dashboard a logger
+ * of the edge's shape with a store of its own, so the packages' lines beneath a route still carried no name. Now
+ * with-route names each request (channels requestIdOf) and runs the handler inside that name (withRequestId), the
+ * route pipeline says the workspace once it is resolved (noteTenant), and every line beneath, a package's included,
+ * carries both; the answer carries the name back to the browser, and a call to the edge carries it on (edge.ts).
  *
- * EVENT NAMES DO NOT CHANGE: they are what alerting greps for. A line's fields are named rather than positional, so
- * the log can be queried.
+ * EVENT NAMES DO NOT CHANGE: they are what alerting greps for. They are a closed set, DASHBOARD_LOG_EVENTS below,
+ * and a line's fields are named rather than positional, so the log can be queried.
  */
 
-/** The request the code running now serves: with-route binds it where the request enters. */
-const serving = new AsyncLocalStorage<{ id: string }>();
-
-/** Run `fn` as the request named `id`: every line it logs, and every call it makes to the edge, carries the name. */
-export function withRequestId<T>(id: string, fn: () => T): T {
-  return serving.run({ id }, fn);
-}
-
-/** The name of the request the code running now serves, or null outside one (a script, a test). */
-export function requestId(): string | null {
-  return serving.getStore()?.id ?? null;
-}
-
-type Level = "info" | "warn" | "error";
 /**
- * A line's fields: anything JSON can carry. An undefined field is dropped, not written as null, and an Error is
- * written as its message, never its stack (`{ error: e }` straight from a catch).
+ * Every event name the dashboard's server logs, and nothing it does not: `log` takes a DashboardLogEvent, so a name
+ * outside this list is a type error, and tooling/scripts/tests/repo/log-events.test.mjs holds the list to the call
+ * sites both ways, as it holds the edge's LOG_EVENTS. Sorted, so two changes that add a name each touch different lines.
  */
-type LogFields = Record<string, unknown>;
+export const DASHBOARD_LOG_EVENTS = [
+  "account_delete_failed",
+  "account_delete_plan_not_ended",
+  "ask_answer_beside_read",
+  "ask_answer_beside_refused_card",
+  "ask_answer_not_json",
+  "ask_answer_unparsed",
+  "ask_context_failed",
+  "ask_context_read_failed",
+  "ask_context_refused",
+  "ask_context_rejected",
+  "ask_cross_page_failed",
+  "ask_examples_rejected",
+  "ask_feed_fetch_failed",
+  "ask_format_rejected",
+  "ask_gateway_refused",
+  "ask_model_unknown",
+  "ask_openings_failed",
+  "ask_proposal_failed",
+  "ask_replay_malformed",
+  "ask_replay_rejected",
+  "ask_replay_unread",
+  "ask_round_hit_cap",
+  "ask_save_failed",
+  "ask_say_not_first",
+  "ask_shape_failed",
+  "ask_sources_dropped",
+  "ask_thread_touch_failed",
+  "ask_tool_failed",
+  "ask_tool_input_cut_off",
+  "ask_tool_read_failed",
+  "ask_turn",
+  "ask_turn_failed",
+  "ask_turn_shape",
+  "auth_unavailable",
+  "booking_report_failed",
+  "broadcast_touches_failed",
+  "calendar_parse_failed",
+  "calendar_people_refused",
+  "calendar_people_seen_failed",
+  "calendar_person_add_failed",
+  "calendar_person_email_failed",
+  "cancel_pending_ai_reply_failed",
+  "card_receipt_unkept",
+  "client_error",
+  "cross_site_write_refused",
+  "db_failed",
+  "deal_door_unknown_answer",
+  "deal_pace_read_failed",
+  "decision_undo_of_unknown",
+  "draft_malformed",
+  "end_call_unrecorded",
+  "erase_ask_prescrub_failed",
+  "erase_ask_scrub_failed",
+  "erase_ask_scrubbed",
+  "erase_begin_failed",
+  "erase_jobs_prescrub_failed",
+  "erase_jobs_scrub_failed",
+  "erase_jobs_scrubbed",
+  "erase_person_policy_failed",
+  "erase_storage_failed",
+  "erase_sweep_decision_failed",
+  "export.call",
+  "export.leads",
+  "export.people",
+  "export.transcript",
+  "export.workspace",
+  "first_alert_address_not_saved",
+  "follow_up_facts_failed",
+  "google_connect_failed",
+  "google_search_failed",
+  "handover_invite_failed",
+  "handovers_unread",
+  "idempotency_release_failed",
+  "import_decision_failed",
+  "inbox_escalated_fetch_failed",
+  "lead_door_refusal_unknown",
+  "media_remove_failed",
+  "media_remove_refused",
+  "native_sign_in_failed",
+  "native_sign_in_rate_limited",
+  "native_sign_in_refused",
+  "note_door_unknown_answer",
+  "oauth_exchange_failed",
+  "oauth_provider_refused",
+  "page_vitals_not_kept",
+  "partner_code_dropped",
+  "partner_invite_failed",
+  "pending_workspace_clear_failed",
+  "people_policies_read_failed",
+  "people_visits_failed",
+  "person_notes_read_failed",
+  "person_visits_failed",
+  "platform_waitlist_unreadable",
+  "playbook_pools_follow_ups_failed",
+  "playbook_pools_lists_failed",
+  "playbook_pools_people_failed",
+  "playbook_pools_visits_failed",
+  "policy_event_failed",
+  "prompt_preview_openings_failed",
+  "prompt_preview_policy_unreadable",
+  "prompt_preview_refused",
+  "rate_store_failed",
+  "rate_store_memory_by_configuration",
+  "recording_audit_unavailable",
+  "reply_claim_failed",
+  "resolve_escalation_failed",
+  "resolve_escalation_noop",
+  "resolve_link_decision_failed",
+  "route_answered",
+  "route_failed",
+  "route_refused",
+  "settings_event_failed",
+  "setup_request_tell_failed",
+  "signed_media_url_failed",
+  "signed_media_url_refused",
+  "signup",
+  "signup_code_not_sent",
+  "signup_failed",
+  "signup_notify_failed",
+  "tenant_config_unreadable",
+  "today_calls_fetch_failed",
+  "today_email_line_read_failed",
+  "today_searches_fetch_failed",
+  "translation_malformed",
+  "unsubscribe_bad_link",
+  "unsubscribe_not_recorded",
+  "unsubscribe_unavailable",
+  "waitlist_join",
+  "waitlist_repeat_not_updated",
+  "you_are_live_tell_failed",
+] as const;
+export type DashboardLogEvent = (typeof DASHBOARD_LOG_EVENTS)[number];
 
-function writeLine(level: Level, event: string, fields: LogFields): void {
-  const line: Record<string, unknown> = { level, event };
-  const id = requestId();
-  if (id) line.request_id = id;
-  for (const [k, v] of Object.entries(fields)) {
-    if (v === undefined) continue;
-    // The envelope's keys are the logger's own: a field that would replace one rides under `<key>_field`.
-    line[k === "event" || k === "level" || k === "request_id" ? `${k}_field` : k] = v instanceof Error ? v.message : v;
-  }
-  const text = JSON.stringify(line);
-  if (level === "error") console.error(text);
-  else if (level === "warn") console.warn(text);
-  else console.log(text);
-}
+export const log: Logger<DashboardLogEvent> = logger<DashboardLogEvent>();
 
-export const log = {
-  info: (event: string, fields: LogFields = {}): void => writeLine("info", event, fields),
-  warn: (event: string, fields: LogFields = {}): void => writeLine("warn", event, fields),
-  error: (event: string, fields: LogFields = {}): void => writeLine("error", event, fields),
-};
+export { withRequestId, requestId, noteTenant };
+
+// packages/db writes its lines through the one logger and names the request it writes for from the same store.
+observeDb({ log: logger(), requestId });

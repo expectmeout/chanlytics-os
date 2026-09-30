@@ -55,7 +55,7 @@ import {
 import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/receptionist/outbound-gate.js";
 import { voiceDoorAuth } from "../lib/voice/voice-door-auth.js";
-import { logger, errField, type Logger } from "../lib/log.js";
+import { logger, errField, door, type Logger } from "../lib/log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -121,7 +121,7 @@ interface RefusedAt {
  * colleague is mid-thread with them, or what our policy is.
  */
 async function refusedOnTheCall(db: Db, L: Logger, refusal: OutboundRefusal, at: RefusedAt): Promise<Response> {
-  L.info("retell_fn_refused", { tenant: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
+  L.info("retell_fn_refused", { tenant_id: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
   await emitEvent(db, at.tenantId, "message.send_blocked", "conversation", at.conversationId, {
     reason: refusal,
     source: VOICE_SEND_SOURCE,
@@ -131,7 +131,7 @@ async function refusedOnTheCall(db: Db, L: Logger, refusal: OutboundRefusal, at:
   return json(200, { result: refusalScript(refusal, at.publishedNumber) });
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
   // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
@@ -203,11 +203,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!brain) {
     // Same rule the receptionist follows: a business with no configured profile
     // does not speak in a voice we invented for it.
-    L.info("retell_fn_no_persona", { tenant: routed.tenantId });
+    L.info("retell_fn_no_persona", { tenant_id: routed.tenantId });
     return json(200, { result: CANNOT_SEND });
   }
   if (!offersBookingLink(brain)) {
-    L.info("retell_fn_no_link", { tenant: routed.tenantId });
+    L.info("retell_fn_no_link", { tenant_id: routed.tenantId });
     return json(200, { result: NO_LINK });
   }
 
@@ -221,7 +221,7 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!contact) {
-      L.info("retell_fn_refused_third_party", { tenant: routed.tenantId });
+      L.info("retell_fn_refused_third_party", { tenant_id: routed.tenantId });
       return json(200, {
         result:
           "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
@@ -264,7 +264,7 @@ export async function POST(request: Request): Promise<Response> {
       // the reason given, and recorded as the gate records it. Answered first, the missing template told a caller of a
       // workspace holding its bookings that they "can book online", the one thing the workspace chose not to have said.
       if (held) return refusedOnTheCall(db, L, "booking_needs_a_person", refusedAt);
-      L.info("retell_fn_no_template", { tenant: routed.tenantId });
+      L.info("retell_fn_no_template", { tenant_id: routed.tenantId });
       return json(200, { result: NO_TEMPLATE });
     }
     // Meta's own word for what this message is, read from the row a sync wrote.
@@ -357,7 +357,7 @@ export async function POST(request: Request): Promise<Response> {
     if (out.outcome === "refused") {
       // The wire found what the gate could not see a moment ago. An erased
       // person is spoken of as one who asked us to stop, which is what they did.
-      L.info("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
+      L.info("retell_fn_refused_at_wire", { tenant_id: routed.tenantId, reason: out.reason });
       // This send is on WhatsApp, so email's refusals and outreach's cannot arise
       // here; the compiler cannot know that. The call names the refusals it has
       // words for, and for any other one, "it could not be sent" is the true
@@ -380,10 +380,10 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (out.outcome === "failed") {
       if (out.reason === "no_credentials") {
-        L.info("retell_fn_no_credentials", { tenant: routed.tenantId });
+        L.info("retell_fn_no_credentials", { tenant_id: routed.tenantId });
         return json(200, { result: refusalScript("policy_hold", publishedNumber) });
       }
-      L.error("booking_link_send_failed", { status: out.status, body: out.errorBody });
+      L.error("booking_link_send_failed", { tenant_id: routed.tenantId, status: out.status, reason: out.reason });
       return json(200, {
         result: publishedNumber
           ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
@@ -391,7 +391,7 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    L.info("retell_fn_sent", { tenant: routed.tenantId, wamid: out.externalId });
+    L.info("retell_fn_sent", { tenant_id: routed.tenantId, wamid: out.externalId });
     return json(200, { result: "Booking link sent to their WhatsApp. Confirm they should see it momentarily." });
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go
@@ -399,4 +399,4 @@ export async function POST(request: Request): Promise<Response> {
     L.error("retell_fn_failed", { error: errField(e) });
     return json(200, { result: CANNOT_SEND });
   }
-}
+});

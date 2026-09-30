@@ -230,6 +230,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "DELETE me/devices": "this device's push registration",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
+  "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
   // The partner's own pane and the team's partner card read their rows themselves, again after each act.
   "POST partner": "the partner's account, published from the answer at once (partner.ts become)",
   "PATCH partner": "the partner's letters, published from the answer at once (partner.ts setLetters)",

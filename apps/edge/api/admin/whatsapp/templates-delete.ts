@@ -13,13 +13,13 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { deleteTemplate } from "../../../lib/whatsapp/meta-templates.js";
-import { logger } from "../../../lib/log.js";
+import { logger, adminDoor } from "../../../lib/log.js";
 
 const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-delete");
   if (!auth.ok) return auth.response;
   const body = await readBody<{ tenant_id?: unknown; template_id?: unknown }>(request);
@@ -83,4 +83,4 @@ export async function POST(request: Request): Promise<Response> {
   if (error) return refuse(500, "write_failed", error.message);
   L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
-}
+});

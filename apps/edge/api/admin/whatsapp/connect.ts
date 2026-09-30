@@ -34,7 +34,7 @@ import {
   wabaInfo,
 } from "../../../lib/whatsapp/meta-graph.js";
 import { env } from "../../../lib/env.js";
-import { logger } from "../../../lib/log.js";
+import { logger, adminDoor } from "../../../lib/log.js";
 
 interface ConnectBody {
   tenant_id?: string;
@@ -68,7 +68,7 @@ async function connected(
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID = /^\d{6,32}$/;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/connect");
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
@@ -97,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const L = logger({ tenant: tenantId, phone_number_id: phoneNumberId, waba_id: wabaId });
+  const L = logger({ tenant_id: tenantId, phone_number_id: phoneNumberId, waba_id: wabaId });
 
   // A number already connected to another workspace is not connected twice.
   // The ERROR is read, not just the row: (kind, external_id) is unique, so the
@@ -247,4 +247,4 @@ export async function POST(request: Request): Promise<Response> {
     quality_rating: config.quality_rating,
     registration: config.registration,
   });
-}
+});

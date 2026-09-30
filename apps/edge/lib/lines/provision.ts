@@ -94,7 +94,7 @@ export async function provisionLine(
   const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
   if (result.ok && result.later) {
     // Nobody is told anything: the line is still setting up, and the next run goes on from its step.
-    logger({ tenant: tenant.id }).info("line_saga_later", {
+    logger({ tenant_id: tenant.id }).info("line_saga_later", {
       line: line.id,
       step: result.step,
       provider: choice.name,
@@ -121,7 +121,7 @@ export async function provisionLine(
   } else {
     await reportLineFailed(db, choice.name, tenant, result.line, result.step, result.error, by);
   }
-  logger({ tenant: tenant.id }).info("line_saga", {
+  logger({ tenant_id: tenant.id }).info("line_saga", {
     line: line.id,
     ok: result.ok,
     step: result.ok ? null : result.step,

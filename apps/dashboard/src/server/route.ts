@@ -276,10 +276,10 @@ async function onceForCard<O>(
     response,
     stamp: nowIso,
   }).catch((e: unknown) => {
-    log.error("card_receipt_unkept", { tenant: tenantId, error: e });
+    log.error("card_receipt_unkept", { tenant_id: tenantId, error: e });
     return true;
   });
-  if (!kept) log.error("card_receipt_unkept", { tenant: tenantId, error: "the key was taken over" });
+  if (!kept) log.error("card_receipt_unkept", { tenant_id: tenantId, error: "the key was taken over" });
   return out;
 }
 

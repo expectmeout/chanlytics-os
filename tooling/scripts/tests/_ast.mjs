@@ -521,7 +521,8 @@ const isRpcCall = (m) =>
 /**
  * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and
  * `import x = require("…")`. `typeOnly` is true when nothing the statement names survives compilation (`import type`,
- * `export type`, or an import whose every name is `type`). A dynamic import is never type-only.
+ * `export type`, or an import whose every name is `type`). A dynamic import is never type-only. `names` are the
+ * values an `import { … }` takes (the module's own names, type-only elements left out); empty for anything else.
  */
 export function importsOf(sf) {
   const out = [];
@@ -531,7 +532,7 @@ export function importsOf(sf) {
       n.moduleSpecifier &&
       ts.isStringLiteral(n.moduleSpecifier)
     ) {
-      out.push({ specifier: n.moduleSpecifier.text, typeOnly: statementIsTypeOnly(n) });
+      out.push({ specifier: n.moduleSpecifier.text, typeOnly: statementIsTypeOnly(n), names: valueNamesOf(n) });
     } else if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) {
       const e = n.moduleReference.expression;
       if (ts.isStringLiteral(e)) out.push({ specifier: e.text, typeOnly: n.isTypeOnly });
@@ -549,6 +550,14 @@ export function importsOf(sf) {
   };
   visit(sf);
   return out;
+}
+
+/** The names an `import { a, b as c }` takes from its module, as the module calls them; none for any other statement. */
+function valueNamesOf(n) {
+  const named =
+    ts.isImportDeclaration(n) && n.importClause && !n.importClause.isTypeOnly ? n.importClause.namedBindings : null;
+  if (!named || !ts.isNamedImports(named)) return [];
+  return named.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text);
 }
 
 function statementIsTypeOnly(n) {

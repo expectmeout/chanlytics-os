@@ -543,6 +543,42 @@ const PlatformVitalsCard = ({ P, rows, problem }) => {
   );
 };
 
+// Each workspace's day, counted (00277 platform_metrics): the newest day the nightly rollup counted, a line per
+// workspace, the ones whose customers got no answer at all first. Read from the overview this tab holds (peekList),
+// so the page's own reads are unchanged; an overview that predates it draws no card. Every word is the view model's
+// (contracts platformDaysWords).
+const PlatformDaysCard = ({ P, problem }) => {
+  const held = P.peekList ? P.peekList() : null;
+  const rows = held && held.ok ? held.days : undefined;
+  if (problem || rows === undefined) return null;
+  const work = P.daysWords(rows);
+  return (
+    <section className="fl-card set-card" data-testid="platform-days">
+      <div className="fl-card-head">
+        <h2 className="fl-card-title">Each workspace's day</h2>
+        <span className="fl-card-sub set-says" data-testid="platform-days-words">{work.sentence}</span>
+      </div>
+      {work.lines.length > 0 && (
+        <div className="cl-attn-list" data-testid="platform-days-lines">
+          {work.lines.map((l) => (
+            <div className="set-row" key={l.tenantId}>
+              <div className="set-row-info">
+                <span className="set-row-label">{l.name}</span>
+                <span className="set-row-hint" data-tone={l.tone}>
+                  {[l.answers, l.receptionist, l.failures].filter(Boolean).join(" · ")}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+// The platform's work, below its health: how fast the pages are, and each workspace's day.
+const PlatformWorkCards = ({ P, vitals, problem }) => <><PlatformVitalsCard P={P} rows={vitals} problem={problem} /><PlatformDaysCard P={P} problem={problem} /></>;
+
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
@@ -612,7 +648,7 @@ const PanePlatform = () => {
   return (
     <>
       <PlatformHealthCard P={P} health={health} />
-      <PlatformVitalsCard P={P} rows={vitals} problem={problem} />
+      <PlatformWorkCards P={P} vitals={vitals} problem={problem} />
       {/* Who is knocking. These people have no workspace, so this is the only
           surface in the product they appear on at all -- which is how a table
           with a writer and no reader went unnoticed long enough for the writer

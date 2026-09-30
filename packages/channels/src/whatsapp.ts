@@ -5,6 +5,7 @@
  */
 import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, OPT_OUT_PATTERN } from "@chanlytics/contracts";
 import { answerObject, providerFetch, type SendOutcome } from "./provider-fetch";
+import { errField, logger } from "./log/logger";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
 
@@ -374,7 +375,7 @@ export async function fetchMediaBytes(
       tries: 2,
     });
     // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
-    if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);
+    if (metaRes.status === 0) logger().error("media_fetch_failed", { media_id: providerMediaId, error: metaRes.error });
     if (metaRes.outcome !== "ok") return null;
     const meta = (answerObject(metaRes) ?? {}) as { url?: string; mime_type?: string };
     if (!meta.url) return null;
@@ -387,19 +388,19 @@ export async function fetchMediaBytes(
 
     const declared = Number(binRes.headers.get("content-length") ?? "0");
     if (declared > MEDIA_MAX_BYTES) {
-      console.error("media_too_large", providerMediaId, declared);
+      logger().error("media_too_large", { media_id: providerMediaId, bytes: declared });
       return null;
     }
     const bytes = await binRes.arrayBuffer();
     if (bytes.byteLength > MEDIA_MAX_BYTES) {
-      console.error("media_too_large_after_read", providerMediaId, bytes.byteLength);
+      logger().error("media_too_large_after_read", { media_id: providerMediaId, bytes: bytes.byteLength });
       return null;
     }
     return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
   } catch (e) {
     // A timeout or network fault must return, not throw: the caller stores a
     // 'failed' fetch_state and the conversation still reaches a human.
-    console.error("media_fetch_failed", providerMediaId, e instanceof Error ? `${e.name}: ${e.message}` : e);
+    logger().error("media_fetch_failed", { media_id: providerMediaId, error: errField(e) });
     return null;
   }
 }

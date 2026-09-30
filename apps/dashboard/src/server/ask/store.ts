@@ -13,6 +13,7 @@ import {
 import type { Json } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { answeringOf, askTurnText } from "./prompt";
+import { log } from "@/server/log";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -210,7 +211,7 @@ export async function touchThread(ctx: RouteContext, threadId: string, scope: As
     .from("ask_threads")
     .update({ last_at: new Date().toISOString(), scope: scopeColumn(scope) })
     .eq("id", threadId);
-  if (error) console.error("ask_thread_touch_failed", error.message);
+  if (error) log.error("ask_thread_touch_failed", { error: error.message });
 }
 
 /**

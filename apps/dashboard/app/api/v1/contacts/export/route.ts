@@ -45,7 +45,7 @@ export const GET = read({
     }
     log.info("export.people", {
       user: ctx.userId,
-      tenant: member.tenantId,
+      tenant_id: member.tenantId,
       rows: people.length,
       ...(list ? { list: list.token } : {}),
     });

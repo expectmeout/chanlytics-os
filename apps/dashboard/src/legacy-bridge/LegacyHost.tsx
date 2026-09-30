@@ -70,6 +70,8 @@ if (typeof window !== "undefined") void import("./LegacyApp");
  * as the page begins, because the shell may move it before the reporter arrives.
  */
 const FieldDataReporter = lazy(() => import("../client/field-data-reporter"));
+/** The shell's pane boundary says what it caught on window; this sends it (src/client/client-error.ts). */
+const shellErrors = () => import("../client/client-error").then((m) => m.listenForShellErrors(window));
 const landedOn = typeof window === "undefined" ? "" : window.location.hash;
 
 /** True once the page's load event has fired: what waits for it never competes with what the page is loading. */
@@ -98,6 +100,15 @@ function useLoaded(): boolean {
 export default function LegacyHost({ home = false }: { home?: boolean }) {
   const [stay, setStay] = useState(!home);
   const loaded = useLoaded();
+  useEffect(() => {
+    let unhook: (() => void) | null = null;
+    let gone = false;
+    void shellErrors().then((u) => (gone ? u() : (unhook = u)));
+    return () => {
+      gone = true;
+      unhook?.();
+    };
+  }, []);
   useEffect(() => {
     if (!home) return;
     let cancelled = false;

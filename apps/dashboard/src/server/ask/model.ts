@@ -1,5 +1,6 @@
 import "server-only";
 import { askModelProfile, type AskModelProfile } from "@chanlytics/contracts";
+import { log } from "@/server/log";
 
 /**
  * The profile this deployment runs Ask on: ASK_MODEL in the environment, one
@@ -13,7 +14,7 @@ export function askModel(): AskModelProfile {
   const profile = askModelProfile(name);
   if (name && profile.id !== name && warnedFor !== name) {
     warnedFor = name;
-    console.warn("ask_model_unknown", JSON.stringify({ name, ran: profile.id }));
+    log.warn("ask_model_unknown", { name, ran: profile.id });
   }
   return profile;
 }

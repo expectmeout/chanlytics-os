@@ -13,6 +13,7 @@
 import { pg } from "../lib/pg.js";
 import { platformHealthOf } from "../lib/packages/contracts.js";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
+import { door } from "../lib/log.js";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;
@@ -73,7 +74,7 @@ function remember(status: number, body: HealthAnswer): Response {
   return answer(status, text);
 }
 
-export async function GET(): Promise<Response> {
+export const GET = door(async function GET(): Promise<Response> {
   const hit = fromCache();
   if (hit) return hit;
   const db = pg();
@@ -97,4 +98,4 @@ export async function GET(): Promise<Response> {
     judged = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "error" } };
   }
   return remember(judged.status, judged.body);
-}
+});

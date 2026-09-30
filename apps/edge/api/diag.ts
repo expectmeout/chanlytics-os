@@ -12,6 +12,7 @@ import { brainSummary } from "../lib/receptionist/budget.js";
 import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
 import { pageStates, untoldPages, type PageRow } from "../lib/ops/page-operator.js";
 import {
+  breakerStates,
   getAgent,
   getRetellLlm,
   providerFetch,
@@ -25,6 +26,7 @@ import { env } from "../lib/env.js";
 import { unsubscribeOrigin, unsubscribeOriginRejected } from "../lib/dashboard-origin.js";
 import { coldReplyDomains } from "../lib/email/email.js";
 import { emailDomainOf } from "../lib/packages/contracts.js";
+import { door } from "../lib/log.js";
 
 const META_APP_ID = metaAppId();
 /** How long the report waits on a provider it reads (Meta's token check): a stuck one used to hold the whole report. */
@@ -36,7 +38,7 @@ type Section = Record<string, unknown>;
 /** The report: a key per part, and no `error` of its own (a part that cannot read says so under its own key). */
 type Report = { [part: string]: unknown; error?: never };
 
-export async function GET(request: Request): Promise<Response> {
+export const GET = door(async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
   // and one that lands in access logs. The platform's door: nothing mints a
@@ -48,7 +50,7 @@ export async function GET(request: Request): Promise<Response> {
   const out: Report = {};
   for (const part of REPORT) Object.assign(out, await part());
   return json(200, out);
-}
+});
 
 /**
  * The report, part by part, in the order it shows them. Nothing here runs before the knock is let in. Each part reads
@@ -67,7 +69,17 @@ const REPORT: (() => Section | Promise<Section>)[] = [
   whatsappGates,
   receptionistDay,
   migrationHead,
+  providerBreakers,
 ];
+
+/**
+ * Each provider's breaker in the instance that answered (channels providerFetch): whether it holds that provider's
+ * calls, how many faults in a row it has counted, and until when. An instance learns an outage for itself, so this is
+ * one instance's view; `breaker_open` in the log is every instance's.
+ */
+function providerBreakers(): Section {
+  return { breakers: breakerStates() };
+}
 
 /**
  * Where the bot's MEMORY comes from. Postgres, and nothing else: the

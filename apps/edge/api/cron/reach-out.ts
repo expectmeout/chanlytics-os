@@ -13,12 +13,12 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { logger } from "../../lib/log.js";
+import { logger, door } from "../../lib/log.js";
 import { dueDomains } from "../../lib/packages/db.js";
 import { reachOutClock } from "../../lib/reach-out/clock.js";
 import { claimAndWrite, coldLane } from "../../lib/reach-out/sender.js";
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const started = Date.now();
   const L = logger({ sweep: "reach_out" });
   const db = pg();
@@ -47,4 +47,4 @@ export async function POST(request: Request): Promise<Response> {
     L.error("reach_out_sweep_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
-}
+});

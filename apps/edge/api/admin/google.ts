@@ -43,7 +43,7 @@ import { checkListing } from "../../lib/google/listing-check.js";
 import { draftFor, replyOnProfile, reviewReplyMode } from "../../lib/google/review-answers.js";
 import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "../../lib/google/profile-connection.js";
 import { syncProfile } from "../../lib/google/profile-sync.js";
-import { logger, type Logger } from "../../lib/log.js";
+import { logger, type Logger, adminDoor } from "../../lib/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/packages/db.js";
 import {
@@ -113,7 +113,7 @@ const reviewIdOf = (v: unknown): string | null => {
   return UUID.test(id) ? id : null;
 };
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
   const body = await readBody<GoogleBody>(request);
@@ -139,7 +139,7 @@ export async function POST(request: Request): Promise<Response> {
   const onListing = pick(ON_LISTING, op);
   if (onListing) return onListing(c, conn.data, row.data);
   return respond(UNKNOWN_GOOGLE_OP);
-}
+});
 
 /** Past status and search every op needs a database and a workspace on record, with its clock and who is asking. */
 async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: GoogleCall } | Refused> {
@@ -151,7 +151,7 @@ async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: Googl
   if (!tenant.ok) return tenant;
   const tz = tenant.row.timezone || "America/New_York";
   const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
-  return { ok: true, value: { body, db, tenantId, tz, userId, L: logger({ tenant: tenantId }) } };
+  return { ok: true, value: { body, db, tenantId, tz, userId, L: logger({ tenant_id: tenantId }) } };
 }
 
 /** The listing as the dashboard sees it, read now. */

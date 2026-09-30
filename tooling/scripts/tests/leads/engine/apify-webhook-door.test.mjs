@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { leadWorld, TENANT, webhookToken, sha256 } from "../../_lead-world.mjs";
+import { withoutRequestId } from "../../_log-lines.mjs";
 import { planApifyIngress, tokenMatches } from "../../../../../apps/edge/lib/leads/apify-ingress.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
@@ -79,7 +80,7 @@ const payload = (runId = "RunFixture0001", eventType = "ACTOR.RUN.SUCCEEDED") =>
   eventData: { actorId: "nwua9Gu5YrADL7ZDj", actorRunId: runId },
   resource: { id: runId, status: "SUCCEEDED", defaultDatasetId: "DsFixture0001" },
 });
-const jobs = () => w.T.jobs.map((j) => [j.kind, j.payload]);
+const jobs = () => w.T.jobs.map((j) => [j.kind, withoutRequestId(j.payload)]);
 
 test("ACCEPTANCE: a wrong token is refused in constant time and writes nothing, whatever the body says; the provider is not even asked", async () => {
   assert.equal(await post(payload(), { token: await webhookToken("66666666-6666-4666-8666-666666666666") }), 401);

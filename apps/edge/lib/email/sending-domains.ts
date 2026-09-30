@@ -231,7 +231,7 @@ export async function addSendingDomain(
       await deleteSendingDomain(p.db, i.tenantId, reservation.id).catch((e) =>
         p.log.error("sending_domain_reservation_left", { domain: reservation.id, error: String(e) }),
       );
-      p.log.warn("sending_domain_refused", { tenant: i.tenantId, host, status: made.status, message: made.message });
+      p.log.warn("sending_domain_refused", { tenant_id: i.tenantId, host, status: made.status, message: made.message });
       return made.status === 0 || made.status >= 500
         ? say(502, "provider", "The mail provider didn't answer. Try again in a minute.")
         : say(502, "provider", `The mail provider would not take ${host}: ${made.message}`);

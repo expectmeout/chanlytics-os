@@ -15,14 +15,15 @@ test("it answers the commit the deployment was built from, never cached, and 'de
   const before = process.env.VERCEL_GIT_COMMIT_SHA;
   try {
     process.env.VERCEL_GIT_COMMIT_SHA = "1388f2cc6581dc21596184252dc090b65d2f1d4c";
-    const res = GET();
+    const res = await GET();
     assert.equal(res.status, 200);
+    assert.ok(res.headers.get("x-request-id"), "a door names its request, this one too");
     assert.equal(res.headers.get("cache-control"), "no-store");
     assert.deepEqual(await res.json(), { sha: "1388f2cc6581dc21596184252dc090b65d2f1d4c" });
     process.env.VERCEL_GIT_COMMIT_SHA = "  ";
-    assert.deepEqual(await GET().json(), { sha: "dev" }, "blank is unset, as every edge variable");
+    assert.deepEqual(await (await GET()).json(), { sha: "dev" }, "blank is unset, as every edge variable");
     delete process.env.VERCEL_GIT_COMMIT_SHA;
-    assert.deepEqual(await GET().json(), { sha: "dev" });
+    assert.deepEqual(await (await GET()).json(), { sha: "dev" });
   } finally {
     if (before === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
     else process.env.VERCEL_GIT_COMMIT_SHA = before;

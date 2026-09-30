@@ -24,12 +24,12 @@ import { pg } from "../lib/pg.js";
 import { smsStatusFrom, smsStatusToRow, verifyTwilioSignature } from "../lib/packages/channels.js";
 import { recordStatusByExternalId } from "../lib/packages/db.js";
 import { lineByNumber, lineAccount } from "../lib/sms/sms.js";
-import { logger } from "../lib/log.js";
+import { logger, door } from "../lib/log.js";
 import { phoneTail } from "../lib/packages/contracts.js";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const form: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(raw)) form[k] = v;
@@ -83,4 +83,4 @@ export async function POST(request: Request): Promise<Response> {
   }
   L.info("sms_status", { recorded: rowStatus, code: s.errorCode });
   return empty(200);
-}
+});

@@ -22,7 +22,7 @@ import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/pa
 import type { RoutedChannel } from "../../lib/packages/db.js";
 import { brainCallOf, generateReply } from "../../lib/receptionist/brain.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -49,7 +49,7 @@ export interface BrainPort {
   generateReply?: typeof generateReply;
 }
 
-export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   // A door for one workspace: the harness (tooling/scripts/eval-brain.mjs) mints a token for it and that workspace,
   // as the dashboard mints one; the key opens it only on an edge without the secret.
@@ -137,10 +137,10 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   // The texts are the model's and stay out of the log; the count and the
   // time are what a search needs.
   L.info("admin_eval", {
-    tenant: tenantId,
+    tenant_id: tenantId,
     cases: cases.length,
     ms: Date.now() - started,
     prompt_chars: system.length,
   });
   return json(200, { ok: true, prompt_chars: system.length, timezone: rt.timezone, results });
-}
+});

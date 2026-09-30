@@ -18,14 +18,14 @@ import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameWhisper } from "../../lib/packages/contracts.js";
 import { env } from "../../lib/env.js";
-import { logger } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
 /** One answer's worth. A whisper is worked into the next thing said. */
 const MAX_CHARS = 500;
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whisper");
   if (!auth.ok) return auth.response;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
@@ -48,4 +48,4 @@ export async function POST(request: Request): Promise<Response> {
   L.info("admin_whisper", { call_id: callId, chars: text.length, ok: r.ok, status: r.status });
   if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
   return json(200, { ok: true });
-}
+});

@@ -22,6 +22,7 @@ import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { IDS_PER_READ } from "./people";
+import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -123,9 +124,9 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");
-  if (error) console.error("link_call_message_failed", error.message);
+  if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
 }
 
 /**
@@ -173,9 +174,9 @@ export async function setCallRecording(
     .eq("id", callId)
     .eq("tenant_id", tenantId)
     .select("id");
-  if (error) console.error("set_call_recording_failed", error.message);
+  if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
   else if (!data || data.length === 0)
-    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 
 /** The customer's thread gets the call as a message, so history stays in one place. */
@@ -220,7 +221,7 @@ export async function recordCallNote(
         .maybeSingle();
       return prior?.id ?? null;
     }
-    console.error("record_call_note_failed", error.message);
+    dbLog().error("record_call_note_failed", { tenant_id: p.tenantId, error: error.message });
     return null;
   }
   return data.id;

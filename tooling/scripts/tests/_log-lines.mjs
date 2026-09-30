@@ -15,9 +15,22 @@ export function logLineOf(args) {
   }
 }
 
-/** A line's own fields: the envelope (level, event, request_id) left out. */
+/**
+ * A line's own fields: the envelope (level, event, request_id) left out, and the stacks (`<key>_stack`, which an error
+ * line carries beside the error and which name this machine's paths): a case compares what the line means to say.
+ */
 export function fieldsOf(line) {
   const { level: _level, event: _event, request_id: _id, ...rest } = line;
+  return Object.fromEntries(Object.entries(rest).filter(([k]) => !k.endsWith("_stack")));
+}
+
+/**
+ * A job's payload without the name of the request that scheduled it (jobs `schedule()` stamps `request_id`, so the
+ * tick can run the job as that request): a case compares what the job is to do.
+ */
+export function withoutRequestId(payload) {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const { request_id: _id, ...rest } = payload;
   return rest;
 }
 

@@ -385,7 +385,26 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   assert.deepEqual(await rulesFiredOn(at, "export const k = process.env.DIAG_KEY;\n"), ["no-restricted-syntax"]);
   assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"]);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/env.ts", "export const k = process.env.DIAG_KEY;\n"), []);
-  assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), []);
+  // The edge's log.ts is a typed door to the one logger, no longer the place a line reaches stdout: that is the
+  // package's writer, and only it (and db's fallback, until an app hands db the logger) may call console.
+  assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), ["no-console"]);
+  assert.deepEqual(await rulesFiredOn("packages/channels/src/log/logger.ts", 'console.error("{}");\n'), []);
+  assert.deepEqual(await rulesFiredOn("packages/db/src/observe.ts", 'console.error("{}");\n'), []);
+});
+
+test("every server tree logs through the one logger: a console call in the dashboard's server, its routes, its auth routes, Ask, or any package is a lint error", async () => {
+  for (const at of [
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/src/server/ask/probe.ts",
+    "apps/dashboard/app/api/v1/probe/route.ts",
+    "apps/dashboard/app/api/v1/ask/probe.ts",
+    "apps/dashboard/app/auth/probe/route.ts",
+    "packages/core/src/probe.ts",
+    "packages/jobs/src/probe.ts",
+    "packages/db/src/probe.ts",
+    "packages/channels/src/probe.ts",
+  ])
+    assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"], at);
 });
 
 /**

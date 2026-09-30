@@ -1,34 +1,46 @@
 /**
- * The deadman sweep: an escalation nobody picked up, a message nobody
- * answered, a reply nothing was sending.
+ * The deadman sweep: an escalation nobody picked up, a message nobody answered, a reply nothing was sending.
  *
- * An escalation opens, the owner gets one email, and if that email is missed
- * the conversation sits open indefinitely with nothing to raise its hand. A
- * customer waiting on a human is the one failure this product cannot be
- * relaxed about, and `deadman` has been a declared job kind, escalation reason
- * and UI label since Slice 2 with no emitter anywhere.
+ * An escalation opens, the owner gets one email, and if that email is missed the conversation sits open indefinitely
+ * with nothing to raise its hand. A customer waiting on a human is the one failure this product cannot be relaxed
+ * about, and `deadman` was a declared job kind, escalation reason and UI label from Slice 2 with no emitter until
+ * this sweep (00018).
  *
- * Called by pg_cron via pg_net every 10 minutes (migration 00018). The
- * DETECTION is a SQL sweep, so it notices an abandoned conversation regardless
- * of which code path abandoned it, including paths written later. The ALERT is
- * here, because addressing a tenant correctly is real logic — one business's
- * customer must never be described in another business's inbox — and a second
- * copy of that rule in plpgsql is exactly the duplication this codebase keeps
- * paying for.
+ * One tick, in this order:
+ *   1. sweepUnfinished (lib/receptionist/unfinished.ts), asked first and on its own, so a failure there
+ *      (unfinished_sweep_failed) never costs the watchdog its tick. It finds a WhatsApp or SMS message the handler
+ *      accepted and never finished with, and a queued reply no live outbound_send job is sending. The first is
+ *      opened for a person (an escalation, reason brain_error), its owner told what the customer said, and the
+ *      message stamped handled; nothing is answered on its own. The second is marked failed and its thread flagged
+ *      (send_failed), except a campaign's email, which its run counts. Email is not swept here: its intake is a job
+ *      with its own lease.
+ *   2. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
+ *      workspace's people are looked up once (loadTenantNotifications) and told through notify: a row on its bell of
+ *      kind `deadman` and a mail carrying the customer to the workspace's OWN recipients. Only a delivered warning
+ *      earns the once-guard, and it lives on the ROW (escalations.deadman_alerted_at, set by deadman_mark_alerted),
+ *      so a failed send is tried again next tick and an escalation is flagged at most once however long it stays
+ *      open. A workspace with nobody on file (reachesTenant) is not warned from here at all and its escalation is
+ *      left unstamped, so it is raised the moment somebody is on file; the platform hears of it through pageOperator
+ *      (deadman_unaddressable:<tenant>, one page per workspace per pager window), which is not one email per tick.
  *
- * Auth: a shared secret both ends read from Vault. Nothing is added to the
- * edge's environment, and the value exists in exactly one place.
+ * The DETECTION is a SQL sweep, so it notices an abandoned conversation regardless of which code path abandoned it,
+ * including paths written later. The ALERT is here, because addressing a tenant correctly is real logic -- one
+ * business's customer must never be described in another business's inbox -- and a second copy of that rule in
+ * plpgsql is exactly the duplication this codebase keeps paying for.
  *
- * Idempotence lives on the ROW (escalations.deadman_alerted_at), not on this
- * request: a lost or duplicated call finds the same candidates next tick, and
- * an escalation is flagged at most once however long it stays open.
+ * Called by pg_cron via pg_net every 10 minutes ('deadman-sweep', 00018) through trigger_deadman_sweep, which records
+ * the request in sweep_status (00026); sweep_health() judges the answer and expects one at least every 25 minutes
+ * (00107). Auth is authorizeCron: the x-cron-key header against the sweep key held in Vault, so nothing is added to
+ * the edge's environment. It answers 200 with the counts, and 500 when the candidates cannot be read
+ * (deadman_query_failed), before any escalation is told. Its lines carry `sweep: "deadman"` and, for a workspace,
+ * its `tenant_id`.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { notify, reachesTenant } from "../../lib/ops/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger, errField, door } from "../../lib/log.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { markProcessed } from "../../lib/packages/db.js";
 import { upsertEscalation } from "../../lib/packages/jobs.js";
@@ -48,7 +60,7 @@ interface Candidate {
   phone_e164: string | null;
 }
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = door(async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "deadman" });
   const db = pg();
   if (!db) {
@@ -167,4 +179,4 @@ export async function POST(request: Request): Promise<Response> {
 
   L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...unfinished });
   return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...unfinished });
-}
+});
