@@ -11,6 +11,7 @@
  */
 import type { MouseEvent, ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
+import { useLook } from "../../look";
 
 interface CmHeadProps {
   title: string;
@@ -31,8 +32,12 @@ interface CmHeadProps {
  *   quiet   a tab's list, where the tab above already says the name: the name is kept for a screen reader and the
  *           head is ONE line -- the numbers at the left, the tools and the act at the right, as People's controls
  *           row is. The crumb, the tab and a 22px title said "Playbooks" three times over one list (23 Sep).
+ *
+ * Under Glass a tab's list opens on the canvas's title (step 5.4, C1): the surface's name, "Campaigns", in the page's own
+ * type, and the head's line beside it on its baseline. The tab above still says which door this is.
  */
 export function CmHead({ title, badge = null, sub = null, right = null, quiet = false, testid = null }: CmHeadProps) {
+  const glass = useLook() === "glass" && quiet && !badge;
   return (
     <header className={`cm-head${quiet ? " is-quiet" : ""}`} data-testid={testid || undefined}>
       <div className="cm-head-text">
@@ -42,7 +47,7 @@ export function CmHead({ title, badge = null, sub = null, right = null, quiet = 
             {badge}
           </div>
         ) : (
-          <h1 className={quiet ? "cm-head-title cm-sr" : "cm-head-title"}>{title}</h1>
+          <h1 className={quiet && !glass ? "cm-head-title cm-sr" : "cm-head-title"}>{glass ? "Campaigns" : title}</h1>
         )}
         {sub && <div className="cm-head-sub">{sub}</div>}
       </div>

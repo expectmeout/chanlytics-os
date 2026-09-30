@@ -3350,4 +3350,172 @@ html.legacy-on .msg-use-link { position: relative; }
 }
 :where([data-look="glass"]) .main:has(> .main-scroll > header:first-child) .topbar .crumbs {
   visibility: hidden;
+
+/* ============================================================
+   Campaigns in Glass (the interface kit's step 5.4, the Campaigns canvas C1, the page)
+   The head opens on the surface's title with the head's line beside it on one baseline; the list is a clear pane, its
+   head the canvases' small capitals, its rows insets that lift on hover, its hairlines the roles'; the moments not set
+   up are a pane of rows of their own, the way the canvas lists them under the running. Every value is a role or a scale
+   step: Classic draws none of this (the rules name the look), and the composer's own rows are the sheet's
+   (kit.css, "A sheet, and the glass foot bar"), drawn by the composer (surfaces/campaigns/playbooks/composer-glass.tsx).
+   ============================================================ */
+:where([data-look="glass"]) .cm-head.is-quiet {
+  align-items: baseline;
+  min-height: 0;
+  gap: var(--space-2) var(--space-4);
+}
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-text {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-title {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-sub {
+  margin-top: 0;
+  font-size: var(--text-md);
+  color: var(--ink-muted);
+}
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right {
+  align-self: center;
+  margin-left: auto;
+}
+:where([data-look="glass"]) .cm-head.is-quiet .cm-head-right .btn {
+  height: var(--control-h-lg);
+}
+:where([data-look="glass"]) .pb-tally-n {
+  font-weight: var(--weight-regular);
+}
+
+/* The list: a clear pane with its rim, and its rows as insets inside it. */
+:where([data-look="glass"]) .pb-list,
+:where([data-look="glass"]) .pb-more-list {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) .pb-list::after,
+:where([data-look="glass"]) .pb-more-list::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .pb-list-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-2);
+  border-bottom-color: var(--line);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pb-list > .pb-row {
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .pb-list > .pb-row:first-of-type,
+:where([data-look="glass"]) .pb-list-head + .pb-row {
+  margin-top: var(--space-2);
+}
+:where([data-look="glass"]) .pb-list > .pb-row:last-child {
+  margin-bottom: var(--space-2);
+}
+:where([data-look="glass"]) .pb-row-line {
+  margin: 0 var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--surface-inset-radius);
+}
+:where([data-look="glass"]) .pb-row-line:hover {
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-row.is-open {
+  background: transparent;
+}
+:where([data-look="glass"]) .pb-row.is-open > .pb-row-line {
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pb-row-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .pb-row-hint {
+  font-size: var(--text-sm);
+}
+:where([data-look="glass"]) .pb-row-open {
+  padding-inline: calc(var(--space-3) + var(--space-2));
+}
+
+/* The moments not set up: rows of a pane, the name and what it does at the left, the press at the right. */
+:where([data-look="glass"]) .pb-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-2) 0;
+}
+:where([data-look="glass"]) .pb-slot {
+  margin: 0 var(--space-2);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: transparent;
+}
+:where([data-look="glass"]) .pb-slot:hover {
+  background: var(--bg-hover);
+}
+:where([data-look="glass"]) .pb-slot-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .pb-slot-hint {
+  font-size: var(--text-sm);
+}
+
+/* Broadcasts' week and runs and Templates' list stand as the Playbooks' list does: a clear pane with its rim, its head
+   the canvases' small capitals, its hairlines the roles'. */
+:where([data-look="glass"]) :is(.bc-week, .bc-runs, .msg-list, .bc-optin) {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+:where([data-look="glass"]) :is(.bc-week, .bc-runs, .msg-list, .bc-optin)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:where([data-look="glass"]) .bc-week {
+  padding-inline: var(--space-4) var(--space-3);
+}
+:where([data-look="glass"]) .msg-list-head {
+  padding: var(--space-4) calc(var(--space-2) + var(--space-3)) var(--space-2);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+:where([data-look="glass"]) .msg-list > .msg-row:last-child {
+  border-bottom: 0;
 }
