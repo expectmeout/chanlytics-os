@@ -28,7 +28,7 @@ import type {
 } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/legacy-bridge/surfaces/calendar";
 import type { PeopleSurface } from "@/legacy-bridge/surfaces/people";
-import type { PlaybooksSurface } from "@/legacy-bridge/surfaces/playbooks";
+import type { PlaybooksSurface } from "@/surfaces/campaigns/playbooks/surface";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { TODAY_HELPERS } from "../helpers";

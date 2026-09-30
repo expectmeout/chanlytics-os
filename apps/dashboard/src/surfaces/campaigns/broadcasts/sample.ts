@@ -24,8 +24,9 @@ import {
   type AudiencePreview,
   type BroadcastDto,
 } from "@chanlytics/contracts";
-import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
+
+const ZONE = "America/New_York";
 
 const DAY = DAY_MS;
 

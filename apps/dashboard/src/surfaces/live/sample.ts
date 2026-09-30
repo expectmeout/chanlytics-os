@@ -6,8 +6,9 @@
  * call; nothing here is a customer's.
  */
 import { DAY_MS, HOUR_MS, toLiveVM, type CallDto, type ChannelDto } from "@chanlytics/contracts";
-import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { LiveSurface } from "./surface";
+
+const ZONE = "America/New_York";
 
 /** The demo's Live as of `now`: what `useSurface("live")` answers for a workspace that has read its own. */
 export function liveSample(now = new Date()): LiveSurface {

@@ -18,9 +18,10 @@ import {
   triggerOffered,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import { ZONE } from "@/legacy-bridge/today-sample/clock";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { PlaybookCardVM, PlaybooksSurface, PlaybookTriggerOption } from "./surface";
+
+const ZONE = "America/New_York";
 
 const DAY = DAY_MS;
 

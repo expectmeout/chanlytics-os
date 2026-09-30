@@ -6,7 +6,7 @@
  * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
  */
 import type { BroadcastVM } from "@chanlytics/contracts";
-import type { BroadcastsSurface } from "@/legacy-bridge/surfaces/broadcasts";
+import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { TODAY_HELPERS } from "../helpers";
 import {

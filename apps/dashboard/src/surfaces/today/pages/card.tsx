@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { BroadcastVM, ReportsLike, TodayFigureId, TodayFigureVM, TodayVM } from "@chanlytics/contracts";
-import type { BroadcastsSurface } from "@/legacy-bridge/surfaces/broadcasts";
+import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";

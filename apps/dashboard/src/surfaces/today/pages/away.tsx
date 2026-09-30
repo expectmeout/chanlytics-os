@@ -6,7 +6,7 @@
 import type { AwayGroupVM, AwayQueueRef } from "@chanlytics/contracts";
 import { useEffect, useState } from "react";
 import type { BellApi, BellRow } from "@/legacy-bridge/notifications";
-import type { BroadcastsSurface } from "@/legacy-bridge/surfaces/broadcasts";
+import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
