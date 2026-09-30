@@ -67,7 +67,7 @@ export type MenuProps = {
 };
 
 /** What an item holds, in the house's order: its glyph, its words, its second line, its word at the end. */
-function words({ label, glyph, meta, hint }: MenuWords) {
+function itemContent({ label, glyph, meta, hint }: MenuWords) {
   return (
     <>
       {glyph}
@@ -83,7 +83,7 @@ function Item({ item }: { item: MenuItem }) {
   if (item.href !== undefined) {
     return (
       <BaseMenu.LinkItem className={itemClasses()} href={item.href} label={item.label}>
-        {words(item)}
+        {itemContent(item)}
       </BaseMenu.LinkItem>
     );
   }
@@ -97,7 +97,7 @@ function Item({ item }: { item: MenuItem }) {
       disabled={item.disabled}
       onClick={() => act()}
     >
-      {words(item)}
+      {itemContent(item)}
     </BaseMenu.Item>
   );
 }
@@ -116,7 +116,7 @@ function Choice({ choose }: { choose: MenuChoice }) {
           label={option.label}
           closeOnClick
         >
-          {words({ label: option.label, glyph: choose.tick })}
+          {itemContent({ label: option.label, glyph: choose.tick })}
         </BaseMenu.RadioItem>
       ))}
     </BaseMenu.RadioGroup>

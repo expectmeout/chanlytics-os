@@ -40,7 +40,7 @@ export type SegmentedProps<V extends string> = SegmentedName & {
 };
 
 /** The ids of an option's words and sentence, where it has a sentence. */
-const wordsOf = (id: string, at: number) => ({ label: `${id}-${at}-label`, hint: `${id}-${at}-hint` });
+const optionIds = (id: string, at: number) => ({ label: `${id}-${at}-label`, hint: `${id}-${at}-hint` });
 
 /** One of a few, chosen on a track. */
 export function Segmented<V extends string>(props: SegmentedProps<V>) {
@@ -59,7 +59,7 @@ export function Segmented<V extends string>(props: SegmentedProps<V>) {
       data-hints={hints ? "true" : undefined}
     >
       {options.map((option, at) => {
-        const words = option.hint === undefined ? null : wordsOf(id, at);
+        const ids = option.hint === undefined ? null : optionIds(id, at);
         return (
           <Radio.Root
             key={option.value}
@@ -67,15 +67,15 @@ export function Segmented<V extends string>(props: SegmentedProps<V>) {
             className="rec-seg-btn"
             nativeButton
             render={<button type="button" />}
-            aria-labelledby={words?.label}
-            aria-describedby={words?.hint}
+            aria-labelledby={ids?.label}
+            aria-describedby={ids?.hint}
           >
-            {words ? (
+            {ids ? (
               <>
-                <span className="rec-seg-label" id={words.label}>
+                <span className="rec-seg-label" id={ids.label}>
                   {option.label}
                 </span>
-                <span className="rec-seg-hint" id={words.hint}>
+                <span className="rec-seg-hint" id={ids.hint}>
                   {option.hint}
                 </span>
               </>
