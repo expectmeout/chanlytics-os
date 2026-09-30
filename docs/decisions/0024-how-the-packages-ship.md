@@ -8,8 +8,8 @@ scorecard's move 5 ("Decide how packages ship") and `docs/debt.md`'s two packagi
 ## Context
 
 - **The edge executes the packages' built files by path.** Each of the five `apps/edge/lib/packages/*.ts` is one line, `export * from "../../../../packages/<p>/dist/index.js"`, because Vercel's function bundler
-  traces real files and does not follow pnpm's workspace links into a function. `.npmrc` hoists third-party modules
-  into real directories (`node-linker=hoisted`) for the same reason. So `packages/*/dist` is committed, rebuilt with
+  traces real files and does not follow pnpm's workspace links into a function. `pnpm-workspace.yaml` hoists third-party
+  modules into real directories (`nodeLinker: hoisted`) for the same reason. So `packages/*/dist` is committed, rebuilt with
   every package change, and held by a drift guard (`corepack pnpm check:dist`, run in CI).
 - **Each package's build inlines the workspace's packages it imports** (`noExternal: [/^@chanlytics\//]` in four
   `tsup.config.ts`), so a dist executed by path needs nothing from `@chanlytics/*` at run time. Core's dist carries
@@ -19,7 +19,7 @@ scorecard's move 5 ("Decide how packages ship") and `docs/debt.md`'s two packagi
     core's own source; contracts' 1,256,196 of it is contracts. Of the 84 commits since `0c8225d58` (28 September),
     40 rewrote a dist, and of the 34 that changed contracts' source, 13 rewrote all five bundles.
   - Two copies of each class and each piece of module state in one process. `AppError` lost its identity across
-    bundles until #1175 gave it a brand every copy recognises (`routes/core-refusal-through-the-wrapper.test.mjs`).
+    bundles until #1175 gave it a brand every copy recognises (`routes/wrapper/core-refusal-through-the-wrapper.test.mjs`).
     The provider breaker (`packages/channels/src/provider-fetch.ts`, a module-level map) exists once in channels'
     bundle and again in core's, so a send through core's `deliver` counts toward a breaker the edge's direct calls
     through channels never consult. A logger's request context in a package would split the same way.
@@ -50,7 +50,7 @@ logger's context) needs its own global registry, found only after two copies dis
 
 ## Consequences
 
-- A package's `package.json` is the truth about what its dist needs; `repo/package-dependencies.test.mjs` fails an
+- A package's `package.json` is the truth about what its dist needs; `packages/package-dependencies.test.mjs` fails an
   undeclared import in any project's source or any package's dist, a third-party module inlined into a dist, a build
   that inlines anything but `@chanlytics/*`, and two ranges of one module across the packages and the server apps.
 - The dists hold only their own code and their siblings' paths once step 2 lands; until it does, core and jobs still
@@ -73,7 +73,7 @@ Each ships alone, in either deploy order: the two apps bundle the packages at th
 wire changes.
 
 1. **Built with this note.** `skipNodeModulesBundle` in the five builds; core and jobs declare what they import;
-   `repo/package-dependencies.test.mjs` (its four dist and build tests fail on `1388f2cc6`). Core's dist 1,824,997 →
+   `packages/package-dependencies.test.mjs` (its four dist and build tests fail on `1388f2cc6`). Core's dist 1,824,997 →
    1,717,169 bytes, jobs' 1,209,906 → 861,352. Proved locally: the suite; `node -e "import('./packages/core/dist/index.js')"`
    and jobs' the same, resolving `html-to-text` and supabase-js from the root; and a trace of all 51 edge doors with
    Vercel's own `@vercel/nft` (1.5.0, TypeScript transpiled on read as `@vercel/node` does) that carries the same
@@ -89,9 +89,9 @@ wire changes.
 
 ## Tests
 
-- `tooling/scripts/tests/repo/package-dependencies.test.mjs`: declarations against sources and dists, no inlined
+- `tooling/scripts/tests/packages/package-dependencies.test.mjs`: declarations against sources and dists, no inlined
   third-party module, builds that inline only `@chanlytics/*`, one range per module.
-- `tooling/scripts/tests/routes/core-refusal-through-the-wrapper.test.mjs` and `tooling/scripts/tests/ops/provider-fetch.test.mjs`
+- `tooling/scripts/tests/routes/wrapper/core-refusal-through-the-wrapper.test.mjs` and `tooling/scripts/tests/ops/provider-fetch.test.mjs`
   run unchanged on the rebuilt dists.
 - Step 2's breaker test is written with step 2.
 

@@ -7432,8 +7432,6 @@ ${user}`).digest("hex");
 export {
   A2P_POLICIES,
   A2P_STEPS,
-  ANTHROPIC_MESSAGES_URL,
-  ANTHROPIC_VERSION,
   APIFY_BASE,
   APIFY_RUN_END_EVENTS,
   APIFY_TIMEOUT_MS,
@@ -7581,7 +7579,6 @@ export {
   mergeConsent,
   messageIdHeader,
   messageIdsIn,
-  messageTextOf,
   newNonce,
   nextA2PStep,
   nextLineStep,

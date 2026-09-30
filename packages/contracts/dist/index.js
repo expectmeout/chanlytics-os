@@ -136,17 +136,6 @@ function injectionQuestion() {
     }
   };
 }
-var FENCE_TAGS = [
-  "customer",
-  "profile_name",
-  "transcript",
-  "review",
-  "reply",
-  "record",
-  "conversation",
-  "places",
-  "note"
-];
 function defang(text) {
   return text.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
@@ -2468,7 +2457,6 @@ var MONEY_PATTERNS = [
 function namesMoney(text) {
   return MONEY_PATTERNS.some((p) => p.test(text));
 }
-var HELD_LINE_KINDS = ["price", "money", "booking", "faq"];
 var HELD_LINES = {
   en: {
     price: "Good question! A member of our team will follow up here with the details shortly.",
@@ -29972,7 +29960,6 @@ export {
   FEED_CHECK_WORDS,
   FEED_GUIDES,
   FEED_MAX_BYTES,
-  FENCE_TAGS,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
@@ -30006,7 +29993,6 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
-  HELD_LINE_KINDS,
   HELD_REASONS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
@@ -30298,7 +30284,6 @@ export {
   PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
   POLICY_CLASS_MODES,
-  POLICY_CLASS_NONE,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
@@ -30456,7 +30441,6 @@ export {
   SHADOW_CALL,
   SHADOW_CONFIDENT,
   SHADOW_GRACE_MS,
-  SHADOW_QUESTIONS,
   SHADOW_TIMEOUT_MS,
   SHADOW_WRITE_MS,
   SHORTCUTS,

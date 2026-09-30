@@ -16,9 +16,10 @@ what the script writes.
 
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
+| [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
-| [`billing_accounts`](#billing_accounts) | `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
+| [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
 | [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/touches.ts` | on, 2 policies |
@@ -88,11 +89,55 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/routing.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
-| [`tenants`](#tenants) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
+| [`usage_ledger`](#usage_ledger) (view) | none | |
 
 ## Tables
+
+### ai_usage
+
+One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).
+
+- Owned by: `packages/db/src/ai-usage.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | bigint | no | `identity (always)` |  |
+| `tenant_id` | uuid | no |  |  |
+| `purpose` | text | no |  |  |
+| `model_asked` | text | no |  |  |
+| `model` | text | no |  |  |
+| `outcome` | text | no |  |  |
+| `input_tokens` | integer | no | `0` |  |
+| `output_tokens` | integer | no | `0` |  |
+| `cache_read_tokens` | integer | no | `0` |  |
+| `cache_write_tokens` | integer | no | `0` |  |
+| `usd` | numeric(12,6) | yes |  |  |
+| `prompt_hash` | text | yes |  |  |
+| `user_id` | uuid | yes |  |  |
+| `subject_id` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `port` | text | no | `'anthropic'::text` | The port the call left by (contracts MODEL_PORTS): anthropic for the primary, typesafe for a second model asked in shadow. |
+| `shadow` | boolean | no | `false` | True for a call made in shadow (decision 0023): its answer is compared with the primary's and never used. |
+| `question` | text | yes |  | A shadow row's question (contracts SHADOW_QUESTIONS, or a lead criterion's key); "call" for a call that got no answer. |
+| `primary_answer` | text | yes |  |  |
+| `shadow_answer` | text | yes |  |  |
+| `shadow_confidence` | numeric(4,3) | yes |  |  |
+| `confident` | boolean | yes |  |  |
+| `agrees` | boolean | yes |  | Whether the shadow's label is the primary's; null when either gave none. |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `user_id` → `auth.users` (`id`), on delete set null
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ai_usage_member_select` | select | authenticated | `((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))))` |  |
 
 ### ask_messages
 
@@ -153,7 +198,7 @@ Foreign keys:
 
 ### billing_accounts
 
-- Owned by: `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `tenant_id`
 - Row-level security: on, 1 policy
 
@@ -288,7 +333,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
-| `broadcasts_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()))` |
+| `broadcasts_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND ((playbook_id IS NULL) OR (EXISTS ( SELECT 1 FROM playbooks p WHERE ((p.id = broadcasts.playbook…` |
 | `broadcasts_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `broadcasts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
@@ -1911,8 +1956,8 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `playbooks_acting_delete` | delete | authenticated | `(is_acting_member(tenant_id) AND (kind = 'moment'::text))` |  |
-| `playbooks_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (kind = 'moment'::text))` |
-| `playbooks_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
+| `playbooks_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (kind = 'moment'::text) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.i…` |
+| `playbooks_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `(is_acting_member(tenant_id) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.id = playbooks.list_id) AND (s.tenant_id = playbooks.tenant…` |
 | `playbooks_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### policies
@@ -2348,7 +2393,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -2399,5 +2444,11 @@ Each view's definition is in `supabase/schema.sql`.
 ### lead_searches_view
 
 Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search's Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null.
+
+- Owned by: none
+
+### usage_ledger
+
+A workspace's metered use, one row per use: each model call (ai_usage, with its dollars), each call's seconds and each WhatsApp conversation opened (the usage events the reports read). Security invoker: a member reads their own workspace's rows.
 
 - Owned by: none

@@ -3118,22 +3118,20 @@ interface ConsentDecision {
 declare function resolveConsent(i: ConsentInputs): ConsentDecision;
 
 /**
- * Whether the receptionist may speak, and in whose voice.
+ * Whether the receptionist may speak, and in whose voice: the reply mode in force, as two rules with no dependencies,
+ * so each is a truth table a test runs (reply-posture.test.mjs).
  *
- * One rule: a routed workspace whose runtime was read follows its own reply
- * policy; anything else holds the thread for a person. There is no fallback
- * profile. A control plane that cannot be read is an outage, and during an
- * outage the receptionist says nothing in anyone's voice: the customer's
- * message is persisted, the thread is escalated, and a person is told.
+ * replyPosture turns what the control plane said into the workspace's mode: a routed workspace whose runtime was read
+ * follows its own reply policy, and anything else is 'ask'. effectiveReplyMode lets a person's own setting (People,
+ * their profile, "Receptionist for ...") win over it; an absent setting changes nothing. openInbound (./context.ts)
+ * calls the first once per message, modeInForce (./gates.ts) calls the second once the person's setting is looked up,
+ * and the phone agent's booking-link message (apps/edge/api/retell-fn.ts) calls the second too, so a caller set to
+ * never is left alone on a call as well.
  *
- * This used to carry a second posture, `drFallback`: the environment's own
- * number rode a read failure out on a baked copy of one workspace's profile.
- * That copy was a customer's data in the repository, then in the deployment's
- * environment, with a special case in every door and a golden test to keep it
- * in step with the row it duplicated. The pilot is one workspace among many
- * and behaves like the rest.
- *
- * Deliberately dependency-free so the rule can be tested directly.
+ * There is no fallback profile: a control plane that cannot be read is an outage, and during an outage the
+ * receptionist says nothing in anyone's voice, so 'auto' is never the answer without a usable runtime to say so. Only
+ * 'auto' and 'veto' let a message on to the model (./reply-gates.ts holds every other mode); a held message is already
+ * persisted, its thread is escalated and a person is told. This file decides the mode, not the hold.
  */
 interface RoutingFacts {
     /** The tenant runtime was read AND the read succeeded. */

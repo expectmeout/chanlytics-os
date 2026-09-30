@@ -3371,6 +3371,14 @@ async function usageMonth(db, tenantId, month) {
   }));
 }
 
+// src/ops.ts
+async function migrationHead(db) {
+  const { data, error } = await db.rpc("migration_head");
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  return { head: row?.head ?? null, applied: row?.applied ?? 0 };
+}
+
 // src/service-client.ts
 import { createClient } from "@supabase/supabase-js";
 function createServiceClient(cfg) {
@@ -5919,6 +5927,7 @@ export {
   markReplyDraft,
   markReplyTold,
   messageSenders,
+  migrationHead,
   monthSent,
   moveSend,
   namesOfPeople,

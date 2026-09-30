@@ -32,6 +32,138 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
+-- Name: ai_failures_hour(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ai_failures_hour(p_min integer DEFAULT 5) RETURNS TABLE(tenant_id uuid, failed_calls bigint, brain_errors bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with calls as (
+    select u.tenant_id, count(*) as n
+      from public.ai_usage u
+     where u.created_at > now() - interval '1 hour'
+       and not u.shadow
+       and u.outcome in ('rejected', 'unreachable', 'unreadable')
+     group by u.tenant_id
+  ), turns as (
+    select e.tenant_id, count(*) as n
+      from public.escalations e
+     where e.created_at > now() - interval '1 hour'
+       and e.reason = 'brain_error'
+     group by e.tenant_id
+  )
+  select coalesce(c.tenant_id, t.tenant_id), coalesce(c.n, 0), coalesce(t.n, 0)
+    from calls c
+    full join turns t on t.tenant_id = c.tenant_id
+   -- The larger of the two, never their sum: one failed receptionist turn is a ledger row AND a brain_error escalation,
+   -- so a sum counts it twice; the larger is the fewest distinct events the hour can have held.
+   where greatest(coalesce(c.n, 0), coalesce(t.n, 0)) >= greatest(p_min, 1)
+   order by greatest(coalesce(c.n, 0), coalesce(t.n, 0)) desc
+   limit 50;
+$$;
+
+
+--
+-- Name: FUNCTION ai_failures_hour(p_min integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ai_failures_hour(p_min integer) IS 'The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the two counts: a failed turn is in both), most first. The health sweep pages on it.';
+
+
+--
+-- Name: ai_shadow_agreement(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ai_shadow_agreement(p_days integer DEFAULT 7) RETURNS TABLE(purpose text, question text, port text, compared bigint, agree bigint, agreement numeric, confident bigint, confident_agree bigint, confident_agreement numeric, failed_calls bigint, input_tokens bigint, usd numeric)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select u.purpose,
+         u.question,
+         u.port,
+         count(*) filter (where u.agrees is not null),
+         count(*) filter (where u.agrees),
+         round((count(*) filter (where u.agrees))::numeric
+               / nullif(count(*) filter (where u.agrees is not null), 0), 4),
+         count(*) filter (where u.agrees is not null and u.confident),
+         count(*) filter (where u.agrees and u.confident),
+         round((count(*) filter (where u.agrees and u.confident))::numeric
+               / nullif(count(*) filter (where u.agrees is not null and u.confident), 0), 4),
+         count(*) filter (where u.outcome in ('rejected', 'unreachable', 'unreadable')),
+         coalesce(sum(u.input_tokens), 0)::bigint,
+         round(coalesce(sum(u.usd), 0), 6)
+    from public.ai_usage u
+   where u.shadow
+     and u.created_at > now() - make_interval(days => greatest(p_days, 1))
+   group by u.purpose, u.question, u.port
+   order by u.purpose, u.question, u.port;
+$$;
+
+
+--
+-- Name: FUNCTION ai_shadow_agreement(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ai_shadow_agreement(p_days integer) IS 'A second model''s agreement with the primary over the last p_days, per purpose, question and port: the answers compared, how many agree, the same among the answers that cleared the confidence line, the answers that could not be had (a call that failed, or an answer of the wrong kind), and the input tokens and dollars spent. A call''s tokens and dollars are counted once, on its first question, so they are exact in total and per purpose but not per question. Service role only: shadow rows are the platform''s.';
+
+
+--
+-- Name: ai_usage_month(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) RETURNS TABLE(meter text, purpose text, model text, uses bigint, quantity numeric, input_tokens bigint, output_tokens bigint, cache_read_tokens bigint, cache_write_tokens bigint, usd numeric)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select l.meter, l.purpose, l.model,
+         count(*),
+         sum(l.quantity),
+         sum(l.input_tokens)::bigint,
+         sum(l.output_tokens)::bigint,
+         sum(l.cache_read_tokens)::bigint,
+         sum(l.cache_write_tokens)::bigint,
+         round(sum(l.usd), 4)
+    from public.usage_ledger l
+   where l.tenant_id = p_tenant_id
+     and l.at >= date_trunc('month', p_month::timestamptz)
+     and l.at < date_trunc('month', p_month::timestamptz) + interval '1 month'
+   group by l.meter, l.purpose, l.model
+   order by l.meter, l.purpose nulls first, l.model nulls first;
+$$;
+
+
+--
+-- Name: FUNCTION ai_usage_month(p_tenant_id uuid, p_month date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) IS 'A workspace''s month of metered use, by meter, purpose and model: uses, quantity, the four kinds of tokens and the list-price dollars. Security invoker: RLS decides whose rows it sums.';
+
+
+--
+-- Name: ai_usage_purge(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ai_usage_purge(p_keep interval DEFAULT '400 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_count integer;
+begin
+  delete from public.ai_usage where created_at < now() - p_keep;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION ai_usage_purge(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows older than p_keep (default 400 days; contracts RETENTION_DAYS.ai_usage). Run by the health sweep.';
+
+
+--
 -- Name: ask_tokens_day(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3079,6 +3211,40 @@ COMMENT ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid
 
 
 --
+-- Name: lead_cap(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_cap(p_name text) RETURNS numeric
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+declare
+  v numeric;
+begin
+  v := case p_name
+    when 'month_leads'      then 500   -- Qualified leads a workspace finds in its month (LEAD_MONTHLY_ALLOWANCE)
+    when 'month_usd'        then 25    -- what searching may cost a workspace in its month (LEAD_MONTHLY_BUDGET_USD)
+    when 'day_usd'          then 10    -- ... in its day (LEAD_DAY_CAP_USD)
+    when 'platform_day_usd' then 50    -- ... what it may cost the platform in a UTC day (LEAD_PLATFORM_DAY_CAP_USD)
+    when 'list_rows'        then 500   -- rows a file brings, leads one press chooses (LEAD_LIST_MAX)
+  end;
+  -- A name it does not know is a mistake in the caller, never "no cap": a comparison with null would let anything by.
+  if v is null then
+    raise exception 'lead_cap: no cap is named %', coalesce(p_name, 'null') using errcode = '22023';
+  end if;
+  return v;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_cap(p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_cap(p_name text) IS 'The lead finder''s caps, the one place SQL writes them (00272): month_leads, month_usd, day_usd, platform_day_usd, list_rows. contracts'' caps.ts and lead-import.ts say the same, and lead-caps.db.test.mjs holds the two together. A name it does not know raises.';
+
+
+--
 -- Name: lead_check_again(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3188,7 +3354,7 @@ begin
       v_month   := public.lead_month(v_round.tenant_id, now());
       v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_month);
       -- The month is full: the member stays Needs review with its address now known good, for Keep to count later.
-      if v_counter.used + v_counter.reserved + 1 > 500 then
+      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
         continue;
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
@@ -3936,9 +4102,9 @@ begin
     if not m.counted then
       v_month := public.lead_month(s.tenant_id, now());
       v_counter := public.lead_counter_take(s.tenant_id, 'allowance', v_month);
-      if v_counter.used + v_counter.reserved + 1 > 500 then
+      if v_counter.used + v_counter.reserved + 1 > public.lead_cap('month_leads') then
         return jsonb_build_object('error', 'month_leads_used', 'left', 0,
-          'sentence', 'You have found this month''s 500 leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
+          'sentence', 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(s.tenant_id) || '.');
       end if;
       update public.lead_counters set used = used + 1, updated_at = now() where id = v_counter.id;
       v_counts := true;
@@ -4273,25 +4439,25 @@ declare
   v_left      numeric;
 begin
   v_allowance := public.lead_counter_take(p_tenant_id, 'allowance', p_month);
-  if v_allowance.used + v_allowance.reserved + p_leads > 500 then
-    v_left := greatest(500 - v_allowance.used - v_allowance.reserved, 0);
+  if v_allowance.used + v_allowance.reserved + p_leads > public.lead_cap('month_leads') then
+    v_left := greatest(public.lead_cap('month_leads') - v_allowance.used - v_allowance.reserved, 0);
     return jsonb_build_object('error', 'month_leads_used', 'left', v_left::integer,
       'sentence', case when v_left <= 0
-        then 'You have found this month''s 500 leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+        then 'You have found this month''s ' || public.lead_cap('month_leads') || ' leads. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
         else 'You have ' || v_left::integer || ' leads left this month. Find ' || v_left::integer || ' now, or all ' || p_leads || ' when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '?' end);
   end if;
   v_budget := public.lead_counter_take(p_tenant_id, 'budget', p_month);
-  if v_budget.used + v_budget.reserved + p_usd > 25 then
-    v_left := greatest(25 - v_budget.used - v_budget.reserved, 0);
+  if v_budget.used + v_budget.reserved + p_usd > public.lead_cap('month_usd') then
+    v_left := greatest(public.lead_cap('month_usd') - v_budget.used - v_budget.reserved, 0);
     return jsonb_build_object('error', 'budget_used', 'left_usd', v_left,
       'sentence', 'This month''s searching is nearly used up. Try a smaller search, or a phone standard; it renews on ' || public.lead_renews_on(p_tenant_id) || '.');
   end if;
   v_day := public.lead_counter_take(p_tenant_id, 'day', p_day);
-  if v_day.used + v_day.reserved + p_usd > 10 then
+  if v_day.used + v_day.reserved + p_usd > public.lead_cap('day_usd') then
     return jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.');
   end if;
   v_platform := public.lead_counter_take(null, 'day', p_platform_day);
-  if v_platform.used + v_platform.reserved + p_usd > 50 then
+  if v_platform.used + v_platform.reserved + p_usd > public.lead_cap('platform_day_usd') then
     return jsonb_build_object('error', 'day_cap', 'sentence', 'Searching is busy today. Try again tomorrow.');
   end if;
   update public.lead_counters set reserved = reserved + p_leads, updated_at = now() where id = v_allowance.id;
@@ -4306,7 +4472,7 @@ end $$;
 -- Name: FUNCTION lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the month''s allowance (500) and p_usd from the month''s budget ($25), the workspace''s day ($10) and the platform''s day ($50, the UTC day p_platform_day, which the round stores), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric) IS 'Reserves p_leads from the month''s allowance and p_usd from the month''s budget, the workspace''s day and the platform''s day (the UTC day p_platform_day, which the round stores), each cap lead_cap''s (00272), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
 
 
 --
@@ -4933,8 +5099,8 @@ begin
     raise exception 'Only an owner or an operator can write to leads.' using errcode = '42501';
   end if;
   select coalesce(array_agg(distinct x), '{}') into v_ids from unnest(coalesce(p_lead_ids, '{}')) as x;
-  if cardinality(v_ids) = 0 or cardinality(v_ids) > 500 then
-    raise exception 'leads: 1 to 500' using errcode = '22023';
+  if cardinality(v_ids) = 0 or cardinality(v_ids) > public.lead_cap('list_rows') then
+    raise exception 'leads: 1 to %', public.lead_cap('list_rows') using errcode = '22023';
   end if;
   if char_length(v_name) = 0 then
     raise exception 'a list is named' using errcode = '22023';
@@ -4994,7 +5160,7 @@ end $$;
 -- Name: FUNCTION lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]) IS 'An acting member''s choice of leads (1 to 500 ids) as a search of its own, via chosen, for a reach-out to write to (00242, J7). Only a lead of this workspace with an address and counted in one of its kept searches joins, Qualified and counted without drawing the month again; the rest are counted as not_counted, no_email or gone. Its round is made and ended at once (target_reached), so nothing is checked and nothing rings. Refuses {error: nothing, sentence} when none joins. Returns {search_id, round_id, counted, left_out: {not_counted, no_email, gone}}.';
+COMMENT ON FUNCTION public.lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]) IS 'An acting member''s choice of leads (1 to lead_cap(''list_rows'') ids) as a search of its own, via chosen, for a reach-out to write to (00242, J7). Only a lead of this workspace with an address and counted in one of its kept searches joins, Qualified and counted without drawing the month again; the rest are counted as not_counted, no_email or gone. Its round is made and ended at once (target_reached), so nothing is checked and nothing rings. Refuses {error: nothing, sentence} when none joins. Returns {search_id, round_id, counted, left_out: {not_counted, no_email, gone}}.';
 
 
 --
@@ -5025,8 +5191,8 @@ begin
   if p_via not in ('people', 'ask') then
     raise exception 'via is people or ask' using errcode = '22023';
   end if;
-  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > 25 then
-    raise exception 'estimate: 0 to 25 usd' using errcode = '22023';
+  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
+    raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
   end if;
   perform public.lead_plan_check(p_plan);
   if coalesce((p_plan->>'version')::integer, 0) <> 1 then
@@ -5129,14 +5295,14 @@ begin
   if not public.has_permission(v_user, p_tenant_id, 'find') then
     raise exception 'Only an owner or a partner can import leads.' using errcode = '42501';
   end if;
-  if jsonb_typeof(p_rows) is distinct from 'array' or jsonb_array_length(p_rows) = 0 or jsonb_array_length(p_rows) > 500 then
-    raise exception 'rows: 1 to 500' using errcode = '22023';
+  if jsonb_typeof(p_rows) is distinct from 'array' or jsonb_array_length(p_rows) = 0 or jsonb_array_length(p_rows) > public.lead_cap('list_rows') then
+    raise exception 'rows: 1 to %', public.lead_cap('list_rows') using errcode = '22023';
   end if;
   if char_length(v_name) = 0 then
     raise exception 'a list is named' using errcode = '22023';
   end if;
-  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > 25 then
-    raise exception 'estimate: 0 to 25 usd' using errcode = '22023';
+  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
+    raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
   end if;
   if not public.lead_searches_on(p_tenant_id) then
     return jsonb_build_object('error', 'paused', 'sentence', 'Lead searches are paused for now, and a list is checked the way a search is. Nothing was imported.');
@@ -5221,7 +5387,7 @@ begin
         v_left := coalesce((v_err->>'left')::integer, 0);
         return jsonb_build_object('error', 'month_leads_used', 'left', v_left,
           'sentence', case when v_left <= 0
-            then 'This month''s 500 leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
+            then 'This month''s ' || public.lead_cap('month_leads') || ' leads are used, and a list counts each address that checks out. Your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.'
             else 'This list has ' || v_n || ' addresses to check and you have ' || v_left || case when v_left = 1 then ' lead' else ' leads' end
               || ' left this month; a list counts each address that checks out. Import at most ' || v_left || ' now, or the rest when your leads renew on ' || public.lead_renews_on(p_tenant_id) || '.' end);
       end if;
@@ -5302,7 +5468,7 @@ end $_$;
 -- Name: FUNCTION lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric) IS 'An owner''s or a partner''s file of leads (1 to 500 rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
+COMMENT ON FUNCTION public.lead_search_import(p_tenant_id uuid, p_name text, p_asked text, p_rows jsonb, p_estimate_usd numeric) IS 'An owner''s or a partner''s file of leads (1 to lead_cap(''list_rows'') rows of {name, email, phone?, website_host?, city?, region?, category?}) as a search of its own, via import (00242, J2-J6). A row without a name or an address, a second row of one address, an address or number a person in People holds and one on the never-again list are left out and counted. An address already a lead joins as that lead: counted in a kept search, it joins counted, outside the round, and draws nothing; one another round is checking is left out (elsewhere); otherwise it is checked. Every other address is a new lead in Needs review for its address alone, marked with any lead it shares a number or a website with, checked by the finder''s own round (queued, running, checking; a lead_check job), which lead_check_commit settles. One lead of the month is reserved per address checked, with the check''s estimate, never under $0.50 ({error: month_leads_used | budget_used | day_cap, sentence}); paused searching refuses ({error: paused}); nothing to add refuses ({error: nothing}). Returns {search_id, round_id, added, checking, counted, left_out: {unreadable, twice, customer, never_again, elsewhere}}.';
 
 
 --
@@ -5333,8 +5499,8 @@ begin
   if p_purpose not in ('topup', 'renew') then
     raise exception 'purpose is topup or renew' using errcode = '22023';
   end if;
-  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > 25 then
-    raise exception 'estimate: 0 to 25 usd' using errcode = '22023';
+  if p_estimate_usd is null or p_estimate_usd < 0 or p_estimate_usd > public.lead_cap('month_usd') then
+    raise exception 'estimate: 0 to % usd', public.lead_cap('month_usd') using errcode = '22023';
   end if;
   select * into s from public.lead_searches where id = p_search_id for update;
   if not found or not public.has_permission(v_user, s.tenant_id, 'find') then
@@ -6389,6 +6555,46 @@ COMMENT ON FUNCTION public.member_view_set(p_tenant_id uuid, p_page text, p_view
 
 
 --
+-- Name: memberships_keep_an_owner(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.memberships_keep_an_owner() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid := old.tenant_id;
+begin
+  -- One change to this workspace's owners at a time; the counts below are read after the lock, so a change that
+  -- committed while this one waited is counted.
+  perform pg_advisory_xact_lock(hashtextextended('memberships_keep_an_owner:' || v_tenant::text, 0));
+  if not exists (select 1 from tenants t where t.id = v_tenant) then
+    return null;
+  end if;
+  if exists (select 1 from memberships m where m.tenant_id = v_tenant and m.role = 'owner') then
+    return null;
+  end if;
+  if not exists (select 1 from memberships m where m.tenant_id = v_tenant) then
+    return null;
+  end if;
+  if exists (select 1 from partner_tenants pt
+              where pt.tenant_id = v_tenant and pt.origin = 'handover' and pt.handover_accepted_at is null) then
+    return null;
+  end if;
+  raise exception 'last_owner' using errcode = 'P0001',
+    hint = 'This is the only owner. Promote someone else first.';
+end;
+$$;
+
+
+--
+-- Name: FUNCTION memberships_keep_an_owner(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.memberships_keep_an_owner() IS 'A workspace keeps an owner while anyone is in it (00271): refuses, as last_owner, a removal or demotion that leaves members and no owner, judged at the end of the transaction under a per-workspace lock. A deleted workspace, one its last member left (00262) and one a partner is handing over (00214) are let go.';
+
+
+--
 -- Name: message_moment(jsonb, timestamp with time zone, timestamp with time zone, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6623,6 +6829,25 @@ begin
 
   return v_result;
 end $$;
+
+
+--
+-- Name: migration_head(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.migration_head() RETURNS TABLE(head text, applied integer)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select max(m.version), count(*)::integer from supabase_migrations.schema_migrations m;
+$$;
+
+
+--
+-- Name: FUNCTION migration_head(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.migration_head() IS 'The newest migration version the CLI''s ledger has applied here, and how many it has applied: keyed /api/diag answers it.';
 
 
 --
@@ -9836,7 +10061,7 @@ begin
   insert into public.policies (tenant_id, class, mode, limits)
   select p_tenant_id, c.class, c.mode,
          case when c.class = 'reply'
-              then '{"max_replies_day": 20, "pause_hours": 24}'::jsonb
+              then '{"max_replies_day": 20, "pause_hours": 24, "max_llm_tokens_day": 1000000}'::jsonb
               else '{}'::jsonb end
   from (values
     ('faq','auto'), ('booking','auto'), ('reply','auto'),
@@ -15037,6 +15262,147 @@ COMMENT ON FUNCTION public.workspace_partner(p_tenant uuid) IS 'The owner''s vie
 
 
 --
+-- Name: workspace_tell_changes(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_tell_changes() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  -- What this transaction has told already. Its notices all become visible at its commit, together, so a second
+  -- notice of a workspace's table and event (and a call's same statuses) would tell a tab nothing more: a loop of
+  -- statements, as the lead finder's commits are, tells each workspace once, not once a row. A savepoint rolled back
+  -- takes its notices and this memory of them back with it.
+  told text := coalesce(current_setting('chanlytics.workspace_told', true), '');
+  had text := told;
+  w record;
+  said text;
+begin
+  -- A trigger's argument names the column its table's changes are judged by (calls: status), carried as the distinct
+  -- values the statement left; every other table's notice is its name and the operation alone.
+  for w in
+    select c.tenant_id, null::jsonb as statuses from changed c where tg_nargs = 0 group by c.tenant_id
+    union all
+    select c.tenant_id, jsonb_agg(distinct to_jsonb(c) ->> tg_argv[0]) from changed c where tg_nargs > 0 group by c.tenant_id
+  loop
+    said := '|' || w.tenant_id::text || ' ' || tg_table_name || ' ' || tg_op || coalesce(' ' || w.statuses::text, '') || '|';
+    continue when strpos(told, said) > 0;
+    told := told || said;
+    perform realtime.send(
+      jsonb_strip_nulls(jsonb_build_object('table', tg_table_name, 'op', tg_op, 'statuses', w.statuses)),
+      tg_op,
+      'workspace:' || w.tenant_id::text || ':changes',
+      true);
+  end loop;
+  if told <> had then
+    perform set_config('chanlytics.workspace_told', told, true);
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_tell_changes(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation and, where a trigger names a column, its values; once per transaction for each. Never a row.';
+
+
+--
+-- Name: ai_usage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ai_usage (
+    id bigint NOT NULL,
+    tenant_id uuid NOT NULL,
+    purpose text NOT NULL,
+    model_asked text NOT NULL,
+    model text NOT NULL,
+    outcome text NOT NULL,
+    input_tokens integer DEFAULT 0 NOT NULL,
+    output_tokens integer DEFAULT 0 NOT NULL,
+    cache_read_tokens integer DEFAULT 0 NOT NULL,
+    cache_write_tokens integer DEFAULT 0 NOT NULL,
+    usd numeric(12,6),
+    prompt_hash text,
+    user_id uuid,
+    subject_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    port text DEFAULT 'anthropic'::text NOT NULL,
+    shadow boolean DEFAULT false NOT NULL,
+    question text,
+    primary_answer text,
+    shadow_answer text,
+    shadow_confidence numeric(4,3),
+    confident boolean,
+    agrees boolean,
+    CONSTRAINT ai_usage_cache_read_tokens_check CHECK ((cache_read_tokens >= 0)),
+    CONSTRAINT ai_usage_cache_write_tokens_check CHECK ((cache_write_tokens >= 0)),
+    CONSTRAINT ai_usage_input_tokens_check CHECK ((input_tokens >= 0)),
+    CONSTRAINT ai_usage_model_asked_check CHECK (((char_length(model_asked) >= 1) AND (char_length(model_asked) <= 80))),
+    CONSTRAINT ai_usage_model_check CHECK (((char_length(model) >= 1) AND (char_length(model) <= 80))),
+    CONSTRAINT ai_usage_outcome_check CHECK ((outcome = ANY (ARRAY['answered'::text, 'fell_back'::text, 'refused'::text, 'rejected'::text, 'unreachable'::text, 'unreadable'::text]))),
+    CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
+    CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
+    CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text]))),
+    CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
+    CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
+    CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
+);
+
+
+--
+-- Name: TABLE ai_usage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ai_usage IS 'One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).';
+
+
+--
+-- Name: COLUMN ai_usage.port; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.port IS 'The port the call left by (contracts MODEL_PORTS): anthropic for the primary, typesafe for a second model asked in shadow.';
+
+
+--
+-- Name: COLUMN ai_usage.shadow; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.shadow IS 'True for a call made in shadow (decision 0023): its answer is compared with the primary''s and never used.';
+
+
+--
+-- Name: COLUMN ai_usage.question; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.question IS 'A shadow row''s question (contracts SHADOW_QUESTIONS, or a lead criterion''s key); "call" for a call that got no answer.';
+
+
+--
+-- Name: COLUMN ai_usage.agrees; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.agrees IS 'Whether the shadow''s label is the primary''s; null when either gave none.';
+
+
+--
+-- Name: ai_usage_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ai_usage_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: ask_messages; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -17722,6 +18088,61 @@ COMMENT ON COLUMN public.tenants.left_empty_at IS 'When the workspace''s last me
 
 
 --
+-- Name: usage_ledger; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.usage_ledger WITH (security_invoker='true') AS
+ SELECT u.tenant_id,
+    u.created_at AS at,
+    'model'::text AS meter,
+    u.purpose,
+    u.model,
+    ((((u.input_tokens + u.output_tokens) + u.cache_read_tokens) + u.cache_write_tokens))::numeric AS quantity,
+    u.input_tokens,
+    u.output_tokens,
+    u.cache_read_tokens,
+    u.cache_write_tokens,
+    u.usd
+   FROM public.ai_usage u
+  WHERE (NOT u.shadow)
+UNION ALL
+ SELECT e.tenant_id,
+    e.created_at AS at,
+    'voice_seconds'::text AS meter,
+    NULL::text AS purpose,
+    NULL::text AS model,
+    COALESCE(((e.data ->> 'seconds'::text))::numeric, (0)::numeric) AS quantity,
+    0 AS input_tokens,
+    0 AS output_tokens,
+    0 AS cache_read_tokens,
+    0 AS cache_write_tokens,
+    NULL::numeric AS usd
+   FROM public.events e
+  WHERE (e.kind = 'usage.voice_seconds'::text)
+UNION ALL
+ SELECT e.tenant_id,
+    e.created_at AS at,
+    'wa_conversation'::text AS meter,
+    NULL::text AS purpose,
+    NULL::text AS model,
+    1 AS quantity,
+    0 AS input_tokens,
+    0 AS output_tokens,
+    0 AS cache_read_tokens,
+    0 AS cache_write_tokens,
+    NULL::numeric AS usd
+   FROM public.events e
+  WHERE (e.kind = 'usage.wa_conversation'::text);
+
+
+--
+-- Name: VIEW usage_ledger; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.usage_ledger IS 'A workspace''s metered use, one row per use: each model call (ai_usage, with its dollars), each call''s seconds and each WhatsApp conversation opened (the usage events the reports read). Security invoker: a member reads their own workspace''s rows.';
+
+
+--
 -- Name: waitlist; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -17755,6 +18176,14 @@ COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null m
 --
 
 ALTER TABLE ONLY public.events ATTACH PARTITION public.events_default DEFAULT;
+
+
+--
+-- Name: ai_usage ai_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ai_usage
+    ADD CONSTRAINT ai_usage_pkey PRIMARY KEY (id);
 
 
 --
@@ -18539,6 +18968,27 @@ ALTER TABLE ONLY public.tenants
 
 ALTER TABLE ONLY public.waitlist
     ADD CONSTRAINT waitlist_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ai_usage_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_at ON public.ai_usage USING btree (created_at);
+
+
+--
+-- Name: ai_usage_shadow_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHERE shadow;
+
+
+--
+-- Name: ai_usage_tenant_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
 
 
 --
@@ -19900,6 +20350,13 @@ CREATE TRIGGER memberships_clear_control AFTER DELETE ON public.memberships FOR 
 
 
 --
+-- Name: memberships memberships_keep_an_owner; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER memberships_keep_an_owner AFTER DELETE OR UPDATE OF role, tenant_id ON public.memberships DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((old.role = 'owner'::text)) EXECUTE FUNCTION public.memberships_keep_an_owner();
+
+
+--
 -- Name: messages messages_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -20100,6 +20557,463 @@ CREATE TRIGGER tenants_record_created AFTER INSERT ON public.tenants FOR EACH RO
 --
 
 CREATE TRIGGER tenants_set_updated_at BEFORE UPDATE ON public.tenants FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: billing_accounts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.billing_accounts REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: business_records workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.business_records REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: calls workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.calls REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
+-- Name: capability_activations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.capability_activations REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: conversations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.conversations REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: deals workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.deals REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: escalations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.escalations REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_connections workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.google_connections REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_listings workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.google_listings REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_rounds workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lead_rounds REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_search_members workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lead_search_members REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_searches workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lead_searches REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: leads workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.leads REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lines workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lines REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: person_notes workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.person_notes REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: reach_out_replies workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.reach_out_replies REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segment_members workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.segment_members REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segments workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.segments REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: sending_domains workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.sending_domains REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: tenant_channels workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.tenant_channels REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: billing_accounts workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.billing_accounts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: business_records workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.business_records REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: calls workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.calls REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
+-- Name: capability_activations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.capability_activations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: conversations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.conversations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: deals workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.deals REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: escalations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.escalations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_connections workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_connections REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_listings workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_listings REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_reviews workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_reviews REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_rounds workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lead_rounds REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_search_members workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lead_search_members REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_searches workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lead_searches REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: leads workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.leads REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lines workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lines REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: messages workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.messages REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: notifications workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.notifications REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: person_notes workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.person_notes REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: reach_out_replies workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.reach_out_replies REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segment_members workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.segment_members REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segments workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.segments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: sending_domains workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.sending_domains REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: tenant_channels workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.tenant_channels REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: billing_accounts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.billing_accounts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: business_records workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.business_records REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: calls workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.calls REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes('status');
+
+
+--
+-- Name: capability_activations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.capability_activations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: conversations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.conversations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: deals workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.deals REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: escalations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_connections workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_connections REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: google_listings workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_listings REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_rounds workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lead_rounds REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_search_members workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lead_search_members REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lead_searches workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lead_searches REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: leads workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.leads REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: lines workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lines REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: person_notes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.person_notes REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: reach_out_replies workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.reach_out_replies REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segment_members workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.segment_members REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: segments workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.segments REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: sending_domains workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.sending_domains REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: tenant_channels workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_channels REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: ai_usage ai_usage_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ai_usage
+    ADD CONSTRAINT ai_usage_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ai_usage ai_usage_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ai_usage
+    ADD CONSTRAINT ai_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -21327,6 +22241,21 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ai_usage ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ai_usage ai_usage_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authenticated USING (((NOT shadow) AND (tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
 -- Name: ask_messages; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -21443,7 +22372,9 @@ CREATE POLICY broadcast_recipients_acting_insert ON public.broadcast_recipients 
    FROM public.broadcasts b
   WHERE ((b.id = broadcast_recipients.broadcast_id) AND (b.tenant_id = broadcast_recipients.tenant_id)))) AND (EXISTS ( SELECT 1
    FROM public.contacts c
-  WHERE ((c.id = broadcast_recipients.contact_id) AND (c.tenant_id = broadcast_recipients.tenant_id) AND (c.erased_at IS NULL))))));
+  WHERE ((c.id = broadcast_recipients.contact_id) AND (c.tenant_id = broadcast_recipients.tenant_id) AND (c.erased_at IS NULL)))) AND ((message_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.messages m
+  WHERE ((m.id = broadcast_recipients.message_id) AND (m.tenant_id = broadcast_recipients.tenant_id)))))));
 
 
 --
@@ -21465,7 +22396,11 @@ ALTER TABLE public.broadcasts ENABLE ROW LEVEL SECURITY;
 -- Name: broadcasts broadcasts_acting_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY broadcasts_acting_insert ON public.broadcasts FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid))));
+CREATE POLICY broadcasts_acting_insert ON public.broadcasts FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid)) AND ((playbook_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.playbooks p
+  WHERE ((p.id = broadcasts.playbook_id) AND (p.tenant_id = broadcasts.tenant_id))))) AND ((template_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.templates t
+  WHERE ((t.id = broadcasts.template_id) AND (t.tenant_id = broadcasts.tenant_id)))))));
 
 
 --
@@ -22011,7 +22946,11 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 -- Name: messages messages_acting_member_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY messages_acting_member_insert ON public.messages FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (direction = 'outbound'::text) AND (sender = 'human'::text) AND (sent_by = ( SELECT auth.uid() AS uid)) AND (status = 'queued'::text) AND (media IS NULL)));
+CREATE POLICY messages_acting_member_insert ON public.messages FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (direction = 'outbound'::text) AND (sender = 'human'::text) AND (sent_by = ( SELECT auth.uid() AS uid)) AND (status = 'queued'::text) AND (media IS NULL) AND (EXISTS ( SELECT 1
+   FROM public.conversations c
+  WHERE ((c.id = messages.conversation_id) AND (c.tenant_id = messages.tenant_id)))) AND ((contact_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.contacts p
+  WHERE ((p.id = messages.contact_id) AND (p.tenant_id = messages.tenant_id)))))));
 
 
 --
@@ -22222,14 +23161,22 @@ CREATE POLICY playbooks_acting_delete ON public.playbooks FOR DELETE TO authenti
 -- Name: playbooks playbooks_acting_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY playbooks_acting_insert ON public.playbooks FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid)) AND (kind = 'moment'::text)));
+CREATE POLICY playbooks_acting_insert ON public.playbooks FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid)) AND (kind = 'moment'::text) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.segments s
+  WHERE ((s.id = playbooks.list_id) AND (s.tenant_id = playbooks.tenant_id))))) AND ((template_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.templates t
+  WHERE ((t.id = playbooks.template_id) AND (t.tenant_id = playbooks.tenant_id)))))));
 
 
 --
 -- Name: playbooks playbooks_acting_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY playbooks_acting_update ON public.playbooks FOR UPDATE TO authenticated USING (public.is_acting_member(tenant_id)) WITH CHECK (public.is_acting_member(tenant_id));
+CREATE POLICY playbooks_acting_update ON public.playbooks FOR UPDATE TO authenticated USING (public.is_acting_member(tenant_id)) WITH CHECK ((public.is_acting_member(tenant_id) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.segments s
+  WHERE ((s.id = playbooks.list_id) AND (s.tenant_id = playbooks.tenant_id))))) AND ((template_id IS NULL) OR (EXISTS ( SELECT 1
+   FROM public.templates t
+  WHERE ((t.id = playbooks.template_id) AND (t.tenant_id = playbooks.tenant_id)))))));
 
 
 --
@@ -22278,7 +23225,9 @@ CREATE POLICY policies_owner_delete_person ON public.policies FOR DELETE TO auth
 
 CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO authenticated WITH CHECK (((subject_type = 'contact'::text) AND (subject_id IS NOT NULL) AND (class = 'reply'::text) AND (tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
-  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text))))));
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))) AND (EXISTS ( SELECT 1
+   FROM public.contacts p
+  WHERE ((p.id = policies.subject_id) AND (p.tenant_id = policies.tenant_id))))));
 
 
 --
@@ -22541,6 +23490,39 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION ai_failures_hour(p_min integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ai_failures_hour(p_min integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ai_failures_hour(p_min integer) TO service_role;
+
+
+--
+-- Name: FUNCTION ai_shadow_agreement(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ai_shadow_agreement(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ai_shadow_agreement(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION ai_usage_month(p_tenant_id uuid, p_month date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) TO authenticated;
+GRANT ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) TO service_role;
+
+
+--
+-- Name: FUNCTION ai_usage_purge(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ai_usage_purge(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
 
 
 --
@@ -23099,6 +24081,14 @@ GRANT ALL ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uu
 
 
 --
+-- Name: FUNCTION lead_cap(p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_cap(p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_cap(p_name text) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
 --
 
@@ -23255,7 +24245,6 @@ GRANT ALL ON FUNCTION public.lead_member_shown(p_class text, p_counted boolean) 
 --
 
 REVOKE ALL ON FUNCTION public.lead_month(p_tenant_id uuid, p_at timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_month(p_tenant_id uuid, p_at timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_month(p_tenant_id uuid, p_at timestamp with time zone) TO service_role;
 
 
@@ -23491,7 +24480,6 @@ GRANT ALL ON FUNCTION public.lead_search_undo(p_search_id uuid) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.lead_searches_on(p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_searches_on(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_searches_on(p_tenant_id uuid) TO service_role;
 
 
@@ -23632,6 +24620,14 @@ GRANT ALL ON FUNCTION public.member_view_set(p_tenant_id uuid, p_page text, p_vi
 
 
 --
+-- Name: FUNCTION memberships_keep_an_owner(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.memberships_keep_an_owner() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.memberships_keep_an_owner() TO service_role;
+
+
+--
 -- Name: FUNCTION message_moment(p_meta jsonb, p_channel_ts timestamp with time zone, p_created_at timestamp with time zone, p_type text, p_status text, OUT at timestamp with time zone, OUT spoken boolean, OUT moved_in boolean); Type: ACL; Schema: public; Owner: -
 --
 
@@ -23656,6 +24652,14 @@ GRANT ALL ON FUNCTION public.messages_guard() TO service_role;
 REVOKE ALL ON FUNCTION public.metrics_summary(p_tenant_id uuid, p_days integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.metrics_summary(p_tenant_id uuid, p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.metrics_summary(p_tenant_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION migration_head(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.migration_head() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.migration_head() TO service_role;
 
 
 --
@@ -25086,6 +26090,30 @@ GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION workspace_tell_changes(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_tell_changes() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_tell_changes() TO service_role;
+
+
+--
+-- Name: TABLE ai_usage; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.ai_usage TO service_role;
+GRANT SELECT ON TABLE public.ai_usage TO authenticated;
+
+
+--
+-- Name: SEQUENCE ai_usage_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
+
+
+--
 -- Name: TABLE ask_messages; Type: ACL; Schema: public; Owner: -
 --
 
@@ -25918,6 +26946,14 @@ GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(sells_by) ON TABLE public.tenants TO authenticated;
+
+
+--
+-- Name: TABLE usage_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.usage_ledger TO service_role;
+GRANT SELECT ON TABLE public.usage_ledger TO authenticated;
 
 
 --

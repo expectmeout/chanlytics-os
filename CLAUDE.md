@@ -110,7 +110,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
-  the compiler lets pass; a table name outside `packages/db`; dead exports; a duration written as a
+  the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
+  imports a repository or a provider client; dead exports; a duration written as a
   bare number (name it from `contracts/shared/time.ts`, or give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
@@ -122,8 +123,10 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`, `surfaces`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
-  or the client; the edge never imports the dashboard, `next` or `react`. Types cross freely.
-  `eslint.config.mjs` enforces it.
+  or the client; the edge never imports the dashboard, `next` or `react`; a core verb takes the world through its ports, so
+  nothing of `packages/core` imports a database or a provider value (the named adapters aside, `repo/hygiene.test.mjs`);
+  each package imports only what its `package.json` declares (`packages/package-dependencies.test.mjs`). Types cross
+  freely. `eslint.config.mjs` and those tests enforce it.
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
   never change; they are what alerting greps for.

@@ -4,7 +4,7 @@
   "apps/dashboard/app/api/v1/me/route.ts": 1,
   "apps/dashboard/app/api/v1/templates/starter/route.ts": 1,
   "apps/dashboard/src/csp.ts": 4,
-  "apps/dashboard/src/legacy-bridge/app-bridge.ts": 4,
+  "apps/dashboard/src/legacy-bridge/app-bridge.ts": 3,
   "apps/dashboard/src/legacy-bridge/ask/context.ts": 2,
   "apps/dashboard/src/legacy-bridge/lead-map-draw.ts": 4,
   "apps/dashboard/src/legacy-bridge/mascot/character-core.ts": 8,
