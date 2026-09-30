@@ -316,7 +316,8 @@ async function register(c: LineCall): Promise<Response> {
     await c.db
       .from("lines")
       .update({ sms_state: "needs_record", state_since: new Date().toISOString() })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("tenant_id", c.tenantId);
     return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
   }
   const pages = filingPages(dashboardOrigin(), c.tenant.slug);
@@ -353,7 +354,7 @@ async function resubmit(
   const again = await resubmitRejectedCampaign(c.db, row, plan.facts, plan.check);
   const verdict = resubmitVerdict(again);
   if (verdict.kind === "refuse") return respond(verdict.answer);
-  const after = await c.db.from("lines").select("*").eq("id", row.id).single();
+  const after = await c.db.from("lines").select("*").eq("id", row.id).eq("tenant_id", c.tenantId).single();
   return respond(resubmittedAnswer(verdict.row, after.data));
 }
 
@@ -385,7 +386,7 @@ async function file(
     hasOptInNumber: plan.check.hasOptInNumber,
     mock: plan.mock,
   });
-  const after = await c.db.from("lines").select("*").eq("id", row.id).single();
+  const after = await c.db.from("lines").select("*").eq("id", row.id).eq("tenant_id", c.tenantId).single();
   return respond(filingAnswer(result, plan.mock, after.data));
 }
 
@@ -398,7 +399,7 @@ async function registrationStatus(c: LineCall): Promise<Response> {
   const r = await syncRegistration(c.db, read.row);
   if (!campaignHeldFor(r, read.row)) return respond(syncAnswer(r));
   const rec = await c.db.from("business_records").select("*").eq("tenant_id", c.tenantId).maybeSingle();
-  const fresh = await c.db.from("lines").select("*").eq("id", read.row.id).single();
+  const fresh = await c.db.from("lines").select("*").eq("id", read.row.id).eq("tenant_id", c.tenantId).single();
   if (!rec.data || !fresh.data) return respond(syncAnswer(r));
   const filed = await registerLine(c.db, {
     line: fresh.data,

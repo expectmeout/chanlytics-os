@@ -108,7 +108,7 @@ export async function POST(request: Request): Promise<Response> {
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
-              provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
+              provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),
               // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it

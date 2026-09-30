@@ -1,4 +1,8 @@
-/** Webhook → tenant routing over tenant_channels(kind, external_id). */
+/**
+ * Webhook → tenant routing over tenant_channels(kind, external_id).
+ *
+ * Cross-workspace: a webhook finds its workspace by the provider's id (kind, external_id) on tenant_channels.
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { MIN_MS } from "@chanlytics/contracts";

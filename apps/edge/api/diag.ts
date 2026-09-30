@@ -2,6 +2,8 @@
  *  voice agents, the receptionist's last day
  *  + Meta access-token permanence check (debug_token expires_at).
  *  Auth: x-diag-key header (DIAG_KEY). Internal endpoint — not part of the
+ *
+ * Cross-workspace: the platform's diagnostic, opened by the platform key only, reports on every workspace.
  *  frozen surface. */
 import { createHash } from "node:crypto";
 import { json } from "../lib/http.js";

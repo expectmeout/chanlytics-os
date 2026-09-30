@@ -6,6 +6,8 @@
  * failure, so one bad row never costs the others their tick).
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
+ *
+ * Cross-workspace: the lead sweep visits every workspace's runs and rounds; each job it schedules carries the row's tenant_id.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

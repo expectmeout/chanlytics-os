@@ -260,6 +260,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         const { data } = await db
           .from("broadcasts")
           .select("id")
+          .eq("tenant_id", tenantId)
           .eq("playbook_id", playbookId)
           .eq("run_for", runFor)
           .maybeSingle();
@@ -267,7 +268,11 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       },
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
-        await db.from("playbooks").update({ last_run_for: runFor, last_run_at: at.toISOString() }).eq("id", playbookId);
+        await db
+          .from("playbooks")
+          .update({ last_run_for: runFor, last_run_at: at.toISOString() })
+          .eq("id", playbookId)
+          .eq("tenant_id", tenantId);
       },
       create: async (row) => {
         const { data, error } = await db
@@ -295,7 +300,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
         if (error) throw new Error(error.message);
       },
       fail: async (id, failure) => {
-        await db.from("broadcasts").update({ state: "failed", failure }).eq("id", id);
+        await db.from("broadcasts").update({ state: "failed", failure }).eq("id", id).eq("tenant_id", tenantId);
       },
       schedule: async (id, at) => {
         await scheduleJob(db, { tenantId, kind: "broadcast_send", dueAt: at, payload: { broadcast_id: id } });

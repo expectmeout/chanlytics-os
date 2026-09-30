@@ -35,6 +35,8 @@ import {
   copiesAmong,
   castsIn,
   tableNames,
+  workspacelessStatements,
+  headerOf,
   durationsIn,
   inlineStyles,
   SOURCE,
@@ -83,6 +85,30 @@ const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f
  * all they have and they are not held.
  */
 const MARKUP = SRC.filter((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\/.*\.(jsx|tsx)$/.test(f));
+
+/** The tables whose every row belongs to one workspace: each names `tenant_id` in its Row (the generated types). */
+export function tenantTablesOf() {
+  const tables = new Set();
+  let table = null;
+  let inRow = false;
+  let inTables = false;
+  for (const line of fs.readFileSync(path.join(ROOT, "packages/db/src/database.types.ts"), "utf8").split(/\r?\n/)) {
+    if (/^  public: \{/.test(line)) inTables = true;
+    else if (/^  \w+: \{/.test(line)) inTables = false;
+    if (!inTables) continue;
+    const t = /^      (\w+): \{$/.exec(line);
+    if (t) table = t[1];
+    if (/^        Row: \{$/.test(line)) inRow = true;
+    else if (inRow && /^        \}$/.test(line)) inRow = false;
+    else if (inRow && table && /^          tenant_id: /.test(line)) tables.add(table);
+  }
+  return tables;
+}
+
+/** A file that reads across workspaces on purpose says so in its header, as a line `Cross-workspace: <why>`. */
+export const CROSS_WORKSPACE = /^\s*(?:\/\/|\/\*\*|\*)?\s*Cross-workspace: \S/m;
+/** The edge's own code: its doors and what they call, less the facades that re-export the packages' dist. */
+const EDGE = SRC.filter((f) => /^apps\/edge\/(api|lib)\//.test(f) && !f.startsWith("apps/edge/lib/packages/"));
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -175,6 +201,23 @@ export const MEASURES = [
       ),
     advice:
       "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "edge statements that name no workspace",
+    file: "workspaceless.json",
+    measure: () => {
+      const tables = tenantTablesOf();
+      const out = {};
+      for (const f of EDGE) {
+        const sf = parse(f);
+        if (CROSS_WORKSPACE.test(headerOf(sf))) continue;
+        const n = workspacelessStatements(sf, tables);
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "A statement on a workspace's table names the workspace: tenantDb(db, tenantId).from(...) (packages/db), or .eq(\"tenant_id\", …), or a row that carries its tenant_id. A module that reads across workspaces on purpose (a sweep, a provider's webhook) says why in its header, on a line that begins Cross-workspace: and is not measured.",
   },
   {
     name: "unnamed durations",

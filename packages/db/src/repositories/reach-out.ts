@@ -2,6 +2,8 @@
  * Reach out's sends and the doors they go through (Part 3): the one place `reach_out_sends` is typed, and the doors of
  * 00184. The service role asks every one of them (the edge's clock and run); a read or a door that fails throws,
  * because "we could not check" is not "yes".
+ *
+ * Cross-workspace: the reach-out clock's sweeps read every workspace; each door given a tenant keeps to it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";

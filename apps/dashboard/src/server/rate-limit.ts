@@ -24,6 +24,8 @@
  * when the shared count cannot be read, it refuses (503) instead of falling
  * back to a per-instance count that a burst across instances walks past --
  * a ceiling on spend that cannot be held is not a ceiling.
+ *
+ * Cross-workspace: a limit counts per person or network, never per workspace; rate_hits holds no tenant_id.
  */
 import { AppError, MIN_MS, HOUR_MS, waitWords } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";

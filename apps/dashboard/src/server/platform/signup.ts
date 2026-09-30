@@ -6,13 +6,12 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
 /**
  * Sign-up, the half that knows who exists.
  *
- * This is the second place the dashboard holds the service role (the first
- * is service-db.ts, for jobs), and it writes no tenant data at all: it creates
- * the auth user, keeps what the form said on that user, and asks Supabase to
- * send the sign-in code with the anon client, exactly as /login does. An
- * address Supabase already has is recognised by its own error and left
- * alone: that person gets a code and signs in to what they have. The caller
- * says the same sentence either way.
+ * It writes no tenant data at all. `signUp` asks Supabase, with the anon client and exactly as /login does, to make
+ * the auth user and send the sign-in code, keeping what the form said on that user. An address Supabase already has
+ * is recognised by its own error and left alone: that person gets a code and signs in to what they have. The
+ * caller says the same sentence either way. The service role serves two other things here: `joinWaitlist` (the
+ * waitlist table, which has no workspace), and `notifyPlatformSignup`, which tells the platform's mailbox, through
+ * the edge, that a workspace was made.
  *
  * THE WORKSPACE WAITS FOR ITS OWNER. This used to make it here, with the
  * service role, for an address nobody had proved: a stranger typing someone
@@ -24,6 +23,8 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
  * enters the code makes the workspace through the one door every workspace
  * uses (create_workspace, signed in). Nothing exists for an address until
  * its owner does.
+ *
+ * Cross-workspace: sign-up and the waitlist precede any workspace; waitlist has no tenant_id to scope by.
  */
 
 import { callEdge, edgeConfigured } from "../edge";

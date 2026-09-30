@@ -8,6 +8,8 @@
  *
  * The model's tokens are logged with each look (notes_looked), and the model port writes each call to the usage ledger
  * (ai_usage, purpose note_suggest) for the look's workspace: none of it the receptionist's daily reply budget.
+ *
+ * Cross-workspace: the note sweep reads every workspace's looks; each suggestion carries its look's tenant_id.
  */
 import {
   NOTE_SUGGEST_LIMITS,

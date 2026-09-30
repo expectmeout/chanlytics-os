@@ -19,10 +19,12 @@
  * caller saw. Postgres applies it to whatever matches at the moment it runs, so the
  * second caller's filters match nothing and it learns, from an empty result, that
  * somebody else has it.
+ *
+ * Cross-workspace: the lines sweep resumes every workspace's stuck line; a take acts on a row its caller holds.
  */
 import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, formatPhoneDisplay } from "../packages/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import { tenantDb, type Database, type Json } from "../packages/db.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -82,7 +84,7 @@ export function automaticResumesOf(row: Pick<LineDbRow, "facts">): number {
  */
 export async function claimLineForResume(
   db: Db,
-  row: Pick<LineDbRow, "id" | "voice_state" | "facts">,
+  row: Pick<LineDbRow, "id" | "tenant_id" | "voice_state" | "facts">,
   nowMs: number,
   by: ResumedBy,
 ): Promise<LineDbRow | null> {
@@ -93,7 +95,7 @@ export async function claimLineForResume(
     ...(by === "sweep" ? {} : { facts: { ...factsOf(row), automatic_resumes: 0 } }),
   };
   if (row.voice_state === "failed") {
-    const { data, error } = await db
+    const { data, error } = await tenantDb(db, row.tenant_id)
       .from("lines")
       .update(values)
       .eq("id", row.id)
@@ -107,7 +109,7 @@ export async function claimLineForResume(
     // The same deadline `lineStuckProvisioning` reads, as a filter: a saga that is
     // genuinely still running has a `state_since` inside it and is never taken.
     const cutoff = new Date(nowMs - PROVISIONING_DEADLINE_MS).toISOString();
-    const { data, error } = await db
+    const { data, error } = await tenantDb(db, row.tenant_id)
       .from("lines")
       .update(values)
       .eq("id", row.id)
@@ -141,8 +143,15 @@ export async function countAutomaticResume(
   row: LineDbRow,
 ): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
   const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
-  const { error } = await db.from("lines").update({ facts }).eq("id", row.id);
+  // Selected and counted: an update that matched nothing (a line that is not this workspace's, a row gone) does not
+  // raise, and a try that was not written down is one the bound never sees.
+  const { data, error } = await tenantDb(db, row.tenant_id)
+    .from("lines")
+    .update({ facts })
+    .eq("id", row.id)
+    .select("id");
   if (error) return { ok: false, error: error.message };
+  if (data?.length !== 1) return { ok: false, error: "the line is not there to count against" };
   return { ok: true, row: { ...row, facts } };
 }
 
@@ -245,7 +254,7 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
       // and every page already know what to do with — and a returned failure is
       // exactly what this is now, just returned by the sweep instead of the saga.
       const why = `Setting up stopped while ${at}, and ${MAX_AUTOMATIC_RESUMES} automatic tries did not finish it. Retry picks up where it stopped.`;
-      const { error: failErr } = await db
+      const { error: failErr } = await tenantDb(db, taken.tenant_id)
         .from("lines")
         .update({ voice_state: "failed", last_error: why, state_since: new Date(deps.now()).toISOString() })
         .eq("id", taken.id);

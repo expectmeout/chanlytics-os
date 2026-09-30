@@ -2,6 +2,8 @@
  * What the send door asks of a cold email (00177 outreach_facts): one question, one answer. The one place the door's
  * outreach facts are typed. The service role asks it (the send path runs on the edge); a read that fails throws,
  * because "we could not check" is not "yes".
+ *
+ * Cross-workspace: only reachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";

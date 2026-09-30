@@ -8,6 +8,8 @@
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00077).
+ *
+ * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

@@ -1,4 +1,8 @@
-/** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
+/**
+ * Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
+ *
+ * Workspace scope: the package's barrel names each export and holds no statement; each repository keeps its own scope.
+ */
 export { emitEvent, recordEvent, subjectsWith, recordActivation } from "./events";
 export type { EmittedKind, EventData } from "./events";
 export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";

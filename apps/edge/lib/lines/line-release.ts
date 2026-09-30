@@ -28,7 +28,7 @@ import {
   type LineReleaseWarned,
 } from "../packages/contracts.js";
 import { deletePhoneNumber, type RetellConfig } from "../packages/channels.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, tenantDb } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -103,7 +103,7 @@ export async function releaseLine(
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
   if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
-  const del = await db.from("lines").delete().eq("id", line.id);
+  const del = await tenantDb(db, tenantId).from("lines").delete().eq("id", line.id);
   if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
   await emitEvent(db, tenantId, "line.released", "line", line.id, {
     e164: line.e164,
@@ -250,7 +250,8 @@ export async function sweepEndedLines(
             },
           },
         })
-        .eq("id", row.id);
+        .eq("id", row.id)
+        .eq("tenant_id", row.tenant_id);
       if (up.error) throw new Error(`keeping the warning: ${up.error.message}`);
       await ports.tell(row.tenant_id, lineReleaseWarning({ ...words, on }));
       out.warned += 1;

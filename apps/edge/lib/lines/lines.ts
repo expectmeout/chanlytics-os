@@ -4,9 +4,11 @@
  * the vault, the receptionist, Retell's import, the routing row. The saga
  * itself is pure and tested with the dry provider; this file is the only
  * place a real SID, token or key is handled.
+ *
+ * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import { tenantDb, type Database, type Json } from "../packages/db.js";
 import {
   chooseLineProvider,
   twilioProvider,
@@ -128,7 +130,7 @@ export function linePorts(
       async save(patch) {
         const row: Partial<Row> = {};
         for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
-        const { error } = await db.from("lines").update(row).eq("id", line.id);
+        const { error } = await tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id);
         if (error) throw new Error(`saving the line: ${error.message}`);
       },
       async getSecrets() {

@@ -120,6 +120,7 @@ test("a provisioning row is run as whoever asked; an answering or released one i
   const db = fakeDb({ lines: [line("provisioning")], tenants: [tenant] });
   const r = await provisionLineJob(
     db,
+    "t1",
     "l1",
     "owner",
     deps(async (_db, _c, _cfg, _s, t, l, by) => {
@@ -131,6 +132,7 @@ test("a provisioning row is run as whoever asked; an answering or released one i
   assert.deepEqual(ran, [["t1", "l1", "owner"]]);
   const idle = await provisionLineJob(
     fakeDb({ lines: [line("answering")], tenants: [tenant] }),
+    "t1",
     "l1",
     "owner",
     deps(async () => {
@@ -140,6 +142,7 @@ test("a provisioning row is run as whoever asked; an answering or released one i
   assert.deepEqual(idle, { ok: true, did: "nothing", why: "answering" });
   const gone = await provisionLineJob(
     fakeDb({ lines: [], tenants: [tenant] }),
+    "t1",
     "l1",
     "owner",
     deps(async () => {
@@ -154,6 +157,7 @@ test("a failed row is an automatic resume: taken exclusively, counted, bounded",
   const db = fakeDb({ lines: [line("failed")], tenants: [tenant] });
   const r = await provisionLineJob(
     db,
+    "t1",
     "l1",
     "owner",
     deps(async (_db, _c, _cfg, _s, _t, l, by) => {
@@ -165,6 +169,7 @@ test("a failed row is an automatic resume: taken exclusively, counted, bounded",
   assert.deepEqual(seen, [["provisioning", "sweep"]], "taken first, and it is the ledger's try, not a person's");
   const spent = await provisionLineJob(
     fakeDb({ lines: [line("failed", { facts: { automatic_resumes: 3 } })], tenants: [tenant] }),
+    "t1",
     "l1",
     "owner",
     deps(async () => {
@@ -180,12 +185,13 @@ test("no provider or no credentials is a refusal the job carries, not a guess", 
   const db = fakeDb({ lines: [line("provisioning")], tenants: [tenant] });
   const noKey = await provisionLineJob(
     db,
+    "t1",
     "l1",
     "owner",
     deps(async () => ({ ok: true }), { apiKey: undefined, fnSecret: "s" }),
   );
   assert.deepEqual(noKey, { ok: false, error: "no_provider_key", did: "nothing", why: "no credentials" });
-  const noProvider = await provisionLineJob(db, "l1", "owner", {
+  const noProvider = await provisionLineJob(db, "t1", "l1", "owner", {
     ...deps(async () => ({ ok: true })),
     provider: () => null,
   });
@@ -204,6 +210,7 @@ test("the ledger's automatic resume is COUNTED, so the ceiling it is bounded by 
   const db = fakeDb(tables);
   const r = await provisionLineJob(
     db,
+    "t1",
     "l1",
     "sweep",
     deps(async () => ({ ok: true })),
@@ -215,6 +222,7 @@ test("the ledger's automatic resume is COUNTED, so the ceiling it is bounded by 
   tables.lines[0].voice_state = "failed";
   await provisionLineJob(
     db,
+    "t1",
     "l1",
     "sweep",
     deps(async () => ({ ok: true })),
@@ -226,6 +234,7 @@ test("at the ceiling the ledger stops resuming and hands the line to a person", 
   const tables = { lines: [line("failed", { facts: { automatic_resumes: 3 } })], tenants: [tenant] };
   const r = await provisionLineJob(
     fakeDb(tables),
+    "t1",
     "l1",
     "sweep",
     deps(async () => {
@@ -244,6 +253,7 @@ test("(C1) the edge's port hands the saga the deadline and says `more` when it s
   const until = Date.now() + 45_000;
   const r = await provisionLineJob(
     db,
+    "t1",
     "l1",
     "owner",
     deps(async (_db, _c, _cfg, _s, _t, l, by, deadline) => {

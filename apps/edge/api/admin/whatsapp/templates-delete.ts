@@ -79,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
     });
     return refuse(502, "meta_refused", gone.error);
   }
-  const { error } = await db.from("templates").delete().eq("id", row.id);
+  const { error } = await db.from("templates").delete().eq("id", row.id).eq("tenant_id", tenantId);
   if (error) return refuse(500, "write_failed", error.message);
   L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });

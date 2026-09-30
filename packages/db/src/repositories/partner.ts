@@ -2,6 +2,8 @@
  * Partners (decision 0012): the one place the two tables are typed. Reads run on the session client, so RLS
  * decides what comes back: a partner sees their own row and the workspaces they brought; an owner sees who
  * brought theirs. The writes are functions (partner_become, create_workspace) and the service role's.
+ *
+ * Cross-workspace: a partner sees the workspaces they brought and the back office all; RLS and SQL checks decide.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../database.types";

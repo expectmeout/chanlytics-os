@@ -4,6 +4,8 @@
  * the receptionist's reply, a held draft fired later, a person's reply from
  * the Inbox. The provider is the same one the lines saga uses, so the dry
  * provider on a preview sends nothing and says so.
+ *
+ * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";

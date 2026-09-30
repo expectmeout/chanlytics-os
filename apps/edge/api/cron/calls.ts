@@ -29,6 +29,8 @@
  * from this sweep, which is how sweep_health() hears it. It used to read as
  * "no record" for every row asked, and three ticks of that marked every
  * pending recording failed for good while this sweep answered 200.
+ *
+ * Cross-workspace: the calls sweep visits every workspace's calls; each write carries the row's own tenant_id.
  */
 import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";

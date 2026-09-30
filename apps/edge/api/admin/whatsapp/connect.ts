@@ -234,7 +234,7 @@ export async function POST(request: Request): Promise<Response> {
   if (credErr) {
     L.info("wa_connect_credentials_failed", { error: credErr.message });
     // Without credentials the row would ride the environment token: not this business's. Disable it.
-    await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);
+    await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id).eq("tenant_id", tenantId);
     return refuse(500, "credentials_failed");
   }
 

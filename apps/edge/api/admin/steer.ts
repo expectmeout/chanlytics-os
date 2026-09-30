@@ -104,6 +104,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .from("conversations")
     .select("id, contacts (phone_e164)")
     .eq("id", m.conversation_id)
+    .eq("tenant_id", m.tenant_id)
     .maybeSingle();
   const phone = conv?.contacts?.phone_e164 ?? null;
   if (!phone) return refuse(409, "no_phone");
@@ -207,6 +208,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .from("messages")
     .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
     .eq("id", m.id)
+    .eq("tenant_id", m.tenant_id)
     .eq("status", "queued")
     .select("id");
   if (cancelErr || !retired?.length) {
@@ -216,6 +218,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       .from("messages")
       .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
       .eq("id", newId)
+      .eq("tenant_id", m.tenant_id)
       .eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
     return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");

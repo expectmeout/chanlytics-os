@@ -495,6 +495,81 @@ export function tableNames(sf) {
   return n;
 }
 
+/* ---- Statements on a workspace's table that name no workspace (the workspaceless ratchet) ---- */
+
+/** The comments at the top of a module, before its first statement: its header, as text. */
+export function headerOf(sf) {
+  const text = sf.getFullText();
+  return (ts.getLeadingCommentRanges(text, 0) ?? []).map((r) => text.slice(r.pos, r.end)).join("\n");
+}
+
+/** The methods that carry a filter, and the ones that write a row (whose object may name its workspace). */
+const FILTERS = new Set(["eq", "match", "filter", "in"]);
+const WRITES = new Set(["insert", "upsert", "update"]);
+
+/** Whether an object literal names the workspace: a `tenant_id` key, or a spread we cannot see into is not one. */
+const namesTenantKey = (o) =>
+  ts.isObjectLiteralExpression(o) &&
+  o.properties.some(
+    (p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && p.name.getText() === "tenant_id",
+  );
+
+/**
+ * The statements in this module that read or write a table with a `tenant_id` and name no workspace: a `.from("t")`
+ * chain with no `.eq("tenant_id", …)` (or `.match({ tenant_id })`, `.in("tenant_id", …)`), whose rows carry no
+ * `tenant_id` key when it writes, and that does not start at `tenantDb(db, id)`, which names the workspace for every
+ * statement it builds (packages/db tenant-db.ts). The service role skips row-level security, so such a statement is
+ * scoped only by an id its author trusted; where that is on purpose (a sweep, a provider's webhook) the file says so in
+ * its header, `Cross-workspace: <why>`, and is not measured at all (workspaceless in _measures.mjs).
+ */
+export function workspacelessStatements(sf, tenantTables, where = []) {
+  let n = 0;
+  const visit = (m) => {
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "from" &&
+      !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
+      m.arguments.length >= 1 &&
+      ts.isStringLiteralLike(m.arguments[0]) &&
+      tenantTables.has(m.arguments[0].text) &&
+      !(
+        ts.isCallExpression(m.expression.expression) &&
+        ts.isIdentifier(m.expression.expression.expression) &&
+        m.expression.expression.expression.text === "tenantDb"
+      )
+    ) {
+      // The chain from this `.from(...)` outward: each `.method(args)` that hangs off it.
+      let named = false;
+      let at = m;
+      for (;;) {
+        const access = at.parent;
+        if (!access || !ts.isPropertyAccessExpression(access) || access.expression !== at) break;
+        const call = access.parent;
+        if (!call || !ts.isCallExpression(call) || call.expression !== access) break;
+        const method = access.name.text;
+        const [first] = call.arguments;
+        if (FILTERS.has(method) && first) {
+          if (method === "match" ? namesTenantKey(first) : ts.isStringLiteralLike(first) && first.text === "tenant_id")
+            named = true;
+        }
+        if (WRITES.has(method) && first) {
+          const rows = ts.isArrayLiteralExpression(first) ? first.elements : [first];
+          if (method !== "update" && rows.length > 0 && rows.every(namesTenantKey)) named = true;
+        }
+        at = call;
+      }
+      if (!named) {
+        n++;
+        where.push(sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1);
+      }
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 /* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
 
 const K = ts.SyntaxKind;

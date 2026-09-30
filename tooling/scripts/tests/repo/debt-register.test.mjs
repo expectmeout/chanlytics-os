@@ -90,6 +90,11 @@ function blockFrom(by, scanCounts) {
     ["non-null assertions, x!", fieldTotal(casts, "nonNull"), ""],
     ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
     ["table names outside packages/db", total(by["tables.json"]), ""],
+    [
+      "edge statements naming no workspace",
+      total(by["workspaceless.json"]),
+      `in ${keys(by["workspaceless.json"])} files`,
+    ],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [

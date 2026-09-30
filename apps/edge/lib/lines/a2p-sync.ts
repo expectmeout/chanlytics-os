@@ -14,7 +14,7 @@ import {
   type CampaignError,
 } from "../packages/channels.js";
 import { formatPhoneDisplay, type EdgeErrorCode } from "../packages/contracts.js";
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, tenantDb } from "../packages/db.js";
 import { recordNotification } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount, refreshLineToken } from "../sms/sms.js";
@@ -68,7 +68,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
     // returns from without touching never moves down the queue. Twenty lines
     // with a lost token would otherwise hold every page for ever and the
     // twenty-first would never be asked about at all.
-    await db
+    await tenantDb(db, line.tenant_id)
       .from("lines")
       .update({ last_error: "could not read the registration: the line has no credentials on file" })
       .eq("id", line.id);
@@ -92,7 +92,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   if (refused(answers)) {
     const fresh = await refreshLineToken(db, line);
     if (!fresh.ok) {
-      await db
+      await tenantDb(db, line.tenant_id)
         .from("lines")
         .update({ last_error: `could not read the registration: ${fresh.detail ?? fresh.error}` })
         .eq("id", line.id);
@@ -100,7 +100,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
     }
     answers = await ask(fresh.account);
     if (refused(answers)) {
-      await db
+      await tenantDb(db, line.tenant_id)
         .from("lines")
         .update({
           last_error:
@@ -156,7 +156,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
       }) ?? "the carriers sent the registration back")
     : null;
   const moved = smsState !== line.sms_state;
-  await db
+  await tenantDb(db, line.tenant_id)
     .from("lines")
     .update({
       sms_state: smsState,

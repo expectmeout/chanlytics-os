@@ -21,6 +21,8 @@
  * had no status change since, so that stamp is still its send. Meta's own
  * "sent" status changes nothing on such a row, so only delivered, read and
  * failed count as a receipt.
+ *
+ * Cross-workspace: the health sweep reads every workspace's unreceipted WhatsApp sends and only reports them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";

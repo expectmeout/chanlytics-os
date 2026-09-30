@@ -104,7 +104,7 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
 const token = (o = {}) =>
   signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
     workspace: "workspace" in o ? o.workspace : T(1),
-    user: U,
+    user: "user" in o ? o.user : U,
   });
 /** A knock about workspace `ws`: the token names it, so the body need not. */
 const knock = (ws, body, headers = { "x-edge-token": token({ workspace: ws }) }) =>
@@ -302,12 +302,15 @@ test("what a request must be before the key is spent: a body under the cap, a pe
     "over the cap: refused by size before it is parsed",
   );
   assert.deepEqual(await answer(await knock(T(1), "not json")), bad("tenant_id, user_id and a purpose required"));
+  // A token names the person, and the door takes the token's (personFor): a body without one, or claiming another, is
+  // the token's. A token that names none (from before they did, or a key) leaves the body's, and that must be a person.
+  const nobody = () => ({ "x-edge-token": token({ workspace: T(1), user: null }) });
   assert.deepEqual(
-    await answer(await knock(T(1), turn({ user_id: undefined }))),
+    await answer(await knock(T(1), turn({ user_id: undefined }), nobody())),
     bad("tenant_id, user_id and a purpose required"),
   );
   assert.deepEqual(
-    await answer(await knock(T(1), turn({ user_id: "ada" }))),
+    await answer(await knock(T(1), turn({ user_id: "ada" }), nobody())),
     bad("tenant_id, user_id and a purpose required"),
   );
   assert.deepEqual(

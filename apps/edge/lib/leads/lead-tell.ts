@@ -8,6 +8,8 @@
  * addresses, or nothing. A question is nothing the platform acts on, so an unaddressable workspace is not reported.
  *
  * Best effort: it never throws, and answers whether a mail went.
+ *
+ * Cross-workspace: a job worker; the round's own row names its workspace, and only that workspace is mailed.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
@@ -36,7 +38,7 @@ export async function tellLeadQuestion(
     const target = { tenantId: r.tenant_id, ...(await loadTenantNotifications(db, r.tenant_id)) };
     if (!reachesTenant(target)) return false;
     const [{ data: s }, { data: t }] = await Promise.all([
-      db.from("lead_searches").select("name").eq("id", r.search_id).maybeSingle(),
+      db.from("lead_searches").select("name").eq("id", r.search_id).eq("tenant_id", r.tenant_id).maybeSingle(),
       db.from("tenants").select("slug").eq("id", r.tenant_id).maybeSingle(),
     ]);
     const page = t?.slug ? `/w/${encodeURIComponent(t.slug)}` : "/";

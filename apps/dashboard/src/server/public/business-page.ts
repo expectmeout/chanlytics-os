@@ -17,6 +17,8 @@ import { cache } from "react";
  *
  * The fourth place the dashboard holds the service role, and the second of two
  * that serve a page with no session (consent-page.ts is the other).
+ *
+ * Cross-workspace: a public page resolves one workspace by slug, then reads only its public facts.
  */
 import { parseTenantConfig, type BusinessPageFacts } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";

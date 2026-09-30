@@ -6,6 +6,8 @@
  * hour of the day, and twenty-five in a paused workspace held the page for every workspace on the platform. The
  * service role asks these (the edge's sweeps); a read that fails throws, so a database without the function is a sweep
  * that says so, never a quiet tick.
+ *
+ * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS } from "@chanlytics/contracts";

@@ -15,6 +15,8 @@ import { log } from "@/server/log";
  *
  * NEITHER FAILS LOUDLY. A report that could not be kept is a number lost, not an error for a page that is closing;
  * a read that fails leaves the back office's other cards standing, and says it could not be read.
+ *
+ * Cross-workspace: page timings name a page and a metric, no workspace; the p75 read is the back office's.
  */
 
 /** Keeps one page load's reports; answers how many rows took them, 0 when the table could not. */
