@@ -1025,7 +1025,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
 });
 
 // The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun. The route it
-// reads is the address's (shell/address.ts), tested in shell/address.test.mjs.
+// reads is the address's (shell/address.ts), tested in shell/address/address.test.mjs.
 
 test("the words: four states, no jargon, no trade", () => {
   assert.deepEqual(SETUP_STATE_WORDS, {

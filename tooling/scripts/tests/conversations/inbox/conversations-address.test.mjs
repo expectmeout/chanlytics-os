@@ -15,7 +15,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toCallVM, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { legacyAddress } from "../../_address.mjs";
+import { legacyAddress } from "../../shell/address/_address.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");

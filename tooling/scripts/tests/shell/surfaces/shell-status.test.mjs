@@ -32,7 +32,7 @@ import {
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { historyOf, legacyAddress } from "../../_address.mjs";
+import { historyOf, legacyAddress } from "../address/_address.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

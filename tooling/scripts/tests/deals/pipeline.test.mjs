@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { legacyAddress } from "../_address.mjs";
+import { legacyAddress } from "../shell/address/_address.mjs";
 import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,

@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { legacyAddress } from "../_address.mjs";
+import { legacyAddress } from "../shell/address/_address.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,

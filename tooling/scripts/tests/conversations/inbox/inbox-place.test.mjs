@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { legacyAddress } from "../../_address.mjs";
+import { legacyAddress } from "../../shell/address/_address.mjs";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 

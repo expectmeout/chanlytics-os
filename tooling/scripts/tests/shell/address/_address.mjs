@@ -21,7 +21,7 @@ export async function legacyAddress() {
   if (made) globalThis.window = {};
   const win = globalThis.window;
   const was = win.CHANLY;
-  await import("../../../apps/dashboard/src/legacy/data/constants.jsx");
+  await import("../../../../../apps/dashboard/src/legacy/data/constants.jsx");
   const { address } = win.CHANLY;
   if (made) delete globalThis.window;
   else if (was === undefined) delete win.CHANLY;
