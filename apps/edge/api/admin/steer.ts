@@ -73,6 +73,19 @@ function rewriteBlocked(text: string, messageId: string): boolean {
   return true;
 }
 
+/**
+ * The message the door was named, for the workspace the token names. A token minted for one workspace opens only that
+ * workspace's drafts: another's is a draft that is not there, the answer a made-up id gets, so the door cannot be
+ * used to find out which ids exist. A knock that names none (a preview's key) reads the id as it always did.
+ */
+function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
+  const draft = db
+    .from("messages")
+    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
+    .eq("id", messageId);
+  return (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
+}
+
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   const auth = await authorizeAdmin(request, "/api/admin/steer");
@@ -89,13 +102,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  const draft = db
-    .from("messages")
-    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
-    .eq("id", messageId);
-  // A token minted for one workspace opens only that workspace's drafts: another's is a draft that is not there, the
-  // answer a made-up id gets, so the door cannot be used to find out which ids exist.
-  const { data: m, error: mErr } = await (workspace ? draft.eq("tenant_id", workspace) : draft).maybeSingle();
+  const { data: m, error: mErr } = await draftOf(db, messageId, workspace);
   if (mErr) return refuse(500, "message_read_failed");
   if (!m) return refuse(404, "not_found");
   if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");

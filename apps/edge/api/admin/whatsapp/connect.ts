@@ -79,9 +79,8 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
-  body.user_id = personFor(auth, body.user_id) ?? undefined;
   const tenantId = String(body.tenant_id || "");
-  const userId = String(body.user_id || "");
+  const userId = personFor(auth, body.user_id) ?? "";
   const code = String(body.code || "").trim();
   const phoneNumberId = String(body.phone_number_id || "").trim();
   const wabaId = String(body.waba_id || "").trim();
