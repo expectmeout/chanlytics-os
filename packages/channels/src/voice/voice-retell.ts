@@ -145,10 +145,11 @@ export function parseTranscriptText(text: string | null | undefined): RetellTran
     if (!line) continue;
     const m = /^(Agent|User):\s*(.*)$/.exec(line);
     if (!m) {
-      if (turns.length) turns[turns.length - 1].content += ` ${line}`;
+      const last = turns.at(-1);
+      if (last) last.content += ` ${line}`;
       continue;
     }
-    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] });
+    turns.push({ role: m[1] === "Agent" ? "agent" : "user", content: m[2] ?? "" });
   }
   return turns.length ? turns : null;
 }
@@ -392,9 +393,9 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
   const r = answered(await retell(cfg, "GET", `/get-agent/${agentId}`), "get-agent");
   const a = answerObject(r);
   if (r.outcome !== "ok" || !a) return null;
-  const str = (k: string) => (typeof a[k] === "string" ? (a[k] as string) : null);
-  const num = (k: string) => (typeof a[k] === "number" ? (a[k] as number) : null);
-  const bool = (k: string) => (typeof a[k] === "boolean" ? (a[k] as boolean) : null);
+  const str = (k: string) => (typeof a[k] === "string" ? a[k] : null);
+  const num = (k: string) => (typeof a[k] === "number" ? a[k] : null);
+  const bool = (k: string) => (typeof a[k] === "boolean" ? a[k] : null);
   const engine = (a.response_engine ?? {}) as Record<string, unknown>;
   return {
     agent_id: str("agent_id") ?? agentId,
@@ -587,7 +588,7 @@ export async function getRetellLlm(
   const r = answered(await retell(cfg, "GET", `/get-retell-llm/${llmId}${q}`), "get-retell-llm");
   const l = answerObject(r);
   if (r.outcome !== "ok" || !l) return null;
-  const str = (k: string) => (typeof l[k] === "string" ? (l[k] as string) : null);
+  const str = (k: string) => (typeof l[k] === "string" ? l[k] : null);
   return {
     llm_id: str("llm_id") ?? llmId,
     version: typeof l.version === "number" ? l.version : null,
@@ -639,7 +640,7 @@ export function verifyRetellSignature(
   if (!header || !apiKey) return false;
   const m = /v=(\d+),d=([0-9a-f]+)/i.exec(String(header));
   if (!m) return false;
-  const [, ts, digest] = m;
+  const [, ts = "", digest = ""] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
   const expected = crypto
     .createHmac("sha256", apiKey)

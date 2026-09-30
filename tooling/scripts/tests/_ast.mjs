@@ -404,6 +404,47 @@ export function unknownCasts(sf) {
   return n;
 }
 
+/** A cast to `unknown`, parentheses and all: the inner half of `x as unknown as T`. */
+const isUnknownCast = (n) => {
+  while (ts.isParenthesizedExpression(n)) n = n.expression;
+  return isCast(n) && n.type.kind === ts.SyntaxKind.UnknownKeyword;
+};
+
+/**
+ * `x as never`: a value told it is nothing, so the compiler stops checking where it goes (the keys of an RPC's
+ * arguments, a column's type), however it is written, `<never>x` too. The outer half of `x as unknown as never` is
+ * laundering through unknown, counted there and not here.
+ */
+export function neverCasts(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isCast(m) && m.type.kind === ts.SyntaxKind.NeverKeyword && !isUnknownCast(m.expression)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** `x!`: a value the compiler is told is neither null nor undefined, and takes on trust. `let x!: T` is not one. */
+export function nonNullAssertions(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isNonNullExpression(m)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/**
+ * The casts `baselines/casts.json` holds, by family, for one module: `{ unknownAs, never, nonNull }`, a family the
+ * module has none of left out, so a module with none is no entry.
+ */
+export function castsIn(sf) {
+  const counts = { unknownAs: unknownCasts(sf), never: neverCasts(sf), nonNull: nonNullAssertions(sf) };
+  return Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
+}
+
 /**
  * The `style` props a module's markup carries: `style={{ … }}` or `style={value}`, on an element or a component. A
  * prop is a value no look can reach (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, rule 1); a class that
@@ -476,26 +517,6 @@ const isRpcCall = (m) =>
   m.arguments.length >= 1 &&
   ts.isStringLiteralLike(m.arguments[0]) &&
   /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
-
-/**
- * `.rpc("<function>", args as never)`: a call whose arguments the compiler no longer checks against the function's
- * generated `Args`, so a misspelled or renamed `p_` key compiles. Counted per argument cast, parentheses seen through.
- */
-export function rpcArgsAsNever(sf) {
-  let n = 0;
-  const visit = (m) => {
-    if (isRpcCall(m)) {
-      for (const a of m.arguments.slice(1)) {
-        let e = a;
-        while (ts.isParenthesizedExpression(e)) e = e.expression;
-        if (isCast(e) && e.type.kind === ts.SyntaxKind.NeverKeyword) n++;
-      }
-    }
-    ts.forEachChild(m, visit);
-  };
-  visit(sf);
-  return n;
-}
 
 /**
  * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and

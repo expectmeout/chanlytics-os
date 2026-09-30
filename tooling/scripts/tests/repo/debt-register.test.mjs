@@ -42,6 +42,7 @@ import {
 import {
   MEASURES,
   WIRE_CASING,
+  UNCHECKED_INDEX,
   wireCounts,
   sourceScan,
   bankedSourceScan,
@@ -63,6 +64,8 @@ const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "
 const keys = (o) => Object.keys(o ?? {}).length;
 /** Every field of every entry, summed: a stylesheet's literal values are counted by kind. */
 const fieldsTotal = (o) => Object.values(o ?? {}).reduce((a, v) => a + Object.values(v).reduce((b, n) => b + n, 0), 0);
+/** One field of every entry, summed: casts.json holds each module's casts by family. */
+const fieldTotal = (o, field) => Object.values(o ?? {}).reduce((a, v) => a + (v[field] ?? 0), 0);
 
 /** tables.json's entries: a file's `.from("…")` count under its path, its `.rpc("…")` count under `<path>::rpc`. */
 const tableCalls = (o, rpc) => Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => k.endsWith(RPC_KEY) === rpc));
@@ -75,6 +78,8 @@ function blockFrom(by, scanCounts) {
   const copies = by["copies.json"] ?? {};
   // knip's, ESLint's and the bundle's baselines are written by their own scripts, never by the suite, so the file is the truth in both modes.
   const lint = readBaseline("lint-warnings.json") ?? {};
+  const unchecked = by["unchecked-index.json"] ?? {};
+  const casts = by["casts.json"] ?? {};
   const budget = readBaseline("bundle-budget.json") ?? {};
   const effects = Object.values(lint).reduce((a, rules) => a + (rules["react-hooks/exhaustive-deps"] ?? 0), 0);
   const wire = wireCounts(by["wire-casing.json"]);
@@ -85,10 +90,12 @@ function blockFrom(by, scanCounts) {
     ["window globals", keys(by["window-globals.json"]), "names"],
     ["window publishers", total(publishers), `sites in ${keys(publishers)} files`],
     ["copies", total(copies), `of ${keys(copies)} names`],
-    ["as unknown as", total(by["casts.json"]), ""],
+    ["as unknown as", fieldTotal(casts, "unknownAs"), ""],
+    ["as never", fieldTotal(casts, "never"), ""],
+    ["non-null assertions, x!", fieldTotal(casts, "nonNull"), ""],
+    ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
     ["table names outside packages/db", total(tableCalls(by["tables.json"], false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by["tables.json"], true)), "called by .rpc"],
-    ["RPC arguments cast as never", total(by["rpc-casts.json"]), `in ${keys(by["rpc-casts.json"])} files`],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],
     [
@@ -130,7 +137,7 @@ const fromFiles = () =>
 const fromBank = () =>
   blockFrom(
     Object.fromEntries(
-      [...MEASURES, WIRE_CASING].map((m) => [
+      [...MEASURES, WIRE_CASING, UNCHECKED_INDEX].map((m) => [
         m.file,
         bank(m.measure(), readBaseline(m.file), { mode: m.mode, raise: RAISE }),
       ]),

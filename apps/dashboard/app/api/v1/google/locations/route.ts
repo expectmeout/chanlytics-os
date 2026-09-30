@@ -25,7 +25,7 @@ function locations(raw: unknown): GoogleLocationDto[] {
   return (Array.isArray(raw) ? raw : [])
     .map((l) => {
       const o = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
-      const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : null);
+      const s = (k: string) => (typeof o[k] === "string" ? o[k] : null);
       return {
         account_name: s("account_name") ?? "",
         account_title: s("account_title") ?? "",

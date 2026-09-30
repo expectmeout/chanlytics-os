@@ -244,5 +244,5 @@ function metaOf(e: IncomingEmail): Json {
       more_attachments: Math.max(0, e.attachments.length - 5),
       truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
     },
-  } as Json;
+  };
 }

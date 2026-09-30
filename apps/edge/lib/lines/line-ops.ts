@@ -329,7 +329,7 @@ export function planRecord(
       kind: "refuse",
       answer: { status: 400, body: { ok: false, error: "bad_request", detail: "record is required" } },
     };
-  const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
+  const str = (k: string) => (typeof b[k] === "string" ? b[k].trim() : "");
 
   // WHICH registration this record is for. Taken from the caller when it says,
   // derived from the tax id when it does not.

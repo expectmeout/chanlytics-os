@@ -147,9 +147,9 @@ export function unb64url(s: string): Uint8Array {
  */
 export function idTokenClaims(idToken: string | null | undefined): { email: string | null; sub: string | null } {
   try {
-    const parts = (idToken ?? "").split(".");
-    if (parts.length < 2) return { email: null, sub: null };
-    const c = JSON.parse(dec.decode(unb64url(parts[1]))) as Record<string, unknown>;
+    const payload = (idToken ?? "").split(".")[1];
+    if (payload === undefined) return { email: null, sub: null };
+    const c = JSON.parse(dec.decode(unb64url(payload))) as Record<string, unknown>;
     return { email: typeof c.email === "string" ? c.email : null, sub: typeof c.sub === "string" ? c.sub : null };
   } catch {
     return { email: null, sub: null };

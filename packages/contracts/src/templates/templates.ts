@@ -436,7 +436,7 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
 
 const sayList = (parts: string[]): string =>
   parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-const capital = (s: string): string => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
+const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /**
  * What sends it, in one line. "Nothing sends it" is the answer worth showing:
@@ -452,7 +452,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   if (u.booking) parts.push("the Inbox");
   if (parts.length === 0) return "Nothing sends it";
   // One playbook alone is "Win-back playbook" even when paused: the line under it says so.
-  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0]!.name} playbook`;
+  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} playbook`;
   return capital(sayList(parts));
 }
 
@@ -465,7 +465,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
 export function templateUseNote(use: TemplateUse | null | undefined): string | null {
   const u = use ?? NOTHING;
   if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
-  if (u.playbooks.length === 1) return u.playbooks[0]!.paused ? "paused — nothing goes out" : u.playbooks[0]!.runs;
+  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused — nothing goes out" : u.playbooks[0].runs;
   if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused — nothing goes out" : null;
   if (u.recent.length > 0)
     return u.broadcasts > u.recent.length

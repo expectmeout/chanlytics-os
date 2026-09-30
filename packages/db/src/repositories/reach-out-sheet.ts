@@ -42,7 +42,7 @@ export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOu
     .eq("tenant_id", tenantId)
     .eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
-  return (data ?? []) as ReachOutStepRow[];
+  return data ?? [];
 }
 
 /** A chain's root (its first step) by its id; null when there is none, or it is a later step. */
@@ -196,7 +196,7 @@ export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", runId);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
-  return (data ?? []) as ReachOutRunSend[];
+  return data ?? [];
 }
 
 /** A step's day: tried now, and, when it ran, the day it ran for (the sweep and Start both stamp it). */
@@ -224,7 +224,7 @@ export async function recheckSends(
     p_send_ids: p.ids,
     p_tenant_id: p.tenantId,
     ...(p.fromState ? { p_from_state: p.fromState } : {}),
-  } as never);
+  });
   if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }

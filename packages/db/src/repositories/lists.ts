@@ -276,7 +276,7 @@ export async function playbooksOnList(
     if (missingColumn(error.message, "list_id")) return [];
     throw new Error(`playbooks: ${error.message}`);
   }
-  return (data ?? []) as { id: string; name: string; state: string }[];
+  return data ?? [];
 }
 
 /** A list and its member rows. `count` says whether anything was removed: a delete that removed nothing is no delete. */

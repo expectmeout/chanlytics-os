@@ -125,11 +125,14 @@ export function variablesOf(t: MetaTemplate, keepLabels: TemplateVariable[] = []
   const examples = bodyComponent(t)?.example?.body_text?.[0] ?? [];
   return [...positions]
     .sort((a, b) => a - b)
-    .map((n) => ({
-      position: n,
-      label: keepLabels.find((k) => k.position === n)?.label ?? `Value ${n}`,
-      example: typeof examples[n - 1] === "string" ? examples[n - 1] : null,
-    }));
+    .map((n) => {
+      const example = examples[n - 1];
+      return {
+        position: n,
+        label: keepLabels.find((k) => k.position === n)?.label ?? `Value ${n}`,
+        example: typeof example === "string" ? example : null,
+      };
+    });
 }
 
 /** The labels a row already holds, when they are the shape this module writes. */

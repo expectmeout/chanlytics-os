@@ -481,7 +481,6 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
               <div className="cl-search-wrap">
                 <Icon name="search" size={13} />
                 <input ref={searchRef} placeholder={`${window.PL_SEARCH_LABEL}…`} aria-label={window.PL_SEARCH_LABEL} value={q} onChange={(e) => setQ(e.target.value)} data-testid="pipeline-search" />
-                <span className="kbd">/</span>
               </div>
               <div className="cl-controls-right">
                 {/* Which columns show, a member's own, kept in their view: People's menu (people-table.jsx). */}

@@ -26,6 +26,7 @@ import {
   SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const SUB = {
@@ -506,7 +507,11 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   assert.ok(page.includes('verb.to === "verb:billing-checkout"') && page.includes('verb.to === "verb:billing-portal"'));
-  assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "billing_accounts", event: "*" }'));
+  assert.deepEqual(
+    toldFor("billing_accounts"),
+    EVERY_EVENT,
+    "Stripe's answer, applied by the webhook, repaints Billing",
+  );
   const kinds = readCode("packages/contracts/src/today/notifications.ts");
   assert.ok(
     kinds.includes('billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" }') &&

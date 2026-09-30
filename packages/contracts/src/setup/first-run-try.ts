@@ -179,7 +179,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   if (!call) {
     const f = fw?.forwarding ?? null;
     const open = !!f && fw!.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f!.test_until ? Math.max(1, Math.ceil((Date.parse(f!.test_until) - nowMs) / MIN_MS)) : null;
+    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
     return {
       ...base,
@@ -233,7 +233,7 @@ export function firstRunTryOf({ dto, calls, since, nowMs }: FirstRunTryInput): F
   if (callerOk) {
     options.push({
       key: "caller",
-      label: W.putThrough(formatPhoneDisplay(caller) ?? caller!),
+      label: W.putThrough(formatPhoneDisplay(caller) ?? caller),
       sentence: W.putThroughCaller,
       to: caller,
     });

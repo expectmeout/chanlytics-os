@@ -134,10 +134,9 @@ const SET_TAB = (id) =>
   || SET_TABS_UNLISTED.find((t) => t.id === id)
   || SET_TABS[0];
 
-// ...rest carries the aria-labelledby SetRow hands down; without forwarding it
-// the switch is announced with no name at all.
-const SetToggle = ({ on, onChange, ...rest }) => (
-  <button className={`set-switch ${on ? "on" : ""}`} role="switch" aria-checked={on} onClick={() => onChange(!on)} {...rest}>
+// The rest (window.propsWithout, never an object rest: legacy CLAUDE.md) carries the aria-labelledby SetRow hands down.
+const SetToggle = (props) => (
+  <button className={`set-switch ${props.on ? "on" : ""}`} role="switch" aria-checked={props.on} onClick={() => props.onChange(!props.on)} {...window.propsWithout(props, ["on", "onChange"])}>
     <span className="set-knob" />
   </button>
 );
@@ -181,13 +180,13 @@ const SetRow = ({ label, hint, note, children }) => {
   );
 };
 
-const SetSeg = ({ value, options, onChange, ...rest }) => {
+const SetSeg = (props) => {
   // role=group so the label SetRow supplies has something to name; the buttons
   // inside stay plain buttons, which is what they already were. `gate` is
   // window.gate(...)'s props, on every option -- a dial a role may not turn says
   // why when pressed, where it used to take the press and show the server's
   // refusal -- and it stays off the group, which gets everything else it is given.
-  const { gate = null, ...group } = rest;
+  const { value, options, onChange, gate = null } = props, group = window.propsWithout(props, ["value", "options", "onChange", "gate"]);
   return (
     <div className="cl-tabs" role="group" {...group}>
       {options.map(o => (
@@ -203,7 +202,8 @@ const SetSeg = ({ value, options, onChange, ...rest }) => {
  * (PolPhoneRows). Five of them put a 50px strip of 44px buttons under every label, 110px a row (25 Sep). Hookless:
  * the pane says which it is, from the one `useSetPhone` it reads.
  */
-const SetDial = ({ phone = false, value, options, onChange, gate = null, label = "", ...rest }) => {
+const SetDial = (props) => {
+  const { phone = false, value, options, onChange, gate = null, label = "" } = props, rest = window.propsWithout(props, ["phone", "value", "options", "onChange", "gate", "label"]);
   if (!phone) return <SetSeg value={value} options={options} onChange={onChange} gate={gate} {...rest} />;
   const gated = gate && gate["aria-disabled"] ? gate["data-tip"] : null;
   return (

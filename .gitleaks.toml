@@ -11,10 +11,17 @@
 # - Google's own documented sample place id, beside a variable named KEY in
 #   the Places test: a public identifier from Google's examples, high in
 #   entropy, and not a credential (tooling/scripts/tests/google/google.test.mjs).
+# - The migration ledger (supabase/migrations-ledger.json): each line is a
+#   migration's filename and the sha256 of its text. A checksum is high in
+#   entropy, and a filename can carry a word the generic-api-key rule reads as
+#   a key ("00263_an_erased_person_s_digest_is_keyed.sql"), so any migration
+#   named with key, secret or token would trip it. The file holds no secret; it
+#   is allowed by path, the one file, because its values are not fixed.
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Rule-shaped fakes in tests, by value"
+description = "Rule-shaped fakes in tests, by value, and the migration ledger's checksums, by path"
 regexes = ['''Abcdefghij12kl''', '''ChIJN1t_tDeuEmsRUsoyG83frY4''']
+paths = ['''^supabase/migrations-ledger\.json$''']

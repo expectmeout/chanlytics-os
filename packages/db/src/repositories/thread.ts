@@ -158,7 +158,7 @@ export async function readThreadState(
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
 
-  const history = assembleHistory((recent.data ?? []) as never, historyLimit);
+  const history = assembleHistory(recent.data ?? [], historyLimit);
   // From the rows already in hand, so this costs no extra round trip: an
   // outbound row that actually left is the only proof that we have written to
   // this person before.
@@ -315,7 +315,7 @@ export async function readLeadContext(
       .order("created_at", { ascending: false })
       .limit(historyLimit * 3);
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory((rows ?? []) as never, historyLimit);
+    history = assembleHistory(rows ?? [], historyLimit);
   }
 
   // Their deal, read beside the note (0004), only where deals are on: a context lookup must never cost the reply, so an
