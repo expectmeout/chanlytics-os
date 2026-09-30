@@ -27197,8 +27197,6 @@ async function settleJob(db, job, certain) {
         tenantId: job.tenant_id,
         kind: "broadcast_send",
         dueAt: /* @__PURE__ */ new Date(),
-        // What the run had waited through goes with it, so a resumed run still looks at the day's sending hours
-        // and still counts its stalls toward the cap.
         payload: { ...nextBatch(broadcastId, carriedBy(job.payload)), resumes: resumes + 1 }
       });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
