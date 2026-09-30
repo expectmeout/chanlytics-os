@@ -282,7 +282,7 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
 // listener here would take the key twice and close the panel and then the selection on one press.
 const LeadPlanSheet = ({ onClose, children }) => (
   <>
-    <div className="sb-sheet-backdrop" onClick={onClose} />
+    <div className="sb-sheet-backdrop" role="presentation" onClick={onClose} />
     {/* A phone's alone: its handle says a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving). */}
     <div className="sb-sheet pl-plan" role="dialog" aria-label="The plan" data-testid="lead-plan-sheet" ref={window.leaving ? window.leaving("lead-plan") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose }) : {})}>
       <div className="ld-sheet-handle" />

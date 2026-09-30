@@ -11,7 +11,7 @@
  * the column's default.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WabaEventKind } from "@chanlytics/contracts";
+import type { ActivationMilestone, WabaEventKind } from "@chanlytics/contracts";
 import type { Database, Json } from "./database.types";
 
 type Db = SupabaseClient<Database>;
@@ -46,6 +46,8 @@ interface TableData {
   "google.disconnected": { email: string | null; location: string | null; revoked: boolean };
   "google.linked": { place_id: string; name: string | null; by: string | null; read: boolean };
   "google.replied": { review_id: string; chars: number; by?: "receptionist"; usage?: Open | null };
+  /** An automatic reply the receptionist wrote and did not post: it named a price or money (contracts autoReplyHold). */
+  "google.reply_held": { review_id: string; why: "price" | "money" };
   "google.reviews": {
     source: "places" | "profile";
     fresh: number;
@@ -85,6 +87,8 @@ interface TableData {
   "voice.provisioned": Open & { agent_id: string; llm_id: string };
   "webhook.auth": { provider: "retell" } & Open;
   "webhook.delivery": { provider: "retell" } & Open;
+  /** A workspace reached one of the activation milestones for the first time (contracts ACTIVATION_MILESTONES). */
+  "workspace.activated": { milestone: ActivationMilestone; via: string };
 }
 
 /** Meta's account webhooks, one kind per field (contracts WABA_FIELDS): the payload as Meta sent it. */
@@ -109,6 +113,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "google.disconnected": { category: "google", version: 1 },
   "google.linked": { category: "google", version: 1 },
   "google.replied": { category: "google", version: 1 },
+  "google.reply_held": { category: "google", version: 1 },
   "google.reviews": { category: "google", version: 1 },
   "google.unlinked": { category: "google", version: 1 },
   "ingest.allowlist_skip": { category: "ingest", version: 1 },
@@ -142,6 +147,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "voice.provisioned": { category: "setup", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },
   "webhook.delivery": { category: "ingest", version: 1 },
+  "workspace.activated": { category: "setup", version: 1 },
 };
 /** Meta's family files as the connection it happened to, at its own version. */
 const WABA_WRITE = { category: "system", version: 1 };
@@ -196,4 +202,53 @@ export async function emitEvent<K extends EmittedKind>(
 ): Promise<void> {
   const { error } = await recordEvent(db, tenantId, kind, subjectType, subjectId, data);
   if (error) console.error("emit_event_failed", kind, error);
+}
+
+/**
+ * Of `subjectIds`, the ones a kind was already written about in this workspace: what a sweep asks before doing again
+ * what it once decided not to (a review reply it held). An empty list asks nothing.
+ */
+export async function subjectsWith(
+  db: Db,
+  tenantId: string,
+  kind: EmittedKind,
+  subjectIds: string[],
+): Promise<Set<string>> {
+  if (!subjectIds.length) return new Set();
+  const { data, error } = await db
+    .from("events")
+    .select("subject_id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", kind)
+    .in("subject_id", subjectIds);
+  if (error) throw new Error(`events: ${error.message}`);
+  return new Set((data ?? []).map((r) => r.subject_id).filter((id): id is string => typeof id === "string"));
+}
+
+/**
+ * A workspace reached a milestone (the product's analytics: the first line live, the first reply, the first lead
+ * search), written once: a milestone already on the ledger writes nothing. Best effort, as emitEvent is; two writers
+ * racing may both write, and a funnel counts workspaces, not rows. True when this call wrote it.
+ */
+export async function recordActivation(
+  db: Db,
+  tenantId: string,
+  milestone: ActivationMilestone,
+  via: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("events")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "workspace.activated")
+    .eq("data->>milestone", milestone)
+    .limit(1);
+  if (error) {
+    console.error("activation_read_failed", milestone, error.message);
+    return false;
+  }
+  if (data && data.length) return false;
+  const w = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
+  if (w.error) console.error("emit_event_failed", "workspace.activated", w.error);
+  return !w.error;
 }

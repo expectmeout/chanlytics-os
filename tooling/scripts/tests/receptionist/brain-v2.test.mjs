@@ -8,11 +8,12 @@
  * message row, the Inbox shows why, and under Auto a reply the model is not
  * sure enough about waits in the hold window for a person.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   BRAIN_INTENTS,
+  MODEL_ROUTES,
   BrainOutputSchema,
   parseBrainOutput,
   brainMetaOf,
@@ -23,6 +24,14 @@ import {
   toConversationVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { at } from "../_cron-doors-world.mjs";
+import { scripted, said, json } from "../ai/_model-world.mjs";
+
+process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
+const { generateReply } = await import(at("apps/edge/lib/receptionist/brain.ts"));
+const { setModelFetch } = await import(at("apps/edge/lib/model.ts"));
+after(() => setModelFetch(null));
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -214,21 +223,57 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
   assert.equal(conv.messages.find((m) => m.text === "hi" && m.from === "agent").why.summary, "Hours · 88% sure");
 });
 
-test("the brain asks for the record, reads it through the parse, and keeps the old token as a handoff", () => {
-  const b = readCode("apps/edge/lib/receptionist/brain.ts");
-  assert.ok(
-    b.includes('output_config: { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } }'),
+test("the brain asks for the record, reads it through the parse, and keeps the old token as a handoff", async () => {
+  // Run, over a scripted model: what the receptionist sends, and what it makes of each kind of answer.
+  const record = (over = {}) => ({
+    reply: "We open at nine.",
+    intent: "hours",
+    escalate: false,
+    reason: "",
+    confidence: 0.9,
+    facts_used: ["hours"],
+    language: "en",
+    ...over,
+  });
+  const ask = async (...replies) => {
+    const api = scripted(...replies);
+    setModelFetch(api.fetch);
+    const r = await generateReply([], "when do you open?", "System.", "Hold on, a person will follow up.");
+    return { r, api };
+  };
+
+  const ok = await ask(json(record()));
+  assert.deepEqual(
+    ok.api.calls[0].body.output_config,
+    { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } },
+    "asked for as a record",
   );
-  assert.ok(b.includes("max_tokens: 900,"));
-  assert.ok(
-    b.includes('if (response.stop_reason === "max_tokens") {') &&
-      b.includes('return { text: fallbackText, escalate: true, reason: "human_token", usage };'),
+  assert.equal(ok.api.calls[0].body.max_tokens, MODEL_ROUTES.receptionist.maxTokens, "and under the registry's cap");
+  assert.deepEqual([ok.r.text, ok.r.escalate, ok.r.reason], ["We open at nine.", false, undefined]);
+  assert.deepEqual(
+    [ok.r.meta.intent, ok.r.meta.confidence, ok.r.meta.language, ok.r.meta.model],
+    ["hours", 0.9, "en", MODEL_ROUTES.receptionist.model],
+    "the record on the row",
+  );
+
+  const capped = await ask(said('{"reply":"We op', { stop_reason: "max_tokens" }));
+  assert.deepEqual(
+    [capped.r.text, capped.r.escalate, capped.r.reason],
+    ["Hold on, a person will follow up.", true, "human_token"],
     "a capped answer is the holding reply plus a person",
   );
-  assert.ok(b.includes("const parsed = parseBrainOutput(raw);"));
-  assert.ok(b.includes('reason: "brain_error", usage };'), "an unreadable answer is the holding reply plus a person");
-  assert.ok(b.includes('let escalate = parsed.value.escalate || text.includes("[[HUMAN]]");'));
-  assert.ok(b.includes("meta: brainMetaOf(parsed.value, BRAIN_MODEL)"));
+  const unreadable = await ask(said("this is not the record"));
+  assert.deepEqual(
+    [unreadable.r.text, unreadable.r.escalate, unreadable.r.reason],
+    ["Hold on, a person will follow up.", true, "brain_error"],
+    "an unreadable answer is the holding reply plus a person",
+  );
+  const token = await ask(json(record({ reply: "A person will call you. [[HUMAN]]" })));
+  assert.deepEqual(
+    [token.r.text, token.r.escalate],
+    ["A person will call you.", true],
+    "the old token still hands off",
+  );
 });
 
 test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {

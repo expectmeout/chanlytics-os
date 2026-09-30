@@ -20,6 +20,8 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "../surface-data";
+import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
+import { onlyOnItsPage } from "../surface-registry";
 import type { TemplateDto } from "./inbox";
 
 /* ------------------------------- Playbooks ------------------------------- */
@@ -146,6 +148,9 @@ export const playbooksOverride: SurfaceOverride = {
   globals: ["__PLAYBOOKS"],
   events: ["surface:playbooks"],
   refreshOnMessageInserts: true,
+  // A message moves a playbook's replies: read again only while its page is on screen, and once when it comes back
+  // (surface-registry.ts).
+  refreshWhen: onlyOnItsPage("playbooks", DEFAULT_REFRESH_TABLES),
   apply: async () => {
     const [pb, tpl, ch, cfg] = await Promise.all([
       read("GET playbooks"),

@@ -224,3 +224,26 @@ test("F42: only the production dashboard reaches the live store or a live call �
     "REGRESSION: plain local dev reached the live providers",
   );
 });
+
+test("REGRESSION: the limiter's refusal and the client's retry hint say a wait in the one place's words, whatever the wait", async () => {
+  // The limiter kept its own `human` beside contracts' `waitWords` (scorecard row 76), so a change to one left a refusal
+  // and its hint worded differently. Both say contracts' now; every wait across the seconds/minutes edge reads the same
+  // in the two, and the limiter's message is the sentence around contracts' words.
+  const { waitWords, refusalOf } = await import("@chanlytics/contracts");
+  try {
+    for (const n of [1, 2, 59, 60, 61, 119, 120, 121, 3599]) {
+      setRateStore({ take: async () => ({ allowed: false, retryAfterS: n }) });
+      const refused = await takeRate("u1", "whisper", 1_000).catch((e) => e);
+      assert.equal(refused.message, `Too many whispers in a short time — try again in ${waitWords(n)}.`, `${n} s`);
+      const hint = refusalOf({ code: "rate_limited", status: 429, details: { retry_after_s: n }, write: true });
+      assert.equal(hint.message, `Too many at once — try again in ${waitWords(n)}.`, `${n} s, as the client says it`);
+    }
+    assert.equal(waitWords(1), "1 second");
+    assert.equal(waitWords(59), "59 seconds");
+    assert.equal(waitWords(60), "1 minute");
+    assert.equal(waitWords(61), "2 minutes");
+  } finally {
+    setRateStore(null);
+    resetRates();
+  }
+});

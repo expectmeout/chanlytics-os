@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { installRoleStore } from "../_legacy-react.mjs";
 import {
   CONSENT_SOURCES,
   DEAL_ACT_WORDS,
@@ -820,13 +821,15 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // The record kit's sheet, which New proposal is drawn in on a desk.
 await import("../../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
 // The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
 await import("../../../../apps/dashboard/src/legacy/components/record-field.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
+installRoleStore();
 // Menus, questions and glyphs as their props: nothing here presses them.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
@@ -863,6 +866,8 @@ for (const k of [
   "plColumnOptions",
   "PL_NO_SEL",
   "PL_FIRST_ROWS",
+  "PL_WINDOW_ROWS",
+  "usePlRowWindow",
 ])
   globalThis[k] = globalThis.window[k];
 // In the order both lists load them (manifest.ts, Chanlytics.html): the peek and the board before the Pipeline, the

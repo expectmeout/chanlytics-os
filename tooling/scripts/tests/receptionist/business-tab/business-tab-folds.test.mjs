@@ -31,6 +31,7 @@ import {
   normalizeLink,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "../../_legacy-react.mjs";
+import { withStanding } from "../_prompt-rules.mjs";
 
 // As the bridge publishes them (inbox-verbs.ts): what a new receptionist starts with, what the instructions box opens
 // with and holds, the product's wording for the three messages, and the names in a message nothing fills in.
@@ -1079,8 +1080,8 @@ test("the own-words fold opens the baseline a save before S4 left in the owner's
   const bare = { ...record.brain, profile: without(profile, "extra_instructions") };
   assert.deepEqual(
     told(bare),
-    [record.brain.system_prompt, record.brain.system_prompt],
-    "and without it the resolver hands the stored prompt straight back, which is what review measured",
+    [withStanding(record.brain.system_prompt, "whatsapp"), withStanding(record.brain.system_prompt, "voice")],
+    "and without it the resolver hands the stored prompt back with only the standing rules after it, which is what review measured",
   );
 
   read(record);

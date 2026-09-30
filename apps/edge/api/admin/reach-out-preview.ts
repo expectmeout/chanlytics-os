@@ -12,6 +12,7 @@
  * tokens is a 429 before anything is asked, and what a preview cost is recorded against the member who asked.
  */
 import { json } from "../../lib/http.js";
+import { readBody } from "../../lib/admin-door.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -102,12 +103,7 @@ async function recordPreviewSpend(
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
-  let body: Body = {};
-  try {
-    body = (JSON.parse(await request.text()) as Body) ?? {};
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<Body>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -116,6 +112,8 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
   const used = await askTokensLast24h(db, tenantId);
+  // A day that could not be counted holds the preview: a failed count is not a day with nothing spent.
+  if (used === null) return json(503, { ok: false, error: "read_failed", detail: "Ask's day could not be counted." });
   if (used >= ASK_TOKENS_DAY) {
     logger({ tenant_id: tenantId }).warn("ask_budget_spent", { used, cap: ASK_TOKENS_DAY });
     return json(429, { ok: false, error: "ask_budget", used, cap: ASK_TOKENS_DAY });

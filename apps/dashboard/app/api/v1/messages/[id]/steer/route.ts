@@ -39,7 +39,7 @@ export const POST = write({
         r.reason === "preview"
           ? "Rewrites only work on the production dashboard."
           : r.reason === "policy_block_price"
-            ? "The rewrite would have quoted a price, so the original draft stays."
+            ? "The rewrite would have quoted a price or named money (a refund, a discount, a deposit), so the original draft stays."
             : r.reason === "already_sent"
               ? "That reply went out while it was being rewritten, so nothing was changed."
               : // Both spellings: the edge called this `no_whatsapp_channel` until

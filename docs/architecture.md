@@ -231,6 +231,34 @@ through the session's own doors, and Broadcasts reads the run from its sends
 
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
+## The model layer
+
+Every model the platform pays for is asked one way, and the decisions about it are written once (scorecard move 10; the AI
+lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
+
+- **A registry by purpose** (`packages/contracts/src/ai/models.ts`): the receptionist's answer, a draft of it, Ask's round,
+  the small JSON drafts, a review's reply, the lead judge, the note sweep, the reach-out check and the reply reader each
+  have one route: the model, its fallback, the bound of a try, its retries and its cap. Nothing else names a model. A
+  purpose whose answer is a closed set may name a shadow port beside it.
+- **The primary port** (`packages/channels/src/models/anthropic.ts`, over `providerFetch`): the request, the answer read and
+  one outcome (`ok`, `rejected`, `unreachable`), a "not now" asked again on the same model, an answer that never came
+  (a 529, a 5xx, a timeout) asked once of the purpose's fallback. The edge binds it to the key in `apps/edge/lib/model.ts`,
+  which first asks whether the workspace may use the model for what a person asks for (`mayUseModels`: not paused, not
+  ended, not unbilled) and writes every call to the ledger.
+- **The ledger in dollars** (`ai_usage`, 00273; `packages/db/src/ai-usage.ts`): one row a call with the model asked, the
+  model that answered, four kinds of tokens and the price at list (`contracts/ai/usage.ts`), kept 400 days. A member
+  reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
+  (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
+- **One injection policy** (`contracts/ai/fence.ts`): someone else's words reach a model only inside a fence they cannot
+  close, and every system prompt shown such words carries one rule line.
+- **A second port, in shadow** (`packages/channels/src/models/typesafe.ts`; decision 0023): TypeSafe's Jev is asked the
+  receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary while
+  `TYPESAFE_SHADOW=1` and its key are set. Its answers are compared with the primary's and kept in the same ledger
+  (`shadow` rows, 00275), read a week at a time by `ai_shadow_agreement`, and never used; a failure of it is logged and
+  never reaches a customer. `apps/edge/lib/shadow.ts` runs it.
+- **The switches** are listed once, with an owner and a day (`contracts/ai/flags.ts`), and the receptionist's regression
+  cases run nightly against a sandbox key when the repository holds one (`.github/workflows/nightly-evals.yml`).
+
 ## The packages, and the direction of dependency
 
 ```
@@ -305,6 +333,29 @@ Lists and the seed data only they read, and a real workspace never downloads
 them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
 for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
+
+**Where the shell's state lives.** Three kinds, each with one owner:
+
+- _The workspace's rows_ are read through the seam into a surface's globals (`window.__PEOPLE`, and so on), never by a
+  page. One read is out at a time for each surface, so the newest read lands last (`surface-data.ts`
+  `activateOverride`); the workspace's own topic says what changed (decision 0019) and each tab re-reads only the surface
+  that changed; a write re-reads what it may have made stale, from one table (`refresh-map.ts`), which holds every write
+  to a list of surfaces or to a reason it needs none (`refresh-coverage.test.mjs`). A tab keeps its last read in
+  `sessionStorage` so a reload paints at once (`surface-cache.ts`), and a sign-out closes that cache before it clears it.
+- _A device's_ preferences (the theme, the look, the rail) live in `localStorage` and nowhere else
+  (`device-prefs.ts`); _a tab's own_ (a view's place, a half-written draft) in `sessionStorage` through the one store
+  (`tab-memory.ts`); and what only one component cares about, in that component.
+- _Who is acting_ is one answer, `identity.ts` (`roleOf`): the member's role from the workspace's read, lowered by an owner's View-as,
+  failing closed. Every gate asks the role store it completes (`ST_STORE.myRole()`, `mayAtLeast`), never `__ME.role`.
+
+A component draws again when a surface it draws from lands or changes status, and by nothing else. It names them:
+`useSurface("people")`, a list, or a route (`surface-registry.ts` `routeSurfaces`), which the shell names for the page on
+screen. The counts live in `surface-status.ts`, bumped by each surface's own events before React draws. A surface's
+status changing is news; a read that changed nothing is not, so a message no longer draws the whole shell seven times.
+Today, the Inbox and People are on it. The hand-written `surface:*` listeners that remain (31 direct
+`addEventListener("surface:…")` sites in 22 of the shell's files on 29 September 2026, and the few that loop over a list of
+names) either do something a redraw does not (reseed a list and keep a thread open, say what a re-read did to it) or wait
+for their page to move to `useSurface`; a new page names its surfaces.
 
 ## The interface
 
@@ -516,9 +567,11 @@ packages/channels/src/
   google/
   leads/
   lines/
+  models/
   tokens/
   voice/
 packages/contracts/src/
+  ai/
   ask/
   ask-proposals/
   broadcasts/

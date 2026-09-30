@@ -1,5 +1,6 @@
 // First, before any schema below is built: zod-config.ts says why the order matters.
 import "./zod-config";
+export * from "./ai";
 export * from "./ask";
 export * from "./ask-proposals";
 export * from "./broadcasts";

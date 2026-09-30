@@ -150,12 +150,12 @@
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 4,
+    "jsx-a11y-x/click-events-have-key-events": 2,
     "jsx-a11y-x/interactive-supports-focus": 1,
     "jsx-a11y-x/media-has-caption": 2,
     "jsx-a11y-x/no-autofocus": 1,
     "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "jsx-a11y-x/no-static-element-interactions": 3
+    "jsx-a11y-x/no-static-element-interactions": 1
   },
   "apps/dashboard/src/legacy/components/deal-sheet.jsx": {
     "react-hooks/exhaustive-deps": 1
@@ -170,29 +170,19 @@
     "jsx-a11y-x/no-noninteractive-element-interactions": 3,
     "react-hooks/exhaustive-deps": 8
   },
-  "apps/dashboard/src/legacy/components/record-row.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/components/record-sheet.jsx": {
     "jsx-a11y-x/no-noninteractive-element-interactions": 1,
     "react-hooks/exhaustive-deps": 2
   },
-  "apps/dashboard/src/legacy/components/shortcuts.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/components/sidebar.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 5,
+    "jsx-a11y-x/click-events-have-key-events": 4,
     "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/no-static-element-interactions": 4
+    "jsx-a11y-x/no-static-element-interactions": 3
   },
   "apps/dashboard/src/legacy/components/step-sheet.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/components/topbar.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": {
@@ -229,27 +219,16 @@
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/app-shell.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
     "react-hooks/exhaustive-deps": 6
   },
   "apps/dashboard/src/legacy/pages/ask-hooks.jsx": {
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/ask-real.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
     "react-hooks/exhaustive-deps": 19
   },
-  "apps/dashboard/src/legacy/pages/attention-bits.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
-    "jsx-a11y-x/no-noninteractive-tabindex": 2,
-    "jsx-a11y-x/no-static-element-interactions": 2
+    "jsx-a11y-x/no-noninteractive-tabindex": 2
   },
   "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx": {
     "react-hooks/exhaustive-deps": 2
@@ -261,38 +240,22 @@
   "apps/dashboard/src/legacy/pages/business-tab.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
-  "apps/dashboard/src/legacy/pages/calendar.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/pages/client-profile.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
     "jsx-a11y-x/no-autofocus": 3,
-    "jsx-a11y-x/no-static-element-interactions": 2,
     "react-hooks/exhaustive-deps": 3
   },
   "apps/dashboard/src/legacy/pages/conversations.jsx": {
     "react-hooks/exhaustive-deps": 5
   },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 4,
-    "jsx-a11y-x/no-static-element-interactions": 3
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-fleet.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 2
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-live.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 5,
-    "jsx-a11y-x/no-static-element-interactions": 5
+    "jsx-a11y-x/click-events-have-key-events": 1
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx": {
     "jsx-a11y-x/label-has-associated-control": 1,
     "react-hooks/exhaustive-deps": 5
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
+    "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/media-has-caption": 1,
     "jsx-a11y-x/no-static-element-interactions": 1,
     "react-hooks/exhaustive-deps": 1
@@ -318,40 +281,28 @@
     "jsx-a11y-x/no-static-element-interactions": 1,
     "react-hooks/exhaustive-deps": 10
   },
-  "apps/dashboard/src/legacy/pages/leads-peek.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/pages/leads-real.jsx": {
     "react-hooks/exhaustive-deps": 5
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-autofocus": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
+    "jsx-a11y-x/no-autofocus": 1
   },
   "apps/dashboard/src/legacy/pages/live-monitor.jsx": {
     "react-hooks/exhaustive-deps": 5
   },
   "apps/dashboard/src/legacy/pages/messages.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/no-autofocus": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
     "jsx-a11y-x/role-supports-aria-props": 2
   },
   "apps/dashboard/src/legacy/pages/outbound.jsx": {
     "jsx-a11y-x/no-noninteractive-tabindex": 1
   },
   "apps/dashboard/src/legacy/pages/people-table.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 2,
-    "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/interactive-supports-focus": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 9,
-    "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/no-autofocus": 15,
-    "jsx-a11y-x/no-static-element-interactions": 8
+    "jsx-a11y-x/no-autofocus": 15
   },
   "apps/dashboard/src/legacy/pages/pipeline-board.jsx": {
     "jsx-a11y-x/no-noninteractive-element-to-interactive-role": 1
@@ -360,26 +311,14 @@
     "jsx-a11y-x/no-autofocus": 3
   },
   "apps/dashboard/src/legacy/pages/pipeline-row.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-noninteractive-element-interactions": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
+    "jsx-a11y-x/no-noninteractive-element-interactions": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-card.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/no-noninteractive-tabindex": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
     "jsx-a11y-x/role-supports-aria-props": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx": {
     "jsx-a11y-x/no-noninteractive-tabindex": 1
-  },
-  "apps/dashboard/src/legacy/pages/reach-out/email-template-row.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
-  "apps/dashboard/src/legacy/pages/reach-out/reach-out-row.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
   },
   "apps/dashboard/src/legacy/pages/reports-sections.jsx": {
     "react-hooks/exhaustive-deps": 1
@@ -417,8 +356,7 @@
     "@typescript-eslint/no-unnecessary-type-assertion": 2
   },
   "apps/dashboard/src/server/campaigns/reach-outs.ts": {
-    "@typescript-eslint/no-base-to-string": 1,
-    "@typescript-eslint/no-redundant-type-constituents": 4
+    "@typescript-eslint/no-base-to-string": 1
   },
   "apps/dashboard/src/server/campaigns/templates.ts": {
     "@typescript-eslint/no-base-to-string": 2
@@ -454,56 +392,21 @@
   "apps/dashboard/src/server/with-route.ts": {
     "@typescript-eslint/no-misused-promises": 1
   },
-  "apps/edge/api/admin/eval.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/hand-over.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/handover-invite.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/llm.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "apps/edge/api/admin/playbooks-run.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/edge/api/admin/setup-request.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/signup-notify.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/steer.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/stop-call.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "apps/edge/api/admin/voice-converge.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 3,
-    "@typescript-eslint/no-unsafe-assignment": 1,
     "@typescript-eslint/restrict-template-expressions": 1
   },
   "apps/edge/api/admin/voice-provision.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1,
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/whatsapp/connect.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "apps/edge/api/admin/whatsapp/signup-config.ts": {
     "@typescript-eslint/require-await": 1
   },
   "apps/edge/api/admin/whatsapp/templates-create.ts": {
     "@typescript-eslint/no-base-to-string": 1
-  },
-  "apps/edge/api/admin/whisper.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
-  "apps/edge/api/admin/you-are-live.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
   },
   "apps/edge/api/cron/leads.ts": {
     "@typescript-eslint/no-base-to-string": 1,
@@ -523,10 +426,6 @@
   },
   "apps/edge/api/whatsapp.ts": {
     "@typescript-eslint/require-await": 1
-  },
-  "apps/edge/lib/admin-door.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1,
-    "@typescript-eslint/no-unsafe-return": 1
   },
   "apps/edge/lib/ask-gateway.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 2,

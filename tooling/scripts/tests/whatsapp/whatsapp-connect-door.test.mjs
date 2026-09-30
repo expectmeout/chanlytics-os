@@ -431,7 +431,12 @@ test("connect, the whole way: the code becomes the business's token as the app t
     "the row never carries the token; Vault does",
   );
   // The platform's event, and what the dashboard is told.
-  assert.equal(tables.events.length, 1);
+  // The connection, and the workspace's first line that answers (the funnel's milestone, written once).
+  assert.deepEqual(
+    tables.events.map((e) => e.kind),
+    ["channel.connected", "workspace.activated"],
+  );
+  assert.deepEqual(tables.events[1].data, { milestone: "line_live", via: "whatsapp" });
   const ev = tables.events[0];
   assert.deepEqual(
     [ev.tenant_id, ev.kind, ev.category, ev.subject_type, ev.subject_id],

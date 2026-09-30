@@ -2,12 +2,19 @@
  * After a write lands: which surfaces could now be stale.
  *
  * One table, keyed by route, replacing the list each of eleven couriers
- * carried for its own verbs. A key not in it refreshes nothing, which is the
- * right answer for a read, a redirect, a draft, and a search. The lists are
- * the couriers' own, copied as they were: the reply re-reads the inbox, the
- * conversations and Today, which carries the "needs you" count; a template
- * change re-reads settings and the inbox, and tells the broadcasts and
- * playbooks pages, which keep a hook until they read the surfaces directly.
+ * carried for its own verbs. The lists are the couriers' own, copied as they
+ * were: the reply re-reads the inbox, the conversations and Today, which
+ * carries the "needs you" count; a template change re-reads settings and the
+ * inbox, and tells the broadcasts and playbooks pages, which keep a hook until
+ * they read the surfaces directly.
+ *
+ * Every write is in one of two tables: AFTER, the surfaces it re-reads, or
+ * REFRESHES_NOTHING, with the reason nothing on screen moves (a draft, a
+ * search, a redirect, a page that reads its own rows again).
+ * refresh-coverage.test.mjs fails a write in neither, so a new route is
+ * decided when it is added, never left out by default: 43 of 141 writes were
+ * in neither on 29 September, and a contact's new name stayed stale on every
+ * thread with them.
  */
 import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "./surfaces/broadcasts";
@@ -21,8 +28,9 @@ import { playbooksOverride } from "./surfaces/playbooks";
 import { reportsOverride } from "./surfaces/reports";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "./surfaces/today";
-import type { SurfaceOverride } from "./surface-data";
+import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "./billing";
+import { partnerOverride } from "./partner";
 import { googleOverride } from "./google";
 import { leadsOverride } from "./leads";
 import { setupOverride } from "./setup";
@@ -32,6 +40,9 @@ import { repliesOverride } from "./reach-out/replies";
 
 const thread = () => [inboxOverride, conversationsOverride, todayOverride];
 const people = () => [peopleOverride];
+// What a thread says of its person: their name, number, address and proposal link, and whether they said yes or asked
+// to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
+const personAndThreads = () => [peopleOverride, ...thread()];
 const runs = () => [playbooksOverride, broadcastsOverride];
 // What also moves a reach-out's row (Part 4 PR 8): its chain's pause and resume are the playbook's own door on its
 // first step, and its run waiting (the row's "next run") is approved or skipped as any run is. The chains' read scans
@@ -60,21 +71,23 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST calls/[id]/end": () => [liveOverride],
   "POST calls/[id]/hand-over": () => [liveOverride],
   // People.
-  "DELETE contacts/[id]": () => [peopleOverride, inboxOverride, conversationsOverride, todayOverride],
+  "DELETE contacts/[id]": personAndThreads,
   "PUT contacts/[id]/receptionist": people,
-  "PUT contacts/[id]/consent": people,
-  "PUT contacts/[id]/marketing-consent": people,
-  "PUT contacts/consent": people,
-  "PUT contacts/marketing-consent": people,
+  "PUT contacts/[id]/consent": personAndThreads,
+  "PUT contacts/[id]/marketing-consent": personAndThreads,
+  "PUT contacts/consent": personAndThreads,
+  "PUT contacts/marketing-consent": personAndThreads,
   "PUT contacts/receptionist": people,
   "PUT contacts/notes": people,
-  "PUT contacts/[id]/details": people,
+  "PUT contacts/[id]/details": personAndThreads,
   // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
   "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride],
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it.
   "POST contacts/[id]/notes": people,
   "POST contacts/[id]/notes/done": people,
   "POST contacts/[id]/notes/remove": people,
+  // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
+  "POST contacts/[id]/notes/decide": people,
   "POST contacts": people,
   "POST contacts/import": people,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
@@ -171,12 +184,70 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE sending-domains/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,
+  // The plan starting now ends the trial: the pane's rows and Setup's billing row.
+  "POST billing/start-now": billing,
   "POST google/link": google,
   "DELETE google/link": google,
   "POST google/refresh": google,
   "POST google/locations": google,
   "DELETE google/connection": google,
   "POST google/reviews/[id]/reply": () => [googleOverride],
+  // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
+  // partner's count. It was a second path, read by hand in partner.ts.
+  "POST partner/invitations/[id]/accept": () => [workspaceOverride, partnerOverride],
+};
+
+/**
+ * The writes that re-read no surface, each with why nothing on screen moves. Kept beside AFTER so a new write is
+ * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
+ */
+export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
+  "POST ask": "a question: Ask draws its answer from the turn it streams",
+  "POST ask/warm": "a warm read of the page before a question; it changes nothing",
+  "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
+  "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
+  // A draft, a preview, a search: nothing stored that a surface shows.
+  "POST calendar/preview": "a preview of what a change to the calendar would do",
+  "POST google/reviews/[id]/draft": "a draft of a review's answer, shown in the sheet that asked",
+  "POST google/search": "a search for the business on Google",
+  "POST leads/[id]/draft": "a draft; the lead moves when the owner says it was sent, which is a stage",
+  "POST lines/search": "a search for numbers to buy",
+  "POST reach-outs/preview": "a preview of a reach-out's email",
+  "POST segments/draft": "a draft of a list's rule",
+  "POST templates/draft": "a draft of a template's words",
+  "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
+  // Somewhere else: the page leaves, or the provider's page opens.
+  "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",
+  "POST billing/portal": "Stripe's portal opens",
+  "POST workspaces/create": "the tab switches to the new workspace, which boots",
+  "POST handovers/[id]/accept": "the tab switches to the workspace handed over, which boots",
+  "POST handovers/[id]/decline": "the handover leaves the screen asking, and the app opens as it would have",
+  "DELETE me": "the account is gone and the tab goes to sign in",
+  // Kept by the page that made them, or nothing a page shows.
+  "PUT me": "the name, laid on who is looking at once (identity.ts setName, me:changed)",
+  "PUT me/devices": "this device's push registration",
+  "DELETE me/devices": "this device's push registration",
+  "PUT views/[page]": "the member's saved view, which the page already shows",
+  "POST vitals": "the page's field data, kept for the back office",
+  // The partner's own pane and the team's partner card read their rows themselves, again after each act.
+  "POST partner": "the partner's account, published from the answer at once (partner.ts become)",
+  "PATCH partner": "the partner's letters, published from the answer at once (partner.ts setLetters)",
+  "POST partner/workspaces": "the workspace set up, which the tab switches to when its invitation went",
+  "POST partner/workspaces/[id]/resend": "an invitation sent again; the row says so from the answer",
+  "POST partner/invitations/[id]/decline": "the invitation leaves the pane's own list, which it reads again",
+  "POST team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
+  "DELETE team/partner": "the team's partner card reads the workspace's partner again (partner-real.jsx)",
+  // The back office reads its own lists on demand (platform.ts): no surface holds them.
+  "POST platform/lines/refile": "the back office's lines, read again by its pane",
+  "POST platform/lines/release": "the back office's lines, read again by its pane",
+  "POST platform/lines/replace": "the back office's lines, read again by its pane",
+  "POST platform/lines/retry": "the back office's lines, read again by its pane",
+  "POST platform/partners/payout": "the back office's partners, read again by its pane",
+  "POST platform/partners/second-factor": "the back office's partners, read again by its pane",
+  "POST platform/partners/standing": "the back office's partners, read again by its pane",
+  "POST platform/partners/status": "the back office's partners, read again by its pane",
+  "POST platform/waitlist/invited": "the back office's waitlist, read again by its pane",
 };
 
 /** Window hooks a few pages still register; they go when those pages read the surfaces directly. */

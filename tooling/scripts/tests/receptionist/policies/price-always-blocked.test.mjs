@@ -39,7 +39,11 @@ test("a chat reply with a price is blocked whether the switch is on, off or neve
       });
       assert.equal(out.priceBlocked, true, `switch ${label}: "${priced}" is caught`);
       assert.doesNotMatch(out.replyText, /180/, `switch ${label}: the customer never reads the figure`);
-      assert.match(out.replyText, /consult/i, `switch ${label}: it offers a consult instead`);
+      assert.match(
+        out.replyText,
+        /a member of our team will follow up here/i,
+        `switch ${label}: it hands the question to a person instead`,
+      );
     }
   }
 });

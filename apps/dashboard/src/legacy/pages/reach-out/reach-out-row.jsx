@@ -133,7 +133,7 @@ const ReachOutRow = ({ chain, canAct, flash, open = false, onOpen, tz, now = nul
   const state = chain.state !== "running" ? "paused" : chain.next.waiting_run_id ? "approval" : "running";
   return (
     <section id={`pb-${chain.root_id}`} className={`pb-row pb-chain${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="ro-row" data-state={state}>
-      <div className="pb-row-line" onClick={window.cmRowPress}>
+      <div className="pb-row-line" role="presentation" onClick={window.cmRowPress}>
         <button type="button" className="pb-row-what" onClick={onOpen} aria-expanded={open} data-row-open data-testid="ro-open">
           <span className="mark pb-row-mark" aria-hidden="true"><Icon name="mail" size={13} /></span>
           <span className="pb-row-titles">

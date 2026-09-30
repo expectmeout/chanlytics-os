@@ -137,6 +137,7 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of [
   "StatePill",

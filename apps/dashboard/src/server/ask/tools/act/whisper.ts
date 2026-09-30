@@ -11,6 +11,7 @@ async function proposeWhisper(t: ToolContext, input: { call_id: string; text: st
     .from("calls")
     .select("id, status, contacts (display_name, wa_profile_name, phone_e164)")
     .eq("id", id)
+    .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!call) return refuse("no such call in this workspace");

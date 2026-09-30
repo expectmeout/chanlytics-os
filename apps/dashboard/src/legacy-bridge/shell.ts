@@ -25,13 +25,13 @@ import {
   fmtClock,
   type ShellStatus,
 } from "@chanlytics/contracts";
-import { clearSurfaceCache } from "./surface-cache";
+import { sealSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
 
 export interface ShellApi {
-  /** End the session: the surface cache first, then the server, which redirects to sign-in. */
+  /** End the session: the surface cache cleared and closed first, then the server, which redirects to sign-in. */
   signOut(): void;
   switchWorkspace(id: string): void;
   /** Another workspace for this account: the create screen, then a switch to it. */
@@ -84,7 +84,9 @@ declare global {
 export function installShell(win: Window = window): void {
   win.__shell = {
     signOut() {
-      clearSurfaceCache();
+      // Cleared and closed: the form posts after the phone is forgotten, up to two seconds in the app, and a read
+      // landing meanwhile used to be written back for the next person on this tab (surface-cache.ts sealSurfaceCache).
+      sealSurfaceCache();
       // This device's bell marks belong to the person who made them: gone
       // with their session, so the next person signing in here starts with
       // their own rather than a stranger's read marks on the same workspace.

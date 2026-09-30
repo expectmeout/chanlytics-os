@@ -312,6 +312,7 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  */
 export const LIMITED_TREES = [
   "packages/db/src",
+  "packages/contracts/src/ai",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/consent",
   "packages/contracts/src/google",
@@ -356,6 +357,7 @@ export const LIMITED_TREES = [
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
+  "packages/contracts/src/ai",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
   "apps/dashboard/src/legacy-bridge/mascot",

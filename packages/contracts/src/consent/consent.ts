@@ -18,6 +18,8 @@
  * missing value as a block would silence every contact the moment somebody
  * forgot a column in a SELECT.
  */
+import type { SystemOneQuestion } from "../ai/system-one";
+
 export interface ConsentBearing {
   consent?: string | null;
   dnc?: boolean | null;
@@ -27,8 +29,21 @@ export function isOptedOutContact(c: ConsentBearing): boolean {
   return c.consent === "opted_out" || c.dnc === true;
 }
 
+/** What an opt-out is, in the words the refusal below says it and a second reader is asked it (stopRequestQuestion). */
+const ASKED_TO_STOP = "asked to stop receiving messages";
+
 /** The customer-facing reason, used wherever a refusal is explained. */
-export const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
+export const OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
+
+/**
+ * Whether a customer's message asks to stop, put to a second model in shadow (decision 0023). The keyword door
+ * (OPT_OUT_PATTERN) reads STOP, BAJA, ALTO and UNSUBSCRIBE alone; a message that reached the receptionist was read as
+ * no such request, so the primary's answer to this question is always "false", and the shadow's yes is a stop the
+ * keywords let through.
+ */
+export function stopRequestQuestion(): SystemOneQuestion {
+  return { type: "noul", instructions: `Has the customer ${ASKED_TO_STOP}?` };
+}
 
 /* -------------------------------------------------------------------------- *
  * Two questions, two answers.

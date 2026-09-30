@@ -11,7 +11,7 @@
   },
   "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::handle#1": {
     "lines": 57,
-    "branches": 32,
+    "branches": 31,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
@@ -40,7 +40,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 172,
+    "lines": 154,
     "branches": 11,
     "depth": 1
   },
@@ -295,13 +295,13 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CrPanel#1": {
-    "lines": 113,
+    "lines": 109,
     "branches": 37,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileReal#1": {
     "lines": 515,
-    "branches": 80,
+    "branches": 78,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileSeed#1": {
@@ -328,11 +328,6 @@
     "lines": 268,
     "branches": 94,
     "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-live.jsx::NowPlayingRail#1": {
-    "lines": 188,
-    "branches": 13,
-    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
     "lines": 300,
@@ -390,7 +385,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadHeader#1": {
-    "lines": 181,
+    "lines": 176,
     "branches": 71,
     "depth": 0
   },
@@ -466,7 +461,7 @@
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleBulkBar#1": {
     "lines": 323,
-    "branches": 89,
+    "branches": 88,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleRail#1": {
@@ -490,7 +485,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::usePlPlace#1": {
-    "lines": 192,
+    "lines": 183,
     "branches": 6,
     "depth": 1
   },
@@ -550,8 +545,8 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 490,
-    "branches": 76,
+    "lines": 488,
+    "branches": 75,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
@@ -595,34 +590,29 @@
     "depth": 1
   },
   "apps/edge/api/admin/eval.ts::POST#1": {
-    "lines": 100,
-    "branches": 36,
+    "lines": 95,
+    "branches": 35,
     "depth": 2
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 83,
-    "branches": 33,
+    "lines": 78,
+    "branches": 32,
     "depth": 3
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 175,
+    "lines": 171,
     "branches": 46,
     "depth": 1
   },
   "apps/edge/api/admin/voice-converge.ts::POST#1": {
-    "lines": 96,
-    "branches": 34,
+    "lines": 91,
+    "branches": 33,
     "depth": 4
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
-    "lines": 192,
+    "lines": 187,
     "branches": 47,
     "depth": 3
-  },
-  "apps/edge/api/admin/whatsapp/templates-create.ts::POST#1": {
-    "lines": 95,
-    "branches": 41,
-    "depth": 1
   },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,

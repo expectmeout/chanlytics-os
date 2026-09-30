@@ -10,10 +10,11 @@
  * fails, a fall past it fails until banked, and a build missing a manifest or a
  * file fails rather than measuring less.
  *
- * `--update` banks only what fell, the JavaScript and the CSS each on its own; a
- * rise stays red until `--raise` writes the sums as measured, and a missing budget
- * is seeded by `--raise` alone, as _ratchet.mjs seeds a baseline. The decision is
- * `bankBudget`, a pure function, held here case by case and then through the script.
+ * `--update` banks only what fell, the JavaScript and the CSS each on its own, inside
+ * the band too; a rise stays red until `--raise js=<bytes>` raises the budget by the
+ * growth argued, never to the sums as measured, and a missing budget is seeded by
+ * `--raise` alone, as _ratchet.mjs seeds a baseline. The decision is `bankBudget`, a
+ * pure function, held here case by case and then through the script.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,7 +25,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { ROOT } from "../_source.mjs";
-import { BAND, bankBudget } from "../../checks/bundle-budget.mjs";
+import { BAND, arguedGrowth, bankBudget } from "../../checks/bundle-budget.mjs";
 
 const SCRIPT = path.join(ROOT, "tooling/scripts/checks/bundle-budget.mjs");
 const PAGE_DIR = "server/app/(os)/w/[workspace]";
@@ -126,11 +127,15 @@ test("a route that sheds more than the band fails until the fall is banked", () 
   assert.match(r.out, /good, now bank it/);
 });
 
-test("the bank takes each sum on its own: a fall past the band is banked, and anything else keeps its budget", () => {
+test("the bank takes each sum on its own: a fall is banked, inside the band too, and anything else keeps its budget", () => {
   const budget = { js: 100_000, css: 10_000 };
   assert.equal(BAND, 0.01, "the cases below sit either side of a 1% band");
   assert.deepEqual(bankBudget({ js: 98_000, css: 9_800 }, budget), { js: 98_000, css: 9_800 }, "both fell past it");
-  assert.deepEqual(bankBudget({ js: 99_500, css: 9_950 }, budget), budget, "a fall within the band is a build's noise");
+  assert.deepEqual(
+    bankBudget({ js: 99_500, css: 9_950 }, budget),
+    { js: 99_500, css: 9_950 },
+    "REGRESSION (G:2): a fall within the band was never banked, and the next growth rode into it",
+  );
   assert.deepEqual(bankBudget({ js: 100_500, css: 10_050 }, budget), budget, "a rise within the band");
   assert.deepEqual(bankBudget({ js: 120_000, css: 12_000 }, budget), budget, "a rise past the band stays red");
   assert.deepEqual(bankBudget({ js: 90_000, css: 12_000 }, budget), { js: 90_000, css: 10_000 }, "one fell, one rose");
@@ -143,18 +148,32 @@ test("a sum the budget does not name is not written but by --raise, and a name t
     js: 90_000,
     css: 9_000,
   });
-  const raised = bankBudget({ js: 120_000, css: 9_000 }, { js: 100_000 }, { raise: true });
-  assert.deepEqual(raised, { js: 120_000, css: 9_000 });
+  const raised = bankBudget({ js: 120_000, css: 9_000 }, { js: 100_000 }, { raise: true, argued: { js: 20_000 } });
+  assert.deepEqual(raised, { js: 120_000, css: 9_000 }, "the argued JS, and the CSS the budget did not name, seeded");
+});
+
+test("REGRESSION (G:2): a raise writes the budget plus the growth its row argues, not the sums as measured", () => {
+  // Main measured 970.1 KB inside the 1% band of a 962.0 KB budget; #1206 argued 2.3 KB and banked 972.4, the 8.1 KB
+  // that had crept in under the band with it. The budget is now what was argued.
+  const budget = { js: 962_000, css: 123_100 };
+  const measured = { js: 972_400, css: 123_100 };
+  assert.deepEqual(bankBudget(measured, budget, { raise: true, argued: { js: 2_300 } }), { js: 964_300, css: 123_100 });
+  assert.deepEqual(bankBudget(measured, budget, { raise: true, argued: { css: 2_700 } }), {
+    js: 962_000,
+    css: 125_800,
+  });
+  assert.deepEqual(arguedGrowth(["--raise", "js=2300", "css=40", "js=x", "--next", "dir"]), { js: 2_300, css: 40 });
 });
 
 test("a missing budget is seeded by --raise alone, which writes the sums whatever the budget held", () => {
   // With no budget each sum is new, which is a rise: the bank writes nothing, as _ratchet.mjs's does.
   assert.equal(bankBudget({ js: 120_000, css: 12_000 }, null), null);
   assert.deepEqual(bankBudget({ js: 120_000, css: 12_000 }, null, { raise: true }), { js: 120_000, css: 12_000 });
-  assert.deepEqual(bankBudget({ js: 120_000, css: 9_000 }, { js: 100_000, css: 10_000 }, { raise: true }), {
-    js: 120_000,
-    css: 9_000,
-  });
+  assert.deepEqual(
+    bankBudget({ js: 120_000, css: 9_000 }, { js: 100_000, css: 10_000 }, { raise: true }),
+    { js: 100_000, css: 9_000 },
+    "a raise that argues nothing raises nothing",
+  );
   const once = bankBudget({ js: 90_000, css: 12_000 }, { js: 100_000, css: 10_000 });
   assert.deepEqual(bankBudget({ js: 90_000, css: 12_000 }, once), once, "banking twice is banking once");
 });
@@ -181,9 +200,12 @@ test("--update seeds no budget and banks only the sum that fell, so a missing bu
   assert.match(banked.out, /check:bundle -- --raise/, "the message names the flag that raises");
   assert.deepEqual(banked.budget(), { js: seeded.js, css: gzText(css) }, "the CSS fell and is banked; the JS is not");
 
-  const raised = run(moved, "--raise");
-  assert.equal(raised.status, 0, raised.out);
+  const unargued = run(moved, "--raise");
+  assert.equal(unargued.status, 2, unargued.out);
+  assert.match(unargued.out, /a raise says by how much: corepack pnpm check:bundle -- --raise js=<bytes>/);
   const js = gz("static/chunks/runtime.js", "static/chunks/layout.js", "static/chunks/page.js") + gzText(shell);
+  const raised = run(moved, "--raise", `js=${js - seeded.js}`);
+  assert.equal(raised.status, 0, raised.out);
   assert.deepEqual(raised.budget(), { js, css: gzText(css) });
   const again = run(moved);
   assert.equal(again.status, 0, again.out);

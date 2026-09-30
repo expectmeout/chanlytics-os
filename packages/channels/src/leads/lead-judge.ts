@@ -15,6 +15,7 @@
  */
 import { createHash } from "node:crypto";
 import {
+  MODEL_ROUTES,
   JUDGE_OUTPUT_SCHEMA,
   judgeSystemPrompt,
   judgeUserContent,
@@ -25,13 +26,17 @@ import {
 } from "@chanlytics/contracts";
 
 /** Twenty-five places at low effort fit in about 3,000 tokens; the rest is room. A cap reached is a refusal, never a split. */
-export const LEAD_JUDGE_MAX_TOKENS = 6_000;
+export const LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES.lead_judge.maxTokens;
 export const LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
-export const LEAD_JUDGE_DEFAULT_MODEL = "claude-opus-5";
+/** The registry's model for the judge (contracts ai/models.ts); LEAD_JUDGE_MODEL on the edge may name another. */
+export const LEAD_JUDGE_DEFAULT_MODEL = MODEL_ROUTES.lead_judge.model;
 
-/** The client as this call uses it. An Anthropic instance satisfies it; the edge builds one with its own timeout. */
+/**
+ * The client as this call uses it: the edge builds one over the model port (apps/edge/lib/leads/lead-wires.ts), which
+ * writes each call to the usage ledger for the workspace named in `call`.
+ */
 export interface LeadJudgeClient {
-  beta: { messages: { create(params: Record<string, unknown>): Promise<unknown> } };
+  beta: { messages: { create(params: Record<string, unknown>, call?: { tenantId?: string }): Promise<unknown> } };
 }
 
 export type LeadJudgeAnswer =
@@ -39,7 +44,8 @@ export type LeadJudgeAnswer =
   | { refused: true; why: string };
 
 export interface LeadJudge {
-  judge(plan: LeadSearchPlan, places: PlaceFacts[]): Promise<LeadJudgeAnswer>;
+  /** One batch judged; `tenantId` is the search's workspace, the usage ledger's row. */
+  judge(plan: LeadSearchPlan, places: PlaceFacts[], tenantId?: string): Promise<LeadJudgeAnswer>;
 }
 
 interface RawResponse {
@@ -57,7 +63,7 @@ function betaRejected(e: unknown): boolean {
 
 export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge {
   return {
-    async judge(plan, places) {
+    async judge(plan, places, tenantId) {
       const system = judgeSystemPrompt(plan);
       const user = judgeUserContent(places);
       const requestHash = createHash("sha256").update(`${system}\n${user}`).digest("hex");
@@ -72,10 +78,11 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
       try {
         res = (await client.beta.messages.create(
           fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
+          { tenantId },
         )) as RawResponse;
       } catch (e) {
         if (!(fallbacks && betaRejected(e))) throw e;
-        res = (await client.beta.messages.create(base)) as RawResponse;
+        res = (await client.beta.messages.create(base, { tenantId })) as RawResponse;
       }
       const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
       if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };

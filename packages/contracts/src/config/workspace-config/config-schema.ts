@@ -11,7 +11,7 @@
 import { feedProblemWords, feedUrlOk } from "../../calendar/feed-url";
 import { normalizeEmail } from "../../shared/email-address";
 import { z } from "zod";
-import { keysLeftOut, refuseUnknownFields } from "../unknown-keys";
+import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-keys";
 import { BrainConfigSchema } from "./brain-config";
 import type { Closure, DAYS, Hours } from "./business-profile";
 
@@ -254,6 +254,19 @@ export function parseTenantConfigResult(raw: unknown): TenantConfigParse {
   };
 }
 
+/**
+ * What a save writes: the config the page sent, with every key of the stored config this build's read left out put
+ * back where it was, at any depth (withKeysLeftOut). The page's read never showed them, so the page cannot have meant
+ * to delete them: a dashboard rolled back behind the edge, or one tab older than the deploy, saved the whole column and
+ * deleted what a newer build wrote (the scorecard's defect 19). A stored config the read refuses keeps nothing: there
+ * is no telling its known keys from its unknown ones, and the save replaces it as it always did.
+ */
+export function withStoredKeysKept(sent: TenantConfig, stored: unknown): TenantConfig {
+  const read = TenantConfigSchema.safeParse(stored ?? {});
+  if (!read.success) return sent;
+  return withKeysLeftOut(sent, stored, read.data) as TenantConfig;
+}
+
 /** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
 export type ReceptionistState = "none" | "set" | "broken";
 
@@ -292,5 +305,5 @@ export function withFirstAlertAddress(config: unknown, email: string | null | un
     ...current.config,
     notifications: { escalation_emails: [address] },
   });
-  return next.success ? next.data : null;
+  return next.success ? withStoredKeysKept(next.data, config) : null;
 }

@@ -30,8 +30,6 @@
   "apps/dashboard/src/legacy/pages/clients-bits.jsx": 2,
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": 3,
   "apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx": 2,
-  "apps/dashboard/src/legacy/pages/dashboard-a-fleet.jsx": 3,
-  "apps/dashboard/src/legacy/pages/dashboard-a-live.jsx": 9,
   "apps/dashboard/src/legacy/pages/first-run.jsx": 1,
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx": 2,
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 5,
