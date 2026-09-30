@@ -5,7 +5,7 @@
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { AskedPurpose, AudiencePreview, BroadcastDto, BroadcastVM, ParamSourceKind } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { UnsavedWork } from "../../../legacy-parts";
 import type { PlaybookCardVM } from "../../playbooks/surface";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";

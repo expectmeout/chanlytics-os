@@ -19,7 +19,7 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import { ZONE } from "@/legacy-bridge/today-sample/clock";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { PlaybookCardVM, PlaybooksSurface, PlaybookTriggerOption } from "./surface";
 
 const DAY = DAY_MS;

@@ -4,7 +4,7 @@
  */
 import { PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookReach, playbookReachDoor } from "@chanlytics/contracts";
 import type { ParamSourceKind, PlaybookDto, PlaybookReach } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";

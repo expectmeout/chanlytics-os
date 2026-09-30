@@ -5,7 +5,7 @@
  * MessageRow and not drawn as a component of its own, so the row's tree is the tree it was.
  */
 import type { ReactNode } from "react";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { TemplateSentWords } from "@chanlytics/contracts";
 import { gate, navigate } from "../../legacy-verbs";
 import { confirmPart, statePillPart } from "../../legacy-parts";

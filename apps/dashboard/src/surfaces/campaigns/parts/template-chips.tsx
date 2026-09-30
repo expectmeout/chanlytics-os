@@ -20,7 +20,7 @@
  * template came from is not. A message with one language keeps the word.
  */
 import type { TemplateGroup } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { starters } from "../templates/verbs";
 import { LanguagePicker } from "./picker";
 

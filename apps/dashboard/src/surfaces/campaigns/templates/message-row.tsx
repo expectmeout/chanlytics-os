@@ -8,7 +8,7 @@
  * per person, footer, buttons -- is one press away, for one message at a time.
  */
 import { useState } from "react";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { TemplateMade } from "./composer-acts";
 import type { PresentRow, StarterGroup, TemplateGroup, TplLang } from "./group";
 import { firstLang, languageFacts, lineWords, marksOf, rowWords, usageOf } from "./message-row-facts";

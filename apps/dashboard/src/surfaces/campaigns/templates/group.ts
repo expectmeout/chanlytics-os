@@ -4,7 +4,7 @@
  * then what it hid. A message is one row in every language it has, and a language nobody wrote is a row with no words.
  */
 import type { StarterTemplate } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { TPL_SAMPLES, tplAnd, tplLangLabel, tplTitle } from "./words";
 import type { StarterLibrary } from "./verbs";
 

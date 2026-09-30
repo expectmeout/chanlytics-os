@@ -22,7 +22,7 @@ interface LegacyFlash {
   action?: { label: string; onClick: () => unknown } | null;
   /** Doors to a route, each a button that closes the toast and goes there. */
   links?: { label: string; to: string }[];
-  undo?: () => void;
+  undo?: (() => unknown) | null;
   ms?: number;
   icon?: string;
   once?: string;

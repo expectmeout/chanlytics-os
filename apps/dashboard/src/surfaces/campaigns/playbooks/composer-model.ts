@@ -10,7 +10,7 @@
  */
 import { playbookName, poolWords, reachLines } from "@chanlytics/contracts";
 import type { PlaybookTrigger, TemplateGroup } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
 import { policyRow } from "../../legacy-parts";
 import { starters } from "../templates/verbs";

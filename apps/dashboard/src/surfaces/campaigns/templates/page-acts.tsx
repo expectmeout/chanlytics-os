@@ -6,7 +6,7 @@
  */
 import type { RefObject, ReactNode } from "react";
 import type { ApiResult } from "@/client/api";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { starterWords } from "./composer";
 import type { TemplateGroup, TplLang } from "./group";

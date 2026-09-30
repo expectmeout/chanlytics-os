@@ -6,7 +6,7 @@
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
 import type { TemplateSentWords } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
 import type { PresentRow, TemplateGroup, TemplateRow, TplLang } from "./group";
 import type { StarterLibrary } from "./verbs";

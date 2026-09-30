@@ -9,7 +9,7 @@
  * behind the shield.
  */
 import type { Dispatch, SetStateAction } from "react";
-import type { TemplateDto } from "@/legacy-bridge/surfaces/inbox";
+import type { TemplateDto } from "@/surfaces/inbox/types";
 import { policyChipPart } from "../../legacy-parts";
 import { navigate } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
