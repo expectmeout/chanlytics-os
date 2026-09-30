@@ -28,7 +28,7 @@ const skip =
         ? "no SUPABASE_ANON_KEY in env: the owner this suite signs in as needs it"
         : false;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const stamp = Date.now().toString(36);
 

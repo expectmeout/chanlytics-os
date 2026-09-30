@@ -136,7 +136,7 @@ as unknown as                       186
 as never                             13
 non-null assertions, x!             130
 index reads the compiler lets pass  449   in 113 files
-table names outside packages/db     521
+table names outside packages/db     509
 SQL functions outside packages/db   129   called by .rpc
 doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files

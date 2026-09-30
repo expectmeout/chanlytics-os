@@ -35,8 +35,9 @@ test("a job scheduled while a request is served carries its name in the payload,
         payload: { notification_id: "n4", request_id: ORIGIN },
       }),
     );
-    // Not an object: nothing to stamp, and nothing broken by the attempt.
-    await scheduleJob(db, { tenantId: T, kind: "push_send", dueAt: DUE, payload: null });
+    // Not an object (the column is jsonb not null, so an array is the case the database accepts): nothing to stamp,
+    // and nothing broken by the attempt.
+    await scheduleJob(db, { tenantId: T, kind: "push_send", dueAt: DUE, payload: [] });
   });
   assert.deepEqual(
     tables.jobs.map((j) => j.payload),
@@ -45,7 +46,7 @@ test("a job scheduled while a request is served carries its name in the payload,
       { notification_id: "n2", request_id: ORIGIN },
       { notification_id: "n3", request_id: ORIGIN },
       { notification_id: "n4", request_id: ORIGIN },
-      null,
+      [],
     ],
   );
 });

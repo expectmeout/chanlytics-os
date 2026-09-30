@@ -28,7 +28,7 @@ const skip =
       ? "refusing a database that is not on this machine: this suite writes customers"
       : false;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const { upsertEscalation } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
 
 let db;
