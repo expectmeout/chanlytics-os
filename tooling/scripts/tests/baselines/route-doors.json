@@ -20,12 +20,5 @@
   "apps/dashboard/app/api/v1/segments/route.ts": 1,
   "apps/dashboard/app/api/v1/settings/route.ts": 1,
   "apps/dashboard/app/api/v1/team/partner/route.ts": 1,
-  "apps/dashboard/app/api/v1/workspaces/route.ts": 1,
-  "apps/edge/api/inbound-sms.ts": 1,
-  "apps/edge/api/resend-webhook.ts": 1,
-  "apps/edge/api/retell-fn.ts": 1,
-  "apps/edge/api/retell-inbound.ts": 1,
-  "apps/edge/api/retell-webhook.ts": 2,
-  "apps/edge/api/sms-status.ts": 2,
-  "apps/edge/api/whatsapp.ts": 1
+  "apps/dashboard/app/api/v1/workspaces/route.ts": 1
 }

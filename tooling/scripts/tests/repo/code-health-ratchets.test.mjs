@@ -22,7 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import ts from "typescript";
 import { ratchet } from "../_ratchet.mjs";
-import { MEASURES } from "../_measures.mjs";
+import { MEASURES, ROUTES } from "../_measures.mjs";
 import { parse, functionsIn, durationsIn } from "../_ast.mjs";
 
 for (const m of MEASURES) ratchet(m);
@@ -42,14 +42,15 @@ test("the measure sees the shell's JSX and the packages' TypeScript", () => {
 });
 
 // The doors' measure, kept honest the same way: if the route trees stopped being read (a moved folder, a changed
-// pattern), the number would fall to zero and the ratchet would pass. Both trees hold offenders until the doors are
-// thinned; the day one has none, this asserts the other still does, and the measure retires with the last.
+// pattern), the number would fall to zero and the ratchet would pass. The edge's doors reached none on 30 September
+// 2026 (the thin-doors lane), so they are asserted by what the measure reads, not by what it finds; the dashboard's
+// routes still hold offenders, and the day they have none this measure retires with the last.
 test("the doors' measure reads the edge's doors and the dashboard's routes", () => {
-  const doors = Object.keys(MEASURES.find((m) => m.file === "route-doors.json").measure());
   assert.ok(
-    doors.some((f) => f.startsWith("apps/edge/api/")),
-    "a door of the edge is read",
+    ROUTES.filter((f) => f.startsWith("apps/edge/api/")).length >= 40,
+    "the doors of the edge are read (every route under apps/edge/api)",
   );
+  const doors = Object.keys(MEASURES.find((m) => m.file === "route-doors.json").measure());
   assert.ok(
     doors.some((f) => f.startsWith("apps/dashboard/app/api/")),
     "a route of the dashboard is read",

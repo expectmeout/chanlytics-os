@@ -304,16 +304,6 @@
     "branches": 50,
     "depth": 1
   },
-  "apps/edge/api/retell-fn.ts::POST#1": {
-    "lines": 269,
-    "branches": 40,
-    "depth": 3
-  },
-  "apps/edge/api/whatsapp.ts::POST#1": {
-    "lines": 185,
-    "branches": 52,
-    "depth": 8
-  },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
     "lines": 271,
     "branches": 1,
@@ -374,6 +364,11 @@
     "branches": 36,
     "depth": 2
   },
+  "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
+    "lines": 269,
+    "branches": 40,
+    "depth": 3
+  },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
     "lines": 150,
     "branches": 35,
@@ -393,6 +388,11 @@
     "lines": 115,
     "branches": 35,
     "depth": 2
+  },
+  "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
+    "lines": 185,
+    "branches": 52,
+    "depth": 8
   },
   "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,

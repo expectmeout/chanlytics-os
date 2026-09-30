@@ -47,7 +47,7 @@ index reads the compiler lets pass  481   in 127 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 15 files
-doors importing db or channels       31   imports in 29 files
+doors importing db or channels       22   imports in 22 files
 unnamed durations                    64   in 33 files
 literal style values               1088   in 22 stylesheets
 primitives outside the kit         2175   selectors naming 862 classes

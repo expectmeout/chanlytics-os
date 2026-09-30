@@ -218,17 +218,6 @@
   "apps/dashboard/src/surfaces/people/surface.ts": {
     "unknownAs": 2
   },
-  "apps/edge/api/retell-fn.ts": {
-    "nonNull": 1
-  },
-  "apps/edge/api/retell-webhook.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
-  },
-  "apps/edge/api/whatsapp.ts": {
-    "unknownAs": 2,
-    "nonNull": 1
-  },
   "apps/edge/lib/email/dmarc.ts": {
     "nonNull": 2
   },
@@ -295,6 +284,13 @@
   "apps/edge/lib/sms/sms.ts": {
     "unknownAs": 1
   },
+  "apps/edge/lib/voice/call-booking-link.ts": {
+    "nonNull": 1
+  },
+  "apps/edge/lib/voice/call-webhook.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
+  },
   "apps/edge/lib/voice/voice-converge.ts": {
     "unknownAs": 2
   },
@@ -313,6 +309,10 @@
   },
   "apps/edge/lib/whatsapp/waba-events.ts": {
     "unknownAs": 1
+  },
+  "apps/edge/lib/whatsapp/webhook.ts": {
+    "unknownAs": 2,
+    "nonNull": 1
   },
   "apps/mobile/src/shell/Surface.tsx": {
     "nonNull": 1
