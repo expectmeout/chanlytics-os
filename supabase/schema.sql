@@ -8747,25 +8747,29 @@ COMMENT ON FUNCTION public.partner_workspace_money() IS 'For each workspace the 
 
 
 --
--- Name: people_list(uuid, uuid, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid)
+CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
-  with ev as not materialized (
+  -- The page first (0021): its people, in the kept order, after the cursor or the offset, and nobody else. Every read
+  -- below is for them alone.
+  with page as (
+    select p.id, p.display_name, p.wa_profile_name, p.phone_e164, p.email,
+           p.consent, p.consent_source, p.consent_updated_at, p.dnc,
+           p.marketing_consent, p.marketing_consent_source, p.marketing_consent_updated_at,
+           p.in_touch_at, p.added_at
+      from people_page(p_tenant_id, p_contact_id, p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id) p
+  ),
+  ev as not materialized (
     select m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
-           case when coalesce(m.meta->>'backfill', 'false') = 'true'
-                then m.channel_ts
-                else coalesce(m.channel_ts, m.created_at) end as at,
-           coalesce(m.meta->>'backfill', 'false') = 'true' as backfill,
-           -- Something the customer actually saw or said. A reply still in its
-           -- cancel window, a canceled or failed send, an internal note and a
-           -- call's own summary row are not "the last word" in the thread.
-           m.type in ('text', 'template', 'media')
-             and m.status not in ('queued', 'canceled', 'failed') as spoken
+           e.at, e.moved_in as backfill, e.spoken
       from messages m
+      -- When it happened, whether the customer saw or said it, and whether it came with a history moved in: the one
+      -- statement of the three (00259), which the kept moments read too.
+      cross join lateral message_moment(m.meta, m.channel_ts, m.created_at, m.type, m.status) e
      where m.tenant_id = p_tenant_id
        and m.contact_id is not null
        and (p_contact_id is null or m.contact_id = p_contact_id)
@@ -8807,8 +8811,9 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     end,
     dl.id, dl.stage, dl.service, dl.proposed_at, dl.decided_at, dl.ended_at, dl.amount_cents, dl.per,
     dl.proposal_url, dl.valid_until, dl.lost_reason,
-    st.id, st.body, st.due_on, st.for_user_id, st.deal_id
-  from contacts c
+    st.id, st.body, st.due_on, st.for_user_id, st.deal_id,
+    c.in_touch_at, c.added_at
+  from page c
   left join lateral (
     -- How they were added, when a door added them: their first contact.added
     -- event, should a door ever write two.
@@ -8924,33 +8929,102 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      order by n.due_on, n.created_at, n.id
      limit 1
   ) st on true
-  where c.tenant_id = p_tenant_id
-    and c.erased_at is null
-    and c.merged_into_contact_id is null
-    and (p_contact_id is null or c.id = p_contact_id)
-    -- The search: a name, their name on WhatsApp, their email address, or
-    -- three digits of the number, the way the page's own box matches.
-    -- Nothing else is indexed here; the page still narrows by state and
-    -- list over what it holds.
-    and (
-      nullif(trim(p_query), '') is null
-      or c.display_name ilike '%' || trim(p_query) || '%'
-      or c.wa_profile_name ilike '%' || trim(p_query) || '%'
-      or c.email ilike '%' || trim(p_query) || '%'
-      or (length(regexp_replace(p_query, '\D', '', 'g')) >= 3
-          and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || regexp_replace(p_query, '\D', '', 'g') || '%')
-    )
-  order by greatest(lm.at, lk.last_at) desc nulls last, c.created_at desc, c.id
-  limit least(greatest(coalesce(p_limit, 1000), 1), 1000)
-  offset greatest(coalesce(p_offset, 0), 0)
+  order by c.in_touch_at desc, c.added_at desc, c.id desc
 $$;
 
 
 --
--- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_limit (at most 1000) and p_offset page under one whole order: latest contact first, then the newest added, then the id. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written.';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008). The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written.';
+
+
+--
+-- Name: people_page(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, in_touch_at timestamp with time zone, added_at timestamp with time zone)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    SET enable_sort TO 'off'
+    AS $$
+#variable_conflict use_column
+declare
+  -- The search, read once rather than for each person the walk tests: its words, and its digits.
+  v_words  text := nullif(trim(p_query), '');
+  v_digits text := regexp_replace(coalesce(p_query, ''), '\D', '', 'g');
+begin
+  -- One person, by their key: no order to keep, so nothing here sorts. The query and the cursor page a list; a named
+  -- person is their row alone.
+  if p_contact_id is not null then
+    return query
+      select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+             c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+             c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+             pm.in_touch_at, pm.added_at
+        from person_moments pm
+        join contacts c on c.id = pm.contact_id
+       where pm.contact_id = p_contact_id
+         and pm.tenant_id = p_tenant_id
+         and c.tenant_id = p_tenant_id
+         and c.erased_at is null
+         and c.merged_into_contact_id is null;
+    return;
+  end if;
+
+  -- Everyone else: the walk down person_moments_order to the end of the page. With sorting off it is the only plan,
+  -- whatever the planner thinks the workspace holds.
+  return query
+    select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+           c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+           c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at,
+           pm.in_touch_at, pm.added_at
+      from person_moments pm
+      -- Each person's contact row, looked up by its key as the walk reaches them. The limit keeps it a look-up: joined
+      -- any other way, a plan made without the arguments can read the workspace's contacts once and hold them, and
+      -- compare every one with each person the walk reaches.
+      cross join lateral (
+        select c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
+               c.consent, c.consent_source, c.consent_updated_at, c.dnc,
+               c.marketing_consent, c.marketing_consent_source, c.marketing_consent_updated_at
+          from contacts c
+         where c.id = pm.contact_id
+           and c.tenant_id = p_tenant_id
+           and c.erased_at is null
+           and c.merged_into_contact_id is null
+           -- The search: a name, their name on WhatsApp, their email address, or
+           -- three digits of the number, the way the page's own box matches.
+           -- Nothing else is indexed here; the page still narrows by state and
+           -- list over what it holds.
+           and (
+             v_words is null
+             or c.display_name ilike '%' || v_words || '%'
+             or c.wa_profile_name ilike '%' || v_words || '%'
+             or c.email ilike '%' || v_words || '%'
+             or (length(v_digits) >= 3
+                 and regexp_replace(coalesce(c.phone_e164, ''), '\D', '', 'g') like '%' || v_digits || '%')
+           )
+         limit 1
+      ) c
+     where pm.tenant_id = p_tenant_id
+       -- After the cursor: just past the last row the caller holds. Without one, a place past every row, so the
+       -- comparison is always the index's own condition, whatever the plan.
+       and (pm.in_touch_at, pm.added_at, pm.contact_id)
+           < (coalesce(p_after_at, 'infinity'), coalesce(p_after_added, 'infinity'),
+              coalesce(p_after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'))
+     order by pm.in_touch_at desc, pm.added_at desc, pm.contact_id desc
+     limit least(greatest(coalesce(p_limit, 1000), 1), 1000)
+     offset greatest(coalesce(p_offset, 0), 0);
+end
+$$;
+
+
+--
+-- Name: FUNCTION people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'The people on one page of People (0021), for people_list, which reads everything else for them alone: the person p_contact_id names, by their key; else the live people matching p_query in person_moments'' order (in_touch_at, then added_at, then the id, falling), after p_offset or just past the cursor p_after_at, p_after_added, p_after_id, at most p_limit (1000) of them. It walks person_moments_order to the end of the page: sorting is off, so no plan reads the workspace whole and sorts it. As the caller, so RLS decides.';
 
 
 --
@@ -24961,12 +25035,21 @@ GRANT ALL ON FUNCTION public.partner_workspace_money() TO service_role;
 
 
 --
--- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer) TO authenticated;
-GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer) TO service_role;
+REVOKE ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) TO service_role;
 
 
 --
