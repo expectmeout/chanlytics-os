@@ -15,7 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
-import { MIN_MS } from "@chanlytics/contracts";
+import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 
 export type Db = SupabaseClient<Database>;
@@ -34,6 +34,15 @@ export const LEASE_SECONDS = 90;
  * still has forty of the sixty before the function is killed.
  */
 export const CLAIM_FOR_MS = 20_000;
+
+/**
+ * How many jobs one tick runs side by side (decision 0018, step 4). Each slot
+ * claims one job just before it runs it, as a lone runner does, so "claimed"
+ * still means "started"; a second slot opens only once a claim found work. The
+ * lease and the ceiling are each job's, not the tick's, so neither moves: every
+ * job is still claimed in the first CLAIM_FOR_MS and yields by its deadline.
+ */
+export const CLAIM_SLOTS = 3;
 
 /**
  * When a handler that loops over outward work (a broadcast batch) stops
@@ -68,6 +77,13 @@ export const FUNCTION_CEILING_MS = MIN_MS;
  */
 export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 
+/**
+ * How late a reply's first claim may come before the platform is paged (decision 0018, the measure's alarm). A reply is
+ * due fifteen seconds after Send and the heartbeat asks every ten, and replies are claimed before any other work, so a
+ * minute past due is a queue, not a clock: every runner was busy with replies, or the heartbeat was not running.
+ */
+export const REPLY_LATE_PAGE_MS = MIN_MS;
+
 /** Claims allowed for internal work before it is failed and reported. */
 export const MAX_ATTEMPTS = 3;
 
@@ -96,6 +112,8 @@ export interface LedgerRow {
   due_at: string;
   /** Counted by the claim: 1 on the first run; more means a lease ran out before a run reported back. */
   attempts: number;
+  /** The queue the claim took it from (jobs.lane, 00286): 0 a reply, 1 someone waiting, 2 bulk; null for a kind with none. */
+  lane?: number | null;
 }
 
 export type Verdict = "run" | "give_up";
@@ -164,11 +182,26 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   reply_read: [2 * MIN_MS, 10 * MIN_MS],
 };
 
-/** How long a job that just threw waits before it is tried again; null when it is failed now. */
-export function retryWait(job: { kind: string; attempts: number }): number | null {
+/**
+ * How long a job that just threw waits before it is tried again; null when it is failed now. The wait is drawn a little
+ * longer at random (contracts jittered), so the jobs one outage failed together are not all claimed again in the same
+ * heartbeat; only ever longer, so every wait still outlasts the lease.
+ */
+export function retryWait(job: { kind: string; attempts: number }, random: () => number = Math.random): number | null {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
-  return RETRY_WAITS_MS[job.kind]?.[job.attempts - 1] ?? null;
+  const wait = RETRY_WAITS_MS[job.kind]?.[job.attempts - 1];
+  return wait === undefined ? null : jittered(wait, random);
 }
+
+/**
+ * A kind this runner does not know is kept, not failed: a row written by a newer deploy (a kind that arrived with its
+ * handler, its caller and its CHECK) waits for the runner that knows it, so the edge and the database may deploy in
+ * either order. It is looked at again after UNKNOWN_KIND_WAIT_MS, and failed as unknown only once it has been due for
+ * UNKNOWN_KIND_GIVE_UP_MS: a day is longer than any deploy takes to land, and short enough that a kind nothing will
+ * ever know is told to its owner.
+ */
+export const UNKNOWN_KIND_WAIT_MS = 5 * MIN_MS;
+export const UNKNOWN_KIND_GIVE_UP_MS = DAY_MS;
 
 /** The next due job, claimed for this run; null when nothing is due. */
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
@@ -208,19 +241,28 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
 }
 
 /**
- * Keep a job that threw, to be claimed again once `untilIso` passes
- * (retryWait): its lease is put off and why is kept on the row. The same
- * compare-and-swap as the exits, so false means this run no longer holds it.
+ * Keep a job, to be claimed again once `untilIso` passes: one that threw (retryWait), or one whose kind this runner
+ * does not know (UNKNOWN_KIND_WAIT_MS). Its lease is put off and why is kept on the row. The same compare-and-swap as
+ * the exits, so false means this run no longer holds it.
+ *
+ * `giveBackClaim` is for the second: nothing ran, so the claim is given back (attempts less one) and the next claim
+ * is still the job's first, which verdictFor judges as one when a runner that knows the kind takes it. A job that
+ * threw keeps its claim: it ran, and the next try is its second.
  */
 export async function deferJob(
   db: Db,
   job: { id: string; attempts: number },
   untilIso: string,
   reason: string,
+  giveBackClaim = false,
 ): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
-    .update({ lease_until: untilIso, last_error: reason.slice(0, 500) })
+    .update({
+      lease_until: untilIso,
+      last_error: reason.slice(0, 500),
+      ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
+    })
     .eq("id", job.id)
     .eq("state", "fired")
     .eq("attempts", job.attempts)

@@ -7,9 +7,10 @@
  * packages/jobs/src/tick.ts, which is tested by running it against fakes.
  *
  * Its ceiling is apps/edge/vercel.json's, and the ledger's timings hang off
- * it: jobs are claimed one at a time for the first CLAIM_FOR_MS, a looping
- * handler yields at YIELD_AT_MS, and a claim's lease outlives the whole
- * function (ops-hygiene.test.mjs holds that last one to the ceiling).
+ * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
+ * the first CLAIM_FOR_MS, a looping handler yields at YIELD_AT_MS, and a
+ * claim's lease outlives the whole function (ops-hygiene.test.mjs holds that
+ * last one to the ceiling).
  */
 import { json, refuse } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
@@ -37,6 +38,8 @@ import {
   scheduleJobOnce,
   lateFields,
   CLAIM_FOR_MS,
+  CLAIM_SLOTS,
+  REPLY_LATE_PAGE_MS,
   YIELD_AT_MS,
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
@@ -56,6 +59,16 @@ function massFailureBody(c: { claimed: number; done: number; failed: number; gav
     `Each one is a row in jobs with state 'failed', and each also alerted its own workspace's owner as usual. Newest first:\n\n` +
     `  select kind, tenant_id, attempts, last_error, updated_at from jobs where state = 'failed' order by updated_at desc limit 20;\n\n` +
     `The same last_error across several workspaces points to a shared cause: a provider's credentials, the database, or a deploy.\n`
+  );
+}
+
+/** The reply-lane page: how long the worst one waited, and where to look first. */
+function replyLateBody(worstMs: number): string {
+  return (
+    `A reply was claimed ${Math.round(worstMs / 1000)} s after it was due. Replies are claimed before any other work ` +
+    `(jobs.lane 0), so every runner was busy with replies, or the ledger's heartbeat was slow to start one.\n\n` +
+    `The jobs_tick lines in the edge's logs carry late_ms_<kind> for each kind's worst wait and reply_late_ms for the ` +
+    `reply lane's; sweep_health() says whether the 'jobs' clock is running.\n`
   );
 }
 
@@ -135,22 +148,36 @@ export async function POST(request: Request): Promise<Response> {
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),
         defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
+        // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
+        deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
         settle: (job, certain) => settleJob(db, job, certain),
         alert: (job, news) => alertFor(db, job)(news),
         log: L,
         now: Date.now,
+        random: Math.random,
       },
       {
         claimForMs: CLAIM_FOR_MS,
+        slots: CLAIM_SLOTS,
         yieldAtMs: YIELD_AT_MS,
         yieldAtFor: (kind) => (kind.startsWith("lead_") ? LEAD_YIELD_AT_MS : undefined),
         leaseSeconds: LEASE_SECONDS,
       },
     );
     // How late each kind's first claim came rides on the heartbeat's line (0018,
-    // step 1); the answer to pg_net keeps its counts alone.
-    const { lateMs, ...tally } = counts;
-    L.info("jobs_tick", { ...tally, ...lateFields(lateMs) });
+    // step 1), and the reply lane's worst beside them; the answer to pg_net keeps its counts alone.
+    const { lateMs, replyLateMs, ...tally } = counts;
+    L.info("jobs_tick", { ...tally, ...lateFields(lateMs), reply_late_ms: replyLateMs });
+    // A reply that waited more than a minute for the ledger is the platform's condition: replies are claimed before
+    // anything else, so every runner was busy with replies or the heartbeat was slow. Paged once per window.
+    if (replyLateMs > REPLY_LATE_PAGE_MS) {
+      await pageOperator(
+        { db },
+        "jobs_replies_late",
+        "A reply waited more than a minute for the ledger",
+        replyLateBody(replyLateMs),
+      );
+    }
     // Many failures in one heartbeat are also the platform's condition: one page
     // with the counts in words and where to look. Each failed job has already
     // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is

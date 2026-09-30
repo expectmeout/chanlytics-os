@@ -9,7 +9,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runTick, lateFields } from "../../../../packages/jobs/src/tick.ts";
-import { RUN_INTERRUPTED, MAX_ATTEMPTS } from "../../../../packages/jobs/src/ledger.ts";
+import {
+  RUN_INTERRUPTED,
+  MAX_ATTEMPTS,
+  UNKNOWN_KIND_WAIT_MS,
+  UNKNOWN_KIND_GIVE_UP_MS,
+} from "../../../../packages/jobs/src/ledger.ts";
 
 const job = (id, kind = "line_provision", attempts = 1) => ({
   id,
@@ -29,7 +34,17 @@ const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
 function fakes(jobs, o = {}) {
   const queue = [...jobs];
   const trail = [];
-  const calls = { claim: [], dispatch: [], complete: [], fail: [], defer: [], settle: [], alert: [], log: [] };
+  const calls = {
+    claim: [],
+    dispatch: [],
+    complete: [],
+    fail: [],
+    defer: [],
+    deferUnknown: [],
+    settle: [],
+    alert: [],
+    log: [],
+  };
   const has = (set, id) => (set ?? new Set()).has(id);
   let reading = 0;
   const ports = {
@@ -59,6 +74,10 @@ function fakes(jobs, o = {}) {
       if (has(o.deferThrows, j.id)) throw new Error("connection reset");
       return !has(o.deferLost, j.id);
     },
+    deferUnknown: async (j, untilIso, reason) => {
+      calls.deferUnknown.push([j.id, untilIso, reason]);
+      return !has(o.deferLost, j.id);
+    },
     settle: async (j, certain) => {
       calls.settle.push([j.id, certain]);
       return o.settled ?? [{ what: "message", changed: true }];
@@ -73,6 +92,8 @@ function fakes(jobs, o = {}) {
       error: (e, f) => calls.log.push(["error", e, f]),
     },
     now: () => (o.clock ? o.clock(reading++) : 0),
+    // No jitter unless a case asks for it, so a wait reads as the table's own.
+    random: o.random ?? (() => 0),
   };
   const logged = (level, event) => calls.log.some(([l, e]) => l === level && e === event);
   return { ports, calls, queue, trail, logged };
@@ -87,7 +108,15 @@ test("every due job runs once, in order, and is recorded done; the tick ends whe
   );
   assert.deepEqual(calls.complete, ["a", "b", "c"]);
   assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
-  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0, lateMs: { line_provision: 0 } });
+  assert.deepEqual(counts, {
+    claimed: 3,
+    done: 3,
+    failed: 0,
+    gaveUp: 0,
+    deferred: 0,
+    lateMs: { line_provision: 0 },
+    replyLateMs: 0,
+  });
 });
 
 test("a job is claimed only when it is about to run", async () => {
@@ -121,7 +150,15 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
     /marked failed, so it is no longer shown as on its way/,
     "and what became of the message",
   );
-  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0, deferred: 0, lateMs: { outbound_send: 0 } });
+  assert.deepEqual(counts, {
+    claimed: 3,
+    done: 2,
+    failed: 1,
+    gaveUp: 0,
+    deferred: 0,
+    lateMs: { outbound_send: 0 },
+    replyLateMs: 0,
+  });
   assert.deepEqual(calls.defer, [], "a send is never kept to be tried again: a second try could reach a person twice");
 });
 
@@ -151,7 +188,15 @@ test("an email intake that throws is kept and tried again later, not failed: its
     "not failed, so nothing to settle and nobody to tell yet",
   );
   assert.ok(logged("warn", "job_deferred"));
-  assert.deepEqual(counts, { claimed: 2, done: 0, failed: 0, gaveUp: 0, deferred: 2, lateMs: { email_ingest: 0 } });
+  assert.deepEqual(counts, {
+    claimed: 2,
+    done: 0,
+    failed: 0,
+    gaveUp: 0,
+    deferred: 2,
+    lateMs: { email_ingest: 0 },
+    replyLateMs: 0,
+  });
 });
 
 test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {
@@ -169,7 +214,7 @@ test("the last try of an intake fails it for good and tells the owner how many t
     new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and will not start again on its own`),
   );
   assert.equal(calls.alert[0].subject, "An email could not be taken in");
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0, lateMs: {} });
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 });
 });
 
 test("an intake that could not be kept is not failed either: the claim's own lease brings it back", async () => {
@@ -202,14 +247,120 @@ test("internal work not written to be run again still fails on its first throw",
   assert.equal(counts.failed, 2);
 });
 
-test("a kind no runner knows is failed as never run, and never recorded done", async () => {
-  const { ports, calls } = fakes([job("a", "made_up")], { unknown: new Set(["a"]) });
+test("a kind this runner does not know is kept for the runner that will, its claim given back, not failed", async () => {
+  // A newer deploy wrote it (its kind arrived with its handler, caller and CHECK) and this edge is the older one: it
+  // waits five minutes and is looked at again, so the edge and the database may deploy in either order.
+  const now = Date.parse("2026-01-01T01:00:00Z");
+  const { ports, calls, logged } = fakes([job("a", "made_up")], { unknown: new Set(["a"]), clock: () => now });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.deferUnknown, [["a", at(now + UNKNOWN_KIND_WAIT_MS), "unknown job kind made_up"]]);
+  assert.deepEqual([calls.complete, calls.fail, calls.settle, calls.alert, calls.defer], [[], [], [], [], []]);
+  assert.ok(logged("warn", "job_kind_unknown_deferred"));
+  assert.equal(counts.deferred, 1);
+  assert.equal(counts.failed, 0);
+});
+
+test("a kind nobody has known for a day is failed as never run, and never recorded done", async () => {
+  const now = Date.parse("2026-01-01T00:00:00Z") + UNKNOWN_KIND_GIVE_UP_MS;
+  const { ports, calls } = fakes([job("a", "made_up")], { unknown: new Set(["a"]), clock: () => now });
   await runTick(ports, OPTS);
+  assert.deepEqual(calls.deferUnknown, []);
   assert.deepEqual(calls.complete, []);
   assert.deepEqual(calls.fail, [["a", "unknown job kind made_up"]]);
   assert.deepEqual(calls.settle, [["a", true]], "nothing ran, so that much is certain");
   assert.equal(calls.alert[0].subject, "Something in the background did not finish");
   assert.equal(calls.alert[0].route, "today", "a job with no words of its own says so on Today");
+});
+
+test("a wait is drawn a little longer at random, on the tick as in the table", async () => {
+  const { ports, calls } = fakes([job("i", "email_ingest", 1)], { throwOn: new Set(["i"]), random: () => 1 });
+  await runTick(ports, OPTS);
+  assert.deepEqual(calls.defer, [["i", at(6 * MIN), "boom i"]], "five minutes, and a fifth more at the longest draw");
+});
+
+/* ------------------------------------------------- slots side by side (0018, step 4) */
+
+/**
+ * A ledger whose jobs run until the case lets each go, so what is claimed while others run can be read. `trail` says
+ * each claim and each run in the order they happened.
+ */
+function held(jobs) {
+  const w = fakes(jobs);
+  const release = new Map();
+  // Claimed and not yet finished: "claimed" must mean "started", so this may never pass the slots.
+  let open = 0;
+  let most = 0;
+  const claim = w.ports.claim;
+  w.ports.claim = async (lease) => {
+    const j = await claim(lease);
+    if (j) most = Math.max(most, (open += 1));
+    return j;
+  };
+  w.ports.dispatch = async (j) => {
+    w.trail.push(`run ${j.id}`);
+    w.calls.dispatch.push([j.id]);
+    await new Promise((resolve) => release.set(j.id, resolve));
+    open -= 1;
+    return "done";
+  };
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  return { ...w, release, settle, most: () => most };
+}
+
+test("with three slots three jobs run side by side, and a fourth is claimed only when a slot is free to run it", async () => {
+  const w = held([job("a"), job("b"), job("c"), job("d"), job("e")]);
+  const tick = runTick(w.ports, { ...OPTS, slots: 3 });
+  await w.settle();
+  assert.deepEqual(
+    w.calls.dispatch.map(([id]) => id),
+    ["a", "b", "c"],
+    "three running at once, no more",
+  );
+  assert.deepEqual(
+    w.queue.map((j) => j.id),
+    ["d", "e"],
+    "d and e were never claimed while every slot was busy",
+  );
+  w.release.get("b")();
+  await w.settle();
+  assert.deepEqual(
+    w.queue.map((j) => j.id),
+    ["e"],
+    "b's slot, free, claimed d and runs it",
+  );
+  for (const id of ["a", "c", "d"]) w.release.get(id)();
+  await w.settle();
+  w.release.get("e")();
+  const counts = await tick;
+  assert.equal(w.most(), 3, "never more claimed and unfinished than there are slots: each claim was a run starting");
+  assert.deepEqual(w.calls.complete.sort(), ["a", "b", "c", "d", "e"]);
+  assert.equal(counts.claimed, 5);
+  assert.equal(counts.done, 5);
+});
+
+test("a second slot opens only when a claim found work: a quiet ledger is asked once", async () => {
+  const { ports, calls } = fakes([]);
+  const counts = await runTick(ports, { ...OPTS, slots: 3 });
+  assert.deepEqual(calls.claim, [90]);
+  assert.equal(counts.claimed, 0);
+});
+
+test("a claim that throws in one slot stops every slot claiming; the jobs already running finish, and the tick throws", async () => {
+  const w = held([job("a"), job("b")]);
+  let asked = 0;
+  const claim = w.ports.claim;
+  w.ports.claim = async (lease) => {
+    asked += 1;
+    if (asked === 3) throw new Error("claim_due_jobs: connection refused");
+    return claim(lease);
+  };
+  const tick = runTick(w.ports, { ...OPTS, slots: 3 });
+  await w.settle();
+  w.release.get("a")();
+  w.release.get("b")();
+  await assert.rejects(tick, /connection refused/, "the route answers 503, which sweep_health() reads");
+  assert.deepEqual(w.calls.complete.sort(), ["a", "b"], "what was running was recorded, not abandoned");
+  assert.equal(asked, 3, "and nothing more was claimed after the ledger failed");
 });
 
 test("a send whose run died is never run a second time", async () => {
@@ -288,7 +439,15 @@ test("a completion that could not be written is not reported as the job failing"
   assert.deepEqual(calls.fail, []);
   assert.deepEqual(calls.alert, []);
   assert.ok(logged("error", "job_complete_write_failed"));
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: { outbound_send: 0 } });
+  assert.deepEqual(counts, {
+    claimed: 1,
+    done: 0,
+    failed: 0,
+    gaveUp: 0,
+    deferred: 0,
+    lateMs: { outbound_send: 0 },
+    replyLateMs: 0,
+  });
 });
 
 test("a failure another run already recorded is not settled or announced twice", async () => {
@@ -358,6 +517,25 @@ test("how late each kind's first claim came is kept at its worst; a claim before
   const counts = await runTick(ports, OPTS);
   assert.equal(counts.claimed, 4, "all four were claimed and run");
   assert.deepEqual(counts.lateMs, { outbound_send: 10_000, broadcast_send: 0 });
+});
+
+test("the reply lane's worst wait is read from the claimed row's lane, apart from its kind's: a late cold email is not a late reply", async () => {
+  // outbound_send is both. The database says which (jobs.lane, 00286): 0 a reply, 2 bulk. A row with no lane (a
+  // database that has not applied it yet, or a kind the lane case does not name) counts for its kind alone.
+  const at = (id, kind, dueAt, lane) => ({ ...job(id, kind, 1), due_at: dueAt, lane });
+  const { ports } = fakes(
+    [
+      at("a", "outbound_send", "2026-01-01T00:00:08Z", 0),
+      at("b", "outbound_send", "2026-01-01T00:00:00Z", 2),
+      at("c", "email_ingest", "2026-01-01T00:00:03Z", 0),
+      at("d", "push_receipts", "2025-12-31T00:00:00Z", 2),
+      at("e", "push_send", "2025-12-31T00:00:00Z", undefined),
+    ],
+    { clock: () => Date.parse("2026-01-01T00:00:10Z") },
+  );
+  const counts = await runTick(ports, OPTS);
+  assert.equal(counts.replyLateMs, 7_000, "the email that waited seven seconds, not the cold email that waited ten");
+  assert.equal(counts.lateMs.outbound_send, 10_000, "the kind's number is still the worse of the two");
 });
 
 test("a due time that cannot be read is no wait at all, rather than a line that says NaN", async () => {

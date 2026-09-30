@@ -124,6 +124,31 @@ test("a page that did not send earns no quiet: the stamp stays unset and the nex
   assert.equal(ok.sent.length, 1);
 });
 
+test("two firings of one condition at the same moment page once: the second reads the first's stamp", async () => {
+  // The ledger's slots run jobs side by side, and two replies held on one unreadable vault fire the same key together.
+  const db = fakePages();
+  const t = transport();
+  const ports = { db, send: t.send, now: () => T0 };
+  const outcomes = await Promise.all([
+    pageOperator(ports, "wire_unavailable:whatsapp", "a vault read failed", "tenant t1"),
+    pageOperator(ports, "wire_unavailable:whatsapp", "a vault read failed", "tenant t1"),
+    pageOperator(ports, "jobs_backlog", "7 due jobs waiting", "…"),
+  ]);
+  assert.deepEqual(outcomes, ["sent", "suppressed", "sent"], "another key is its own condition, paged beside it");
+  assert.equal(t.sent.length, 2);
+  assert.equal(db.rows.get("wire_unavailable:whatsapp").count, 2, "both firings counted");
+
+  // And a first that could not send leaves the second to try, as the next tick would.
+  const db2 = fakePages();
+  let calls = 0;
+  const flaky = async () => (calls += 1) > 1;
+  const again = await Promise.all([
+    pageOperator({ db: db2, send: flaky, now: () => T0 }, "k", "s", "b"),
+    pageOperator({ db: db2, send: flaky, now: () => T0 }, "k", "s", "b"),
+  ]);
+  assert.deepEqual(again, ["failed", "sent"]);
+});
+
 test("every platform address is paged: LEAD_TO with two addresses reaches both", async () => {
   const saved = process.env.LEAD_TO;
   process.env.LEAD_TO = "ops@example.test, second@example.test";

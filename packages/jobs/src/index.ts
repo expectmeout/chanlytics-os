@@ -1,6 +1,6 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
-export { scheduleJob, scheduleJobOnce, cancelJobsFor } from "./schedule";
-export type { ScheduleParams } from "./schedule";
+export { scheduleJob, scheduleJobOnce, cancelJobsFor, requeueFailedJob } from "./schedule";
+export type { ScheduleParams, Requeued } from "./schedule";
 export { incomingEmailOf, dispatchJob, upsertEscalation } from "./handlers";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob, EscalationOutcome } from "./handlers";
 export {
@@ -12,6 +12,8 @@ export {
   deferJob,
   LEASE_SECONDS,
   CLAIM_FOR_MS,
+  CLAIM_SLOTS,
+  REPLY_LATE_PAGE_MS,
   YIELD_AT_MS,
   FUNCTION_CEILING_MS,
   LEAD_YIELD_AT_MS,
