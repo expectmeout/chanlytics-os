@@ -70,9 +70,10 @@ test("a surface with no global and no value caches nothing; a name in the cache 
   cache.flushSurfaceCache();
   assert.equal(globalThis.sessionStorage.peek(CACHE), before, "nothing to keep, nothing written");
   values.restoreSurfaceValue("not-a-surface", { a: 1 });
-  assert.equal(values.isSurfaceKey("not-a-surface"), false);
-  assert.equal(values.isSurfaceKey("reports"), true);
-  assert.equal(values.isSurfaceKey("toString"), false, "a name every object has is no key");
+  assert.equal(values.surfaceValue("not-a-surface"), undefined, "a name that is no surface's key holds nothing");
+  values.restoreSurfaceValue("toString", { a: 1 });
+  assert.equal(values.surfaceValue("toString"), undefined, "a name every object has is no key");
+  assert.equal(typeof globalThis.toString, "function", "and the window's own is left as it is");
 });
 
 test("useSurface answers the surface's value and draws its component again when the surface moves, and not for another's", () => {

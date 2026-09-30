@@ -59,7 +59,7 @@ const SAMPLES = {
   "/data/kit-globals.js": {
     entry: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit-globals.ts"),
     globalName: "__KG",
-    footer: "__KG.installKitGlobals(window);",
+    footer: "Object.assign(window, __KG.KIT_GLOBALS);",
     // TSX: elements from the page's React (`React.createElement`), and the hooks it imports are the page's React's.
     jsx: "transform",
     reactIsTheWindows: true,

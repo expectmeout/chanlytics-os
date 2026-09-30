@@ -12,13 +12,13 @@ import { ChartLive, ChartTooltip, ChartTooltipContent } from "./parts";
 
 const RINGS = 4;
 
-export interface RadarSeries {
+interface RadarSeries {
   key: string;
   values: Array<number | null | undefined>;
   fill?: boolean;
 }
 
-export interface RadarChartProps {
+interface RadarChartProps {
   /** Short labels round the circle. */
   axes: string[];
   /** The long ones, for the words. */

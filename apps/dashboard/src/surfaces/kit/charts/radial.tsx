@@ -7,7 +7,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { ckArcLine, ckPolar } from "./geometry";
 
-export interface RadialChartProps {
+interface RadialChartProps {
   /** 0..1 */
   value: number;
   /** 0..1 or null: the period before. */

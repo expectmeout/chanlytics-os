@@ -33,7 +33,7 @@ type ReplyMode = GoogleVM["reply"]["mode"];
 // has not reached), opening it asks the receptionist for a draft first, so a
 // reply is one tap: read, change anything, send. Under Never the box opens
 // empty and nothing is asked.
-export function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
+function ReviewReply({ r, mode }: { r: GoogleReviewVM; mode: ReplyMode }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(r.replyText || "");
   const [busy, setBusy] = useState(false);

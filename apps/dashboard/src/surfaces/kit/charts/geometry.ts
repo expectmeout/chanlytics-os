@@ -154,7 +154,7 @@ export function ckTopRound({ x, y, w, h }: { x: number; y: number; w: number; h:
 }
 
 // How wide the y-axis labels need to be, from the longest (Geist Mono at 10.5px is about 6.3px a character).
-export const ckAxisWidth = (labels: Array<string | number>): number =>
+const ckAxisWidth = (labels: Array<string | number>): number =>
   10 + Math.max(1, ...labels.map((l) => String(l).length)) * 6.3;
 
 /** The plot inside its margins: the left margin fits the y labels, and y(v) maps a value onto the plot. */
@@ -246,8 +246,8 @@ export const ckDescribe = <D extends ChartRow>(
 // The tooltip sits above the plot, beside the point it reads, on whichever side has room for its widest (260px);
 // when neither side has, it spans the plot. Decided in pixels: a share of the width let it leave any plot narrower
 // than about 800px, which is every card on a phone.
-export const CK_TIP_W = 260;
-export const CK_TIP_GAP = 14;
+const CK_TIP_W = 260;
+const CK_TIP_GAP = 14;
 export const ckTipSide = (x: number, width: number): "start" | "end" | "pin" =>
   x + CK_TIP_GAP + CK_TIP_W <= width ? "start" : x - CK_TIP_GAP - CK_TIP_W >= 0 ? "end" : "pin";
 

@@ -15,18 +15,18 @@ import { ChartLive, ChartTooltip, ChartTooltipContent, CkXLabels, CkYAxis } from
 let ckWashSeq = 0;
 
 /** One plotted series: its key, whether it is washed to the baseline, and its stroke's width. */
-export interface LineKey<D> {
+interface LineKey<D> {
   key: keyof D & string;
   fill?: boolean;
   width?: number;
 }
 
 /** What a tip and a description are told besides the day: the period before, on this day. */
-export interface LineContext {
+interface LineContext {
   prior: number | null;
 }
 
-export interface LineChartProps<D extends ChartRow> {
+interface LineChartProps<D extends ChartRow> {
   data: D[];
   keys: Array<LineKey<D>>;
   /** The card's series, for the words. */

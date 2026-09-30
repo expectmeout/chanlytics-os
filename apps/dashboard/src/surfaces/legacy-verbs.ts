@@ -13,7 +13,7 @@
 import type { ReactNode } from "react";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
-export interface LegacyFlash {
+interface LegacyFlash {
   tone?: string;
   msg: ReactNode;
 }

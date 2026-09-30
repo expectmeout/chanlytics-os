@@ -25,7 +25,7 @@ import { Icon } from "../icon/icon";
 type Kind = "page" | "card" | "line" | "block";
 
 /** One act: its words, and where it goes or what it runs. */
-export interface EmptyAct {
+interface EmptyAct {
   label: ReactNode;
   /** A route to go to (the frame's move). */
   to?: string;
@@ -37,7 +37,7 @@ export interface EmptyAct {
   gate?: Record<string, unknown>;
 }
 
-export interface EmptyStateProps {
+interface EmptyStateProps {
   kind?: Kind;
   glyph?: string | null;
   title?: ReactNode;
@@ -120,7 +120,7 @@ export function EmptyState({
   );
 }
 
-export interface FailedReadProps {
+interface FailedReadProps {
   kind?: Kind;
   /** What could not be read: "your team" (the title says "Couldn't read your team"). */
   what?: string;

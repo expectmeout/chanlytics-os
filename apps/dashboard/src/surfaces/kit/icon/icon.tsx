@@ -5,7 +5,7 @@ import type { CSSProperties, ReactElement, SVGProps } from "react";
  * 0015: the kit's one Icon, which seed-globals publishes as window.Icon for the pages that still read it). A glyph
  * is a drawing of its own, so the table is where one is added, and an unknown name draws a dot's circle.
  */
-export interface IconProps {
+interface IconProps {
   /** Which glyph: a key of the table below. */
   name: string;
   /** Its side, in px (16). */

@@ -9,7 +9,7 @@ import type { ChartWords } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
 import { ChartLive, ChartTooltip, ChartTooltipContent } from "./parts";
 
-export interface HeatStripProps {
+interface HeatStripProps {
   /** A number per hour. */
   values: number[];
   /** Each hour in words. */

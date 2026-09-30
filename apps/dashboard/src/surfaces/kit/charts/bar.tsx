@@ -35,7 +35,7 @@ function stackOf<D extends ChartRow>(
   return drawn;
 }
 
-export interface BarChartProps<D extends ChartRow> {
+interface BarChartProps<D extends ChartRow> {
   /** [{ day, label, short?, ...values }] */
   data: D[];
   /** Series keys, bottom first. */
@@ -145,7 +145,7 @@ export function BarChart<D extends ChartRow>({
   );
 }
 
-export interface BarListRow {
+interface BarListRow {
   id: string;
   label: string;
   value: number;

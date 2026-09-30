@@ -15,8 +15,3 @@ import { EmptyState, FailedRead } from "./empty/empty";
 import { Icon } from "./icon/icon";
 
 export const KIT_GLOBALS = { Icon, EmptyState, FailedRead, SegmentBar };
-
-/** Publish them on a window, where a classic script finds them by name. */
-export function installKitGlobals(win: object = window): void {
-  Object.assign(win, KIT_GLOBALS);
-}

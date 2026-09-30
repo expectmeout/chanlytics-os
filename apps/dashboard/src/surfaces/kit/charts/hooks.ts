@@ -30,7 +30,7 @@ export function useChartWidth(initial = 600): [RefObject<HTMLDivElement | null>,
 }
 
 /** What a chart spreads onto its root to be one tab stop the arrow keys walk. */
-export interface ChartKeys {
+interface ChartKeys {
   tabIndex: 0;
   onFocus: () => void;
   onBlur: () => void;

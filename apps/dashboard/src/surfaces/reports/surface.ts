@@ -42,10 +42,6 @@ try {
   /* storage unavailable: the default range stands */
 }
 
-export function getReportDays(): number {
-  return reportDays;
-}
-
 /** The one period every chart on Reports is scoped to. Only the presets. */
 export function setReportDays(days: number): void {
   if (!REPORT_RANGES.some((r) => r.days === days)) return;

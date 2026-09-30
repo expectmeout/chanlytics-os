@@ -18,7 +18,7 @@ import { ChartLive } from "./parts";
 // height is left.
 const PIE_OF_WIDTH = 0.45;
 
-export interface PieSlice {
+interface PieSlice {
   key: string;
   value: number;
 }
@@ -30,7 +30,7 @@ interface Arc extends PieSlice {
   share: number;
 }
 
-export interface PieChartProps {
+interface PieChartProps {
   /** [{ key, value }] in the fixed order. */
   data: PieSlice[];
   /** { key: { label, color } } */

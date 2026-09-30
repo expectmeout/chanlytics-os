@@ -14,13 +14,13 @@ import type { ChartConfig } from "./geometry";
 import { ChartLegend } from "./parts";
 
 /** A table a chart offers beside itself: its columns and its rows, a number sitting right, a missing value a dash. */
-export interface ChartTableData {
+interface ChartTableData {
   columns: string[];
   rows: Array<Array<string | number | null | undefined>>;
 }
 
 /** A twin made from a chart's own rows: the first column is the row's label, then a column per series under its name. */
-export interface ChartTwin {
+interface ChartTwin {
   data: Array<{ label: string } & object>;
   keys: string[];
   first?: string;
@@ -31,7 +31,7 @@ export interface ChartTwin {
 const CK_BOM = String.fromCharCode(0xfeff);
 /** The browser has started the save by then: the address made for it is let go. */
 const REVOKE_AFTER_MS = 1000;
-export function ckSaveCsv(title: string, table: ChartTableData): void {
+function ckSaveCsv(title: string, table: ChartTableData): void {
   const body = [table.columns, ...table.rows].map((r) => r.map((v) => csvCell(v)).join(",")).join("\r\n");
   const name = `${String(title)
     .toLowerCase()
@@ -56,7 +56,7 @@ export function ckSaveCsv(title: string, table: ChartTableData): void {
 }
 
 // A number sits right, in tabular figures; a missing value is the tree's own dash, and an empty cell in the CSV.
-export function ChartTable({ columns, rows }: ChartTableData) {
+function ChartTable({ columns, rows }: ChartTableData) {
   const numeric = columns.map((_, j) => rows.some((r) => typeof r[j] === "number"));
   return (
     <div className="ck-table-wrap">
@@ -108,7 +108,7 @@ const ckTwin = (twin: ChartTwin | null, config: ChartConfig | null): ChartTableD
       }
     : null;
 
-export interface ChartCardProps {
+interface ChartCardProps {
   title: string;
   takeaway?: string | null;
   testid?: string;

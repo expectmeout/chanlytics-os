@@ -59,7 +59,7 @@ export function restoreSurfaceValue(key: string, value: unknown): void {
 }
 
 /** Whether a name is a key of `SurfaceValues`: the cache is written by keys of every surface, the typed or not. */
-export function isSurfaceKey(key: string): key is SurfaceKey {
+function isSurfaceKey(key: string): key is SurfaceKey {
   return Object.hasOwn(SURFACE_KEYS, key);
 }
 

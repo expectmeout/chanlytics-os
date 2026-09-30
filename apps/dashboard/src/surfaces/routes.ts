@@ -9,7 +9,7 @@
  */
 
 /** How the frame wraps a route's page: the row's `activeNav`, `crumbs` and `pane`. */
-export interface SurfaceRoute {
+interface SurfaceRoute {
   activeNav: string;
   crumbs: readonly string[];
   pane: boolean;
