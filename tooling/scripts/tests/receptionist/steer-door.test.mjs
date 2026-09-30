@@ -42,6 +42,7 @@ import {
   REPLY_DELAY_DEFAULT_MS,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 
 // The door reads these at call time; each test file is its own process. A
 // model key is set so the door's own refusals are reachable, and a case that
@@ -632,7 +633,12 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   assert.ok(send, "the new draft has its send");
   assert.equal(send.kind, "outbound_send");
   assert.equal(send.tenant_id, w.T);
-  assert.deepEqual(send.payload, { message_id: draft.id, conversation_id: w.C, to_phone: CUSTOMER, body: ANSWER.text });
+  assert.deepEqual(withoutRequestId(send.payload), {
+    message_id: draft.id,
+    conversation_id: w.C,
+    to_phone: CUSTOMER,
+    body: ANSWER.text,
+  });
   const due = Date.parse(send.due_at) - Date.now();
   assert.ok(due > 40_000 && due <= 45_000, `due in ${due}ms: the old draft's own delay`);
   // The order is the safety: queued first, retired second, so a failure between the two leaves ONE draft standing, never none.

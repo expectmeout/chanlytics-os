@@ -20,6 +20,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { localDate, localHour } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault } from "../_cron-doors-world.mjs";
 
 for (const k of [
@@ -307,7 +308,7 @@ test("a due playbook runs: a scheduled broadcast for the people who said yes, it
     "every recipient row names the run and the workspace",
   );
   assert.deepEqual(
-    w.tables.jobs.map((j) => [j.tenant_id, j.kind, j.payload, j.due_at]),
+    w.tables.jobs.map((j) => [j.tenant_id, j.kind, withoutRequestId(j.payload), j.due_at]),
     [[A, "broadcast_send", { broadcast_id: run.id }, run.scheduled_for]],
     "the send is on the ledger, due when the run is",
   );

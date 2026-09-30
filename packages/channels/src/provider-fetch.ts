@@ -40,7 +40,7 @@
 import { logger } from "./log/logger";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
-export const PROVIDERS = [
+export const PROVIDER_NAMES = [
   "meta",
   "twilio",
   "retell",
@@ -51,7 +51,7 @@ export const PROVIDERS = [
   "anthropic",
   "typesafe",
 ] as const;
-export type Provider = (typeof PROVIDERS)[number];
+export type Provider = (typeof PROVIDER_NAMES)[number];
 
 /** What a call to a provider came to (the header says each). */
 export type SendOutcome = "ok" | "refused" | "retryable" | "unknown";
@@ -115,10 +115,16 @@ interface Breaker {
   failures: number;
   openUntil: number;
 }
-/** One map for the process: a registered symbol, so every inlined copy of this module reads and writes the same. */
-const BREAKER_SLOT: unique symbol = Symbol.for("chanlytics.breakers");
-const breakerHolder = globalThis as { [BREAKER_SLOT]?: Map<Provider, Breaker> };
-const breakerMap: Map<Provider, Breaker> = (breakerHolder[BREAKER_SLOT] ??= new Map<Provider, Breaker>());
+/** One state for the process: a registered symbol, so every inlined copy of this module reads and writes the same. */
+const BREAKER_SLOT: unique symbol = Symbol.for("chanlytics.provider-breakers");
+interface Breakers {
+  held: Map<Provider, Breaker>;
+  /** How many times each provider's breaker has opened in this instance, kept when it closes: the outage's count. */
+  opened: Map<Provider, number>;
+}
+const breakerHolder = globalThis as { [BREAKER_SLOT]?: Breakers };
+const breakers: Breakers = (breakerHolder[BREAKER_SLOT] ??= { held: new Map(), opened: new Map() });
+const breakerMap = breakers.held;
 const breakerLog = logger();
 
 /** A provider's breaker as it stands: what a report of the platform's health, or a test, reads. */
@@ -130,14 +136,15 @@ export function breakerOf(provider: Provider, now = Date.now()): { open: boolean
 /** Every provider's breaker as it stands in this instance, and until when an open one holds: what /api/diag says. */
 export function breakerStates(
   now = Date.now(),
-): { provider: Provider; open: boolean; failures: number; open_until: string | null }[] {
-  return PROVIDERS.map((provider) => {
+): { provider: Provider; open: boolean; failures: number; opened: number; open_until: string | null }[] {
+  return PROVIDER_NAMES.map((provider) => {
     const b = breakerMap.get(provider);
     const open = !!b && b.openUntil > now;
     return {
       provider,
       open,
       failures: b?.failures ?? 0,
+      opened: breakers.opened.get(provider) ?? 0,
       open_until: open ? new Date(b.openUntil).toISOString() : null,
     };
   });
@@ -146,6 +153,7 @@ export function breakerStates(
 /** Every breaker closed: for a test, which must not inherit the last test's outage. */
 export function resetBreakers(): void {
   breakerMap.clear();
+  breakers.opened.clear();
 }
 
 /** The network's codes for a connection that never opened: the request never left, so nothing was done. */
@@ -205,7 +213,8 @@ function note(provider: Provider, a: ProviderReply, now: number): void {
   if (next.failures >= BREAKER_FAILURES) {
     next.openUntil = now + BREAKER_OPEN_MS;
     // Opened, or opened again after the pause's first call faulted too: either way calls are held from now.
-    if (!wasOpen)
+    if (!wasOpen) {
+      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
       breakerLog.warn("breaker_open", {
         provider,
         failures: next.failures,
@@ -213,6 +222,7 @@ function note(provider: Provider, a: ProviderReply, now: number): void {
         error: a.error,
         open_ms: BREAKER_OPEN_MS,
       });
+    }
   }
   breakerMap.set(provider, next);
 }

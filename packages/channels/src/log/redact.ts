@@ -18,7 +18,7 @@
 const CONTACT = new Set(["phone", "to", "from", "email", "e164"]);
 const CONTACT_SUFFIX = /_(phone|email|e164)$/;
 /** Keys whose value is words a person wrote. */
-const WORDS = new Set(["body", "text"]);
+const WORDS_KEYS = new Set(["body", "text"]);
 const WORDS_SUFFIX = /_(body|text)$/;
 
 /** How deep a field is followed before it is summarised: a log line is not a dump. */
@@ -30,7 +30,7 @@ const EMAIL = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
 const NUMBER_FLOOR = 1_000_000;
 
 const isContactKey = (k: string): boolean => CONTACT.has(k) || CONTACT_SUFFIX.test(k);
-const isWordsKey = (k: string): boolean => WORDS.has(k) || WORDS_SUFFIX.test(k);
+const isWordsKey = (k: string): boolean => WORDS_KEYS.has(k) || WORDS_SUFFIX.test(k);
 
 /** A number's last four digits, or an address's domain; anything else under a contact key as it is. */
 function contact(v: unknown): unknown {
@@ -48,7 +48,7 @@ function contact(v: unknown): unknown {
 }
 
 /** Words as their length; anything but a string or nothing as a mark. */
-function words(v: unknown): unknown {
+function lengthOnly(v: unknown): unknown {
   if (typeof v === "string") return `[${v.length} chars]`;
   if (v === null || typeof v === "boolean" || typeof v === "number") return v;
   return "[redacted]";
@@ -65,7 +65,7 @@ export function errText(e: Error): string {
  * written twice, and only a loop is cut.
  */
 export function redact(key: string, value: unknown, depth = 0, above: Set<object> = new Set()): unknown {
-  if (isWordsKey(key)) return words(value);
+  if (isWordsKey(key)) return lengthOnly(value);
   if (isContactKey(key)) return contact(value);
   if (value instanceof Error) return errText(value);
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();

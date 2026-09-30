@@ -9,6 +9,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "../_cron-doors-world.mjs";
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
@@ -734,7 +735,7 @@ test("the claim: a due send becomes one person, one queued email under its own i
   });
   const jobs = jobsOf(w);
   assert.equal(jobs.length, 1);
-  assert.deepEqual(jobs[0].payload, {
+  assert.deepEqual(withoutRequestId(jobs[0].payload), {
     message_id: id,
     conversation_id: thread.id,
     to_email: person.email,

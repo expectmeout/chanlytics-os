@@ -28,6 +28,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken, LINE_COSTS, twilioUrls, LOW_VOLUME_USECASE } from "@chanlytics/channels";
 import { emptyBusinessRecord, whyCannotSpend, PROVISIONING_DEADLINE_MS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { withoutRequestId } from "../_log-lines.mjs";
 
 // The door reads all of these from the environment; each test file is its own
 // process, so they are set before the import. The dry provider (LINES_DRY_RUN)
@@ -365,7 +366,7 @@ test("the workspace: a token naming one refuses a body naming another; the token
     );
     assert.equal(support.status, 202);
     assert.deepEqual(
-      tables.jobs.at(-1).payload,
+      withoutRequestId(tables.jobs.at(-1).payload),
       { line_id: B_LINE, by: "support" },
       "unnamed, a retry came from somebody holding the key",
     );
@@ -572,7 +573,7 @@ test("buy for a workspace that may spend writes a provisioning row and schedules
     const job = tables.jobs[0];
     assert.equal(job.kind, "line_provision");
     assert.equal(job.tenant_id, A);
-    assert.deepEqual(job.payload, { line_id: row.id, by: "owner" });
+    assert.deepEqual(withoutRequestId(job.payload), { line_id: row.id, by: "owner" });
     assert.ok(Date.parse(job.due_at) <= Date.now(), "due now: claimed under a lease within seconds");
     const order = db.seen.map((s) => `${s.table}.${s.op}`);
     assert.ok(
@@ -636,7 +637,7 @@ test("buy: two buys that cross both read no line and both insert; the database k
       "the loser is shown the line that stands",
     );
     assert.equal(tables.jobs.length, 1, "one saga queued: the only path to the carrier, and to a bill");
-    assert.deepEqual(tables.jobs[0].payload, { line_id: row.id, by: "owner" });
+    assert.deepEqual(withoutRequestId(tables.jobs[0].payload), { line_id: row.id, by: "owner" });
   } finally {
     net.restore();
   }
@@ -755,7 +756,7 @@ test("retry resumes only the named row of the named workspace at its own step, r
       "nothing is bought or built twice: the saga derives its plan from these",
     );
     assert.deepEqual(
-      tables.jobs.map((j) => [j.kind, j.tenant_id, j.payload]),
+      tables.jobs.map((j) => [j.kind, j.tenant_id, withoutRequestId(j.payload)]),
       [["line_provision", A, { line_id: LINE, by: "owner" }]],
     );
     const claim = writes(db, "lines").find((w) => w.op === "update");

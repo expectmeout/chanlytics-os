@@ -18,6 +18,7 @@ import type { BuiltContext, SearchResultBlock } from "./context";
 import type { RoundResult } from "./round";
 import { chainEnd, rawTurn, type TurnEnd } from "./memory";
 import type { TurnInput, TurnResult } from "./loop";
+import { log } from "@/server/log";
 
 /**
  * Where the time went and what the model was fed (AskTurnShape), as a turn measures it from `t0`, its start: the first
@@ -148,16 +149,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     format,
     failed: r.failed,
   };
-  console.log(
-    JSON.stringify({
-      level: "info",
-      event: "ask_turn_shape",
-      tenant: input.tenantId,
-      ...shape,
-      tools: toolsUsed,
-      form: r.answer.form,
-    }),
-  );
+  log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: r.answer.form });
   return {
     ungrounded: false,
     tools: toolsUsed,

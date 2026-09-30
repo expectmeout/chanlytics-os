@@ -383,7 +383,6 @@ export const POST = door(async function POST(request: Request): Promise<Response
         L.info("retell_fn_no_credentials", { tenant_id: routed.tenantId });
         return json(200, { result: refusalScript("policy_hold", publishedNumber) });
       }
-      // What the provider's answer came to, never its body: Graph's error text can carry the number it refused.
       L.error("booking_link_send_failed", { tenant_id: routed.tenantId, status: out.status, reason: out.reason });
       return json(200, {
         result: publishedNumber

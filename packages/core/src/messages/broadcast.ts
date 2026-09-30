@@ -316,11 +316,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       verdict = await one(r);
     } catch (e) {
       if (e instanceof ThrownAtTheDoor) throw e.error;
-      broadcastLog.error("broadcast_person_unreadable", {
-        broadcast_id: b.id,
-        contact_id: r.contact_id,
-        error: errField(e),
-      });
+      broadcastLog.error("broadcast_person_unreadable", { contact_id: r.contact_id, error: errField(e) });
       continue;
     }
     if (verdict === "stop") return;

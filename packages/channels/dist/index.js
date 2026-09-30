@@ -1,15 +1,162 @@
+// src/log/redact.ts
+var CONTACT = /* @__PURE__ */ new Set(["phone", "to", "from", "email", "e164"]);
+var CONTACT_SUFFIX = /_(phone|email|e164)$/;
+var WORDS_KEYS = /* @__PURE__ */ new Set(["body", "text"]);
+var WORDS_SUFFIX = /_(body|text)$/;
+var MAX_DEPTH = 6;
+var MANY_DIGITS = /\d(?:\D*\d){6,}/;
+var EMAIL = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
+var NUMBER_FLOOR = 1e6;
+var isContactKey = (k) => CONTACT.has(k) || CONTACT_SUFFIX.test(k);
+var isWordsKey = (k) => WORDS_KEYS.has(k) || WORDS_SUFFIX.test(k);
+function contact(v) {
+  if (typeof v === "string") {
+    const at = EMAIL.exec(v.trim());
+    if (at) return `\u2026@${at[1]}`;
+    if (MANY_DIGITS.test(v)) return `\u2026${v.replace(/\D/g, "").slice(-4)}`;
+    return v;
+  }
+  if (typeof v === "number" && Math.abs(v) >= NUMBER_FLOOR) return `\u2026${String(Math.trunc(Math.abs(v))).slice(-4)}`;
+  if (typeof v === "bigint") return `\u2026${v.toString().replace(/\D/g, "").slice(-4)}`;
+  if (Array.isArray(v)) return v.map(contact);
+  if (v !== null && typeof v === "object") return "[redacted]";
+  return v;
+}
+function lengthOnly(v) {
+  if (typeof v === "string") return `[${v.length} chars]`;
+  if (v === null || typeof v === "boolean" || typeof v === "number") return v;
+  return "[redacted]";
+}
+function errText(e) {
+  return `${e.name}: ${e.message}`;
+}
+function redact(key, value, depth = 0, above = /* @__PURE__ */ new Set()) {
+  if (isWordsKey(key)) return lengthOnly(value);
+  if (isContactKey(key)) return contact(value);
+  if (value instanceof Error) return errText(value);
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value === "bigint") return value.toString();
+  if (value === null || typeof value !== "object") return value;
+  if (above.has(value) || depth >= MAX_DEPTH) return "[\u2026]";
+  above.add(value);
+  let out;
+  if (Array.isArray(value)) out = value.map((x) => redact("", x, depth + 1, above));
+  else {
+    const fields = {};
+    for (const [k, v] of Object.entries(value)) if (v !== void 0) fields[k] = redact(k, v, depth + 1, above);
+    out = fields;
+  }
+  above.delete(value);
+  return out;
+}
+
+// src/log/request.ts
+import { AsyncLocalStorage } from "async_hooks";
+var REQUEST_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.request");
+var requestHolder = globalThis;
+var serving = requestHolder[REQUEST_SLOT] ??= new AsyncLocalStorage();
+function withRequestId(id, fn) {
+  return serving.run({ id }, fn);
+}
+function requestId() {
+  return serving.getStore()?.id ?? null;
+}
+function noteTenant(tenantId) {
+  const store = serving.getStore();
+  if (store) store.tenantId = tenantId;
+}
+function requestTenant() {
+  return serving.getStore()?.tenantId ?? null;
+}
+
+// src/log/logger.ts
+var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
+var STACK_FRAMES = 8;
+function stackOf(e) {
+  if (!e.stack) return void 0;
+  return e.stack.split("\n").slice(1, STACK_FRAMES + 1).map((l) => l.trim()).join(" | ");
+}
+function lineOf(level, event, fields) {
+  const line = { level, event };
+  const id = requestId();
+  if (id) line.request_id = id;
+  const tenant = requestTenant();
+  if (tenant && fields.tenant_id === void 0) line.tenant_id = tenant;
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === void 0) continue;
+    const key = ENVELOPE.has(k) ? `${k}_field` : k;
+    line[key] = redact(k, v);
+    if (level === "error" && v instanceof Error) {
+      const stack = stackOf(v);
+      if (stack) line[`${key}_stack`] = stack;
+    }
+  }
+  return line;
+}
+function emit(level, event, fields) {
+  let text;
+  try {
+    text = JSON.stringify(lineOf(level, event, fields));
+  } catch {
+    text = JSON.stringify({ level, event, request_id: requestId() ?? void 0, unwritable: true });
+  }
+  if (level === "error") console.error(text);
+  else if (level === "warn") console.warn(text);
+  else console.log(text);
+}
+function logger(base = {}) {
+  return {
+    info: (event, fields) => emit("info", event, { ...base, ...fields }),
+    warn: (event, fields) => emit("warn", event, { ...base, ...fields }),
+    error: (event, fields) => emit("error", event, { ...base, ...fields }),
+    child: (extra) => logger({ ...base, ...extra })
+  };
+}
+function errField(e) {
+  return e instanceof Error ? errText(e) : String(e);
+}
+
 // src/provider-fetch.ts
+var PROVIDER_NAMES = [
+  "meta",
+  "twilio",
+  "retell",
+  "resend",
+  "google",
+  "apify",
+  "expo",
+  "anthropic",
+  "typesafe"
+];
 var BREAKER_FAILURES = 5;
 var BREAKER_OPEN_MS = 3e4;
 var RETRY_BASE_MS = 250;
 var RETRY_WAIT_CAP_MS = 2e3;
-var breakers = /* @__PURE__ */ new Map();
+var BREAKER_SLOT = /* @__PURE__ */ Symbol.for("chanlytics.provider-breakers");
+var breakerHolder = globalThis;
+var breakers = breakerHolder[BREAKER_SLOT] ??= { held: /* @__PURE__ */ new Map(), opened: /* @__PURE__ */ new Map() };
+var breakerMap = breakers.held;
+var breakerLog = logger();
 function breakerOf(provider, now = Date.now()) {
-  const b = breakers.get(provider);
+  const b = breakerMap.get(provider);
   return { open: !!b && b.openUntil > now, failures: b?.failures ?? 0 };
 }
+function breakerStates(now = Date.now()) {
+  return PROVIDER_NAMES.map((provider) => {
+    const b = breakerMap.get(provider);
+    const open = !!b && b.openUntil > now;
+    return {
+      provider,
+      open,
+      failures: b?.failures ?? 0,
+      opened: breakers.opened.get(provider) ?? 0,
+      open_until: open ? new Date(b.openUntil).toISOString() : null
+    };
+  });
+}
 function resetBreakers() {
-  breakers.clear();
+  breakerMap.clear();
+  breakers.opened.clear();
 }
 var NEVER_LEFT = /* @__PURE__ */ new Set([
   "ECONNREFUSED",
@@ -43,18 +190,33 @@ function retryAfterOf(header, now = Date.now()) {
 var isFault = (a) => a.status === 0 && a.error !== "breaker_open" || a.status >= 500;
 function note(provider, a, now) {
   if (a.error === "breaker_open") return;
+  const b = breakerMap.get(provider);
   if (!isFault(a)) {
-    breakers.delete(provider);
+    if (b && b.openUntil > 0) breakerLog.info("breaker_closed", { provider, failures: b.failures });
+    breakerMap.delete(provider);
     return;
   }
-  const b = breakers.get(provider) ?? { failures: 0, openUntil: 0 };
-  b.failures += 1;
-  if (b.failures >= BREAKER_FAILURES) b.openUntil = now + BREAKER_OPEN_MS;
-  breakers.set(provider, b);
+  const next = b ?? { failures: 0, openUntil: 0 };
+  const wasOpen = next.openUntil > now;
+  next.failures += 1;
+  if (next.failures >= BREAKER_FAILURES) {
+    next.openUntil = now + BREAKER_OPEN_MS;
+    if (!wasOpen) {
+      breakers.opened.set(provider, (breakers.opened.get(provider) ?? 0) + 1);
+      breakerLog.warn("breaker_open", {
+        provider,
+        failures: next.failures,
+        status: a.status,
+        error: a.error,
+        open_ms: BREAKER_OPEN_MS
+      });
+    }
+  }
+  breakerMap.set(provider, next);
 }
 async function once(provider, url, call2, deps, tries) {
   const now = deps.now();
-  const b = breakers.get(provider);
+  const b = breakerMap.get(provider);
   if (b && b.openUntil > now && call2.breaker !== "count") {
     const held = {
       outcome: "retryable",
@@ -169,6 +331,7 @@ import { z as z22 } from "zod";
 import { z as z23 } from "zod";
 import { z as z24 } from "zod";
 import { z as z25 } from "zod";
+import { z as z26 } from "zod";
 z.config({ jitless: true });
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -2679,7 +2842,12 @@ var DECISION_VERBS = [
   "restore_list",
   "delete_list",
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
+  "import",
+  /**
+   * A member opened a call's recording (00279): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording"
 ];
 var BRAIN_INTENTS = [
   "booking",
@@ -3179,6 +3347,18 @@ var PageVitalsInput = z20.object({
   page: z20.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
   vitals: z20.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = { name: 60, message: 300, stack: 1200, page: 32, digest: 64 };
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var ClientErrorInput = z21.object({
+  boundary: z21.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z21.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z21.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z21.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z21.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+  /** Next's digest for a server component's error: the key to its server-side line. */
+  digest: z21.string().max(CLIENT_ERROR_LIMITS.digest).nullable()
+});
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -3186,10 +3366,10 @@ var SEARCH_WARN_MS = 12 * HOUR_MS;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z21.string().trim().max(80);
-var SignupSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z21.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z22.string().trim().max(80);
+var SignupSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z22.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -3203,17 +3383,17 @@ var SignupSchema = z21.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z21.string().max(200).optional(),
+  password: z22.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z21.string().trim().min(1).max(64).optional(),
+  timezone: z22.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z21.object({
-  name: z21.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z22.object({
+  name: z22.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z21.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z22.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -3251,11 +3431,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z22.object({
-  code: z22.string().trim().min(1).max(64),
-  terms: z22.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z23.object({
+  code: z23.string().trim().min(1).max(64),
+  terms: z23.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z22.object({ letters: z22.boolean() }).strict();
+var PartnerLettersSchema = z23.object({ letters: z23.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -3294,43 +3474,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z22.coerce.number();
-var letterSum = z22.object({ currency: z22.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z22.object({
+var letterCents = z23.coerce.number();
+var letterSum = z23.object({ currency: z23.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z23.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z22.array(z22.object({ kind: z22.string(), currency: z22.string(), count: z22.coerce.number(), cents: letterCents })).default([]),
+  written: z23.array(z23.object({ kind: z23.string(), currency: z23.string(), count: z23.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z22.array(letterSum).default([]),
+  matured: z23.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z22.array(letterSum).default([]),
-  paid: z22.array(z22.object({ currency: z22.string(), cents: letterCents, reference: z22.string(), sent_at: z22.string() })).default([]),
+  voided: z23.array(letterSum).default([]),
+  paid: z23.array(z23.object({ currency: z23.string(), cents: letterCents, reference: z23.string(), sent_at: z23.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z22.array(z22.object({ workspace: z22.string().nullable(), standing: z22.string(), why: z22.string().nullable() })).default([]),
+  standing: z23.array(z23.object({ workspace: z23.string().nullable(), standing: z23.string(), why: z23.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z22.array(z22.string().nullable()).default([]),
+  brought: z23.array(z23.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z22.array(z22.string().nullable()).default([]),
-  declined: z22.array(z22.string().nullable()).default([]),
+  accepted: z23.array(z23.string().nullable()).default([]),
+  declined: z23.array(z23.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z22.object({ status: z22.string(), why: z22.string().nullable() }).nullable().default(null),
-  balance: z22.array(
-    z22.object({
-      currency: z22.string(),
+  status: z23.object({ status: z23.string(), why: z23.string().nullable() }).nullable().default(null),
+  balance: z23.array(
+    z23.object({
+      currency: z23.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z22.string().nullable()
+      next_payable_at: z23.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z23.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z23.object({
-  name: z23.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z23.string().trim().max(64).nullish(),
+var ownerEmail = z24.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z24.object({
+  name: z24.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z24.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z23.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z24.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -3359,13 +3539,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z24.object({
-  partner_id: z24.string().uuid("That partner does not exist."),
-  why: z24.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z25.object({
+  partner_id: z25.string().uuid("That partner does not exist."),
+  why: z25.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 var PARTNER_INVITE_DAYS = 14;
-var PartnerInviteSchema = z25.object({
-  code: z25.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+var PartnerInviteSchema = z26.object({
+  code: z26.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
@@ -3572,7 +3752,7 @@ function chosenReply(m) {
 }
 function normalizeInbound(m, value) {
   const list = value.contacts || [];
-  const contact = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : void 0);
+  const contact2 = list.find((c) => c.wa_id === m.from) ?? (list.length === 1 ? list[0] : void 0);
   const mediaSrc = m.image || m.audio || m.video || m.document || m.sticker || null;
   const chosen = chosenReply(m);
   const typed = m.type === "text" && !!m.text?.body;
@@ -3593,9 +3773,9 @@ function normalizeInbound(m, value) {
   const consentText = [body, chosen?.id].filter((s) => !!s);
   const matches = (re) => consentText.some((s) => re.test(s));
   return {
-    waId: contact?.wa_id || m.from,
+    waId: contact2?.wa_id || m.from,
     phoneDigits: m.from,
-    profileName: contact?.profile?.name || null,
+    profileName: contact2?.profile?.name || null,
     messageId: m.id,
     // Reactions, locations, contact cards and system notices all carry words
     // rather than bytes, so they are stored as text — messages.type has no
@@ -3682,7 +3862,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
       idempotent: true,
       tries: 2
     });
-    if (metaRes.status === 0) console.error("media_fetch_failed", providerMediaId, metaRes.error);
+    if (metaRes.status === 0) logger().error("media_fetch_failed", { media_id: providerMediaId, error: metaRes.error });
     if (metaRes.outcome !== "ok") return null;
     const meta = answerObject(metaRes) ?? {};
     if (!meta.url) return null;
@@ -3693,17 +3873,17 @@ async function fetchMediaBytes(cfg, providerMediaId) {
     if (!binRes.ok) return null;
     const declared = Number(binRes.headers.get("content-length") ?? "0");
     if (declared > MEDIA_MAX_BYTES) {
-      console.error("media_too_large", providerMediaId, declared);
+      logger().error("media_too_large", { media_id: providerMediaId, bytes: declared });
       return null;
     }
     const bytes = await binRes.arrayBuffer();
     if (bytes.byteLength > MEDIA_MAX_BYTES) {
-      console.error("media_too_large_after_read", providerMediaId, bytes.byteLength);
+      logger().error("media_too_large_after_read", { media_id: providerMediaId, bytes: bytes.byteLength });
       return null;
     }
     return { bytes, mime: meta.mime_type ?? binRes.headers.get("content-type") };
   } catch (e) {
-    console.error("media_fetch_failed", providerMediaId, e instanceof Error ? `${e.name}: ${e.message}` : e);
+    logger().error("media_fetch_failed", { media_id: providerMediaId, error: errField(e) });
     return null;
   }
 }
@@ -7129,11 +7309,15 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
 var REQUEST_ID_HEADER = "x-request-id";
 var SHAPE2 = /^[A-Za-z0-9._:-]{8,128}$/;
 function requestIdOf(headers2, opts) {
-  const given = opts.trustCaller ? headers2.get(REQUEST_ID_HEADER)?.trim() : void 0;
-  if (given && SHAPE2.test(given)) return given;
+  const given = opts.trustCaller ? requestIdShaped(headers2.get(REQUEST_ID_HEADER)) : null;
+  if (given) return given;
   const platform = headers2.get("x-vercel-id")?.trim();
   if (platform && SHAPE2.test(platform)) return platform;
   return globalThis.crypto.randomUUID();
+}
+function requestIdShaped(value) {
+  const v = typeof value === "string" ? value.trim() : "";
+  return SHAPE2.test(v) ? v : null;
 }
 
 // src/tokens/unsubscribe-token.ts
@@ -7488,6 +7672,7 @@ export {
   brandRequest,
   brandTypeFor,
   breakerOf,
+  breakerStates,
   buildEmailRequest,
   businessAttributes,
   businessEndUserRequest,
@@ -7515,6 +7700,7 @@ export {
   emailReceiptFrom,
   emailReceivedEventFrom,
   encodeForm,
+  errField,
   evaluateRequest,
   evaluateTrustProductRequest,
   fetchMailDomains,
@@ -7551,6 +7737,7 @@ export {
   listReviews,
   liveTurns,
   locationsRequest,
+  logger,
   mailDomainsFrom,
   mailboxHeader,
   mergeConsent,
@@ -7563,6 +7750,7 @@ export {
   nextLineStep,
   normalizeCall,
   normalizeInbound,
+  noteTenant,
   ownDomainIdentity,
   parseAccounts,
   parseLocations,
@@ -7594,8 +7782,11 @@ export {
   replyToReview,
   representativeAttributes,
   representativeEndUserRequest,
+  requestId,
   requestIdOf,
+  requestIdShaped,
   requestLeavesAs,
+  requestTenant,
   resendLimitOf,
   resendRequest,
   resendWebhookSignature,
@@ -7675,5 +7866,6 @@ export {
   voiceShellDrift,
   voiceShellTools,
   withCarrierConsent,
-  withKey
+  withKey,
+  withRequestId
 };

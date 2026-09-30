@@ -36,7 +36,7 @@ import {
 import type { GatewayPurpose } from "../../lib/ask-gateway.js";
 import { mayUseModelFor, recordCall, streamModelCall } from "../../lib/model.js";
 import { env } from "../../lib/env.js";
-import { logger, errField, adminDoor } from "../../lib/log.js";
+import { logger, adminDoor } from "../../lib/log.js";
 
 const L = logger();
 
@@ -79,7 +79,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!db) return refuse(503, "no_database");
   const modelPurpose = modelPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
-    L.warn("ask_gateway_may_not_spend", { tenant: tenantId, purpose });
+    L.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
     return refuse(402, "payment_required", "Ask is off while this workspace is paused or its plan has ended.");
   }
   const seen = budgetSeen.get(tenantId);
@@ -124,7 +124,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
       },
     );
   }
-  if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant: tenantId, asked: up.asked, model: up.model });
+  if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant_id: tenantId, asked: up.asked, model: up.model });
   // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
   // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
   const modelMs = Date.now() - t0;

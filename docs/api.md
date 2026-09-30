@@ -8,7 +8,7 @@ the workspace's money, and the fields it takes. A workspace-scoped route names i
 reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a
 stale copy.
 
-203 handlers in 45 domains.
+204 handlers in 46 domains.
 
 ## activity
 
@@ -274,6 +274,21 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts`).
+
+## client-errors
+
+### `POST /api/v1/client-errors`
+
+Writes; for any signed-in person, for themselves; counts against the `client_errors` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `boundary` | one of `"shell"`, `"os"`, `"root"` | yes |  |
+| `page` | string or null | yes |  |
+| `name` | string | yes | at most 60 characters |
+| `message` | string | yes | at most 300 characters |
+| `stack` | string or null | yes |  |
+| `digest` | string or null | yes |  |
 
 ## consent
 

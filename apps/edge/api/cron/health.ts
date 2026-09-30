@@ -36,13 +36,7 @@ import {
   describeMailDomainTrouble,
 } from "../../lib/email/mail-domain.js";
 import { coldReplyDomains, emailDomain } from "../../lib/email/email.js";
-import {
-  ANSWER_SILENCE_PAGE_KEY,
-  answerSilenceDue,
-  describeAnswerSilence,
-  rolledDay,
-  type SilentWorkspace,
-} from "../../lib/ops/answer-silence.js";
+import { watchAnswerSilence } from "../../lib/ops/answer-silence.js";
 import { watchModels } from "../../lib/ops/model-watch.js";
 import { env } from "../../lib/env.js";
 
@@ -153,21 +147,8 @@ export const POST = door(async function POST(request: Request): Promise<Response
     }
   }
 
-  // Workspaces whose customers wrote all day and got no answer from anyone (00279), read from the day the nightly
-  // rollup counted, while that day is fresh: one page per silent day. A database without the rollup reads nothing.
-  let answerSilent = 0;
-  if (answerSilenceDue(Date.now())) {
-    const day = rolledDay(Date.now());
-    const silence = await db.rpc("platform_answer_silence", { p_day: day });
-    if (silence.error) {
-      if (silence.error.code !== "PGRST202") L.error("answer_silence_unreadable", { error: silence.error.message });
-    } else if ((silence.data ?? []).length > 0) {
-      const silent = silence.data as SilentWorkspace[];
-      answerSilent = silent.length;
-      const page = describeAnswerSilence(silent, day);
-      await pageOperator({ db }, ANSWER_SILENCE_PAGE_KEY, page.subject, page.body);
-    }
-  }
+  // Workspaces whose customers wrote all day and got no answer from anyone (00279), paged once per silent day.
+  const answerSilent = await watchAnswerSilence(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
 

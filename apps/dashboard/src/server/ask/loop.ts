@@ -27,6 +27,7 @@ import {
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
+import { log } from "@/server/log";
 import { GatewayRefused } from "./gateway";
 import { DROP_EVENTS, dropFor } from "./refusals";
 import {
@@ -288,28 +289,25 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const tCtx = Date.now();
   const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
   const scoped = scopedRead(input.scope, input.context?.route);
-  const guard =
-    <T>(what: string, fallback: T) =>
-    (e: unknown): T => {
-      console.error(
-        what,
-        JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
-      );
-      return fallback;
-    };
   const runRead = async (run: ToolRun) => {
     try {
       return { run, out: await ports.tool(tc, run) };
     } catch (e) {
-      guard("ask_cross_page_failed", null)(e);
+      log.error("ask_cross_page_failed", { error: e, tenant_id: input.tenantId });
       return { run, out: { result: "", isError: true } };
     }
   };
   const [built, shape, preOuts, scopedOut] = await Promise.all([
     input.context
-      ? ports.context(tc.rc, input.context).catch(guard<BuiltContext | null>("ask_context_failed", null))
+      ? ports.context(tc.rc, input.context).catch((e: unknown): BuiltContext | null => {
+          log.error("ask_context_failed", { error: e, tenant_id: input.tenantId });
+          return null;
+        })
       : null,
-    ports.shape(tc.rc).catch(guard("ask_shape_failed", "")),
+    ports.shape(tc.rc).catch((e: unknown) => {
+      log.error("ask_shape_failed", { error: e, tenant_id: input.tenantId });
+      return "";
+    }),
     Promise.all(plan.map(runRead)),
     scoped ? runRead(scoped) : null,
   ]);
@@ -431,7 +429,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       if (k) {
         firstKey = k[1];
         if (firstKey !== "say")
-          console.warn("ask_say_not_first", JSON.stringify({ first: firstKey.slice(0, 40), tenant: input.tenantId }));
+          log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
     }
     const part = json ? partialSay(soFar) : format ? null : { headline: "", detail: soFar };
@@ -475,10 +473,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     }
   };
   const cutOff = (b: RoundBlock) => {
-    console.error(
-      "ask_tool_input_cut_off",
-      JSON.stringify({ tool: b.name, bytes: b.json.length, tenant: input.tenantId }),
-    );
+    log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: input.tenantId });
     return {
       result: JSON.stringify({
         error:
@@ -544,7 +539,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
           const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, format });
           if (drop) {
-            console.error(DROP_EVENTS[drop], JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
+            log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
             if (drop === "replay") {
               ({ messages, anchor, words } = cold());
               live = false;
@@ -566,14 +561,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             round--;
             continue;
           }
-          console.error(
-            "ask_gateway_refused",
-            JSON.stringify({
-              kind: e.refusal.kind,
-              tenant: input.tenantId,
-              message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
-            }),
-          );
+          log.error("ask_gateway_refused", {
+            kind: e.refusal.kind,
+            tenant_id: input.tenantId,
+            message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
+          });
           return fail(refusalText(e.refusal, es), e.refusal.kind, round);
         }
         if (controller.signal.aborted) {
@@ -604,14 +596,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // that is too small and not a model that keeps changing its mind.
       if (stopReason === "max_tokens") {
         meter.capHits++;
-        console.error(
-          "ask_round_hit_cap",
-          JSON.stringify({
-            round,
-            tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
-            tenant: input.tenantId,
-          }),
-        );
+        log.error("ask_round_hit_cap", {
+          round,
+          tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
       }
       if (stopReason === "refusal") {
         return fail(es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round);
@@ -633,10 +622,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // An answer beside a read was written before its rows: it is set aside,
       // and the model answers next round with them.
       if (written && calls.length > acts.length) {
-        console.warn(
-          "ask_answer_beside_read",
-          JSON.stringify({ tools: calls.map((b) => calledName(b.name, argsOf(b))), tenant: input.tenantId }),
-        );
+        log.warn("ask_answer_beside_read", {
+          tools: calls.map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
         written = "";
         unsay();
       }
@@ -664,10 +653,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // claiming a card that is not there, so the answer goes back with the
       // round, and the model answers again knowing why.
       if (written && refused) {
-        console.warn(
-          "ask_answer_beside_refused_card",
-          JSON.stringify({ tools: acts.map((b) => calledName(b.name, argsOf(b))), tenant: input.tenantId }),
-        );
+        log.warn("ask_answer_beside_refused_card", {
+          tools: acts.map((b) => calledName(b.name, argsOf(b))),
+          tenant_id: input.tenantId,
+        });
         written = "";
         unsay();
       }
@@ -677,10 +666,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         if (written.startsWith("{")) {
           const shaped = normalizeAnswer(written, tc.read, input.language);
           if (!shaped.ok) {
-            console.error(
-              "ask_answer_unparsed",
-              JSON.stringify({ error: shaped.error.slice(0, 200), stop: stopReason, tenant: input.tenantId }),
-            );
+            log.error("ask_answer_unparsed", {
+              error: shaped.error.slice(0, 200),
+              stop: stopReason,
+              tenant_id: input.tenantId,
+            });
             // An answer cut off by a broken stream says so: the connection dropped, not the shape.
             if (streamError)
               return fail(
@@ -696,13 +686,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
               round,
             );
           }
-          if (shaped.dropped)
-            console.warn("ask_sources_dropped", JSON.stringify({ dropped: shaped.dropped, tenant: input.tenantId }));
+          if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
           answer = shaped.answer;
         } else {
           // Words with no shape: the format was refused (D15), or words came where the JSON should have.
-          if (format)
-            console.warn("ask_answer_not_json", JSON.stringify({ chars: written.length, tenant: input.tenantId }));
+          if (format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
           answer = proseAnswer(written, input.language);
         }
         return done({
@@ -746,10 +734,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       ASK_MAX_ROUNDS,
     );
   } catch (e) {
-    console.error(
-      "ask_turn_failed",
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant: input.tenantId }),
-    );
+    log.error("ask_turn_failed", { error: e, tenant_id: input.tenantId });
     return fail(
       es ? "Algo falló al responder. Inténtalo de nuevo." : "Something went wrong while answering. Try again.",
       e instanceof Error ? e.message : String(e),

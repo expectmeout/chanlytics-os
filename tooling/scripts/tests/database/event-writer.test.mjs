@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { emitEvent, recordEvent } from "@chanlytics/db";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -35,13 +36,23 @@ test("a writer that needs the row hears when it did not land; a best-effort one 
   assert.deepEqual(r, { error: "permission denied for table events" });
   const said = [];
   const real = console.error;
-  console.error = (...a) => said.push(a);
+  console.error = (...a) => said.push(logLineOf(a));
   try {
     await emitEvent(db, T, "message.sent", "message", "m1", { sender: "human" });
   } finally {
     console.error = real;
   }
-  assert.deepEqual(said, [["emit_event_failed", "message.sent", "permission denied for table events"]]);
+  assert.deepEqual(
+    said.map((l) => [l.level, l.event, fieldsOf(l)]),
+    [
+      [
+        "error",
+        "emit_event_failed",
+        { tenant_id: T, kind: "message.sent", error: "permission denied for table events" },
+      ],
+    ],
+    "one logger line, the workspace and the kind named, not positional values",
+  );
   const fine = await recordEvent(fakeDb({ events: [] }), T, "lead.emailed", "lead", "d1", {
     by: "reach_out",
     send_id: "s1",

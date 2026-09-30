@@ -30,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSystemPrompt, describeNow, parseTenantConfigResult } from "@chanlytics/contracts";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, GREETING_DEFAULT, greetingFor } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf } from "../_log-lines.mjs";
 
 const SECRET = "fn-secret-for-this-file";
 const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEAD_FROM: "Pager <pager@platform.test>" };
@@ -135,7 +136,9 @@ async function listening(fn) {
         line = JSON.parse(args[0]);
       } catch {}
       lines.push(
-        line && typeof line === "object" && line.event ? { stream, ...line } : { stream, event: String(args[0]), args },
+        line && typeof line === "object" && line.event
+          ? { stream, level: line.level, event: line.event, ...fieldsOf(line) }
+          : { stream, event: String(args[0]), args },
       );
     };
   }

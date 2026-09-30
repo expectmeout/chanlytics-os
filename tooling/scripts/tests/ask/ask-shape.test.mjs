@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { logLineOf } from "../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -168,13 +169,9 @@ function scripted(rounds) {
 async function loggedInfo(event, fn) {
   const lines = [];
   const was = console.log;
-  console.log = (s) => {
-    try {
-      const j = JSON.parse(s);
-      if (j.event === event) lines.push(j);
-    } catch {
-      /* not ours */
-    }
+  console.log = (...args) => {
+    const line = logLineOf(args);
+    if (line?.event === event) lines.push(line);
   };
   try {
     return { result: await fn(), lines };
@@ -264,7 +261,8 @@ test("the loop fills the shape: a read then an answer is two rounds with their t
   assert.equal(typeof sh.model, "string");
   assert.equal(sh.effort, "low");
   assert.equal(lines.length, 1, "logged once");
-  assert.deepEqual([lines[0].tenant, lines[0].rounds, lines[0].cache_hit, lines[0].opened_ms], [A, 2, 0.9, 4200]);
+  assert.equal(lines[0].level, "info");
+  assert.deepEqual([lines[0].tenant_id, lines[0].rounds, lines[0].cache_hit, lines[0].opened_ms], [A, 2, 0.9, 4200]);
   assert.deepEqual(
     lines[0].tools,
     ["inbox.list"],
@@ -540,8 +538,9 @@ test("the route takes the page's context: the turn reads it as data before the q
   };
   const refused = [];
   const was = console.error;
-  console.error = (event, json) => {
-    if (event === "ask_context_refused") refused.push(JSON.parse(json));
+  console.error = (...args) => {
+    const line = logLineOf(args);
+    if (line?.event === "ask_context_refused") refused.push(line);
   };
   try {
     const tables = routeTables();
@@ -572,7 +571,8 @@ test("the route takes the page's context: the turn reads it as data before the q
     assert.equal(answered[2].content.shape.context_rows, null);
     assert.deepEqual(data(requests[2]), [], "a refused context rides in not at all");
     assert.equal(refused.length, 1, "said once");
-    assert.equal(refused[0].tenant, A);
+    assert.equal(refused[0].level, "error");
+    assert.equal(refused[0].tenant_id, A);
     assert.equal(refused[0].path, "rows.0");
 
     // No surface named: the context's fills it.

@@ -16,6 +16,7 @@ import {
   HOUR_MS,
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
+import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import * as readers from "@/server/readers/facts";
@@ -122,14 +123,11 @@ export const POST = write({
       if (read.success) context = read.data;
       else {
         const issue = read.error.issues[0];
-        console.error(
-          "ask_context_refused",
-          JSON.stringify({
-            tenant: member.tenantId,
-            path: issue?.path.join(".") ?? "",
-            issue: issue?.message ?? "unreadable",
-          }),
-        );
+        log.error("ask_context_refused", {
+          tenant_id: member.tenantId,
+          path: issue?.path.join(".") ?? "",
+          issue: issue?.message ?? "unreadable",
+        });
       }
     }
     // The surface the palette names; a context says the same, and fills it when the palette named none.
@@ -253,7 +251,7 @@ export const POST = write({
           // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
           await touchThread(ctx, turn.id, scope);
         } catch (e) {
-          console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+          log.error("ask_save_failed", { error: e });
         }
         const message: AskMessageVM = {
           id: saved?.id ?? `unsaved-${Date.now()}`,
@@ -273,27 +271,23 @@ export const POST = write({
           failed: result.failed,
           answer: result.answer,
         };
-        console.log(
-          JSON.stringify({
-            level: "info",
-            event: "ask_turn",
-            tenant: tenantId,
-            tools: result.tools,
-            proposals: result.proposals.map((p) => p.kind),
-            rounds: result.rounds,
-            ms: Date.now() - t0,
-            failed: result.failed,
-            failure: result.failure,
-            ungrounded: result.ungrounded,
-            citations: v1.citations.length,
-            form: result.answer.form,
-            language: result.answer.language,
-            first_say_ms: result.shape.first_say_ms,
-            cache_hit: result.shape.cache_hit,
-            follow_up: result.shape.follow_up,
-            opened_ms: openedMs,
-          }),
-        );
+        log.info("ask_turn", {
+          tenant_id: tenantId,
+          tools: result.tools,
+          proposals: result.proposals.map((p) => p.kind),
+          rounds: result.rounds,
+          ms: Date.now() - t0,
+          failed: result.failed,
+          failure: result.failure,
+          ungrounded: result.ungrounded,
+          citations: v1.citations.length,
+          form: result.answer.form,
+          language: result.answer.language,
+          first_say_ms: result.shape.first_say_ms,
+          cache_hit: result.shape.cache_hit,
+          follow_up: result.shape.follow_up,
+          opened_ms: openedMs,
+        });
         send(line({ t: "final", message }));
         try {
           controller.close();

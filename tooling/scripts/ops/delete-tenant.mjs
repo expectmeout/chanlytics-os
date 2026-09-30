@@ -116,6 +116,7 @@ const TABLES = [
   "partner_tenants",
   "person_moments",
   "person_notes",
+  "platform_metrics",
   "playbooks",
   "policies",
   "reach_out_check_spend",

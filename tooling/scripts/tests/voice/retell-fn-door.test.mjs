@@ -30,6 +30,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf } from "../_log-lines.mjs";
 
 const SECRET = "fn-secret-for-this-file";
 /** The environment's own WhatsApp pair: present, so a send that fell back to it would show. */
@@ -160,7 +161,7 @@ async function listening(fn) {
       } catch {
         /* not an envelope */
       }
-      const { level: _level, event: _event, ...fields } = envelope ?? {};
+      const fields = envelope ? fieldsOf(envelope) : {};
       lines.push({ stream, event: envelope ? envelope.event : raw, args, fields });
     };
   try {
@@ -552,7 +553,7 @@ test("before a workspace is known: a number that is no phone is read back before
       "a workspace with no persona does not speak in a voice we invented for it",
     );
     assert.deepEqual(
-      log.fields("retell_fn_no_persona").map((f) => f.tenant),
+      log.fields("retell_fn_no_persona").map((f) => f.tenant_id),
       [mute.T],
     );
     assert.deepEqual([mute.tables.contacts, mute.tables.messages], [[], []], "and nobody is made a contact of it");
@@ -580,7 +581,7 @@ test("a paused workspace is refused at the gate, on the runtime's word: the call
         {
           call_id: ask.call.call_id,
           agent_id: w.AGENT,
-          tenant: w.T,
+          tenant_id: w.T,
           reason: "paused",
           mode: "auto",
           person_mode: null,
@@ -737,7 +738,7 @@ test("the booking link is a conversational message, proactive only toward someon
   await listening(async (log) => {
     assert.equal(await spoken(await knock(v.ask(on, { spoken: stranger }))), CALLERS_OWN);
     assert.deepEqual(
-      log.fields("retell_fn_refused_third_party").map((f) => f.tenant),
+      log.fields("retell_fn_refused_third_party").map((f) => f.tenant_id),
       [v.T],
     );
     assert.deepEqual(
@@ -904,7 +905,7 @@ test("the send: the approved template on the workspace's own WhatsApp number and
     );
     assert.ok(thread.last_message_at, "the thread is stamped");
     assert.deepEqual(log.fields("retell_fn_sent"), [
-      { call_id: ask.call.call_id, agent_id: w.AGENT, tenant: w.T, wamid: row.external_id },
+      { call_id: ask.call.call_id, agent_id: w.AGENT, tenant_id: w.T, wamid: row.external_id },
     ]);
 
     // A first-time caller: made a contact with a thread of their own, and sent
@@ -1014,7 +1015,7 @@ test("the wire has the last word: a workspace paused after its runtime was kept,
       "said as the pause, in the caller's terms",
     );
     assert.deepEqual(
-      log.fields("retell_fn_refused_at_wire").map((f) => [f.tenant, f.reason]),
+      log.fields("retell_fn_refused_at_wire").map((f) => [f.tenant_id, f.reason]),
       [[w.T, "paused"]],
     );
     assert.deepEqual(log.said("retell_fn_refused"), [], "the gate, on the kept runtime, let it through");
@@ -1034,7 +1035,7 @@ test("the wire has the last word: a workspace paused after its runtime was kept,
       "the caller hears a hold, never that there is no line to send on",
     );
     assert.deepEqual(
-      log.fields("retell_fn_no_credentials").map((f) => f.tenant),
+      log.fields("retell_fn_no_credentials").map((f) => f.tenant_id),
       [none.T],
     );
     assert.deepEqual(none.left().calls, [], "nothing left at all: not on the environment's pair, not anywhere");
@@ -1144,7 +1145,7 @@ test("a business with no booking link (one that quotes each job) has the details
     w.open();
     assert.equal(await spoken(await knock(w.ask(w.number()))), NO_LINK);
     assert.deepEqual(
-      log.fields("retell_fn_no_link").map((f) => f.tenant),
+      log.fields("retell_fn_no_link").map((f) => f.tenant_id),
       [w.T],
     );
   });

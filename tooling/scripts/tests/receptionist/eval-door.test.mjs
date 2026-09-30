@@ -517,7 +517,7 @@ test("the run: each case is handed to the brain with its own history and the wor
   assert.ok(line, "one line");
   const logged = JSON.parse(line);
   assert.deepEqual(
-    [logged.tenant, logged.cases, logged.prompt_chars, Number.isInteger(logged.ms)],
+    [logged.tenant_id, logged.cases, logged.prompt_chars, Number.isInteger(logged.ms)],
     [T, 2, system.length, true],
   );
   assert.ok(

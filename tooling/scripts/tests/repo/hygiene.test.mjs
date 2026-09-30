@@ -220,8 +220,11 @@ test("a core verb knows no database, framework, provider or environment", () => 
           // The normalised inbound message is the channels package's shape
           // and the inbound verb speaks it, so the TYPE crosses. A VALUE
           // from channels would be a provider inside a verb, which is a
-          // port, not a widening.
-          /^import type .* from "@chanlytics\/channels"/.test(line);
+          // port, not a widening. The one value a verb may take from it is
+          // the platform's own logger (packages/channels/src/log): what it
+          // could not write is a line in the request's log, not a provider.
+          /^import type .* from "@chanlytics\/channels"/.test(line) ||
+          /^import \{ (?:(?:errField|logger)(?:, )?){1,2} \} from "@chanlytics\/channels"/.test(line);
         if (!ok) offenders.push(`${group}/${f}: ${line.trim()}`);
       }
     }

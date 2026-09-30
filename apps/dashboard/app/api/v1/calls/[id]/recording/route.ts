@@ -14,8 +14,10 @@ import { recordingOpened, signedMediaUrl } from "@/server/conversations/media";
  * The call is the row (callScope): read under RLS, so one the caller cannot
  * see is a 404, and any member of the workspace it lives in may listen. A
  * redirect built by hand, because Response.redirect()'s headers are immutable
- * and the wrapper stamps its own. Who listened is on the ledger first
- * (media.ts recordingOpened, 00279).
+ * and the wrapper stamps its own. Who listened is on the ledger before the link
+ * leaves (media.ts recordingOpened, 00279), and only for a recording that is
+ * being served: a path outside the workspace is refused before anything is
+ * recorded.
  */
 export const GET = read({
   scope: callScope,
@@ -24,9 +26,9 @@ export const GET = read({
     if (!rec?.storage_path || rec.fetch_state !== "stored") {
       throw new AppError("not_found", "No recording stored for this call yet.");
     }
-    await recordingOpened(ctx.supabase, call.id);
     const url = await signedMediaUrl(call.tenant_id, rec.storage_path, 300);
     if (!url) throw new AppError("internal", "Could not prepare the recording.");
+    await recordingOpened(ctx.supabase, call.id);
     return new Response(null, { status: 302, headers: { location: url } });
   },
 });

@@ -30,6 +30,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf } from "../_log-lines.mjs";
 
 /** The environment's own pilot line: the one number whose credentials come from the environment. */
 const ENV_PHONE_ID = "109990000000001";
@@ -159,7 +160,7 @@ async function listening(fn) {
       } catch {
         /* not an envelope */
       }
-      const { level: _level, event: _event, ...fields } = envelope ?? {};
+      const fields = envelope ? fieldsOf(envelope) : {};
       lines.push({ stream, event: envelope ? envelope.event : raw, args, fields });
     };
   try {

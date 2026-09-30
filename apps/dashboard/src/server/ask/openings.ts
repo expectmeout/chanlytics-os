@@ -16,6 +16,7 @@ import {
   type Opening,
 } from "@chanlytics/contracts";
 import { fillerFeedFor } from "../calendar/filler-calendar";
+import { log } from "@/server/log";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way
@@ -153,7 +154,7 @@ async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefin
   } catch (e) {
     const reason: FeedFailure = e instanceof FeedRefused ? e.reason : "unreachable";
     const status = e instanceof FeedRefused ? e.status : null;
-    console.error("ask_feed_fetch_failed", JSON.stringify({ tenant: tenantId, reason, status }));
+    log.error("ask_feed_fetch_failed", { tenant_id: tenantId, reason, status });
     const failed: FeedEntry = { text: hit?.text ?? null, at: hit?.at ?? null, checkedAt: now, reason, status };
     feeds.set(tenantId, failed);
     return asRead(failed);
@@ -226,10 +227,7 @@ export async function openingsFor(
       now,
     });
   } catch (e) {
-    console.error(
-      "ask_openings_failed",
-      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
+    log.error("ask_openings_failed", { tenant_id: tenantId, error: e });
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });

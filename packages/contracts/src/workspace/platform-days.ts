@@ -76,7 +76,7 @@ function failuresOf(m: Record<string, number>): string {
   return `${plural(n, "send", "sends")} failed (${parts.join(", ")})`;
 }
 
-function receptionistOf(r: PlatformDayRowDto): string {
+function receptionistLine(r: PlatformDayRowDto): string {
   const replies = r.replies_answered + r.replies_held + r.replies_handed_off;
   if (replies === 0) return "the receptionist did not reply";
   const parts = [
@@ -100,7 +100,7 @@ export function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): Pl
       name: r.name,
       day: r.day,
       answers: `${r.asks} asked, ${r.answered} answered`,
-      receptionist: receptionistOf(r),
+      receptionist: receptionistLine(r),
       failures: failuresOf(r.provider_failures),
       silent: r.asks > 0 && r.answered === 0,
       tone: (r.asks > 0 && r.answered === 0 ? "danger" : "plain") as Tone,

@@ -28,7 +28,6 @@ import {
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
 } from "@chanlytics/channels";
-import { whatsappSender } from "@chanlytics/core";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 
@@ -64,6 +63,8 @@ const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/ops/page-o
 const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { GET } = await import(at("apps/edge/api/diag.ts"));
 const { resetBreakers } = await import(at("apps/edge/lib/packages/channels.ts"));
+// Core's own build, which carries its own inlined copy of channels.
+const { whatsappSender } = await import(at("packages/core/dist/index.js"));
 after(() => setPg(null));
 
 const AUD = "/api/diag";
@@ -1015,6 +1016,7 @@ test("each provider's breaker, as the instance holds it: a send core made that f
   const meta = body.breakers.find((b) => b.provider === "meta");
   assert.equal(meta.open, true, "the report reads the breaker core's send was counted by");
   assert.equal(meta.failures, 5);
+  assert.equal(meta.opened, 1, "and how many times it has opened in this instance");
   assert.ok(Date.parse(meta.open_until) > Date.now(), "and says until when it holds");
   assert.ok(
     body.breakers.filter((b) => b.provider !== "meta").every((b) => !b.open && b.failures === 0),

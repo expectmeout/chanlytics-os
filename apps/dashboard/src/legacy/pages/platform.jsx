@@ -577,12 +577,7 @@ const PlatformDaysCard = ({ P, problem }) => {
 };
 
 // The platform's work, below its health: how fast the pages are, and each workspace's day.
-const PlatformWorkCards = ({ P, vitals, problem }) => (
-  <>
-    <PlatformVitalsCard P={P} rows={vitals} problem={problem} />
-    <PlatformDaysCard P={P} problem={problem} />
-  </>
-);
+const PlatformWorkCards = ({ P, vitals, problem }) => <><PlatformVitalsCard P={P} rows={vitals} problem={problem} /><PlatformDaysCard P={P} problem={problem} /></>;
 
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);

@@ -46,6 +46,15 @@ const FORWARDED = {
   "apps/edge/lib/whatsapp/persist.ts": ["`pg_${label}_failed`"],
 };
 
+/**
+ * The dashboard's lines that name their event with a value, by file, as the value is written. Each value is typed
+ * `DashboardLogEvent`, so tsc holds it to DASHBOARD_LOG_EVENTS, and its literals are spelled where that type is. A new
+ * one is a literal instead, or a value typed `DashboardLogEvent` and named here.
+ */
+const FORWARDED_DASHBOARD = {
+  "apps/dashboard/src/server/ask/loop.ts": ["DROP_EVENTS[drop]"], // the drop a refusal made the turn give up (refusals.ts)
+};
+
 /** The names a first argument can take: a string literal, or a conditional whose branches all are; else null. */
 function literalNames(e) {
   if (!e) return null;
@@ -136,7 +145,7 @@ test("every name in LOG_EVENTS is logged somewhere", () => {
   assert.deepEqual(dead, [], "declared but nothing logs it: delete it, or teach this test the shape that does");
 });
 
-/** The dashboard's lines: `log.<level>(name, …)`, every name spelled, and the set's own file left out. */
+/** The dashboard's lines: `log.<level>(name, …)`, every name spelled (a forwarded name where its value is), and the set's own file left out. */
 function measureDashboard() {
   const lines = [];
   const spelled = new Set();
@@ -175,13 +184,17 @@ test("the dashboard's set: sorted and unique, every line's name in it as a liter
   assert.deepEqual([...DASHBOARD_LOG_EVENTS], [...set].sort(), "sorted and unique");
   assert.ok(dash.lines.length >= 90, `the lint saw ${dash.lines.length} lines; the dashboard writes more than that`);
   const undeclared = [];
-  const forwarded = [];
+  const forwarded = {};
   for (const l of dash.lines) {
-    if (!l.names) forwarded.push(`${l.file}:${l.line} ${l.text}`);
+    if (!l.names) (forwarded[l.file] ??= []).push(l.text);
     for (const name of l.names ?? []) if (!set.has(name)) undeclared.push(`${name} <- ${l.file}:${l.line}`);
   }
   assert.deepEqual(undeclared, [], "logged but not in DASHBOARD_LOG_EVENTS: add it");
-  assert.deepEqual(forwarded, [], "a dashboard line names its event with a literal");
+  assert.deepEqual(
+    forwarded,
+    FORWARDED_DASHBOARD,
+    "a dashboard line names its event with a literal, or with a value typed DashboardLogEvent that FORWARDED_DASHBOARD names",
+  );
   const dead = DASHBOARD_LOG_EVENTS.filter((name) => !dash.spelled.has(name));
   assert.deepEqual(dead, [], "declared but nothing logs it: delete it");
 });
