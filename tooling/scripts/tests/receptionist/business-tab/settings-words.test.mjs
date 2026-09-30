@@ -184,7 +184,11 @@ test("REGRESSION (S6): the hard limits say which two never change and which two 
     contracts.REPLY_CAP_DEFAULT,
     "the receptionist stops at the number the page says",
   );
-  assert.equal(steps.PAUSE_MS, contracts.PAUSE_HOURS_DEFAULT * 3600 * 1000, "and pauses for the hours it says");
+  assert.equal(
+    contracts.pauseMsOf(null),
+    contracts.PAUSE_HOURS_DEFAULT * 3600 * 1000,
+    "and pauses for the hours it says",
+  );
   const H = contracts.hardLimitsWords;
   assert.equal(typeof H, "function");
   const stored = H({ max_replies_day: 12, pause_hours: 48 });

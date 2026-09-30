@@ -6,6 +6,7 @@ import {
   LIST_PLAYBOOK_CLASSES,
   MOMENT_TRIGGERS,
   PLAYBOOK_CLASS_LABEL,
+  PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   cleanParam,
   dealPaceOf,
@@ -46,7 +47,7 @@ import {
 /** What a run does under each mode, in the card's words. */
 const MODE_WORDS: Record<string, string> = {
   auto: "each run sends on its own",
-  veto: "each run sends 30 minutes later unless you stop it",
+  veto: `each run sends ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it`,
   ask: "each run waits for you on Today",
   never: "nothing runs until the class is changed",
 };

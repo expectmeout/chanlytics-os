@@ -366,6 +366,20 @@ export function savedListLookup(saved: readonly SavedListLike[]): ListLookup {
   };
 }
 
+/**
+ * How a rule names a list it reads, as People's rail does: a People list by its label, one of the workspace's own by its
+ * name (archived or not), and null for a token that names neither. The rail and Ask's lists both say a rule this way.
+ */
+export function listNamer(saved: readonly { id: string; name: string }[]): (token: string) => string | null {
+  return (token) => {
+    const ref = parseListToken(token);
+    if (!ref) return null;
+    return ref.kind === "builtin"
+      ? (PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null)
+      : (saved.find((l) => l.id === ref.id)?.name ?? null);
+  };
+}
+
 /** What a list needs, the lists it reads included: a list about a calendar list needs the calendar too. */
 export function listNeeds(rule: ListRule | null, lookup: ListLookup = () => null): ListNeed[] {
   if (!rule) return [];

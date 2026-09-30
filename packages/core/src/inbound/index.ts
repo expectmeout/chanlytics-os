@@ -24,7 +24,6 @@ export {
   layerTwo,
   holdCopy,
   noModelPlan,
-  PAUSE_MS,
   MAX_REPLIES_PER_DAY,
   STALE_MS,
   STALE_REPLY_MS,

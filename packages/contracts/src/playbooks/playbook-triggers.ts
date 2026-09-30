@@ -5,6 +5,7 @@
 import { DAY_MS } from "./playbook-time";
 import type { SchemaSet } from "../shared/schema-sets";
 import { MIN_MS } from "../shared/time";
+import { plural } from "../shared/words";
 
 /**
  * What starts a playbook. A list trigger sends to a list that keeps itself
@@ -143,6 +144,19 @@ export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 
 /** Under veto, a run is scheduled this far ahead with a Stop. */
 export const PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+
+/** A wait a page promises, in whole minutes or hours as a sentence says it: "30 minutes", "an hour", "2 hours". */
+export function delayWords(ms: number): string {
+  const minutes = Math.round(ms / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+
+/**
+ * The veto window in those words. Every sentence that promises it (the Autonomy rows, the reach-out sheet, Ask's
+ * definitions and cards) says this, so a change to the wait changes what each one says.
+ */
+export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 
 export const PLAYBOOK_NAME_MAX = 80;
 

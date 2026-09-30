@@ -1,14 +1,11 @@
 import { z } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, E164 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
 import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
-  number: z
-    .string()
-    .trim()
-    .regex(/^\+[1-9]\d{6,14}$/, "Choose one of the numbers offered."),
+  number: z.string().trim().regex(E164, "Choose one of the numbers offered."),
   area_code: z
     .union([
       z.number().int(),

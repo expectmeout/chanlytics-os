@@ -18,7 +18,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import { workspaceHref } from "./workspace";
+import { pathWorkspace, workspaceHref } from "./workspace";
 
 interface BridgeWindow {
   document: {
@@ -68,17 +68,6 @@ export function hashRoute(hash: string): string {
   return (hash || "#/today").replace(/^#\/?/, "") || "today";
 }
 
-/** The workspace a path names, /w/<slug>, or null off a workspace page (legacy-bridge/workspace.ts's rule). */
-function slugOf(pathname: string): string | null {
-  const m = /^\/w\/([^/?#]+)/.exec(pathname);
-  if (!m) return null;
-  try {
-    return decodeURIComponent(m[1]) || null;
-  } catch {
-    return null;
-  }
-}
-
 export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors = deviceDoors): () => void {
   if (!win.document.documentElement.classList.contains(IN_APP_CLASS) || !win.ReactNativeWebView) return () => {};
   const post = (m: PageMessage) => {
@@ -88,7 +77,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   };
   const route = () => post({ t: "route", route: hashRoute(win.location.hash) });
   const workspace = () => {
-    const slug = slugOf(win.location.pathname);
+    const slug = pathWorkspace(win.location.pathname);
     if (slug) post({ t: "workspace", slug });
   };
   const counts = (e: Event) => {

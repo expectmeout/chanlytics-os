@@ -128,7 +128,6 @@ export {
   isValidSipPassword,
   RETELL_ORIGINATION,
   LINE_COSTS,
-  isE164,
   isAreaCode,
 } from "./lines/lines";
 export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";

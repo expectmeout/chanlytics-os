@@ -15,7 +15,6 @@ import {
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
 
-export const PAUSE_MS = 24 * 3600 * 1000; // human echo pauses the bot for 24h
 export const MAX_REPLIES_PER_DAY = 20; // per thread
 export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
 export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot

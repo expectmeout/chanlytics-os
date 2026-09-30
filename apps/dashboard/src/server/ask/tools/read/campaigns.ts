@@ -4,6 +4,7 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   PLAYBOOK_TRIGGERS,
+  PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   audiencePreview,
   clockStamp,
@@ -167,7 +168,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
 /** What a run does under each mode, in the assistant's words. */
 const MODE_WORDS: Record<string, string> = {
   auto: "a run sends on its own",
-  veto: "a run sends 30 minutes later unless someone stops it",
+  veto: `a run sends ${PLAYBOOK_VETO_DELAY_WORDS} later unless someone stops it`,
   ask: "a run waits for a person on Today",
   never: "nothing runs",
 };

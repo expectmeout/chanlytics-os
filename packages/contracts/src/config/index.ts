@@ -21,6 +21,8 @@ export {
   REPLY_DELAY_MAX_MS,
   REPLY_CAP_DEFAULT,
   PAUSE_HOURS_DEFAULT,
+  pauseHoursOf,
+  pauseMsOf,
 } from "./policy";
 export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow, HeldLineKind } from "./policy";
 export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
@@ -55,6 +57,7 @@ export {
   NoteSchema,
   BookingRulesSchema,
   E164,
+  isE164,
   INSTRUCTIONS_MAX,
   BusinessProfileSchema,
 } from "./workspace-config/business-profile";

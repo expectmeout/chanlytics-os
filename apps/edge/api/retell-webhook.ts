@@ -59,7 +59,7 @@ import { tellPhonesCallStarted } from "../lib/voice/call-activity.js";
 import { apns, apnsKeys } from "../lib/ops/apns.js";
 import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
-import { frameGuardrail, offersBookingLink, MIN_MS, HOUR_MS } from "../lib/packages/contracts.js";
+import { frameGuardrail, offersBookingLink, pauseMsOf, MIN_MS } from "../lib/packages/contracts.js";
 import type { ChannelLookup, RoutedChannel } from "../lib/packages/db.js";
 import { env } from "../lib/env.js";
 import { retellSigned } from "../lib/voice/voice-door-auth.js";
@@ -398,13 +398,8 @@ async function holdThread(db: Db, tenantId: string, s: Extract<CallStep, { kind:
 /** The caller handed to a person: the thread paused for the workspace's own hours, the one escalation with the to-do. */
 async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, { kind: "callback" }>): Promise<void> {
   const rt = await loadTenantRuntime(db, routed);
-  const pauseHours = rt.policy["reply"]?.limits.pause_hours ?? 24;
-  await pauseConversation(
-    db,
-    routed.tenantId,
-    s.conversationId,
-    new Date(Date.now() + pauseHours * HOUR_MS).toISOString(),
-  );
+  const pauseMs = pauseMsOf(rt.policy["reply"]?.limits);
+  await pauseConversation(db, routed.tenantId, s.conversationId, new Date(Date.now() + pauseMs).toISOString());
   const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
   L.info("call_callback_needed", { tenant: routed.tenantId, call: s.callId, escalation: opened });
 }
