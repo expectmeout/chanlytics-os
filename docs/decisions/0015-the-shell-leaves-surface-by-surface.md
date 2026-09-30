@@ -418,3 +418,39 @@ JSX files (1,023 lines) deleted. Live is never kept by the tab's cache: a reload
 
 Proved equal by value (docs/decisions, "Tests"): 53,673 steps over 798 worlds for Campaigns, 0 differences, 205 planted faults caught but one argued; Live 0 differences
 over 870 steps. What a demo draws is the contracts' sample, not the twin. The kit step (Phase 4) and the Base UI parts wait: `campaigns` and `live` stand in `KIT_PENDING`.
+
+## Built: the People family and the Calendar (30 September 2026, branch `kit/k2-people-calendar`)
+
+The Calendar, People's list, Lists, the Pipeline and a person's page left the shell as steps 5 and 6 of the order. What the
+family settled, for the surfaces after it:
+
+- **The path says the product's word.** `ROUTE_WORDS` (contracts `shell/address.ts`) names `clients` as `people` and
+  `segments` as `lists`: `workspacePath` writes the word, `routeOfPath` and `routeOfHash` answer the shell's own route, and
+  `movedAddress` sends an old name, in a path or a hash, to the word, keeping the search and the hash. A page's folder is
+  the word: `app/(os)/w/[workspace]/people/[[...param]]/page.tsx`.
+- **A family of addresses is one page.** A `SURFACE_ROUTES` entry says every address under its route is the page's
+  (`params`, as the Inbox's) or which of them it draws (`takes(param)`, as People's: Leads is not), and what the frame draws
+  around each: the crumbs and the nav item as functions of the param, or (`chrome({ param, backToPeople })`, where they depend on
+  what the surface holds and on the frame's own Back) the crumbs, the mount its view is kept under and the top bar's one act,
+  which `drawRoute` draws from `surfaceAct` (a link out, or the Ask door, composing from a `prompt` where the entry gives one).
+  `staysOnPage(from, to)` says a move between two of them stays on the page, so `goToRoute` asks the App Router only across pages and otherwise pushes or replaces an
+  entry, which `usePathname` follows. The page follows its own address, so a list picked is said in the path and nothing
+  is mounted afresh for it. People's one page draws a person's page, the Pipeline where deals are on and People's list
+  everywhere else; Leads, which has not moved, is the one address under it the frame's table still draws.
+- **Shared parts moved once.** The kit took what more than one surface draws (`kit/record`: the record sheet, its folds and fields, fourteen modules; Confirm, FieldError, and the Calendar's
+  agenda); People's parts the pages that have not moved still read are published by `seed-globals` from one object
+  (`people/people-globals.ts`), deleted name by name as the last reader moves. The seam gained `people` and `calendar`.
+- **Nothing in a module graph may read an export at load.** The frame's modules (`workspace.ts`, `routes.ts`) and the
+  surfaces' chromes reach one another, so a route's `takes` and `chrome` are read when an address is drawn, never when
+  `routes.ts` loads, and the person's cache (`people-detail.ts`) is made on first use: read in the other import order, both
+  were a temporal-dead-zone error at load that only a test importing the modules in that order could see.
+- **Proof.** A throwaway recorder per piece drew the JSX and the TSX over the pieces' own worlds, every handler with every
+  event it takes, scripted sequences and property-set matrices, and planted 18 to 35 faults in each: the record kit 310,366
+  steps and the house parts 42,354; the Calendar 15,682; People's list 47 worlds, 6,081 handlers, 80 sequences, and 495
+  property sets (2,151 handlers); the Pipeline 89,658 steps over its scope, its parts and the deal card; the person's page
+  and the two sheets 19,990. No difference in any, and every planted fault caught. A saved list's route taking the wrong
+  slice of its param (`list:` cut at 6, the row's at 5) was found by the Calendar's tests, not by the list's matrix: a
+  matrix needs a world with a list kept by hand.
+- **Two tests may not share what they fake.** Two stub worlds on one window clobber each other's `CHANLY.nav` (the later
+  install wins), and a fetch double that is not put back answers the tests after it (`t.after`); both were found only when
+  the pieces were folded into one file.

@@ -190,7 +190,6 @@ installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work
 // rule (record-fold) and the record sheet. The pages themselves are TSX (decision 0015) and imported below.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-await import(`${SRC}/legacy/components/record-fold.jsx`);
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, {
   useHotkey: () => {},
@@ -204,7 +203,6 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
 });
-await import(`${SRC}/legacy/components/record-sheet.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { bcWhenNote, bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);

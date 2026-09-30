@@ -91,8 +91,9 @@ const pattern = async () => {
 };
 
 test("the shell declares its hooks under other names, so the lint has aliases to learn", () => {
-  // The count is not the point; a scan that found none would pass the next test vacuously.
-  assert.ok(aliases.length >= 30, `found only ${aliases.length} aliases; the scan has stopped seeing them`);
+  // The count is not the point; a scan that found none would pass the next test vacuously. It falls as the shell's files leave
+  // for TSX (38 on 27 September, 28 after the People family), so the floor is a few, not the count of a day.
+  assert.ok(aliases.length >= 10, `found only ${aliases.length} aliases; the scan has stopped seeing them`);
 });
 
 test("the lint checks a call to every alias the shell declares", async () => {

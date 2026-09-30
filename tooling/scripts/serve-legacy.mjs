@@ -12,8 +12,10 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Four files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Five files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
+ * `data/people-globals.js`, People's shared parts (the table, the rail kit, the list page's two hooks: TSX since decision 0015,
+ * step 5) the Leads scope, the Pipeline and the person page still draw by name,
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
  * (see SAMPLES below). One is read from outside the tree: the kit's stylesheet (KIT_CSS below).
  *
@@ -70,6 +72,33 @@ const SAMPLES = {
     footer: "Object.assign(window, __IG.INBOX_GLOBALS); __IG.hearPresence();",
     watch: "apps/dashboard/src/surfaces/inbox",
   },
+  // The object the app publishes from seed-globals (surfaces/people/people-globals.ts), on the page's own React. A name the
+  // page already has is left alone, so the harness's own copy (data/people-globals-harness.js, which shares the fixture's
+  // People) wins where it ran first. The mockup draws no People page of its own (an App Router page, which only the app
+  // draws), so what reads these names here are the Leads scope, the Pipeline and the person page.
+  "/data/people-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/people/people-globals.ts"),
+    globalName: "__PG",
+    footer: "for (const k of Object.keys(__PG.PEOPLE_GLOBALS)) if (!(k in window)) window[k] = __PG.PEOPLE_GLOBALS[k];",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
+  },
+  // The same for the e2e harness's People record: the fixture boots People (peopleOverride) in a bundle of its own, before
+  // React loads, so this bundle keeps its own copy of the surface's store and takes People from the window the fixture
+  // published it on (people-src.ts).
+  "/data/people-globals-harness.js": {
+    entry: path.join(HERE, "e2e-harness/people-src.ts"),
+    globalName: "__PGH",
+    footer: "Object.assign(window, __PGH.PEOPLE_GLOBALS); __PGH.followPeople(window);",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
+  },
   // Not a sample: the object the app publishes as window.__businessTab (legacy-bridge/business-tab.ts). With no
   // settings read behind the mockup, a fold is told nothing.
   "/data/business-tab.js": {
@@ -110,7 +139,7 @@ function stampOf(s) {
     }
   };
   if (s.reactIsTheWindows) walk(path.join(REPO, "apps/dashboard/src/surfaces/kit"));
-  if (s.watch) walk(path.join(REPO, s.watch));
+  for (const dir of [].concat(s.watch ?? [])) walk(path.join(REPO, dir));
   return files.map((f) => fs.statSync(f).mtimeMs).join(":");
 }
 
@@ -129,9 +158,13 @@ async function sampleBundle(route) {
     target: "es2020",
     write: false,
     logLevel: "silent",
-    alias: { "@chanlytics/contracts": CONTRACTS },
+    alias: {
+      "@chanlytics/contracts": CONTRACTS,
+      ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
+    },
     ...(s.jsx ? { jsx: s.jsx } : {}),
     ...(s.reactIsTheWindows ? { plugins: [windowReact] } : {}),
+    ...(s.banner ? { banner: { js: s.banner } } : {}),
     footer: { js: s.footer },
   });
   built.set(route, { stamp, js: out.outputFiles[0].text });
@@ -140,6 +173,8 @@ async function sampleBundle(route) {
 
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
+export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
+export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
 

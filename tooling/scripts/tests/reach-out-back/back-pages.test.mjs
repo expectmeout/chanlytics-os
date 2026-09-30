@@ -8,7 +8,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  peoplePages,
+  fresh,
+  again,
+  all,
+  byTestId,
+  textOf,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -21,7 +31,8 @@ await import(`${L}/components/data-bits.jsx`);
 // Reports' Reach-outs section is TSX (decision 0015): the surface's own module, on the same stub.
 const { RptReachOuts } = await import("../../../../apps/dashboard/src/surfaces/reports/reach-outs.tsx");
 await import(`${L}/pages/leads-finder.jsx`);
-await import(`${L}/pages/people-table.jsx`);
+// People's table and its helpers are TSX too (surfaces/people, decision 0015): the names the Leads scope reads off the window.
+Object.assign(W.window, peoplePages);
 await import(`${L}/pages/leads-cells.jsx`);
 await import(`${L}/pages/reach-out/reach-out-leads.jsx`);
 const bridge = await import("../../../../apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");

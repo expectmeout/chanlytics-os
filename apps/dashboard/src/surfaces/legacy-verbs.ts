@@ -30,7 +30,7 @@ interface LegacyFlash {
 
 declare global {
   interface Window {
-    CHANLY?: { nav?: (route: string) => void };
+    CHANLY?: { nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void };
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
     askAbout?: (about: { prompt?: string; mode?: string; thread?: string }) => void;
@@ -41,8 +41,9 @@ declare global {
 }
 
 /** Go to a route, the way a legacy page does (`CHANLY.nav`): the frame's own move, which keeps its Back and its address. */
-export function navigate(route: string): void {
-  window.CHANLY?.nav?.(route);
+export function navigate(route: string, opts?: { replace?: boolean; quiet?: boolean }): void {
+  if (opts === undefined) window.CHANLY?.nav?.(route);
+  else window.CHANLY?.nav?.(route, opts);
 }
 
 /** Whether the person acting may do what a role gate names (data-bits `canDo`): with no role store, they may. */
@@ -199,7 +200,7 @@ export function showTip(target: Element | null): void {
  * What a role gate spreads onto a control, AFTER its handlers (data-bits `gate`): nothing where the role may act; where
  * it may not, the control stays in the tab order, says why on hover, on focus and when pressed, and does nothing.
  */
-export interface GateProps {
+export type GateProps = {
   disabled?: boolean;
   title?: string;
   "aria-disabled"?: boolean;
@@ -213,7 +214,7 @@ export interface GateProps {
   onPointerUp?: undefined;
   onPointerLeave?: undefined;
   onPointerCancel?: undefined;
-}
+};
 
 /** A page under a strip, walked across by a swipe (data-bits `touchSwipe`, `pages`): the page each side, and how it follows. */
 interface SwipePage {
@@ -272,7 +273,7 @@ export interface DealSheetAsk {
   personId: string;
   mode: string;
   service?: string;
-  dealId?: string;
+  dealId?: string | null;
 }
 
 declare global {

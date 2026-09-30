@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installLegacyReact, kitPages, fresh, again, find, byTestId } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, kitPages } from "../_legacy-react.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -79,7 +79,8 @@ installLegacyReact({
   clearInterval() {},
 });
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
+Object.assign(globalThis.window, kitPages);
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};

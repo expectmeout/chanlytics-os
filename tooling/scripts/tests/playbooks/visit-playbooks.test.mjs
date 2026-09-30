@@ -105,13 +105,11 @@ installLegacyReact({ __DEMO_MODE: false });
 const SRC = "../../../../apps/dashboard/src";
 // The shell's own components the composer draws by name (PolicyChip, the record kit's sheet), loaded as the app loads them.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-await import(`${SRC}/legacy/components/record-fold.jsx`);
 Object.assign(globalThis, {
   canDo: () => true,
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __chrome: { state: stateOf },
 });
-await import(`${SRC}/legacy/components/record-sheet.jsx`);
 // The Autonomy store as the app builds it, over the workspace's own rows: the booking class has its row.
 const { installPolicyStore } = await import(`${SRC}/legacy-bridge/policy-store.ts`);
 installPolicyStore(globalThis);

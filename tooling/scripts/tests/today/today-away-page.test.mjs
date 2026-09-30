@@ -170,8 +170,9 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
   try {
     fresh();
     globalThis.__PEOPLE = people;
-    // The bridge's own verb (people-lists.ts), over the surface as People publishes it.
-    globalThis.__lists = (await import("../../../../apps/dashboard/src/legacy-bridge/people-lists.ts")).lists;
+    setSurfaceValue("people", people);
+    // People's own verb (people-lists.ts), over the surface as People publishes it.
+    globalThis.__lists = (await import("../../../../apps/dashboard/src/surfaces/people/people-lists.ts")).lists;
     const tree = globalThis.React.createElement(TodayPins, {});
     const row = byTestId(tree, "today-pins");
     const pins = [];
@@ -193,10 +194,12 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     // Nothing pinned: no row at all.
     fresh();
     globalThis.__PEOPLE = { ...people, views: {} };
+    setSurfaceValue("people", globalThis.__PEOPLE);
     assert.equal(byTestId(globalThis.React.createElement(TodayPins, {}), "today-pins"), null);
   } finally {
     globalThis.appNavigate = kept;
     delete globalThis.__PEOPLE;
+    setSurfaceValue("people", undefined);
     delete globalThis.__lists;
   }
 });

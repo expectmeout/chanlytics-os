@@ -866,24 +866,9 @@ window.POLICY = window.POLICY || {
   set(id, m) { const r = this.row(id); if (!r || r.locked) return; window.ST_STORE.set("policy." + id, m); window.dispatchEvent(new CustomEvent("policy:changed", { detail: { id, mode: m } })); },
 };
 
-// PolicyChip, StatePill and Confirm are the kit's now (surfaces/kit/policy-chip, pill and confirm), which seed-globals
-// publishes under these names.
+// PolicyChip, StatePill, MoreMenu and Confirm are the kit's now (surfaces/kit/policy-chip, pill, more-menu and confirm), and FieldError too
+// (surfaces/kit/field-error): seed-globals publishes them under these names.
 // EmptyState and FailedRead are the kit's now (surfaces/kit/empty), which seed-globals publishes under these names.
-// ---- FieldError — the one way a field says what is wrong with it -------------
-// Six forms coloured their own hint red inline, one had a class of its own, and
-// none was announced. One sentence under the box it belongs to, read out as it
-// appears, with the id the box names:
-//   <input aria-invalid={error ? true : undefined} aria-describedby={error ? "list-name-error" : undefined} />
-//   <FieldError id="list-name-error" message={error} />
-const FieldError = ({ id = null, message = null, testid = null }) => {
-  if (!message) return null;
-  return (
-    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
-      <Icon name="alert" size={11} />
-      <span className="field-error-words">{message}</span>
-    </span>
-  );
-};
 
 // ---- refusalToast — a refusal, as a toast ------------------------------------
 // The client names every refusal (contracts refusalOf): a title for the kind of
@@ -896,7 +881,7 @@ const refusalToast = (r, what = null) => {
   const why = (r && r.message) || "That didn't go through.";
   return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
 };
-Object.assign(window, { FieldError, refusalToast, trapFocus, dialogRef, keyPress });
+Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

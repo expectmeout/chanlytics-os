@@ -32,7 +32,7 @@ import {
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
-import { saveView } from "./people-detail";
+import { saveView } from "@/surfaces/people/people-detail";
 import { goToRoute, routeOnScreen } from "./workspace";
 
 export interface SetupSurface {

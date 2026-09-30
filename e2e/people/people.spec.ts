@@ -300,6 +300,64 @@ test.describe("People on a real workspace", () => {
     }
   });
 
+  // The Pipeline on its path (decision 0015, step 5): `/w/<slug>/people/pipeline` boots the page under People's own route, and
+  // its addresses -- a view, a person open over it -- are entries of the one page: a pick pushes, Back walks them, and a
+  // reload keeps them. Where deals are off, the same path is People's own list.
+  test("the Pipeline is on its path: it boots there, keeps its view and the person open over it, and Back walks them", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
+    const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
+    if (!slug) throw new Error(`the home sent this tab somewhere with no workspace in it: ${page.url()}`);
+    const body = (await (await apiGet(page, "/api/v1/contacts")).json()).data as { deals_on?: boolean };
+
+    await page.goto("/api/version");
+    await page.goto(`/w/${slug}/people/pipeline`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("People");
+    if (!body.deals_on) {
+      await expect(page.getByTestId("people-standing")).toBeVisible();
+      await expect(page.getByTestId("pipeline")).toHaveCount(0);
+      return;
+    }
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+    expect(routeOf(page.url())).toBe("clients/pipeline");
+    expect(new URL(page.url()).pathname).toBe(`/w/${slug}/people/pipeline`);
+
+    // A rail row is a new place: its address is pushed under the same path, and the page is the one already there.
+    await page.getByTestId("pipeline-rail-row-proposals").click();
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline:v-proposals");
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+    await page.goBack();
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+    await page.goForward();
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline:v-proposals");
+
+    // A reload of the address keeps the view; a row opens its peek, which the address says, and Back closes.
+    await page.reload();
+    await expect(page.getByTestId("pipeline")).toBeVisible({ timeout: 30_000 });
+    expect(routeOf(page.url())).toBe("clients/pipeline:v-proposals");
+    const rows = page.locator('[data-testid="pipeline"] .pl-table tbody tr[id^="person-"]');
+    if ((await rows.count()) > 0) {
+      await rows.first().click();
+      await expect(page.getByTestId("pipeline-peek")).toBeVisible();
+      await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/pipeline:v-proposals:p-/);
+      await page.goBack();
+      await expect(page.getByTestId("pipeline-peek")).toHaveCount(0);
+      await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline:v-proposals");
+    }
+
+    // Away to People's list by its own tab and back to the Pipeline by the sidebar's People and the tab.
+    await page.getByTestId("scope-people").click();
+    await expect.poll(() => routeOf(page.url())).toBe("clients");
+    await expect(page.getByTestId("pipeline")).toHaveCount(0);
+    await page.getByTestId("scope-pipeline").click();
+    await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+  });
+
   test("a state and a saved list are linkable: the address opens the view, and the view writes the address", async ({
     page,
   }) => {

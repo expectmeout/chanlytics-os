@@ -93,7 +93,7 @@ function glassRow(word: string, testid: string, body: ReactNode) {
 }
 
 /** The sheet's body: the three sections, and what stops a run from sending from the number. */
-function sheetBody(x: SectionCtx) {
+function sheetBodyClassic(x: SectionCtx) {
   const { data } = x;
   return (
     <div className="pb-compose">
@@ -248,7 +248,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onDone,
       closeLabel="Cancel"
       foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
     >
-      {glass ? sheetBodyGlass(x) : sheetBody(x)}
+      {glass ? sheetBodyGlass(x) : sheetBodyClassic(x)}
     </RecordSheet>
   );
 }

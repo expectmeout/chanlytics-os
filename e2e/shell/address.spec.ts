@@ -73,10 +73,15 @@ test.describe("the address of a page", () => {
     await page.reload();
     await expectFrameOn(page, "Reports");
     expect(new URL(page.url()).pathname, "the reload kept the path").toBe(`/w/${slug}/reports`);
-    // A route the address names with a part after it opens as itself, too, and is not moved.
+    // The shell's old name for a route the product has a word for still lands, moved to the word for ever (contracts
+    // ROUTE_WORDS: the path says people where the shell's route says clients), and the route it is at is the same.
     await loadFresh(page, `/w/${slug}/clients`);
+    await page.waitForURL((u) => u.pathname === `/w/${slug}/people`, { timeout: 30_000 });
     await expectFrameOn(page, "People");
     expect(routeOf(page.url())).toBe("clients");
+    await loadFresh(page, `/w/${slug}#/clients`);
+    await page.waitForURL((u) => u.pathname === `/w/${slug}/people`, { timeout: 30_000 });
+    await expectFrameOn(page, "People");
   });
 
   test("a move inside the app is a path, and the frame stays mounted: Back and Forward walk the paths with no page load", async ({

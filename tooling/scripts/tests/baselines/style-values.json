@@ -35,8 +35,8 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/clients.css": {
-    "font": 110,
-    "radius": 21,
+    "font": 107,
+    "radius": 19,
     "shadow": 12,
     "colour": 7,
     "blur": 0

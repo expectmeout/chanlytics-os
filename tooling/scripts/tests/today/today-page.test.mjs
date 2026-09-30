@@ -37,6 +37,7 @@ import {
   textOf,
   classes,
   press,
+  kitPages,
   quiet,
   redrawWanted,
   settle,
@@ -57,9 +58,8 @@ installLegacyReact({
   __surfaceFailed: (k) => failed.has(k),
   __refreshSurface: (k) => refreshed.push(k),
 });
-const L = "../../../../apps/dashboard/src/legacy";
-// One appointment on a list, the row Today's day and the Calendar's agenda both wear: still the shell's, drawn by name.
-await import(`${L}/components/day-agenda.jsx`);
+// One appointment on a list, the row Today's day and the Calendar's agenda both wear: the kit's (surfaces/kit/agenda), drawn by name.
+Object.assign(globalThis.window, kitPages);
 for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");

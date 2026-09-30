@@ -18,7 +18,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages, installLegacyReact, fresh as freshTree, again as againTree } from "../_legacy-react.mjs";
+import {
+  kitPages,
+  installLegacyReact,
+  useStubHooks,
+  fresh as freshTree,
+  again as againTree,
+} from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -283,7 +289,9 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+// The record kit, published as the app publishes it before any page loads.
+Object.assign(globalThis.window, kitPages);
+useStubHooks();
 // The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
 Object.assign(globalThis.window, kitPages);
 // The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
@@ -346,7 +354,6 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
-kitHooks();
 globalThis.PolicyChip = kitPages.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
@@ -609,23 +616,22 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/calendar.jsx");
-
 test("REGRESSION: in Day view the arrows move one day -- they moved seven", async () => {
   const { shiftKey, shiftMonth } = await import("@chanlytics/contracts");
-  assert.equal(typeof globalThis.window.crStep, "function", "the step is one rule that can be run");
+  const { crStep } = await import("../../../../apps/dashboard/src/surfaces/calendar/words.ts");
+  assert.equal(typeof crStep, "function", "the step is one rule that can be run");
   const kit = { shiftKey, shiftMonth };
-  assert.equal(globalThis.window.crStep("day", "2026-09-14", 1, kit), "2026-09-15");
-  assert.equal(globalThis.window.crStep("day", "2026-09-14", -1, kit), "2026-09-13");
-  assert.equal(globalThis.window.crStep("week", "2026-09-14", 1, kit), "2026-09-21");
-  assert.equal(globalThis.window.crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
-  assert.equal(globalThis.window.crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
+  assert.equal(crStep("day", "2026-09-14", 1, kit), "2026-09-15");
+  assert.equal(crStep("day", "2026-09-14", -1, kit), "2026-09-13");
+  assert.equal(crStep("week", "2026-09-14", 1, kit), "2026-09-21");
+  assert.equal(crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
+  assert.equal(crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
 });
 
 /* ---------------- the policy chip: no invented trust figures ---------------- */
 
 test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
-  const PolicyChip = kitPages.PolicyChip;
+  const { PolicyChip } = kitPages;
   Object.assign(globalThis.window, {
     POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },

@@ -40,8 +40,6 @@ Object.assign(W, {
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
 // The pages and their rows are TSX (decision 0015): Playbooks, Templates, and the reach-out's row, sheet and email row.
 const S = "../../../../apps/dashboard/src/surfaces";
 const { ReachOutRow } = await import(`${S}/campaigns/reach-out/row.tsx`);

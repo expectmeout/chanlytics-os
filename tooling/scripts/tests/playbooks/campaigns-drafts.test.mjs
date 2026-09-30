@@ -59,7 +59,6 @@ const TM = globalThis.__tabMemory;
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-await import(`${SRC}/legacy/components/record-fold.jsx`);
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],
@@ -73,7 +72,6 @@ Object.assign(globalThis, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-await import(`${SRC}/legacy/components/record-sheet.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
 const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);

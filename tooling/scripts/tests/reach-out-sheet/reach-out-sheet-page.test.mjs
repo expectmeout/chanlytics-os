@@ -31,8 +31,6 @@ Object.assign(W, {
 // The shell's own parts (the record kit's sheet and its unsaved-words rule, the role gate) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
 // The sheet and the door are TSX (decision 0015); Leads' JSX, which draws the door, is not part of this test.
 const S = "../../../../apps/dashboard/src/surfaces";
 const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);

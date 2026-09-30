@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { kitPages } from "../../_legacy-react.mjs";
+import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
 const { setupSteps, smsStateRow, connectionRows, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -340,10 +340,8 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/record-row.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/record-field.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 Object.assign(globalThis.window, kitPages);
+useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],

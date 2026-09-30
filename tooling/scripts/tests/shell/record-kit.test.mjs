@@ -22,6 +22,7 @@ import {
   atWidth,
 } from "../_legacy-react.mjs";
 import { keysDrawn } from "../_keys.mjs";
+import { KIT_GLOBALS } from "../../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -34,11 +35,12 @@ Object.assign(globalThis, {
   usePPToast: () => [null, () => {}],
 });
 await import(`${L}/components/data-bits.jsx`);
-await import(`${L}/components/record-row.jsx`);
-await import(`${L}/components/record-field.jsx`);
-await import(`${L}/components/record-fold.jsx`);
-await import(`${L}/components/record-sheet.jsx`);
 const W = globalThis.window;
+
+/** A glyph: the kit's Icon, which the record kit draws itself (the shell's pages draw the host element "Icon"). */
+const isIcon = (n) => n.type === KIT_GLOBALS.Icon;
+/** A component the tree draws that is not a glyph: what asks React for a hook or a name. */
+const components = (tree) => all(tree, (n) => typeof n.type === "function" && !isIcon(n));
 
 /** Whether a selector list asks for this root, as document.querySelector reads ".app-root, .fr-shell". */
 const inRoots = (sel, root) =>
@@ -133,13 +135,9 @@ test("an act's arrow is drawn beside its words, never inside the box a phone cli
   const act = find(tree, (n) => classes(n).includes("rec-row-act"));
   const words = find(act, (n) => classes(n).includes("rec-row-act-words"));
   assert.equal(textOf(words), "Connections");
-  assert.equal(
-    find(words, (n) => n.type === "Icon"),
-    null,
-    "nothing but the words in the clipped box",
-  );
+  assert.equal(find(words, isIcon), null, "nothing but the words in the clipped box");
   const icon = find(act, (n) => classes(n).includes("rec-row-act-icon"));
-  assert.equal(find(icon, (n) => n.type === "Icon").props.name, "arrow-right", "the arrow, beside them");
+  assert.equal(find(icon, isIcon).props.name, "arrow-right", "the arrow, beside them");
   assert.equal(icon.props["aria-hidden"], "true", "a picture of where it goes, which the act's name already says");
   const kids = [].concat(act.props.children).filter(Boolean);
   assert.ok(kids.indexOf(words) < kids.indexOf(icon), "after the words");
@@ -549,11 +547,7 @@ test("a box in a row of a list carries its own name and its sentence, needs no h
     [true, "rec-closure-1-date-problem"],
   );
   // No hook: the box carries the id it was given, and none is taken.
-  assert.equal(
-    all(tree, (n) => typeof n.type === "function").length,
-    2,
-    "the box and its FieldError, nothing that asks React for a name",
-  );
+  assert.equal(components(tree).length, 2, "the box and its FieldError, nothing that asks React for a name");
 
   // A box wrong by a sentence drawn ELSEWHERE (a day's two boxes share one): marked, described, nothing drawn.
   tree = draw(W.RecordBox, {
@@ -643,7 +637,7 @@ test("a box in a row of a list is a textarea when its words run to sentences, na
   assert.equal(textOf(byId(tree, "rec-note-1-text-problem")), "Each note needs both a title and the text to say.");
   box.props.onChange({ target: { value: "Behind the building, on the left." } });
   assert.deepEqual(typed, ["Behind the building, on the left."]);
-  assert.equal(all(tree, (n) => typeof n.type === "function").length, 2, "the box and its FieldError: no hook");
+  assert.equal(components(tree).length, 2, "the box and its FieldError: no hook");
   // Without rows it is the input it always was.
   assert.equal(
     find(

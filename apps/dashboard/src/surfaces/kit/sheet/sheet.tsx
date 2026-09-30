@@ -49,7 +49,7 @@ export type SheetProps = {
 };
 
 /** Base UI's closing state, in the kit's word for it: a sheet on its way out (kit.css, `[data-leaving]`). */
-const leaving = (state: { transitionStatus: "starting" | "ending" | "idle" | undefined }) =>
+const closingWord = (state: { transitionStatus: "starting" | "ending" | "idle" | undefined }) =>
   state.transitionStatus === "ending" ? "true" : undefined;
 
 /** A modal sheet, over the page's wash, drawn on the document's body. */
@@ -86,13 +86,13 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Backdrop
           className="sheet-backdrop"
-          render={(props, state) => <div {...props} data-leaving={leaving(state)} />}
+          render={(props, state) => <div {...props} data-leaving={closingWord(state)} />}
         />
         <Dialog.Popup
           ref={place}
           initialFocus={initialFocus ?? self}
           className={cx("sheet", className)}
-          render={(props, state) => <section {...props} data-leaving={leaving(state)} />}
+          render={(props, state) => <section {...props} data-leaving={closingWord(state)} />}
         >
           <div className="sheet-handle" aria-hidden="true" />
           <header className="rec-sheet-head">

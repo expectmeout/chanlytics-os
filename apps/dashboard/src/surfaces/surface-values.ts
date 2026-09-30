@@ -23,6 +23,8 @@ import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { TodayVM } from "@chanlytics/contracts";
 import type { LiveSurface } from "./live/surface";
+import type { PeopleSurface } from "./people/surface";
+import type { CalendarSurface } from "./calendar/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -36,6 +38,8 @@ export interface SurfaceValues {
   reach_outs: ReachOutsSurface;
   settings: SettingsSurface;
   live: LiveSurface;
+  people: PeopleSurface;
+  calendar: CalendarSurface;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -91,4 +95,6 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reach_outs: true,
   settings: true,
   live: true,
+  people: true,
+  calendar: true,
 };

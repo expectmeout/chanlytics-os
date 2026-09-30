@@ -202,10 +202,13 @@ export function snapshotSurface(
 }
 
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
-export function resnapshotSurface(key: string, globals: string[], tenant: string | null): void {
+export function resnapshotSurface(key: string, globals: string[], tenant: string | null, value?: SurfaceKey): void {
   const blob = current();
   if (sealed || !blob || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
-  keep({ ...blob, surfaces: { ...blob.surfaces, [key]: globalsNow(globals) } });
+  const snap = globalsNow(globals);
+  const typed = value ? surfaceValue(value) : undefined;
+  if (typed !== undefined) snap[VALUE_SLOT] = typed;
+  keep({ ...blob, surfaces: { ...blob.surfaces, [key]: snap } });
 }
 
 export function cachedTenant(): string | null {

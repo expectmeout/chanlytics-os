@@ -58,6 +58,7 @@ import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
 import { parse as parseTs } from "../_ast.mjs";
 import { serveStatic } from "../../serve-legacy.mjs";
+import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 
 const LEGACY = "apps/dashboard/src/legacy";
 const html = readRaw(`${LEGACY}/Chanlytics.html`);
@@ -222,12 +223,13 @@ const namesRead = (sf) => {
   return { bare: [...bare].filter((n) => !declared.has(n)), onWindow: [...onWindow] };
 };
 
-test("a file every workspace loads names nothing the demo alone defines, but the four forks' seeds and the demo's data, through window", () => {
+test("a file every workspace loads names nothing the demo alone defines, but the three forks' seeds and the demo's data, through window", () => {
   // A real workspace never loads the demo's files, so a bare name only they define is a ReferenceError there: the
   // route table named the Agents pages, Content, the Deal board and the seeded Lists bare until the demo left the
-  // manifest, and draws them by name through demoPage now. The four real pages that draw their seeded twin where
-  // the bridge has not fed them (calendar, broadcasts, outbound, live-monitor) read it off window at the draw, and
-  // draw nothing where it is absent; a fifth would be a page asking for the demo's data on a real workspace.
+  // manifest, and draws them by name through demoPage now. The three real pages that draw their seeded twin where
+  // the bridge has not fed them (broadcasts, outbound, live-monitor) read it off window at the draw, and
+  // draw nothing where it is absent; a fourth would be a page asking for the demo's data on a real workspace. The Calendar's
+  // twin left with the Calendar (decision 0015, step 6): a demo session draws the contracts sample.
   // The demo's data (demo/data/: the Agents roster and store, the seeded Today, calendar, deals, calls and trust
   // table) left every workspace's boot on 29 September; what a real file still reads of it is read off window where
   // the demo draws it, and reads as nothing where it is absent, as the forks do. Never bare.
@@ -235,7 +237,7 @@ test("a file every workspace loads names nothing the demo alone defines, but the
   const demoOnly = new Set(
     demoManifest.flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]).filter((n) => !own.has(n)),
   );
-  const FORKS = new Set(["CalendarSeed", "BroadcastsSeed", "OutboundSeed", "LiveMonitorSeed"]);
+  const FORKS = new Set(["BroadcastsSeed", "OutboundSeed", "LiveMonitorSeed"]);
   const DEMO_DATA = new Set(
     demoManifest.filter((f) => f.startsWith("demo/data/")).flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]),
   );
@@ -440,19 +442,24 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
   assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
 });
 
-test("the mockup takes the kit's components and the Inbox's names from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
+test("the mockup takes the kit's components and the Inbox's and People's names from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
   // Plain scripts, outside the .jsx lists above: the bridge never loads them (the app publishes the kit's components from
   // seed-globals, and a workspace draws its own numbers).
   const tags = [...html.matchAll(/<script[^>]*\bsrc="([^"?]+)[^"]*"/g)].map((m) => m[1]);
   assert.equal(
     tags[tags.indexOf(STUBS) + 1],
     "data/kit-globals.js",
-    "the pages here read Icon, EmptyState, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip and TlMedia by name, which the kit has drawn since decision 0015",
+    "the pages here read Icon, EmptyState, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip, TlMedia, FieldError and the record kit by name, which the kit has drawn since decision 0015",
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 2],
     "data/inbox-globals.js",
     "the sidebar, the bell, Ask and Today read the Inbox's and Conversations' names, which surfaces/inbox/legacy-globals.ts says",
+  );
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 3],
+    "data/people-globals.js",
+    "the Leads scope reads plSortKeys as it loads, and the Pipeline and the person page draw People's parts by name, TSX since decision 0015",
   );
 });
 
@@ -462,6 +469,7 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
   const React = {
     createElement: (type, props, ...children) => ({ type, props, children }),
     useState: (v) => [v, () => {}],
+    useReducer: (_reduce, v) => [v, () => {}],
     useRef: (v) => ({ current: v }),
     useLayoutEffect() {},
     useEffect() {},
@@ -479,8 +487,25 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "MoreMenu",
     "PolicyChip",
     "TlMedia",
+    "FieldError",
   ])
     assert.equal(typeof win[name], "function", `${name} is published`);
+  // The record kit, which the pages read by name: its components and hooks, the fold registry and the rail's two answers.
+  for (const name of [
+    "RecordRow",
+    "RecordField",
+    "RecordFold",
+    "RecordInline",
+    "RecordSheet",
+    "useRecordFold",
+    "useUnsavedWork",
+    "tabDraft",
+    "__settingsUnsaved",
+    "__settingsSaving",
+  ])
+    assert.equal(typeof win[name], "function", `${name} is published`);
+  assert.equal(typeof win.__recordFolds.request, "function", "the fold registry is published");
+  assert.equal(win.__settingsUnsaved(), false, "nothing is open, so the rail has nothing to ask");
   assert.equal(
     win.StatePill({ kind: "thread", value: "escalated" }).props.className,
     "pill pill-warn",
@@ -497,6 +522,49 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     null,
     "a bar of nothing is nothing",
   );
+  // The house's three (surfaces/kit/house): the pill takes its tone from contracts where the mockup has no bridge, the chip
+  // draws nothing where the mockup's charter is absent, and the menu is its trigger until it is pressed.
+  assert.equal(win.StatePill({ kind: "call", value: "live" }).props.className, "pill pill-accent");
+  assert.equal(win.PolicyChip({ cls: "reply" }), null, "no charter, no chip");
+  assert.equal(win.MoreMenu({ items: [] }).props.className, "more-wrap");
+});
+
+test("People's bundle publishes People's shared parts on the page's React, under the names the pages read, and leaves a name the page already has", async () => {
+  const { peopleGlobalsBundle, peopleGlobalsHarnessBundle } = await import("../../serve-legacy.mjs");
+  const { PEOPLE_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/people/people-globals.ts");
+  // The page's React, as the harness loads it: the bundle takes its hooks and its elements from this and brings none. The
+  // table's rows are memoised as the module loads, so `memo` is there before anything draws.
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    memo: (component) => component,
+    Fragment: "Fragment",
+    useState: (v) => [v, () => {}],
+    useReducer: (_reduce, v) => [v, () => {}],
+    useRef: (v) => ({ current: v }),
+    useMemo: (fn) => fn(),
+    useCallback: (fn) => fn,
+    useLayoutEffect() {},
+    useEffect() {},
+    useSyncExternalStore: (_subscribe, get) => get(),
+  };
+  const win = { React, PeopleTable: "the page's own" };
+  vm.runInNewContext(await peopleGlobalsBundle(), { window: win, React, console });
+  for (const name of Object.keys(PEOPLE_GLOBALS)) {
+    if (name === "PeopleTable") assert.equal(win[name], "the page's own", "a name the page has is left alone");
+    else assert.ok(name in win, `${name} is published`);
+  }
+  assert.equal(typeof win.plSortKeys, "function", "the Leads scope reads it as it loads");
+  assert.equal(typeof win.PeopleRail, "function");
+  // The harness's copy publishes them all, and follows the People the fixture's runner lands on the window.
+  const heard = [];
+  const harness = {
+    React,
+    PeopleTable: "the page's own",
+    addEventListener: (type) => heard.push(type),
+  };
+  vm.runInNewContext(await peopleGlobalsHarnessBundle(), { window: harness, React, console });
+  assert.equal(typeof harness.PeopleTable, "function", "over the People the fixture boots, the harness's copy wins");
+  assert.deepEqual(heard.sort(), ["surface:clients", "surface:people"], "and it holds People when it lands");
 });
 
 /** The stylesheets an entry stylesheet imports, in order, as repo paths: its @import rules, read as CSS. */
@@ -652,6 +720,9 @@ const sameMeaning = (a, b) =>
 
 const sharedScope = (() => {
   const win = vm.createContext({
+    // People's shared parts, which the app publishes from seed-globals and the document from data/people-globals.js: the
+    // Leads scope reads plSortKeys as it loads.
+    ...PEOPLE_GLOBALS,
     React: anything(),
     ReactDOM: anything(),
     document: anything(),

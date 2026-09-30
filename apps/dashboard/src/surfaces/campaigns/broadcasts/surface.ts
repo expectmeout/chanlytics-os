@@ -36,7 +36,7 @@ import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface
 import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
 import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { everyPerson, viewerId } from "@/legacy-bridge/surfaces/people";
+import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
 
 // The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.

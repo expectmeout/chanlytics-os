@@ -36,12 +36,8 @@ const SCOPE = [
 /** Files that may keep a trade's words, and why. */
 const ALLOWED = new Map([
   [
-    "apps/dashboard/src/legacy/demo/pages/calendar.jsx",
-    "the seeded calendar of the design mockup; a real workspace renders pages/calendar.jsx",
-  ],
-  [
     "apps/dashboard/src/legacy/demo/pages/segments.jsx",
-    "the seeded Segments of the mockup; a real workspace's lists are a view of People (people.jsx)",
+    "the seeded Segments of the mockup; a real workspace's lists are a view of People (surfaces/people/)",
   ],
   [
     "apps/dashboard/src/legacy/demo/pages/content-cal.jsx",

@@ -49,10 +49,14 @@ import {
   PEOPLE_LISTS,
   peopleListAction,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../../../apps/edge/lib/lines/a2p-campaign-facts.ts";
 import { personRow } from "./_person-row.mjs";
+
+// People's Offers column and its sort, from the code the page runs (surfaces/people/), not a scan of it.
+const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
+const { plPeopleShown } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -509,7 +513,7 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   assert.match(door, /p_tenant_id: contact\.tenant_id,/);
 
   // The bulk sibling, because a signed-form yes usually arrives for a class at once.
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
   assert.match(bridge, /export async function setPersonMarketingConsentMany/);
   assert.match(
     bridge,
@@ -555,9 +559,41 @@ test('every read of "said yes to offers" points at the offers column', () => {
     "and it is counted the way the reachable view counts it",
   );
 
-  const clients = readCode("apps/dashboard/src/legacy/pages/people.jsx");
-  assert.match(clients, /PL_OFFERS\[p\.consent\.marketing\]/, "the column titled Offers");
-  assert.match(clients, /rank\[a\.consent\.marketing\]/, "and sorting by it sorts by it");
+  // The column titled Offers reads the offers answer, and sorting by it sorts by it: People's own column and sort
+  // (surfaces/people/), run over rows that differ in the two yeses. The conversational yes moves neither.
+  const yesToOffers = personRow({ id: "y", consent: "unknown", marketing_consent: "opted_in" });
+  const noToOffers = personRow({ id: "n", consent: "opted_in", marketing_consent: "opted_out" });
+  const notAsked = personRow({ id: "u", consent: "opted_in", marketing_consent: "unknown" });
+  const hadReact = globalThis.React;
+  globalThis.React = {
+    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat() } }),
+  };
+  try {
+    const offersColumn = PL_COLUMNS.find((c) => c.key === "offers");
+    assert.deepEqual(
+      [yesToOffers, noToOffers, notAsked].map((p) => offersColumn.cell(p, {}).props.children[0].props.children[0]),
+      ["Yes", "No", "Not asked"],
+      "the column titled Offers",
+    );
+  } finally {
+    if (hadReact === undefined) delete globalThis.React;
+    else globalThis.React = hadReact;
+  }
+  const sortedBy = (sortDir) =>
+    plPeopleShown({
+      rows: [noToOffers, notAsked, yesToOffers],
+      found: null,
+      lists: [],
+      saved: [],
+      tab: "all",
+      listId: null,
+      savedId: null,
+      q: "",
+      sortBy: "offers",
+      sortDir,
+    }).map((p) => p.id);
+  assert.deepEqual(sortedBy("asc"), ["y", "u", "n"], "and sorting by it sorts by it: yes, not asked, no");
+  assert.deepEqual(sortedBy("desc"), ["n", "u", "y"]);
 
   const exp = readCode("apps/dashboard/src/server/export/export.ts");
   assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);

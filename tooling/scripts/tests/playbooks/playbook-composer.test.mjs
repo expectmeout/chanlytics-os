@@ -144,7 +144,6 @@ installClock();
 // The shell's own components the page draws by name (PolicyChip, the record kit's sheet): the frame's JSX, loaded as the
 // app loads it; the page and its verbs are TSX (decision 0015) and imported.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-await import(`${SRC}/legacy/components/record-fold.jsx`);
 Object.assign(globalThis, {
   usePPToast: () => [null, (t) => toasts.push(t)],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
@@ -155,7 +154,6 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-await import(`${SRC}/legacy/components/record-sheet.jsx`);
 const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
 const { PlaybookCard } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { pbGuardWords } = await import(`${SRC}/surfaces/campaigns/playbooks/words.tsx`);

@@ -13,8 +13,10 @@
  * page does not take stays with the frame's table (People's Leads scope, until Leads leaves).
  */
 import { broadcastsChrome, playbooksChrome } from "./campaigns/routes";
+import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
 import { liveChrome } from "./live/routes";
+import { peopleChrome, peopleTakes } from "./people/chrome";
 
 /** A crumb: its words, and where it goes (`to`, or the page's own move, `go`, as a person's People crumb is). */
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
@@ -56,17 +58,22 @@ interface SurfaceRoute {
   pane: boolean;
   /** Every address under the route (`inbox/th-1`) is the route's page too: the page follows it and stays mounted across it. */
   params?: boolean;
+  /** Which params of the route the page draws, where not every one is (`clients/<id>` but not `clients/leads`); absent, the route alone. */
+  takes?: (param: string) => boolean;
   /** What the frame keys the view's mount by, for a page that follows its address (the row's `mount`). */
   mount?: string;
   /** The top bar's act, where the surface has one. */
   act?: SurfaceAct;
-  /** Which params of the route the page draws, where not every one is; absent (and no `params`), the route alone. */
-  takes?: (param: string) => boolean;
   /** The chrome of an address, where it depends on the param or on what the surface holds; absent, `crumbs`. */
   chrome?: (at: ChromeAt) => SurfaceChrome;
 }
 
-/** Every route with a page of its own, by the route's word (the path after the workspace's slug). */
+/**
+ * Every route with a page of its own, by the route's word (the path after the workspace's slug). A route's `takes` and
+ * `chrome` are read when an address is drawn, never when this module loads: the frame's modules (workspace.ts reads this
+ * table) and the surfaces' chromes reach each other, and a chrome named here by reference would be read before its own
+ * module had run, in whichever order they were first imported.
+ */
 export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   reports: { activeNav: "reports", crumbs: ["Reports"], pane: true },
   today: {
@@ -105,6 +112,24 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     takes: () => true,
     chrome: liveChrome,
   },
+  calendar: {
+    activeNav: "calendar",
+    crumbs: ["Calendar"],
+    pane: true,
+    takes: () => true,
+    chrome: () => calendarChrome(),
+  },
+  // People, the shell's `clients` (path word `people`): the list, its views, the New list door, the Pipeline and a person's
+  // page (people/chrome.ts). Leads stays with the frame's table until its surface moves.
+  clients: {
+    activeNav: "clients",
+    crumbs: ["People"],
+    pane: true,
+    takes: (param) => peopleTakes(param),
+    chrome: (at) => peopleChrome(at),
+  },
+  // Lists (path word `lists`): a list's own address lands on People with that list picked (people/lists-route.tsx).
+  segments: { activeNav: "clients", crumbs: ["People"], pane: true, takes: () => true },
 };
 
 const pageOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);

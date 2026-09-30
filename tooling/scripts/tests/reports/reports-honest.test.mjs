@@ -125,6 +125,7 @@ const went = [];
 installLegacyReact({
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: TID,
+
   usePPToast: () => [null, () => {}],
   CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
   appNavigate: (to) => went.push(to),
@@ -142,8 +143,6 @@ installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work rule
 // (record-fold) and the record kit's sheet the composer opens in (record-sheet).
 await import(`${S}/legacy/components/data-bits.jsx`);
-await import(`${S}/legacy/components/record-fold.jsx`);
-await import(`${S}/legacy/components/record-sheet.jsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds.
 const { PlaybooksPage } = await import(`${S}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
 const { BcHistoryStats } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);

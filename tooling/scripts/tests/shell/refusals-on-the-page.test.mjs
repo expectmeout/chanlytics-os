@@ -14,7 +14,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages, installLegacyReact, fresh as freshTree, again as againTree } from "../_legacy-react.mjs";
+import {
+  kitPages,
+  installLegacyReact,
+  useStubHooks,
+  fresh as freshTree,
+  again as againTree,
+} from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -93,9 +100,9 @@ globalThis.window = {
   appNavigate() {},
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+
 Object.assign(globalThis.window, kitPages);
-kitHooks();
+useStubHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
   globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
@@ -449,32 +456,39 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
 
 /* ------------------------------ People and Lists ------------------------------ */
 
-await import("../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
-for (const k of [
-  "PeopleTable",
-  "PeopleColumnsMenu",
-  "plLocked",
-  "plShows",
-  "plSortKeys",
-  "plDrawnColumns",
-  "plShownColumns",
-  "plColumnChoices",
-  "plColumnOptions",
-  "PL_NO_SEL",
-  "PL_FIRST_ROWS",
-])
-  globalThis[k] = globalThis.window[k];
-await import("../../../../apps/dashboard/src/legacy/pages/leads-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/people.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
+// People's list page is TSX (surfaces/people, decision 0015): its parts are drawn from their own modules, and
+// the person's page and its parts (surfaces/people/person) are TSX too. The verbs the TSX calls (the lists', the person's)
+// are imported by it, so a refusal comes over the wire it would send.
+const { DeleteListButton } = await importSrc("apps/dashboard/src/surfaces/people/lists/list-title.tsx");
+const { NewListRow } = await importSrc("apps/dashboard/src/surfaces/people/rail/new-list.tsx");
+const { AddPersonButton } = await importSrc("apps/dashboard/src/surfaces/people/sheets/add-person.tsx");
+
+/**
+ * The requests the bridge's client sends, answered by `answer(request)` with the server's own envelope: each is kept
+ * (its method, path and JSON body) and returned. A test that sends a write it means to be refused says so here.
+ */
+const wire = (answer) => {
+  const seen = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const request = { method: init.method, path: u.pathname, body: init.body ? JSON.parse(init.body) : null };
+    seen.push(request);
+    const { status, ...envelope } = answer(request);
+    return new Response(JSON.stringify(envelope), { status, headers: { "content-type": "application/json" } });
+  };
+  return seen;
+};
+const refusedOver = (status, code, message, details) => ({ status, ok: false, error: { code, message, details } });
+// The person's consent ask leaves the shell as TSX (surfaces/people/person): it takes its hooks from the react module the
+// useStubHooks() above set, its field error from the kit, and its recorder as a prop.
+const { ConsentAsk } = await import("../../../../apps/dashboard/src/surfaces/people/person/consent-ask.tsx");
 
 test("REGRESSION (B5): a refused list delete keeps the question open and says why -- it closed with no word", async () => {
-  const DeleteListButton = globalThis.window.DeleteListButton;
   assert.equal(typeof DeleteListButton, "function", "the delete can be drawn on its own");
   let deleted = 0;
-  globalThis.window.__lists = {
-    remove: async () => refused("Only an owner or operator can change lists.", "forbidden", 403, { needs: "operator" }),
-  };
+  const seen = wire(() =>
+    refusedOver(403, "forbidden", "Only an owner or operator can change lists.", { needs: "operator" }),
+  );
   cells = [];
   const render = () => {
     frames.begin();
@@ -489,6 +503,11 @@ test("REGRESSION (B5): a refused list delete keeps the question open and says wh
   await byTestId(render(), "delete-list-yes").props.onClick();
   const tree = render();
   assert.equal(deleted, 0);
+  assert.deepEqual(
+    seen.map((r) => [r.method, r.path]),
+    [["DELETE", "/api/v1/segments/l1"]],
+    "the one request the verb sends",
+  );
   const question = byTestId(tree, "delete-list-confirm");
   assert.ok(question, "REGRESSION: the question closed on a refusal, with no word");
   assert.ok(say(question).includes("Only an owner or operator can change lists."), say(question));
@@ -498,7 +517,6 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   const taken = () => refused("A list called VIP regulars already exists.");
 
   // People: New list in the rail.
-  const NewListRow = globalThis.window.NewListRow;
   assert.equal(typeof NewListRow, "function");
   cells = [];
   const row = () => {
@@ -514,12 +532,12 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(inlineDanger(tree), 0);
 
   // People: Add a person.
-  const AddPersonButton = globalThis.window.AddPersonButton;
   assert.equal(typeof AddPersonButton, "function");
-  globalThis.window.__addPerson = async () =>
-    refused("contact_phone: Write it with the country code, like +1 646 555 0123.", "validation", 400, {
+  const added = wire(() =>
+    refusedOver(400, "validation", "contact_phone: Write it with the country code, like +1 646 555 0123.", {
       fields: { phone: "Write it with the country code, like +1 646 555 0123." },
-    });
+    }),
+  );
   cells = [];
   const add = () => {
     frames.begin();
@@ -529,6 +547,11 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   byTestId(add(), "add-person-phone").props.onChange({ target: { value: "646 555" } });
   await byTestId(add(), "add-person-save").props.onClick();
   tree = add();
+  assert.deepEqual(
+    added.map((r) => [r.method, r.path, r.body]),
+    [["POST", "/api/v1/contacts", { phone: "646 555" }]],
+    "the number as typed goes to the door, and no name that was not typed",
+  );
   const personError = byTestId(tree, "add-person-error");
   assert.equal(personError?.props.role, "alert");
   assert.ok(say(personError).includes("country code"), "the field's own sentence where the route named the field");
@@ -536,7 +559,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(inlineDanger(tree), 0);
 
   // The profile: a consent the route would not record.
-  const ConsentAsk = globalThis.window.ConsentAsk;
+  assert.equal(typeof ConsentAsk, "function", "the ask can be drawn on its own");
   cells = [];
   const ask = () => {
     frames.begin();

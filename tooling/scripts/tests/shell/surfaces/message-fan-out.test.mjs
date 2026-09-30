@@ -61,7 +61,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
   (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
-  (await importSrc(`${S}/people.ts`)).peopleOverride,
+  (await importSrc("apps/dashboard/src/surfaces/people/surface.ts")).peopleOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/leads.ts")).leadsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/surface.ts")).reportsOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
@@ -70,7 +70,7 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts")).reachOutsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/reach-out/replies.ts")).repliesOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/partner.ts")).partnerOverride,
-  (await importSrc(`${S}/calendar.ts`)).calendarOverride,
+  (await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts")).calendarOverride,
   (await importSrc(`${S}/notifications.ts`)).notificationsOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/setup.ts")).setupOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/google.ts")).googleOverride,
@@ -446,9 +446,9 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     };
     visit(sf);
   }
-  // Twelve pages of the shell named a surface until Reports, the Inbox and Today left it: a TSX surface names its key through
-  // the typed useSurface, which the compiler holds to a real key; what the shell still draws is what this reads.
-  assert.ok(named.length >= 2, `the scan found ${named.length} names; it has stopped seeing the pages`);
+  // Twelve pages of the shell named a surface until Reports, the Inbox, Today and People left it: a TSX surface names its key
+  // through the typed useSurface, which the compiler holds to a real key; what the shell still draws is what this reads.
+  assert.ok(named.length >= 1, `the scan found ${named.length} names; it has stopped seeing the pages`);
   assert.deepEqual(
     named.filter(([, key]) => !real.has(key)),
     [],

@@ -26,7 +26,15 @@ import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
 import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
 import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
-import { inboxGlobalsBundle, kitGlobalsBundle, mascotBundle, send, serveStatic, TYPES } from "../serve-legacy.mjs";
+import {
+  inboxGlobalsBundle,
+  kitGlobalsBundle,
+  mascotBundle,
+  peopleGlobalsHarnessBundle,
+  send,
+  serveStatic,
+  TYPES,
+} from "../serve-legacy.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
@@ -233,6 +241,11 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/data/inbox-globals.js") {
         send(res, 200, TYPES[".js"], await inboxGlobalsBundle());
+        return;
+      }
+      // People's shared parts, over the People the fixture boots (people-src.ts), in place of the mockup's own.
+      if (p === "/data/people-globals.js") {
+        send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
         return;
       }
       if (p === "/data/mascot.js") {

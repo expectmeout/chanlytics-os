@@ -26,13 +26,19 @@ const DASH = path.join(here, "../../../../../apps/dashboard/src");
 const registry = await import(pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href);
 // The routes that have left the shell: each has an App Router page of its own (decision 0015).
 const { SURFACE_ROUTES, routeHasPage } = await import(pathToFileURL(path.join(DASH, "surfaces/routes.ts")).href);
+const { setSurfaceValue } = await import(pathToFileURL(path.join(DASH, "surfaces/surface-values.ts")).href);
 const WORKSPACE_APP = path.join(DASH, "../app/(os)/w/[workspace]");
 // The product's word for a route the shell names otherwise (contracts shell/address.ts): the page's folder says the word.
 const { ROUTE_WORDS } = await import("@chanlytics/contracts");
 const wordOf = (route) => (Object.hasOwn(ROUTE_WORDS, route) ? ROUTE_WORDS[route] : route);
-// Rows a moved route keeps in app-routes.jsx, each for an address its page does not take: People's Leads scope is drawn by
-// its own row until Leads leaves the shell (decision 0015, step 9).
-const ROWS_LEFT = { clients: ["leads"] };
+// Rows a moved route keeps in app-routes.jsx: each for an address its page does not take, or (address null) for a session
+// its page is not drawn for. People's Leads scope is drawn by its own row until Leads leaves the shell (decision 0015, step
+// 9); the mockup's seeded Lists page is drawn where there is no workspace to read (a demo session), a real workspace's
+// Lists being the App Router page. A person's page and the Pipeline are the page's own since they moved.
+const ROWS_LEFT = {
+  clients: [{ word: "leads", address: "leads" }],
+  segments: [{ word: "realWorkspace", address: null }],
+};
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surfaceRetiredTo } = await import(
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
@@ -42,9 +48,9 @@ const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "ut
 // still names the two pages it draws outside the table (shared, start) and the family it fades (clients).
 const routes = fs.readFileSync(path.join(DASH, "legacy/pages/app-routes.jsx"), "utf8");
 
-/** A route's App Router page: `<route>/page.tsx`, or under an optional catch-all (`<route>/[[...thread]]/page.tsx`) where the route takes an address under it. */
+/** A route's App Router page: `<word>/page.tsx`, or under an optional catch-all (`<word>/[[...thread]]/page.tsx`) where the route takes an address under it. */
 function pageFileOf(route) {
-  const dir = path.join(WORKSPACE_APP, route);
+  const dir = path.join(WORKSPACE_APP, wordOf(route));
   if (fs.existsSync(path.join(dir, "page.tsx"))) return true;
   if (!fs.existsSync(dir)) return false;
   return fs
@@ -91,24 +97,29 @@ test("a route with an App Router page has no row in app-routes.jsx, and a page h
   for (const [route, page] of Object.entries(SURFACE_ROUTES)) {
     // A page that takes addresses under its route is an optional catch-all, and draws the route alone as well.
     assert.ok(
-      pageFileOf(wordOf(route)),
+      pageFileOf(route),
       `${route} is in SURFACE_ROUTES and has no app/(os)/w/[workspace]/${wordOf(route)}/page.tsx (or, for a route that takes an address under it, ${wordOf(route)}/[[...x]]/page.tsx)`,
     );
     const rows = [...routes.matchAll(new RegExp(String.raw`\{ page: "${route}"([^\n]*)`, "g"))].map((m) => m[1]);
     const allowed = ROWS_LEFT[route] ?? [];
     assert.deepEqual(
-      rows.filter((row) => !allowed.some((word) => row.includes(word))),
+      rows.filter((row) => !allowed.some(({ word }) => row.includes(word))),
       [],
       `${route} has an App Router page and still a row in app-routes.jsx for an address the page takes`,
     );
-    assert.ok(routeHasPage(route), "the route alone is the page");
-    assert.equal(
-      routeHasPage(`${route}/x`),
-      page.params === true || !!page.takes?.("x"),
-      "an address under the route is the page's only where the route takes it (params, or the page says it takes it)",
+    assert.ok(
+      routeHasPage(route) && routeHasPage(`${route}/x`) === (page.params === true || !!page.takes?.("x")),
+      "the route alone is the page, and an address under it only where the route takes one (for every address, or for the ones it names)",
     );
-    for (const word of allowed)
-      assert.ok(!routeHasPage(`${route}/${word}`), `${route}/${word} is a row's, not the page's`);
+    for (const { address, dealsOn } of allowed) {
+      if (address === null) continue;
+      setSurfaceValue("people", { dealsOn: !!dealsOn });
+      try {
+        assert.ok(!routeHasPage(`${route}/${address}`), `${route}/${address} is a row's, not the page's`);
+      } finally {
+        setSurfaceValue("people", undefined);
+      }
+    }
   }
   const pages = fs
     .readdirSync(WORKSPACE_APP, { withFileTypes: true })

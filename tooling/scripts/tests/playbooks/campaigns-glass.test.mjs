@@ -45,7 +45,6 @@ const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
 // The shell's own components the pages draw by name (PolicyChip, Confirm, the record kit's sheet): the frame's JSX.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-await import(`${SRC}/legacy/components/record-fold.jsx`);
 Object.assign(globalThis, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
@@ -56,7 +55,6 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-await import(`${SRC}/legacy/components/record-sheet.jsx`);
 const { PlaybooksPage } = await import(`${SRC}/surfaces/campaigns/playbooks/playbooks-page.tsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);

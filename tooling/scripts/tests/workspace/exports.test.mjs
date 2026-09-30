@@ -13,14 +13,17 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROLE_PERMS, frameWhisper, roleGate, toCallVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { kitPages } from "../_legacy-react.mjs";
 
 // Modules that build a service client on first use read these; nothing here dials it.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// The link People builds to the route's file (surfaces/people/shell-verbs.ts), run in the test below.
+const { exportLink } = await importSrc("apps/dashboard/src/surfaces/people/shell-verbs.ts");
 const X = await import(pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/export/export.ts")).href);
 
 const TZ = "America/New_York";
@@ -376,12 +379,35 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
 test("the pages link to the routes, and only where the bridge can name the workspace", () => {
   // A conversation's file is in its thread's menu (one-thread.test.mjs), a call's under its transcript
   // (calls-in-the-thread.test.mjs): both run there, off a demo and only with the bridge.
-  const people = readRaw("apps/dashboard/src/legacy/pages/people.jsx");
-  // Everyone, or the list that is open (decision 0009), by its token.
+  // Everyone, or the list that is open (decision 0009), by its token: the link the page builds, run, in a tab of the
+  // workspace it is drawn in (the route needs the workspace named, like every other request).
+  const had = Object.getOwnPropertyDescriptor(globalThis, "window");
+  globalThis.window = { location: { pathname: "/w/studio" } };
+  try {
+    const link = (list) => new URL(exportLink(list), "https://app.chanlytics.com");
+    const everyone = link(undefined);
+    assert.equal(everyone.pathname, "/api/v1/contacts/export");
+    assert.deepEqual([...everyone.searchParams], [["workspace", "studio"]], "everyone: nothing but the workspace");
+    const one = link("list:s1");
+    assert.equal(one.pathname, "/api/v1/contacts/export");
+    assert.deepEqual(
+      [...one.searchParams],
+      [
+        ["list", "list:s1"],
+        ["workspace", "studio"],
+      ],
+      "or the list that is open",
+    );
+  } finally {
+    if (had) Object.defineProperty(globalThis, "window", had);
+    else delete globalThis.window;
+  }
+  // The desk's button is the page's own (page/screen.tsx), drawn and pressed in people-honest.test.mjs (people-export).
+  const people = readRaw("apps/dashboard/src/surfaces/people/page/screen.tsx");
   assert.ok(people.includes("href={exportHref}"));
-  assert.ok(people.includes('window.__href("GET contacts/export", undefined, exportName ? { list:'));
   assert.ok(
-    people.includes('window.canDo && !window.canDo("export")'),
+    people.includes('{!canDo("export") ? (') &&
+      people.includes('<button className="btn btn-ghost btn-sm" {...gate("export")}>'),
     "a non-owner sees a disabled button that says why, not a refusal",
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
@@ -866,7 +892,9 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     removeEventListener: () => {},
   };
   globalThis.Icon = "Icon";
-  await import("../../../../apps/dashboard/src/legacy/components/record-row.jsx");
+  // The record kit's row, published as the app publishes it.
+  const { RecordRow, RecordSourceChip, RecordDispute, RecordChips, recRowPress } = kitPages;
+  Object.assign(globalThis.window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips, recRowPress });
   await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
   const Card = globalThis.window.WorkspaceData;
   assert.equal(typeof Card, "function", "published, or nothing below tests anything");
