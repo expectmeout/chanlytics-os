@@ -18,38 +18,31 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toTodayVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { readRaw } from "../_source.mjs";
 import { changesOf } from "../_live-feed.mjs";
+import { installLegacyReact, fresh, all, byTestId, textOf, press } from "../_legacy-react.mjs";
+
+// The queue and the hero are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn on the
+// stub React over the day the seam holds; a stand-in window gives them the frame's door, and a timer that never fires
+// (the rail's clock ticks once a second while a call is up).
+const went = [];
+installLegacyReact({
+  __DEMO_MODE: false,
+  __surfaceState: () => "live",
+  appNavigate: (to) => went.push(to),
+  canDo: () => true,
+  setInterval: () => 1,
+  clearInterval() {},
+});
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { todayOverride } = await import("../../../../apps/dashboard/src/surfaces/today/surface.ts");
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { wantsRefresh } = await import(
+const { wantsRefresh, DEFAULT_REFRESH_TABLES } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
 );
-
-test("Today draws the call in progress first, then the people who need you, the windows closing, and the calls worth an ear last", () => {
-  // The queue (dashboard-a-command.jsx) owns the order now; the hero keeps the narrative.
-  const queue = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-  const rail = queue.indexOf("<LiveRail nav={nav} />");
-  const rows = queue.indexOf("{drawn}");
-  assert.ok(rail > 0 && rail < rows, "REGRESSION: a customer on the line was invisible on Today");
-  assert.ok(
-    queue.includes('data-testid="brief-live-call"') && queue.includes("nav(`live/${c.callId}`)"),
-    "the call's own door, not Live's list",
-  );
-  const vm = readRaw("packages/contracts/src/today/today-queue.ts");
-  const esc = vm.indexOf("for (const r of escRecords) {");
-  const win = vm.indexOf("for (const c of closingConvs) {");
-  const ear = vm.indexOf("for (const r of callRows) {");
-  assert.ok(
-    esc > 0 && esc < win && win < ear && vm.includes("waitedMs: Number.NEGATIVE_INFINITY"),
-    "a voicemail is worth an ear, after the people waiting on you",
-  );
-  const brief = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(
-    !brief.includes('data-testid="brief-live-call"') && !brief.includes('data-testid="brief-call-row"'),
-    "the hero no longer repeats the queue",
-  );
-});
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const metrics = (over = {}) => ({
@@ -91,6 +84,103 @@ const metrics = (over = {}) => ({
   },
 });
 
+// A person waiting on a person (a handoff row of the queue), and a call on the line now (the Live surface's own row).
+const waiting = {
+  id: "cv-a",
+  state: "needs_human",
+  paused_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: null,
+  last_message_at: "2026-09-04T14:19:00Z",
+  contact: { id: "k-cv-a", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: "+13055550100" },
+  messages: [
+    {
+      id: "a1",
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "I'd rather talk to a person about a refund.",
+      media: null,
+      meta: null,
+      status: "received",
+      channel: "whatsapp",
+      created_at: "2026-09-04T14:19:00Z",
+    },
+  ],
+};
+const escalation = {
+  id: "e-a",
+  conversation_id: "cv-a",
+  reason: "human_token",
+  details: null,
+  state: "open",
+  created_at: "2026-09-04T14:20:00Z",
+};
+const onTheLine = () => ({
+  heartbeatMs: 60_000,
+  now: [
+    {
+      callId: "call_live1234",
+      who: "Daniela Ruiz",
+      whoShort: "Daniela",
+      startedAtMs: Date.now() - 90_000,
+      heartbeatAtMs: Date.now(),
+      transcript: [],
+    },
+  ],
+});
+const draw = (Comp) => {
+  fresh();
+  return globalThis.React.createElement(Comp, {});
+};
+
+test("Today draws the call in progress first, then the people who need you, the windows closing, and the calls worth an ear last", () => {
+  // The queue (surfaces/today/pages/queue.tsx) owns the order now; the hero keeps the narrative.
+  const vm = toTodayVM(metrics(), [waiting], [escalation], [], NOW);
+  assert.equal(vm.queue.rows.length, 1, "a person is waiting on a person");
+  setSurfaceValue("today", vm);
+  globalThis.__LIVE = onTheLine();
+  went.length = 0;
+  const queue = byTestId(draw(AgentCommand), "today-queue");
+  const drawn = all(
+    queue,
+    (n) => n.props?.["data-testid"] === "brief-live-call" || String(n.props?.["data-testid"]).startsWith("queue-"),
+  );
+  assert.ok(drawn.length > 1, "the call on the line and the person waiting are both drawn");
+  assert.equal(
+    drawn[0].props["data-testid"],
+    "brief-live-call",
+    "REGRESSION: a customer on the line was invisible on Today",
+  );
+  const door = all(drawn[0], (n) => n.type === "button" && textOf(n).includes("Open Live"))[0];
+  assert.ok(door, "the call has a door");
+  press(door);
+  assert.deepEqual(went, ["live/call_live1234"], "the call's own door, not Live's list");
+  const vmSrc = readRaw("packages/contracts/src/today/today-queue.ts");
+  const esc = vmSrc.indexOf("for (const r of escRecords) {");
+  const win = vmSrc.indexOf("for (const c of closingConvs) {");
+  const ear = vmSrc.indexOf("for (const r of callRows) {");
+  assert.ok(
+    esc > 0 && esc < win && win < ear && vmSrc.includes("waitedMs: Number.NEGATIVE_INFINITY"),
+    "a voicemail is worth an ear, after the people waiting on you",
+  );
+  // The hero, over the same day and the same call on the line, draws neither the call nor a row of one.
+  const hero = draw(HeroBrief);
+  assert.equal(
+    all(
+      hero,
+      (n) =>
+        ["brief-live-call", "brief-call-row"].includes(n.props?.["data-testid"]) ||
+        String(n.props?.["data-testid"]).startsWith("queue-"),
+    ).length,
+    0,
+    "the hero no longer repeats the queue",
+  );
+  delete globalThis.__LIVE;
+  setSurfaceValue("today", undefined);
+});
+
 test("an ongoing call is a live row the strip can draw", () => {
   const started = new Date(NOW.getTime() - 90_000).toISOString();
   const call = {
@@ -128,15 +218,11 @@ test("an ongoing call is a live row the strip can draw", () => {
 });
 
 test("Today repaints when a call starts or ends, not on every transcript turn", async () => {
-  const surface = readCode("apps/dashboard/src/legacy-bridge/surfaces/today.ts");
   // The searches ride along since a round that stops to ask is a lead_rounds UPDATE (spec G7); the calls rule is the same.
-  assert.ok(surface.includes('refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],'));
-  assert.ok(surface.includes('c.row.status !== "ongoing"'), "a turn keeps status ongoing; a start or an end does not");
-  // The rule itself, as the runner applies it.
-  const today = {
-    refreshOnTables: ["messages", "conversations", "escalations", "calls"],
-    refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
-  };
+  assert.deepEqual(todayOverride.refreshOnTables, [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"]);
+  // The rule itself, as the runner applies it: Today's own override (surfaces/today/surface.ts), run, not read. A turn
+  // keeps status ongoing; a start or an end does not.
+  const today = todayOverride;
   assert.equal(
     wantsRefresh(today, "calls", { table: "calls", event: "INSERT", row: { status: "ongoing" } }),
     true,

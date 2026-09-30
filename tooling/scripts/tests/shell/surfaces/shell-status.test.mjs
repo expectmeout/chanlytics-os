@@ -569,7 +569,6 @@ for (const name of [
   "CalendarPage",
   "BroadcastsPage",
   "SettingsPage",
-  "DashboardA",
 ])
   globalThis[name] = name;
 
@@ -1687,7 +1686,15 @@ test("Today waits for the card it draws above its queue, and once its own read i
   const redraw = () => {
     deep = false;
     frames.begin();
-    const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+    const tree = win.ChanlyticsApp({
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      routePage,
+      surfaceRoutes: SURFACE_ROUTES,
+    });
     deep = true;
     return tree;
   };
@@ -1695,11 +1702,11 @@ test("Today waits for the card it draws above its queue, and once its own read i
   win.__surfaceGate = (page, param, own) => !!own;
   try {
     const held = mount("#/today");
-    assert.ok(!find(held.tree, (n) => n.type === "DashboardA"), "the queue is not drawn under a card still on its way");
+    assert.ok(!find(held.tree, (n) => n.type === "RoutePage"), "the queue is not drawn under a card still on its way");
     assert.ok(due.has(3000), "and waits the registry's time, no longer");
     due.get(3000)();
     assert.ok(
-      find(redraw(), (n) => n.type === "DashboardA"),
+      find(redraw(), (n) => n.type === "RoutePage"),
       "past the wait, the page draws with what it has",
     );
 
@@ -1714,13 +1721,13 @@ test("Today waits for the card it draws above its queue, and once its own read i
     due.clear();
     mount("#/today");
     assert.ok(!due.has(3000), "REGRESSION: the wait ran from arriving, before Today's own surface was in");
-    assert.ok(!find(redraw(), (n) => n.type === "DashboardA"), "a page whose own surface is not in keeps reading");
+    assert.ok(!find(redraw(), (n) => n.type === "RoutePage"), "a page whose own surface is not in keeps reading");
     win.__surfaceGate = (page, param, own) => !!own;
     for (const fn of told) fn();
     assert.ok(due.has(3000), "armed as Today's own surface lands");
     due.get(3000)();
     assert.ok(
-      find(redraw(), (n) => n.type === "DashboardA"),
+      find(redraw(), (n) => n.type === "RoutePage"),
       "and past it, Today draws",
     );
   } finally {

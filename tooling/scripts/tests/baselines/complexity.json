@@ -204,11 +204,6 @@
     "branches": 25,
     "depth": 2
   },
-  "apps/dashboard/src/legacy/pages/attention-bits.jsx::AttnRow#1": {
-    "lines": 66,
-    "branches": 33,
-    "depth": 0
-  },
   "apps/dashboard/src/legacy/pages/billing-real.jsx::PaneBillingReal#1": {
     "lines": 186,
     "branches": 44,

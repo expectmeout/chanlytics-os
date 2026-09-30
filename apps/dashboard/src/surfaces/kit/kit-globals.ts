@@ -8,10 +8,12 @@
  * with the last page that reads a name. The app publishes it from seed-globals.ts, before any page loads; the standalone
  * mockup gets the same object from a bundle its server builds (tooling/scripts/serve-legacy.mjs, `data/kit-globals.js`).
  * The state pill, the confirm, the more menu, the policy chip and a thread's media (`StatePill`, `Confirm`, `MoreMenu`,
- * `PolicyChip`, `TlMedia`: data-bits.jsx's too) moved when the Inbox needed them in TSX, and are published the same way.
+ * `PolicyChip`, `TlMedia`: data-bits.jsx's too) moved when the Inbox needed them in TSX, and are published the same way, as
+ * is the attention row (`AttnRow`: Today's queue, People's strip, Setup and the platform pages draw it).
  *
  * Nothing here is behaviour: it is the kit's own components, and a page draws them exactly as it drew the old ones.
  */
+import { AttnRow } from "./attention/attn-row";
 import { SegmentBar } from "./charts/card";
 import { Confirm } from "./confirm/confirm";
 import { EmptyState, FailedRead } from "./empty/empty";
@@ -31,4 +33,5 @@ export const KIT_GLOBALS = {
   MoreMenu,
   PolicyChip,
   TlMedia,
+  AttnRow,
 };

@@ -173,3 +173,12 @@ export function openAutonomy(): void {
   const routes = shellObject<{ R?: { admin?: (pane: string) => string } }>("CHANLY")?.R;
   if (routes?.admin) navigate(routes.admin("autonomy"));
 }
+
+/**
+ * The frame's tip, which a control's mark shows on a press (`window.__tip.show`, as the attention row's "what else is
+ * known" mark does): read when it is asked, and nothing where the shell has no tip.
+ */
+export function showTip(target: Element | null): void {
+  const tip = shellObject<{ show?: (el: Element) => void }>("__tip");
+  if (tip && tip.show && target) tip.show(target);
+}

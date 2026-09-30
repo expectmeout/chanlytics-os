@@ -164,7 +164,7 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
-  // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
+  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
   today: [
     "setup",

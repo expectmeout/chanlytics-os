@@ -123,6 +123,12 @@ function AddressFollower(): null {
   return null;
 }
 
+/** The route whose page the layout's children are: the workspace's own address, which names none, is Today's. */
+const pageRouteOf = (pathname: string): string => {
+  const route = routeOfPath(pathname);
+  return route === "" ? "today" : (route ?? "");
+};
+
 /**
  * The frame, drawn once: the layout's children change with every route, and the frame does not draw again for a
  * route it follows itself. `page` is the children while the address is a route with a page of its own, and nothing
@@ -198,7 +204,7 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
         </Suspense>
       )}
       {!home && <AddressFollower />}
-      <Frame page={!home && routeHasPage(routeOfPath(pathname) ?? "") ? children : null} />
+      <Frame page={!home && routeHasPage(pageRouteOf(pathname)) ? children : null} />
     </>
   );
 }

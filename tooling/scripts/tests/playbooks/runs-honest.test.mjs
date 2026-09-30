@@ -332,6 +332,8 @@ globalThis.React = {
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
+  // A store outside React, read as it stands (this stub draws when a test asks): all Today's rows ask of it.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
     const k = frames.key();
@@ -376,11 +378,10 @@ Object.assign(globalThis.window, {
   __DEMO_MODE: false,
 });
 await import("../../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-run.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/broadcasts.jsx");
@@ -722,10 +723,10 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
   });
   const done = dto({ id: "b-done", name: "Save our number · 2026-09-15", state: "sent", started_at: iso(0) });
   globalThis.window.__BROADCASTS = { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) };
-  globalThis.window.TODAY_DATA = toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z"));
+  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   try {
     fresh();
-    const queue = globalThis.window.AgentCommand();
+    const queue = AgentCommand();
     const run = byTestId(queue, "brief-run-row");
     const who = buttonsSaying(run, "See who's on it")[0];
     assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
@@ -741,11 +742,11 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     );
     fresh();
     // What ran today is a line of the day's card, under the work (TodayCard); it was a beat of the hero above it.
-    const recap = globalThis.window.TodayCard();
+    const recap = TodayCard();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {
-    delete globalThis.window.TODAY_DATA;
+    setSurfaceValue("today", undefined);
   }
 });
 

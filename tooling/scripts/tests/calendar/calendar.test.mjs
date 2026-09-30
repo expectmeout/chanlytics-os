@@ -406,7 +406,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     ["settings", "today", "calendar", "setup"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup",
   );
-  const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   assert.ok(
     dayModule.includes('data-testid="today-day"') &&
       dayModule.includes('if (C.vm.feed.state !== "ok") return stepsOnly;') &&

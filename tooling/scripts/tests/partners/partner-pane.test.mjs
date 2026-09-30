@@ -31,7 +31,6 @@ const ROW = {
 };
 
 installPartner(globalThis.window);
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
 /** The workspaces read, answered by the test. */
 let workspacesSay = { ok: true, vm: { rows: [], summary: "No workspace has you as its partner yet." } };
 const opened = [];

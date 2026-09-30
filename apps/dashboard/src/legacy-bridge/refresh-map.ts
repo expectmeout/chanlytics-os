@@ -27,7 +27,7 @@ import { peopleOverride } from "./surfaces/people";
 import { playbooksOverride } from "./surfaces/playbooks";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { settingsOverride } from "./surfaces/settings";
-import { todayOverride } from "./surfaces/today";
+import { todayOverride } from "@/surfaces/today/surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "./billing";
 import { partnerOverride } from "./partner";

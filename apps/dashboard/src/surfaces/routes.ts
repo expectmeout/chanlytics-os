@@ -12,6 +12,19 @@ import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/rout
 /** A crumb: its words alone, or its words and the route pressing it goes to. */
 type Crumb = string | { label: string; to: string };
 
+/**
+ * The top bar's one act, drawn by the frame (app-routes.jsx drawRoute) from what the surface says: the Ask door, which only a
+ * demo session offers (Ask opens there over seeded pages; a real workspace has nothing to ask), composing from `prompt` where
+ * the surface gives one. `glyph` is an icon of the kit; `primary` is the filled button.
+ */
+interface SurfaceAct {
+  label: string;
+  glyph: string;
+  primary?: boolean;
+  ask?: boolean;
+  prompt?: string;
+}
+
 /** How the frame wraps a route's page: the row's `activeNav`, `crumbs` and `pane`, each fixed or asked of the address's param. */
 interface SurfaceRoute {
   activeNav: string | ((param: string | null) => string);
@@ -21,11 +34,19 @@ interface SurfaceRoute {
   params?: boolean;
   /** What the frame keys the view's mount by, for a page that follows its address (the row's `mount`). */
   mount?: string;
+  /** The top bar's act, where the surface has one. */
+  act?: SurfaceAct;
 }
 
 /** Every route with a page of its own, by the route's word (the path after the workspace's slug). */
 export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   reports: { activeNav: "reports", crumbs: ["Reports"], pane: true },
+  today: {
+    activeNav: "home",
+    crumbs: ["Today"],
+    pane: false,
+    act: { label: "New task", glyph: "plus", primary: true, ask: true, prompt: "New task: " },
+  },
   inbox: { activeNav: "inbox", crumbs: inboxCrumbs, pane: true, params: true, mount: "inbox" },
   conversations: {
     activeNav: conversationsNav,

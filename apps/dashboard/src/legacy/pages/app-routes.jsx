@@ -1,4 +1,4 @@
-/* global React, Icon, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
+/* global React, Icon, ClientsA, ClientProfile, SettingsPage, CalendarPage, LiveMonitorPage, OutboundPage, MessagesPage, BroadcastsPage */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -413,19 +413,6 @@ const drawSoon = ({ param, navigate }) => ({
   content: <ComingSoon surface={param} onNavigate={navigate} />,
 });
 
-const drawToday = ({ openAsk }) => ({
-  activeNav: "home",
-  crumbs: ["Today"],
-  // "New task" opens the Ask overlay, which is a no-op outside a demo: a
-  // primary button that did nothing sat in the real chrome. Demo only.
-  primaryAction: window.__DEMO_MODE ? (
-    <button className="btn btn-primary btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "New task: " })}>
-      <Icon name="plus" size={12} /> New task
-    </button>
-  ) : null,
-  content: <DashboardA onAsk={openAsk} />,
-});
-
 /** No row took the address: not found, under the Today item. */
 const drawNotFound = ({ page, navigate }) => ({
   activeNav: "home",
@@ -490,8 +477,17 @@ const SHELL_ROUTES = [
   { page: "store", draw: drawStore },
   { page: "soon", when: (param, r) => !!param && r.soonState === "unknown", draw: drawSoonUnknown },
   { page: "soon", when: (param) => !!param, draw: drawSoon },
-  { page: "today", draw: drawToday },
 ];
+
+// The top bar's act a moved surface names (src/surfaces/routes.ts SurfaceAct): the Ask door, which only a demo session offers ("New
+// task" opens the Ask overlay, which is a no-op outside a demo: a primary button that did nothing sat in the real chrome),
+// composing from the words the surface gives.
+const surfaceAct = (act) =>
+  window.__DEMO_MODE && act.ask ? (
+    <button className={`btn ${act.primary ? "btn-primary " : ""}btn-sm`} onClick={() => window.askAbout({ mode: "compose", prompt: act.prompt })}>
+      <Icon name={act.glyph} size={12} />{" " + act.label}
+    </button>
+  ) : null;
 
 /**
  * What an address draws: the first row that takes it, else not found, then the honesty gate. `r` is the route as the
@@ -508,7 +504,9 @@ const drawRoute = (r) => {
   const at = r.surfaceRoutes ? r.surfaceRoutes[r.page] : null;
   const surface = !row && at && (!r.param || at.params) ? at : null;
   const asked = (v) => (typeof v === "function" ? v(r.param || null) : v);
-  const answer = surface ? { ...surface, activeNav: asked(surface.activeNav), crumbs: asked(surface.crumbs), content: r.routePage } : row ? row.draw(r) : drawNotFound(r);
+  const answer = surface
+    ? { ...surface, activeNav: asked(surface.activeNav), crumbs: asked(surface.crumbs), primaryAction: surface.act ? surfaceAct(surface.act) : null, content: r.routePage }
+    : row ? row.draw(r) : drawNotFound(r);
   const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (surface && surface.mount) || r.routeKey };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };

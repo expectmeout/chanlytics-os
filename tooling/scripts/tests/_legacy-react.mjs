@@ -18,7 +18,7 @@
  * stub the legacy pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
  *
  * The kit's components the shell's pages still draw by name (EmptyState, FailedRead, SegmentBar, StatePill, Confirm,
- * MoreMenu, PolicyChip, TlMedia: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals) are the kit's
+ * MoreMenu, PolicyChip, TlMedia, AttnRow: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals) are the kit's
  * own here too. `Icon` stays the host element every test reads by its name and its props: a page's icon is a leaf here,
  * as it was, and the kit's own components draw the real one.
  *
@@ -47,6 +47,7 @@ export const kitPages = {
   MoreMenu: KIT_GLOBALS.MoreMenu,
   PolicyChip: KIT_GLOBALS.PolicyChip,
   TlMedia: KIT_GLOBALS.TlMedia,
+  AttnRow: KIT_GLOBALS.AttnRow,
 };
 
 const HOOKS = [

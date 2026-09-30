@@ -432,7 +432,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
-  const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
   assert.ok(
     queue.includes('testid="brief-run-soon"') && queue.includes("Date.parse(r.scheduled_for) > Date.now()"),
     "a run under the veto window is on Today's queue with a Stop",

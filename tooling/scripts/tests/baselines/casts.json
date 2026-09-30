@@ -160,9 +160,6 @@
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/surfaces/today.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/templates.ts": {
     "unknownAs": 2
   },

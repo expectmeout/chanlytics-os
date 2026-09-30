@@ -393,7 +393,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     "through the edge, production only",
   );
   // The check is run: core-campaigns.test.mjs.
-  const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
   assert.ok(
     queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'),
     "Today's queue shows a run that waits, from the surface it already has",
@@ -549,7 +549,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     sug.some((x) => x.kind === "act" && x.q === "Start a win-back playbook for the quiet clients"),
     "an Act suggestion on People",
   );
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
   assert.ok(
     brief.includes('data-testid="brief-run-done"') && brief.includes('{r.playbook_id ? "ran" : "went out"}'),
     "Today says what went out today",

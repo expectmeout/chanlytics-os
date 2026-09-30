@@ -154,6 +154,7 @@ if (typeof window !== "undefined") {
     MoreMenu: KIT_GLOBALS.MoreMenu,
     PolicyChip: KIT_GLOBALS.PolicyChip,
     TlMedia: KIT_GLOBALS.TlMedia,
+    AttnRow: KIT_GLOBALS.AttnRow,
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
     INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,

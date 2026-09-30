@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -66,6 +66,8 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: this test draws once
@@ -95,6 +97,7 @@ await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx")
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 Object.assign(globalThis.window, kitPages);
+kitHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
   globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
@@ -310,9 +313,11 @@ test("problems found before saving: nothing is sent, each box says what it needs
 
 /* ------------------------- Today: a refusal wears its tone ------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's queue is TSX (decision 0015): it draws the kit's AttnRow, reads the day over the seam, and asks its verbs of the
+// wire (surfaces/inbox/verbs.ts over window.fetch), which this test answers.
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const NOW = new Date("2026-09-06T14:00:00Z");
 const metrics = (oldest) => ({
@@ -384,17 +389,29 @@ const conversation = (id, name) => ({
 
 test("REGRESSION (A13): a refused snooze or approve on Today toasts in the danger tone, saying what did not happen -- they wore the green check", async () => {
   const flashes = [];
-  const rows = [];
+  const wire = [];
   Object.assign(globalThis.window, {
     usePPToast: () => [null, (p) => flashes.push(p)],
-    AttnRow: (p) => {
-      rows.push(p);
-      return null;
+    // The zone a snooze is made in (its "until" is ten tomorrow where the business is).
+    __WORKSPACES: [
+      { id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
+    ],
+    __ACTIVE_WORKSPACE: "t1",
+    // The server refuses every change: the client names the refusal, as it does in the browser.
+    fetch: async (url, init = {}) => {
+      wire.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: {
+            code: "rate_limited",
+            message: "Too many conversation changes in a short time — try again in 20 seconds.",
+            details: { retry_after_s: 20 },
+          },
+        }),
+        { status: 429, headers: { "content-type": "application/json" } },
+      );
     },
-    __inboxVerb: async () =>
-      refused("Too many conversation changes in a short time — try again in 20 seconds.", "rate_limited", 429, {
-        retry_after_s: 20,
-      }),
     __BROADCASTS: {
       rows: [
         {
@@ -414,28 +431,37 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
       cancel: async () => refused("That run has already sent."),
     },
   });
-  globalThis.window.TODAY_DATA = toTodayVM(
-    metrics("2026-09-06T12:00:00Z"),
-    [conversation("cv1", "Zoe Martin")],
-    [
-      {
-        id: "e1",
-        reason: "human_token",
-        details: null,
-        state: "open",
-        created_at: "2026-09-06T12:00:00Z",
-        conversation_id: "cv1",
-      },
-    ],
-    [],
-    NOW,
+  setSurfaceValue(
+    "today",
+    toTodayVM(
+      metrics("2026-09-06T12:00:00Z"),
+      [conversation("cv1", "Zoe Martin")],
+      [
+        {
+          id: "e1",
+          reason: "human_token",
+          details: null,
+          state: "open",
+          created_at: "2026-09-06T12:00:00Z",
+          conversation_id: "cv1",
+        },
+      ],
+      [],
+      NOW,
+    ),
   );
   cells = [];
   frames.begin();
-  globalThis.window.AgentCommand();
+  const tree = AgentCommand();
+  // The rows the queue drew, as the props it handed the kit's row.
+  const rows = [];
+  walk(tree, (n) => {
+    if (n.type === AttnRow) rows.push(n.props);
+  });
   const handoff = rows.find((p) => p.also && p.also.testid === "queue-snooze");
   assert.ok(handoff, "a handoff row offers Snooze");
   await handoff.also.onClick();
+  assert.deepEqual(wire, ["POST /api/v1/conversations/cv1/snooze"], "the ask went to the server, for this thread");
   assert.equal(flashes.at(-1).tone, "danger", "REGRESSION: the refusal wore the green check");
   assert.equal(
     say(flashes.at(-1).msg),

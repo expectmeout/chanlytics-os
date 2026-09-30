@@ -377,7 +377,7 @@ test("once the boot is in, the runner joins the live feed the page handed it -- 
     [
       surface("inbox", { refreshOnMessageInserts: true }),
       surface("live", { refreshOnTables: ["calls"] }),
-      // Today's rule (surfaces/today.ts): a call starting or ending, never a transcript turn.
+      // Today's rule (surfaces/today/surface.ts): a call starting or ending, never a transcript turn.
       surface("today", {
         refreshOnTables: ["calls"],
         refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
@@ -486,7 +486,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
       [
         "surface-data",
         "../surfaces/inbox/surface",
-        "surfaces/today",
+        "../surfaces/today/surface",
         "../surfaces/inbox/conversations-surface",
         "surfaces/settings",
         "surfaces/people",

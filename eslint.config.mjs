@@ -282,7 +282,11 @@ export const BASE_UI_INDEX = {
  * takes it out. Only the rule on raw elements passes over a listed surface: the layers and the function limits hold it
  * as they hold the rest of src/surfaces. repo/lint-boundaries.test.mjs fails an entry that names no surface's folder.
  */
-export const KIT_PENDING = ["apps/dashboard/src/surfaces/reports", "apps/dashboard/src/surfaces/inbox"];
+export const KIT_PENDING = [
+  "apps/dashboard/src/surfaces/reports",
+  "apps/dashboard/src/surfaces/inbox",
+  "apps/dashboard/src/surfaces/today",
+];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */
 export const rawElementsRule = (pending) => ({
@@ -329,7 +333,6 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/mascot",
   "apps/dashboard/src/legacy-bridge/reach-out",
-  "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/connections",
   "apps/dashboard/src/server/conversations",
@@ -364,7 +367,6 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/playbooks",
   "packages/contracts/src/reach-out",
   "apps/dashboard/src/legacy-bridge/mascot",
-  "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",

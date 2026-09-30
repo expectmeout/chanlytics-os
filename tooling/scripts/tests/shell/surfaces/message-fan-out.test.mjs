@@ -59,7 +59,7 @@ const REAL = [
   workspaceOverride,
   (await importSrc("apps/dashboard/src/surfaces/inbox/conversations-surface.ts")).conversationsOverride,
   (await importSrc("apps/dashboard/src/surfaces/inbox/surface.ts")).inboxOverride,
-  (await importSrc(`${S}/today.ts`)).todayOverride,
+  (await importSrc("apps/dashboard/src/surfaces/today/surface.ts")).todayOverride,
   (await importSrc(`${S}/settings.ts`)).settingsOverride,
   (await importSrc(`${S}/people.ts`)).peopleOverride,
   (await importSrc("apps/dashboard/src/legacy-bridge/leads.ts")).leadsOverride,
@@ -446,7 +446,9 @@ test("every surface a page names to useSurface is a real one: a key that is no o
     };
     visit(sf);
   }
-  assert.ok(named.length >= 12, `the scan found ${named.length} names; it has stopped seeing the pages`);
+  // Twelve pages of the shell named a surface until Reports, the Inbox and Today left it: a TSX surface names its key through
+  // the typed useSurface, which the compiler holds to a real key; what the shell still draws is what this reads.
+  assert.ok(named.length >= 2, `the scan found ${named.length} names; it has stopped seeing the pages`);
   assert.deepEqual(
     named.filter(([, key]) => !real.has(key)),
     [],

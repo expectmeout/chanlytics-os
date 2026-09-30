@@ -716,9 +716,10 @@ test("the email row's form: offered from the business's name, judged under its o
 /* ------------------------------ the attention row ------------------------------ */
 
 test("REGRESSION (S23): the attention row's buttons say they are busy and take no second press while their verb is on its way", async () => {
-  await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+  // The kit's row (surfaces/kit/attention/attn-row.tsx), the one every page draws.
+  const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
   const row = (cta, also) =>
-    render(globalThis.window.AttnRow, {
+    render(AttnRow, {
       name: "Your line",
       sentence: "",
       cta,

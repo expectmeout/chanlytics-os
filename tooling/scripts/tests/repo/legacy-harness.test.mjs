@@ -7,7 +7,7 @@
  * added to the manifest — each with its own assertion in its own test file —
  * and never to the harness, and the harness rotted where nobody was looking:
  * `app-shell.jsx` names `MessagesPage` with no `window.` guard, `AttnRow` is
- * rendered as `<window.AttnRow>` on Today and on People, and Settings · Setup
+ * rendered as `<window.AttnRow>` on People and Setup (the kit's), and Settings · Setup
  * is a pane that renders nothing. A blank page for the one person who opens
  * this file, which is the only reason it exists.
  *
@@ -440,7 +440,7 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
   assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
 });
 
-test("the mockup takes the kit's components and Today's sample from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
+test("the mockup takes the kit's components and the Inbox's names from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
   // Plain scripts, outside the .jsx lists above: the bridge never loads them (the app publishes the kit's components from
   // seed-globals, and a workspace draws its own numbers).
   const tags = [...html.matchAll(/<script[^>]*\bsrc="([^"?]+)[^"]*"/g)].map((m) => m[1]);
@@ -451,11 +451,6 @@ test("the mockup takes the kit's components and Today's sample from bundles, loa
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 2],
-    "data/today-sample.js",
-    "the demo's Today reads what installTodaySample published",
-  );
-  assert.equal(
-    tags[tags.indexOf(STUBS) + 3],
     "data/inbox-globals.js",
     "the sidebar, the bell, Ask and Today read the Inbox's and Conversations' names, which surfaces/inbox/legacy-globals.ts says",
   );

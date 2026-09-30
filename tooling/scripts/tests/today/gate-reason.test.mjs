@@ -17,8 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { hookFrames } from "../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId } from "../_legacy-react.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -61,70 +60,12 @@ test("the gate names who may, and what this control does, in the words the serve
 
 /* ------------------------------ the page's gate ------------------------------ */
 
-let cells = [];
-// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
-const frames = hookFrames();
-globalThis.Icon = "Icon";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") node.rendered = frames.render(type, props);
-    return node;
-  },
-  useState: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-    return [
-      cells[k],
-      (v) => {
-        cells[k] = typeof v === "function" ? v(cells[k]) : v;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = init;
-    return [
-      cells[k],
-      (a) => {
-        cells[k] = red(cells[k], a);
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = { current: init };
-    return cells[k];
-  },
-  useMemo: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) cells[k] = fn();
-    return cells[k];
-  },
-  useEffect: (fn) => {
-    const k = frames.key();
-    if (!(k in cells)) {
-      cells[k] = true;
-      fn();
-    }
-  },
-  useCallback: (fn) => fn,
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-globalThis.document = {
-  body: { appendChild() {} },
-  addEventListener() {},
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
-};
 /** Who is looking: the role store answers from the contracts' own table, the way the bridge publishes it. */
 const role = { now: "owner" };
 const asRole = (r) => {
   role.now = r;
 };
-globalThis.window = {
+installLegacyReact({
   __roleGate: roleGate,
   ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now, get: (k, fallback) => fallback },
   __chrome: { state: stateOf },
@@ -132,23 +73,16 @@ globalThis.window = {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
   appNavigate() {},
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent() {},
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-};
+});
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
-Object.assign(globalThis.window, kitPages);
-kitHooks();
-for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip", "MoreMenu"])
-  globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
@@ -156,24 +90,6 @@ globalThis.useHotkey = () => {};
 const shown = [];
 globalThis.window.__tip = { show: (el) => shown.push(el) };
 
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  for (const k of n.props?.children ?? []) walk(k, fn);
-  if (n.rendered !== undefined) walk(n.rendered, fn);
-};
-const find = (tree, pred) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && pred(n)) hit = n;
-  });
-  return hit;
-};
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 /** A press, with what a handler did to it. */
 const press = (over = {}) => ({
   prevented: false,
@@ -259,9 +175,10 @@ test("presence and a busy menu refuse the same way: the reason reachable, the pr
   } finally {
     globalThis.window.PR_STORE.away = false;
   }
-  cells = [];
-  frames.begin();
-  const busy = globalThis.window.MoreMenu({ items: [], gated: "One moment — the last change is still saving" });
+  fresh();
+  const busy = again(() =>
+    globalThis.window.MoreMenu({ items: [], gated: "One moment — the last change is still saving" }),
+  );
   const trigger = find(busy, (n) => n.type === "button");
   assert.equal(
     trigger.props["data-tip"],
@@ -275,23 +192,23 @@ test("presence and a busy menu refuse the same way: the reason reachable, the pr
 test("REGRESSION (A12): a menu item takes a gate -- the Inbox menu's Snooze did nothing for a viewer, silently", () => {
   asRole("viewer");
   let snoozed = 0;
-  cells = [];
-  const draw = () => {
-    frames.begin();
-    return globalThis.window.MoreMenu({
-      items: [
-        { header: "Conversation" },
-        {
-          label: "Snooze",
-          icon: "clock",
-          onClick: () => {
-            snoozed += 1;
+  fresh();
+  const draw = () =>
+    again(() =>
+      globalThis.window.MoreMenu({
+        items: [
+          { header: "Conversation" },
+          {
+            label: "Snooze",
+            icon: "clock",
+            onClick: () => {
+              snoozed += 1;
+            },
+            gate: globalThis.window.gate("approve", "snooze a conversation"),
           },
-          gate: globalThis.window.gate("approve", "snooze a conversation"),
-        },
-      ],
-    });
-  };
+        ],
+      }),
+    );
   find(draw(), (n) => n.type === "button").props.onClick({ stopPropagation() {} });
   const item = find(draw(), (n) => n.type === "button" && n.props.role === "menuitem");
   assert.ok(item, "the menu opened");
@@ -302,27 +219,29 @@ test("REGRESSION (A12): a menu item takes a gate -- the Inbox menu's Snooze did 
 
 /* ------------------------------- a row's button ------------------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+// The attention row is the kit's now (surfaces/kit/attention/attn-row.tsx): drawn by import, not off the window.
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 
 test("a row's main button takes a gate, and Enter on a button inside a row does not also open the row", () => {
   asRole("viewer");
   let approved = 0;
   let opened = 0;
-  cells = [];
-  frames.begin();
-  const row = globalThis.window.AttnRow({
-    name: "Win-back",
-    cta: {
-      label: "Approve",
-      onClick: () => {
-        approved += 1;
+  fresh();
+  const row = again(() =>
+    AttnRow({
+      name: "Win-back",
+      cta: {
+        label: "Approve",
+        onClick: () => {
+          approved += 1;
+        },
+        gate: globalThis.window.gate("approve", "approve a run"),
       },
-      gate: globalThis.window.gate("approve", "approve a run"),
-    },
-    onOpen: () => {
-      opened += 1;
-    },
-  });
+      onOpen: () => {
+        opened += 1;
+      },
+    }),
+  );
   const cta = byTestId(row, "attention-cta");
   assert.equal(cta.props["data-tip"], "Only an owner or operator can approve a run.");
   cta.props.onClick(press());
@@ -344,9 +263,9 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
 
 /* ------------------------------------ Today ------------------------------------ */
 
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's queue is TSX (surfaces/today/pages/queue.tsx): drawn by import, over the day the seam holds.
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const metrics = {
   workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
@@ -388,13 +307,7 @@ const metrics = {
 
 test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, with the reason -- it was offered and did nothing", () => {
   asRole("viewer");
-  const rows = [];
-  const AttnRow = globalThis.window.AttnRow;
   Object.assign(globalThis.window, {
-    AttnRow: (p) => {
-      rows.push(p);
-      return null;
-    },
     usePPToast: () => [null, () => {}],
     __BROADCASTS: {
       rows: [
@@ -411,18 +324,18 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
       ],
     },
     __broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
-    TODAY_DATA: toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")),
   });
+  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   try {
-    cells = [];
-    frames.begin();
-    globalThis.window.AgentCommand();
-    const run = rows.find((p) => p.testid === "brief-run-row");
+    fresh();
+    const tree = again(() => AgentCommand());
+    // The row's own props, as the page handed them to the kit's AttnRow (the element, not the div it draws).
+    const run = find(tree, (n) => n.type === AttnRow && n.props.testid === "brief-run-row")?.props;
     assert.ok(run, "the run waiting for approval");
     assert.ok(run.cta.gate, "REGRESSION: the run's Approve carried no gate while its Stop did");
     assert.equal(run.cta.gate["data-tip"], "Only an owner or operator can approve a run.");
   } finally {
-    globalThis.window.AttnRow = AttnRow;
+    setSurfaceValue("today", undefined);
   }
 });
 
@@ -434,6 +347,7 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
   asRole("viewer");
   const listening = [];
   const add = globalThis.window.addEventListener;
+  fresh();
   Object.assign(globalThis.window, {
     __ME: { role: "viewer" },
     __TEMPLATES_ALL: [],
@@ -443,9 +357,7 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
     addEventListener: (name) => listening.push(name),
   });
   try {
-    cells = [];
-    frames.begin();
-    const tree = globalThis.window.MessagesPage();
+    const tree = again(() => globalThis.window.MessagesPage());
     const write = byTestId(tree, "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");
     assert.equal(write.props["data-tip"], "Only an owner or operator can write a template.");

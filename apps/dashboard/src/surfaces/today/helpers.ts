@@ -38,7 +38,7 @@ export const TODAY_HELPERS = {
   // What Settings › Notifications says the workspace is told (contracts notification-kinds.ts).
   notificationKinds: NOTIFICATION_KIND_GROUPS,
 };
-export type TodayHelpers = typeof TODAY_HELPERS;
+type TodayHelpers = typeof TODAY_HELPERS;
 
 declare global {
   interface Window {

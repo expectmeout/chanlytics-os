@@ -9,37 +9,14 @@
  *
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
  */
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes } from "react";
 import { canDo, navigate } from "../legacy-verbs";
-import { useLegacyToast } from "../legacy-verbs";
-import { fn, object, windowValue } from "../shell-doors";
+import { fn, windowValue, object, type Flash } from "../shell-doors";
 
-/* --------------------------------- roles --------------------------------- */
-
-/** A role gate's props, spread after a control's handlers: `{}` where the role may act (data-bits `gate`). */
-export function gate(perm: string, doing?: string): Record<string, unknown> {
-  const g = fn<[string, string | undefined], Record<string, unknown>>("gate");
-  return g ? g(perm, doing) : {};
-}
-
+/* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
 export { canDo, navigate };
-
-/* -------------------------------- the toast -------------------------------- */
-
-/** What the shell's one toast takes (data-bits `usePPToast`): a message, its tone, and what pressing does. */
-export interface Flash {
-  tone?: string;
-  msg: ReactNode;
-  undo?: (() => unknown) | null;
-  ms?: number;
-  links?: Array<{ label: string; to: string }>;
-  action?: { label: string; onClick: () => void };
-}
-
-/** The toast's node, to be drawn by the page, and the flash that raises one. */
-export function useToast(): [ReactNode, (flash: Flash) => void] {
-  return useLegacyToast();
-}
+export { gate, useToast } from "../shell-doors";
+export type { Flash } from "../shell-doors";
 
 /* ------------------------------- the address ------------------------------- */
 

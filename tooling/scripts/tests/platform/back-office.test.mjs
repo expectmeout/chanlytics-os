@@ -1073,6 +1073,8 @@ await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Confirm = kitPages.Confirm;
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
+// the kit's attention row is in kitPages now: this harness reads the props each row was handed, from its stub
+globalThis.window.AttnRow = ATTN;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, () => {}];
 await import("../../../../apps/dashboard/src/legacy/pages/platform.jsx");

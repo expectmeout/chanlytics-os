@@ -5,7 +5,7 @@
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  * Order matters: data/ seeds globals pages/ read at module scope
- * (dashboard-a-brief.jsx reads CHANLY; people-data mutates CLIENT_SEGMENTS from clients-data).
+ * (people-data mutates CLIENT_SEGMENTS from clients-data).
  *
  * The mockup's own files (legacy/demo/) are not here: a real workspace never
  * draws them, so it never downloads them. A session that declared itself a demo
@@ -39,18 +39,12 @@ import "@/legacy/components/campaign-bits.jsx";
 import "@/legacy/data/constants.jsx";
 import "@/legacy/data/clients-data.jsx";
 import "@/legacy/data/people-data.jsx";
-import "@/legacy/pages/attention-bits.jsx";
-import "@/legacy/pages/dashboard-a-brief.jsx";
-import "@/legacy/pages/dashboard-a-command.jsx";
-import "@/legacy/pages/dashboard-a-day.jsx";
-import "@/legacy/pages/dashboard-a-week.jsx";
 import "@/legacy/pages/dashboard-a-ask.jsx";
 import "@/legacy/pages/ask-text.jsx";
 import "@/legacy/pages/ask-hooks.jsx";
 import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
-import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 // People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the

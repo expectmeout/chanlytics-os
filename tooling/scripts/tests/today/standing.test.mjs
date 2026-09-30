@@ -142,12 +142,12 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     !today.includes("live.escalations_open"),
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",
   );
-  const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+  const page = readCode("apps/dashboard/src/surfaces/today/pages/queue.tsx");
   assert.ok(
     page.includes('<span className="tq-title">Your queue</span>') && page.includes("vm.queue.parts"),
     "the queue says what it holds",
   );
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  const brief = readCode("apps/dashboard/src/surfaces/today/pages/brief.tsx");
   assert.ok(
     !brief.includes('"Queue clear — nothing needs you"'),
     "the queue says it once: the line above the work said it too, over the queue that means it",

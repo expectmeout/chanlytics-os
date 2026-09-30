@@ -133,16 +133,16 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            159   of which over 200 lines: 39
+functions over the limit            158   of which over 200 lines: 39
 files over 800 lines                 11
 directories over 20 modules           4
-window globals                      189   names
-window publishers                   380   sites in 140 files
+window globals                      188   names
+window publishers                   373   sites in 133 files
 copies                               52   of 14 names
-as unknown as                       177
+as unknown as                       176
 as never                             13
 non-null assertions, x!             128
-index reads the compiler lets pass  465   in 120 files
+index reads the compiler lets pass  453   in 118 files
 table names outside packages/db     503
 SQL functions outside packages/db   137   called by .rpc
 edge statements naming no workspace   28   in 16 files
@@ -153,11 +153,11 @@ primitives outside the kit         2177   selectors naming 864 classes
 inline style props                  274   in 52 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     300
-source-text reads in tests          835
+source-text reads in tests          827
 lint warnings                       467   in 169 files, 114 of them exhaustive-deps
 workspace route JS, KB gzipped      963   the shell included
 workspace route CSS, KB gzipped     130
-trees the lint's limits hold         40   16 of them with max-params waiting
+trees the lint's limits hold         39   15 of them with max-params waiting
 ```
 
 <!-- measured:end -->

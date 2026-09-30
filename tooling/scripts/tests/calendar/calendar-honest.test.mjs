@@ -40,7 +40,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { keysDrawn } from "../_keys.mjs";
-import { kitPages } from "../_legacy-react.mjs";
+import { kitHooks, kitPages } from "../_legacy-react.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -172,6 +172,8 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React, read as it stands (this stub draws when a test asks): all Today's day asks of it.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {
@@ -230,8 +232,10 @@ globalThis.window.__chrome = { state: stateOf };
 // The bridge's own object, with its reads answered here.
 const { calendar } = await import("../../../../apps/dashboard/src/legacy-bridge/calendar.ts");
 await import("../../../../apps/dashboard/src/legacy/pages/calendar.jsx");
-// Today's day, which names the next open time the way the Calendar does.
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
+// Today's day (TSX since decision 0015), which names the next open time the way the Calendar does: the hooks it
+// imports are the stub's, set on the module it imports them from.
+kitHooks();
+const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -1423,19 +1427,19 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   );
   const vm = toCalendarVM(withNext(), NOW);
   assert.equal(todayDay(vm, null).nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
-  const was = { cal: globalThis.window.__CALENDAR, today: globalThis.window.__today };
-  Object.assign(globalThis.window, { __CALENDAR: { vm }, __today: { day: todayDay } });
+  const was = { cal: globalThis.window.__CALENDAR };
+  Object.assign(globalThis.window, { __CALENDAR: { vm } });
   try {
     cells = [];
     frames.begin();
-    const day = globalThis.window.TodayDay({});
+    const day = TodayDay();
     assert.equal(
       textOf(find(day, (n) => n.props?.className === "td-day-sub")),
       "next open time today 3:30 PM",
       "REGRESSION: Today's day said 'next opening'",
     );
   } finally {
-    Object.assign(globalThis.window, { __CALENDAR: was.cal, __today: was.today });
+    Object.assign(globalThis.window, { __CALENDAR: was.cal });
   }
 });
 

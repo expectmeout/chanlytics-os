@@ -345,11 +345,11 @@ Object.assign(globalThis.window, {
   clearInterval() {},
   dispatchEvent() {},
 });
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-await import("../../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
-const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/legacy-bridge/today.ts");
-globalThis.window.__today = TODAY_HELPERS;
+// Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
+const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
+const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
+const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
+const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const todayWith = (channels) =>
   toTodayVM(
@@ -372,17 +372,17 @@ const todayWith = (channels) =>
     NOW,
   );
 const mountToday = (vm) => {
-  globalThis.window.TODAY_DATA = vm;
+  setSurfaceValue("today", vm);
   cells = [];
   frames.begin();
-  const hero = textOf(globalThis.window.HeroBrief());
+  const hero = textOf(HeroBrief());
   cells = [];
   frames.begin();
   // The day's card sits under the work; the hero is the line above it, drawn only while a line is down.
-  const recap = textOf(globalThis.window.TodayCard());
+  const recap = textOf(TodayCard());
   cells = [];
   frames.begin();
-  const queue = textOf(globalThis.window.AgentCommand());
+  const queue = textOf(AgentCommand());
   return { hero, recap, queue };
 };
 
@@ -413,7 +413,6 @@ const { Inbox } = await import(`${SRC}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxThread } = await import(`${SRC}/surfaces/inbox/thread/thread.tsx`);
 const { ixHoldAll } = await import(`${SRC}/surfaces/inbox/pages/hold-all.ts`);
 const { ixRouteThread } = await import(`${SRC}/surfaces/inbox/rules.ts`);
-const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const inboxValue = () => surfaceValue("inbox");
 /** The threads a draw of the Inbox handed the one thread's pane: none while a link's notice stands. */
 const openedIn = (tree) => {
@@ -787,12 +786,12 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
         },
       ],
     };
-    globalThis.window.TODAY_DATA = todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]);
+    setSurfaceValue("today", todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
     cells = [];
     frames.begin();
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(globalThis.window.TodayCard(), (n) => {
+    walk(TodayCard(), (n) => {
       if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered;
     });
     const said = (lines || []).map(textOf).join(" | ");

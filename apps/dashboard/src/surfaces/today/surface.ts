@@ -5,10 +5,14 @@
  * modules in this folder.
  */
 
-import { read } from "../api";
-import { DEFAULT_REFRESH_TABLES } from "../surface-realtime";
-import { threadStanding, toTodayVM, type CallDto, type LeadSearchDto, type TodayVM } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "../surface-data";
+import { read } from "@/legacy-bridge/api";
+import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
+import { threadStanding, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+
+// The pages that have not moved (Ask, the phone app's bridge, the bell) still read the day under its old name.
+declareSurfaceValue("today", "TODAY_DATA");
 
 /**
  * Slice 4: Today. Unlike every other surface, this one has NO seed to fall back
@@ -23,7 +27,7 @@ import type { SurfaceOverride } from "../surface-data";
  */
 export const todayOverride: SurfaceOverride = {
   key: "today",
-  globals: ["TODAY_DATA"],
+  value: "today",
   events: ["surface:today"],
   refreshOnMessageInserts: true,
   // Calls too: the brief now shows who is on the line, and a call that ends
@@ -65,13 +69,9 @@ export const todayOverride: SurfaceOverride = {
     } catch (e) {
       console.error("today_searches_fetch_failed", e instanceof Error ? e.message : e);
     }
-    (window as unknown as { TODAY_DATA?: TodayVM }).TODAY_DATA = toTodayVM(
-      metricsRes.metrics,
-      convData.conversations,
-      escData.escalations,
-      calls,
-      new Date(),
-      searches,
+    setSurfaceValue(
+      "today",
+      toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, new Date(), searches),
     );
 
     // The sidebar badge is seeded until the Inbox itself mounts, so a fresh

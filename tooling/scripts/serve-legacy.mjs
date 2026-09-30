@@ -12,9 +12,9 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * Five files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Four files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
- * `data/today-sample.js`, the demo's Today, `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
+ * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
  * (see SAMPLES below). One is read from outside the tree: the kit's stylesheet (KIT_CSS below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
@@ -47,10 +47,7 @@ const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
 
 /**
  * What the mockup takes from the app's TypeScript, bundled for the browser, with contracts from its dist as the app
- * reads it. legacy-bridge/today-sample.ts is the demo's Today (a sample business through the same contracts functions a
- * real workspace's numbers go through): Chanlytics.html loads it as data/today-sample.js, it publishes its function on
- * window (`__todaySample`) and installs its surfaces where the app's globals are absent, so the mockup shows the one
- * Today page there is. surfaces/kit/kit-globals.ts is the kit's components that the pages here still draw by name
+ * reads it. surfaces/kit/kit-globals.ts is the kit's components that the pages here still draw by name
  * (`Icon`, `EmptyState`, `FailedRead`, `SegmentBar`), TSX since decision 0015: built with the classic JSX runtime over
  * the page's own React, as the app publishes them from seed-globals. A surface that has left the shell (Reports) is an
  * App Router page, which only the app draws, so the mockup has none of it. Built on the first request, and again when
@@ -72,11 +69,6 @@ const SAMPLES = {
     globalName: "__IG",
     footer: "Object.assign(window, __IG.INBOX_GLOBALS); __IG.hearPresence();",
     watch: "apps/dashboard/src/surfaces/inbox",
-  },
-  "/data/today-sample.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"),
-    globalName: "__TS",
-    footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);",
   },
   // Not a sample: the object the app publishes as window.__businessTab (legacy-bridge/business-tab.ts). With no
   // settings read behind the mockup, a fold is told nothing.
@@ -148,7 +140,6 @@ async function sampleBundle(route) {
 
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
-export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
 

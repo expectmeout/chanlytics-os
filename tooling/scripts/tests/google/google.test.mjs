@@ -868,7 +868,7 @@ test("the dashboard: owners and the partner link and search, operators read, mem
     reports.includes("vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source"),
     "the source is named, and what the receptionist does under a new review beside it",
   );
-  const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+  const brief = readCode("apps/dashboard/src/surfaces/today/pages/card.tsx");
   assert.ok(brief.includes("<ReviewLine nav={nav} />") && brief.includes('data-testid="brief-review"'));
   const settings = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
   assert.ok(

@@ -397,8 +397,8 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
 
 /* ------------------ the attention row, the same six -------------------- */
 
-await import("../../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
-const AttnRow = globalThis.window.AttnRow;
+/* The kit's row (surfaces/kit/attention/attn-row.tsx): it imports the tone map itself, where the shell's read it off the chrome bridge. */
+const { AttnRow } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 
 test("the attention row's lead speaks the same six tones, and the receptionist's standing is said in them", () => {
   const cls = (tone) =>

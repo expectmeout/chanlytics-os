@@ -6,7 +6,7 @@
 import { api } from "@/legacy-bridge/api";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { todayOverride } from "@/legacy-bridge/surfaces/today";
+import { todayOverride } from "../today/surface";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import type { ApiResult, RouteKey } from "@/client/api";
 import { refusalOf, tomorrowAtIn } from "@chanlytics/contracts";

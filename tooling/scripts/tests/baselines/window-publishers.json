@@ -27,9 +27,7 @@
   "apps/dashboard/src/legacy-bridge/surfaces/people.ts": 3,
   "apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts": 1,
   "apps/dashboard/src/legacy-bridge/surfaces/settings.ts": 16,
-  "apps/dashboard/src/legacy-bridge/surfaces/today.ts": 1,
   "apps/dashboard/src/legacy-bridge/templates.ts": 3,
-  "apps/dashboard/src/legacy-bridge/today.ts": 1,
   "apps/dashboard/src/legacy/components/ask-face.jsx": 1,
   "apps/dashboard/src/legacy/components/campaign-bits.jsx": 1,
   "apps/dashboard/src/legacy/components/data-bits.jsx": 13,
@@ -77,7 +75,6 @@
   "apps/dashboard/src/legacy/pages/ask-real.jsx": 1,
   "apps/dashboard/src/legacy/pages/ask-text.jsx": 2,
   "apps/dashboard/src/legacy/pages/ask-turn.jsx": 2,
-  "apps/dashboard/src/legacy/pages/attention-bits.jsx": 1,
   "apps/dashboard/src/legacy/pages/billing-real.jsx": 1,
   "apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx": 1,
   "apps/dashboard/src/legacy/pages/broadcasts-run.jsx": 1,
@@ -98,11 +95,6 @@
   "apps/dashboard/src/legacy/pages/client-profile.jsx": 5,
   "apps/dashboard/src/legacy/pages/clients-bits.jsx": 5,
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": 4,
-  "apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx": 1,
-  "apps/dashboard/src/legacy/pages/dashboard-a-command.jsx": 1,
-  "apps/dashboard/src/legacy/pages/dashboard-a-day.jsx": 1,
-  "apps/dashboard/src/legacy/pages/dashboard-a-week.jsx": 1,
-  "apps/dashboard/src/legacy/pages/dashboard-a.jsx": 1,
   "apps/dashboard/src/legacy/pages/first-run.jsx": 1,
   "apps/dashboard/src/legacy/pages/integrations-real.jsx": 1,
   "apps/dashboard/src/legacy/pages/leads-bench.jsx": 1,
@@ -138,5 +130,6 @@
   "apps/dashboard/src/legacy/pages/sending-domains.jsx": 1,
   "apps/dashboard/src/legacy/pages/settings.jsx": 11,
   "apps/dashboard/src/legacy/pages/setup.jsx": 3,
-  "apps/dashboard/src/legacy/pages/templates-real.jsx": 2
+  "apps/dashboard/src/legacy/pages/templates-real.jsx": 2,
+  "apps/dashboard/src/surfaces/today/helpers.ts": 1
 }
