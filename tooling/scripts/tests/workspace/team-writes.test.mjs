@@ -3,7 +3,7 @@
  *
  * Inviting, changing a role and removing someone hand out and take back the power to message customers. Their rules
  * (the last owner is immovable, nobody removes themself, the ledger row carries what the row said) now live with the
- * change in one transaction in the database, and database/what-happened-is-named-audited-and-counted.db.test.mjs proves
+ * change in one transaction in the database, and database/team-changes-and-their-audit.db.test.mjs proves
  * them on a real Postgres. What runs here is the service's half: what it hands each function (the session's user as
  * the actor, the card's mark, the undo's link), how a refusal reaches the owner in words, and the invitation whose
  * mail could not go, taken back with its row. The platform's client is a stand-in that answers as each function does.

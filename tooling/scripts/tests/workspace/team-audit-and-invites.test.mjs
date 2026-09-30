@@ -47,7 +47,7 @@ test("no second audit table — one ledger, one shape, one place to look", () =>
 
 // The team's changes and their rows are one transaction in the database now (00279: team_change_role, team_remove,
 // team_join, team_invite), each run and its rules proved on a real Postgres by
-// database/what-happened-is-named-audited-and-counted.db.test.mjs, and the service's half by team-writes.test.mjs.
+// database/team-changes-and-their-audit.db.test.mjs, and the service's half by team-writes.test.mjs.
 
 test("the routes hand the caller through", () => {
   assert.match(teamIdRoute, /setMemberRole\(\s*ctx,/);
