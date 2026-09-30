@@ -18,13 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import {
-  kitHooks,
-  kitPages,
-  installLegacyReact,
-  fresh as freshTree,
-  again as againTree,
-} from "../_legacy-react.mjs";
+import { kitHooks, kitPages, installLegacyReact, fresh as freshTree, again as againTree } from "../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -653,7 +647,6 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 // The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
-const SRC = "../../../../apps/dashboard/src";
 // The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015).
 const { BcWhenBox, bcWhenNote, bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);

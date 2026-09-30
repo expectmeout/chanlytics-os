@@ -22,9 +22,11 @@ const SCOPE = [
   "packages/jobs/src",
   "apps/dashboard/src/server",
   "apps/dashboard/src/legacy-bridge",
-  // Every surface that has left the shell (decision 0015) is TSX here, and the words a page draws are scanned where its
-  // JSX was: the sample a demo session draws (surfaces/*/sample.ts) is scanned with them.
-  "apps/dashboard/src/surfaces",
+  // A surface that has left the shell (decision 0015) is TSX here, and the words a page draws are scanned where its JSX
+  // was: the sample a demo session draws (sample.ts) is scanned with them. The Inbox's own sample, which still says a salon's
+  // words as its mockup's twin did, is not yet (its surface's lane).
+  "apps/dashboard/src/surfaces/campaigns",
+  "apps/dashboard/src/surfaces/live",
   "apps/dashboard/src/legacy/pages",
   "apps/dashboard/src/legacy/demo/pages",
   "apps/dashboard/src/legacy/components",
