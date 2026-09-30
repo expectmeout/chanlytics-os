@@ -369,3 +369,34 @@ bridge modules only they used moved with them (the amendment). What it settled, 
   the router within itself; the lint probe of the raw-element rule stands in a folder no surface will take
   (`surfaces/probe/`), since each surface that leaves waits in `KIT_PENDING`; and a test that imports a surface module through
   a template path hides its exports from knip, so they are written as literals.
+
+## Built: Today (30 September 2026, same branch)
+
+Today left the shell as step 5 of the steps above (step 4 of the order), after the Inbox whose decisions it counts; the bridge modules only it
+used moved with it (the amendment). What it settled, for the surfaces after it:
+
+- **The workspace's own address is a page.** `/w/<slug>` names no route, which is Today (`routeOfAddress`), so the catch-all
+  page beside `today/page.tsx` draws Today when the path names none, and `LegacyHost` asks `pageRouteOf` (an empty route is `today`)
+  before it hands the layout's children to the frame. `/w/<slug>/today` is the same page by the product's word. An address under it
+  (`today/anything`) is no page, as `reports/anything` is not.
+- **A moved surface may name the top bar's one act.** A `SURFACE_ROUTES` row takes `act` (`label`, `glyph`, `primary`, `ask`,
+  `prompt`), which `drawRoute` draws for a demo session (Today's "New task" opens Ask composing): what `drawToday` gave the row.
+- **What a surface borrows, it borrows through one file of doors.** Today draws from the nine surfaces of `ROUTE_DRAWS.today`, and
+  eight of them have not moved. `surfaces/today/shell.ts` reads each by its global's name at call time (`borrowed`), redraws on it
+  with the shell's own hook (`useMoved` is `surfaceHook` over React's `useCallback` and `useSyncExternalStore`, so the hook cells
+  the page had are the ones it has), and draws the rows of the shell's pages it borrows by name (Setup's card rows, the agenda's). Each
+  is a line to delete on the day its owner moves; nothing reads `window` but that file.
+- **The shared component moved once, with the first surface that drew it.** The attention row (`AttnRow`: Today's queue, People's strip,
+  Setup, the partner and platform panes) is the kit's TSX (`surfaces/kit/attention/`), published by `seed-globals.ts` as `window.AttnRow`
+  for the pages still on the shell.
+- **The twin is deleted.** The standalone mockup drew Today from a sample (`legacy-bridge/today-sample.ts` and its folder: 1,372 lines and
+  its bundle, `window.__TODAY_SAMPLE`); the page is an App Router page, which only the app draws, so the mockup no longer draws it (nor
+  the Inbox, nor Reports), and its bundle, its script tag and its test leave with the sample.
+- **The seam.** `today` is a key of `SurfaceValues` (contracts' `TodayVM`), mirrored as `window.TODAY_DATA` for Ask, the phone's bridge
+  and the bell; the override and the helpers (`TODAY_HELPERS`, published as `window.__today` for Settings) are in `surfaces/today/`.
+- **Proof.** The pilot's recorder over 75 worlds (every state of the day, the queue's rows and runs, the day's calendar and steps, the
+  leaks, the pins, the bell), every handler of them, 21 sequences and 82 checks of the attention row: 3,116 steps, no difference, and
+  25 faults planted in the TSX, every one caught.
+- **Its kit step took what a stub can draw**: three buttons are the kit's `Button` (Open Reports, Open Calendar, Mark all read). The
+  rest of Today's buttons are the page's own looks (the chips, the door rows, the queue's open, the leaks' acts), which no kit part
+  has yet; Today waits in `KIT_PENDING` for them.
