@@ -313,6 +313,6 @@ which reads through `everyoneIn`. Where it differs from Steps and Shape:
   their workspace's page and a stranger none), against which 00250's function fails the first two, and a page chosen
   inside `people_list` fails the first on a fresh stack; `people/people-routes.test.mjs` (the page's `next`, the next
   page just past the last row, a database before 00276 asked by offset, a cursor refused; `everyone` reading nobody
-  twice when someone writes between pages); and `shell/surfaces/people-pages.test.mjs` (the tab's pages follow
+  twice when someone writes between pages); and `people/moments/people-pages.test.mjs` (the tab's pages follow
   `next`, and the offset alone without it). `people/people-came-from.db.test.mjs` now finds people alike in everything
   in falling id order.

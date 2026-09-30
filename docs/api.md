@@ -293,6 +293,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | --- | --- | --- | --- |
 | `q` | string | no | at most 80 characters |
 | `offset` | integer | no | ≥ 0; ≤ 1000000 |
+| `after` | string | no | at least 1 characters; at most 200 characters |
 
 ### `POST /api/v1/contacts`
 
