@@ -1,5 +1,5 @@
 /**
- * The recording copy, in one place.
+ * The recording copy, and the retention purge that ends it, in one place.
  *
  * Retell serves call audio from an UNSIGNED public CDN URL, so the audio is
  * copied into the private bucket — where a customer's call is not one guessed
@@ -21,6 +21,13 @@
  * the queue for the next tick. The provider URL itself is
  * never written to the row: calls is in the realtime publication, so every
  * column reaches every member's browser.
+ *
+ * Two more things share the bucket's paths and so live here: `sniffAudioType` (what the bytes are, since the CDN's word
+ * is not to be trusted) and `purgeExpiredRecordings`, which removes audio past RECORDING_RETENTION_DAYS and leaves
+ * the transcript and the summary.
+ *
+ * Cross-workspace: the purge reads and clears every workspace's expired audio in one pass; the copy acts on the one
+ * call it is handed and names that call's workspace.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";

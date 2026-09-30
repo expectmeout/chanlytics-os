@@ -29,7 +29,14 @@
     "00252": "a page says how fast it was landed as 00255 (#1227)",
     "00266": "held by open PR #1337 on 29 Sep 2026; recorded when it lands",
     "00267": "held by open PR #1340 on 29 Sep 2026; recorded when it lands",
-    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands"
+    "00268": "held by open PR #1343 on 29 Sep 2026; recorded when it lands",
+    "00276": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00277": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00278": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00279": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00280": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00281": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order",
+    "00282": "held for the other lanes of wave 2, whose files are numbered on their own branches; the fold lands them in order"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -277,6 +284,9 @@
     "00272_the_lead_caps_are_written_once_in_sql.sql": "955806ad2c496debe0f86ce5930f6dfc3593c174e93f4762ddff3ff1d6614c80",
     "00273_every_model_call_is_kept_in_dollars.sql": "6747a247e0a1ad9705cbd9a7914f1383fa6aedb4a18c3cc5641ecf753230f9a0",
     "00274_a_new_workspace_starts_with_a_model_budget.sql": "6495b4b3544b70d13040aca47711ba3f9aa99a52570b0aa22b47bb5827ecabdb",
-    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3"
+    "00275_a_second_model_is_asked_in_shadow.sql": "b93dd21f482d2696184b063cc630048359eeab593f89887258aa49339e5a45c3",
+    "00283_a_session_inserts_only_the_columns_it_writes.sql": "734ed7e5a43077f059e1ee0f0efdd263a9836ae53fcfe66fa405eda902c21942",
+    "00284_a_child_names_only_its_own_workspace_s_parent.sql": "0308f6a009ef4ca6a09bc3e99d96951d297fb99c22e27cc75ee2f4556da83b38",
+    "00285_a_partner_s_password_opens_no_door_a_seat_opens.sql": "9a6990705f97cade684000ed16c5f31f778c30143f51363d41624d2e269e5af0"
   }
 }

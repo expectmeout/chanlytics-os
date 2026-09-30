@@ -91,12 +91,14 @@ test("the eight declare their policy: the back office on the platform scope with
     rate: "billing_read",
     spend: false,
   });
+  // Resuming a subscription spends the owner's money: it asks the Auth server whether the session is still live.
   assert.deepEqual(resume.POST.policy, {
     kind: "write",
     scope: "workspace",
     role: "owner",
     rate: "billing",
     spend: false,
+    fresh: true,
   });
   assert.deepEqual(sync.POST.policy, {
     kind: "write",

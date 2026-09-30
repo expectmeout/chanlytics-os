@@ -841,6 +841,7 @@ test("the report answers part by part in one order; a part that cannot read says
   const order = [
     "memory",
     "env",
+    "securitySwitches",
     "coldMail",
     "sweeps",
     "jobs_backlog",

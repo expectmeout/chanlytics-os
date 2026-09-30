@@ -76,7 +76,7 @@ const IN_HOURS = Date.parse("2026-09-11T15:00:00Z");
 const token = (o = {}) =>
   signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
     workspace: "workspace" in o ? o.workspace : A,
-    user: U,
+    user: "user" in o ? o.user : U,
   });
 const knock = (body, headers = { "x-edge-token": token() }) =>
   door.POST(
@@ -258,16 +258,16 @@ test("the door: a token for another door, a forgery and no credential are 403 be
     [403, { ok: false, error: "workspace_mismatch" }],
     "a token about A may not run B's playbooks",
   );
-  for (const bad of [
-    {},
-    { playbook_id: P },
-    { user_id: U },
-    { playbook_id: "win-back", user_id: U },
-    { playbook_id: P, user_id: "ada" },
-    "not json",
-  ]) {
+  for (const bad of [{}, { user_id: U }, { playbook_id: "win-back", user_id: U }, "not json"]) {
     assert.deepEqual(await answer(await knock(bad)), [400, { ok: false, error: "bad_request" }], JSON.stringify(bad));
   }
+  // The token's person is who runs it: a body that names none is fine, and a token about no person leaves the body to
+  // say who, so a body that names none (or names one that is not an id) is refused.
+  for (const bad of [{ playbook_id: P }, { playbook_id: P, user_id: "ada" }])
+    assert.deepEqual(await answer(await knock(bad, { "x-edge-token": token({ user: null }) })), [
+      400,
+      { ok: false, error: "bad_request" },
+    ]);
   await keyed(async () => {
     assert.deepEqual(await answer(await knock(press, { "x-diag-key": "not-the-key" })), [403, { ok: false }]);
     assert.deepEqual(

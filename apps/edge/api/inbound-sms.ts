@@ -12,7 +12,7 @@
  * for a person instead of answering.
  *
  * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What to do with the text is
- * decided by planSmsIngress (lib/sms-ingress.ts), which runs over a database
+ * decided by planSmsIngress (lib/sms/sms-ingress.ts), which runs over a database
  * in memory in a test; what is left here is reading the form, logging, the
  * alert's own suppression, and the shape Twilio wants back. The same split
  * the health route and the OAuth callback already use.

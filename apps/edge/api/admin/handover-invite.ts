@@ -6,7 +6,7 @@
  * The dashboard's partner routes call it after create_workspace_for_business or partner_handover_resend, from
  * production only, and treat a failure as a shrug the partner is told of: the handover is on record and can be sent
  * again. The address is the one the handover holds, read here, never one the call carries, so this door writes to
- * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Diagnostic-key
+ * nobody but the person the workspace waits for. Every sentence is contracts' (handoverInviteEmail). Signed admin token
  * only; the address is never logged.
  */
 import { json } from "../../lib/http.js";

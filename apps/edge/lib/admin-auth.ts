@@ -19,8 +19,8 @@
  *     `admin_door_key_only` with the door and whether it came in, so what
  *     still relies on the key can be read off the log;
  *   - the edge has no secret (a preview; production refuses to load without
- *     one, env.ts): a token is ignored and the key decides. A security switch
- *     with a sunset (contracts' SECURITY_SWITCHES, DIAG_KEY).
+ *     one, env.ts): a token is ignored and the key decides. That is DIAG_KEY's
+ *     switch, a row of contracts' flag registry (ai/flags.ts) with its day.
  *
  * The key rode beside the token on every dashboard call, and alone it opened
  * every door on an edge that could have verified a token: the token bought

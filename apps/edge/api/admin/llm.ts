@@ -16,7 +16,7 @@
  * paused, ended or unbilled spends nothing (402 payment_required), and a day that could not be counted holds the turn
  * (503 read_failed). Every round is written to the usage ledger with the model that answered and its dollars.
  *
- * Diagnostic-key only: the dashboard is the sole caller, exactly as it is for
+ * Signed admin token only: the dashboard is the sole caller, exactly as it is for
  * steer and whisper.
  */
 import { json, refuse } from "../../lib/http.js";

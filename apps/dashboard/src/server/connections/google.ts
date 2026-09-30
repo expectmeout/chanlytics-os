@@ -179,7 +179,7 @@ let fallbackSaid = false;
 /**
  * The secret that signs the OAuth state: GOOGLE_OAUTH_STATE_SECRET. Off production, while it is unset, the key the
  * dashboard shares with the edge stands in and says so once (`google_state_signed_by_diag_key`): a security switch
- * with a sunset (contracts' SECURITY_SWITCHES). Production refuses the stand-in, so the door key never signs a
+ * with a sunset (contracts' flag registry, ai/flags.ts). Production refuses the stand-in, so the door key never signs a
  * production state; without its own secret, Connect Google says it is not available here.
  */
 export function stateSecret(): string | null {

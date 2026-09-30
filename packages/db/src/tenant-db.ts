@@ -23,8 +23,7 @@ type Tables = Database["public"]["Tables"];
 /** The tables whose every row belongs to one workspace: each has a non-null `tenant_id`. */
 type TenantTable = {
   [K in keyof Tables]: Tables[K]["Row"] extends { tenant_id: string } ? K : never;
-}[keyof Tables] &
-  string;
+}[keyof Tables];
 
 /** The table's builder as `db.from` gives it: the type the scoped builder keeps, read from the call itself. */
 function builderOf<T extends TenantTable>(db: Db, table: T) {
@@ -61,7 +60,8 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
         const statement: unknown = Reflect.apply(build, builder, args);
         const eq: unknown = statement && Reflect.get(statement, "eq");
         if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
-        return Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        const filtered: unknown = Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        return filtered;
       },
     });
   }
@@ -69,11 +69,13 @@ function scoped<B extends object>(builder: B, tenantId: string): B {
     const build: unknown = Reflect.get(builder, verb);
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
-      value: (rows: unknown, ...rest: unknown[]) =>
-        Reflect.apply(build, builder, [
+      value: (rows: unknown, ...rest: unknown[]) => {
+        const statement: unknown = Reflect.apply(build, builder, [
           Array.isArray(rows) ? rows.map((r) => stamped(r, tenantId)) : stamped(rows, tenantId),
           ...rest,
-        ]),
+        ]);
+        return statement;
+      },
     });
   }
   return builder;

@@ -594,14 +594,9 @@
     "branches": 35,
     "depth": 2
   },
-  "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 78,
-    "branches": 32,
-    "depth": 3
-  },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 171,
-    "branches": 46,
+    "lines": 170,
+    "branches": 45,
     "depth": 1
   },
   "apps/edge/api/admin/voice-converge.ts::POST#1": {
@@ -610,7 +605,7 @@
     "depth": 4
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
-    "lines": 187,
+    "lines": 181,
     "branches": 47,
     "depth": 3
   },

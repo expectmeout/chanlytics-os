@@ -402,9 +402,6 @@
   "apps/edge/api/admin/voice-provision.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
-  "apps/edge/api/admin/whatsapp/signup-config.ts": {
-    "@typescript-eslint/require-await": 1
-  },
   "apps/edge/api/admin/whatsapp/templates-create.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },

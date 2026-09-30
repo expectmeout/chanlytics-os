@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/billing — a workspace's way to pay. Diagnostic-key only;
+ * POST /api/admin/billing — a workspace's way to pay. Signed admin token only;
  * the dashboard's /api/v1/billing verbs call it for an owner.
  *
  *   { op: "status" }                                  → what this deployment can do, whether its key is live or test, the plan as Stripe states it, the trial length

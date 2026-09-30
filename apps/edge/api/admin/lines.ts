@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/lines — a workspace's own phone number, provisioned by the
- * product (plan §5, §7). Diagnostic-key only; the dashboard's /api/v1/lines
+ * product (plan §5, §7). Signed admin token only; the dashboard's /api/v1/lines
  * verbs call it for an owner.
  *
  *   { op: "status" }                                  → may this deployment get lines, and with which provider

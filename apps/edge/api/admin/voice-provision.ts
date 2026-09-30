@@ -19,7 +19,7 @@
  * month: only { apply: true } with area_code does it. Secrets never come
  * back: every URL is returned without its query string, and a provider's
  * success body (which echoes the webhook URL) is never echoed.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";

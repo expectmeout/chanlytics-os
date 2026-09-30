@@ -1,7 +1,7 @@
 /**
  * The Google OAuth state is signed with its own secret. The platform key stood in for it while it was unset, which
  * made the door key a second credential of the OAuth round trip; production now refuses the stand-in, and off
- * production it is a security switch with a sunset (contracts' SECURITY_SWITCHES) that says so once when it is used.
+ * production it is a security switch with a sunset (contracts' flag registry, ai/flags.ts) that says so once when it is used.
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";

@@ -123,6 +123,9 @@ export async function claimLineForResume(
   return null;
 }
 
+/** What a caller is told when the try could not be written down because the line is not this workspace's, or gone. */
+const NOT_THERE_TO_COUNT = "the line is not there to count against";
+
 /**
  * Count one automatic try against the line's bound, and hand back the row as it
  * now reads.
@@ -151,7 +154,7 @@ export async function countAutomaticResume(
     .eq("id", row.id)
     .select("id");
   if (error) return { ok: false, error: error.message };
-  if (data?.length !== 1) return { ok: false, error: "the line is not there to count against" };
+  if (data?.length !== 1) return { ok: false, error: NOT_THERE_TO_COUNT };
   return { ok: true, row: { ...row, facts } };
 }
 

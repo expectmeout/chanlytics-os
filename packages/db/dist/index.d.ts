@@ -8024,7 +8024,7 @@ type TenantTable = {
     [K in keyof Tables]: Tables[K]["Row"] extends {
         tenant_id: string;
     } ? K : never;
-}[keyof Tables] & string;
+}[keyof Tables];
 /** The table's builder as `db.from` gives it: the type the scoped builder keeps, read from the call itself. */
 declare function builderOf<T extends TenantTable>(db: Db$k, table: T): _supabase_postgrest_js.PostgrestQueryBuilder<{
     PostgrestVersion: "12";

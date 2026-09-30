@@ -48,6 +48,7 @@ const ago = (ms) => new Date(NOW - ms).toISOString();
 
 const line = (over = {}) => ({
   id: "11111111-1111-4111-8111-111111111111",
+  tenant_id: "22222222-2222-4222-8222-222222222222",
   e164: "+13055550100",
   kind: "chanlytics",
   provider: "twilio",

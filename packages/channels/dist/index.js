@@ -199,13 +199,16 @@ function bytesOfV6(address) {
   }
   return bytes.length === 16 ? bytes : null;
 }
+function carriedV4(b) {
+  return [b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0];
+}
+var zeroBetween = (b, from, to) => b.slice(from, to).every((x) => x === 0);
 function v6IsPublic(b) {
-  const zero = (from, to) => b.slice(from, to).every((x) => x === 0);
-  if (zero(0, 15) && (b[15] === 0 || b[15] === 1)) return false;
-  if (zero(0, 10) && b[10] === 255 && b[11] === 255) return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
-  if (zero(0, 12)) return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
-  if (b[0] === 0 && b[1] === 100 && b[2] === 255 && b[3] === 155 && zero(4, 12))
-    return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
+  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false;
+  if (zeroBetween(b, 0, 10) && b[10] === 255 && b[11] === 255) return v4IsPublic(carriedV4(b));
+  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
+  if (b[0] === 0 && b[1] === 100 && b[2] === 255 && b[3] === 155 && zeroBetween(b, 4, 12))
+    return v4IsPublic(carriedV4(b));
   const first = b[0] ?? 0;
   const second = b[1] ?? 0;
   if ((first & 254) === 252) return false;
@@ -242,6 +245,11 @@ function publicLookup(resolve) {
   };
 }
 var BODYLESS = /* @__PURE__ */ new Set([101, 103, 204, 205, 304]);
+function bodyText(body) {
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  throw new TypeError("publicFetch sends a string or form fields as a body");
+}
 function decoded(res) {
   const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
   if (coding === "gzip" || coding === "x-gzip") return res.pipe(zlib.createGunzip());
@@ -268,7 +276,8 @@ function publicFetch(deps = {}) {
       const send = deps.request ?? (target.protocol === "http:" ? http.request : request);
       const req = send(target, { method, headers: headers2, lookup }, (res) => {
         const out = new Headers();
-        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
+        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2)
+          out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
         const status = res.statusCode ?? 0;
         if (out.has("content-encoding")) {
           out.delete("content-encoding");
@@ -286,7 +295,7 @@ function publicFetch(deps = {}) {
       });
       req.on("close", () => signal?.removeEventListener("abort", onAbort));
       const body = init?.body;
-      if (body !== void 0 && body !== null && method !== "GET" && method !== "HEAD") req.write(String(body));
+      if (body !== void 0 && body !== null && method !== "GET" && method !== "HEAD") req.write(bodyText(body));
       req.end();
     });
   };

@@ -252,9 +252,6 @@
   "apps/dashboard/src/server/route.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/server/service-db.ts": {
-    "nonNull": 2
-  },
   "apps/edge/api/admin/voice-converge.ts": {
     "unknownAs": 2
   },

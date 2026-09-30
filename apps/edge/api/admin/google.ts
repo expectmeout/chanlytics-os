@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/google — a workspace's listing on Google Maps, found and
- * read; its Business Profile, connected and answered from. Diagnostic-key
+ * read; its Business Profile, connected and answered from. Signed admin token
  * only; the dashboard's /api/v1/google verbs call it for an owner or an
  * operator.
  *

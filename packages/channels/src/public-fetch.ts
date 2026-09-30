@@ -86,16 +86,22 @@ function bytesOfV6(address: string): number[] | null {
   return bytes.length === 16 ? bytes : null;
 }
 
+/** The IPv4 address an IPv6 one carries in its last four bytes. */
+function carriedV4(b: readonly number[]): [number, number, number, number] {
+  return [b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0];
+}
+
+/** Whether bytes `from` up to `to` of an IPv6 address are all zero. */
+const zeroBetween = (b: readonly number[], from: number, to: number) => b.slice(from, to).every((x) => x === 0);
+
 function v6IsPublic(b: readonly number[]): boolean {
-  const zero = (from: number, to: number) => b.slice(from, to).every((x) => x === 0);
-  if (zero(0, 15) && (b[15] === 0 || b[15] === 1)) return false; // :: and ::1
+  if (zeroBetween(b, 0, 15) && (b[15] === 0 || b[15] === 1)) return false; // :: and ::1
   // An IPv4 address carried in an IPv6 one (::ffff:a.b.c.d, and the deprecated ::a.b.c.d) reaches whatever that IPv4 does.
-  if (zero(0, 10) && b[10] === 0xff && b[11] === 0xff)
-    return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
-  if (zero(0, 12)) return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
+  if (zeroBetween(b, 0, 10) && b[10] === 0xff && b[11] === 0xff) return v4IsPublic(carriedV4(b));
+  if (zeroBetween(b, 0, 12)) return v4IsPublic(carriedV4(b));
   // NAT64 (64:ff9b::/96) carries an IPv4 address: the one it carries is the one that is reached.
-  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && zero(4, 12))
-    return v4IsPublic([b[12] ?? 0, b[13] ?? 0, b[14] ?? 0, b[15] ?? 0]);
+  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && zeroBetween(b, 4, 12))
+    return v4IsPublic(carriedV4(b));
   const first = b[0] ?? 0;
   const second = b[1] ?? 0;
   if ((first & 0xfe) === 0xfc) return false; // unique local, fc00::/7
@@ -153,6 +159,13 @@ export interface PublicFetchDeps {
 
 const BODYLESS = new Set([101, 103, 204, 205, 304]);
 
+/** The text a request body is sent as: the guarded fetch is for reading pages, so a body is a string or form fields. */
+function bodyText(body: NonNullable<RequestInit["body"]>): string {
+  if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  throw new TypeError("publicFetch sends a string or form fields as a body");
+}
+
 /** The response body as a stream fetch would give it: the content-coding taken off. */
 function decoded(res: http.IncomingMessage): Readable {
   const coding = String(res.headers["content-encoding"] ?? "").toLowerCase();
@@ -189,9 +202,8 @@ export function publicFetch(deps: PublicFetchDeps = {}): typeof fetch {
 
     return new Promise<Response>((resolveResponse, reject) => {
       if (signal?.aborted) return reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-      const send =
-        deps.request ?? (target.protocol === "http:" ? (http.request as unknown as typeof https.request) : request);
-      const req = send(target, { method, headers, lookup: lookup as never }, (res) => {
+      const send = deps.request ?? (target.protocol === "http:" ? http.request : request);
+      const req = send(target, { method, headers, lookup }, (res) => {
         const out = new Headers();
         for (let i = 0; i + 1 < res.rawHeaders.length; i += 2)
           out.append(res.rawHeaders[i] ?? "", res.rawHeaders[i + 1] ?? "");
@@ -213,7 +225,7 @@ export function publicFetch(deps: PublicFetchDeps = {}): typeof fetch {
       });
       req.on("close", () => signal?.removeEventListener("abort", onAbort));
       const body = init?.body;
-      if (body !== undefined && body !== null && method !== "GET" && method !== "HEAD") req.write(String(body));
+      if (body !== undefined && body !== null && method !== "GET" && method !== "HEAD") req.write(bodyText(body));
       req.end();
     });
   };

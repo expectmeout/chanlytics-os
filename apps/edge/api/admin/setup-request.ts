@@ -9,7 +9,7 @@
  * after the RPC, from production only, and treats a failure as a shrug —
  * the request is already on record. What travels is the workspace's own
  * name and id and who asked; no customer content exists here to withhold.
- * Diagnostic-key only.
+ * Signed admin token only.
  */
 import { json, refuse } from "../../lib/http.js";
 import { readBody } from "../../lib/admin-door.js";

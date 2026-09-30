@@ -50,6 +50,20 @@ function forRecord(a: Record<string, unknown>): Record<string, unknown> {
   return { ...a, webhook_url: url };
 }
 
+/** Which agents: the one named, else every voice channel's (or the refusal to read them). */
+async function agentsNamed(body: Body): Promise<string[] | Response> {
+  if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) return [body.agent_id];
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("external_id")
+    .eq("kind", "voice")
+    .eq("status", "active");
+  if (error) return refuse(503, "read_failed", error.message);
+  return (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
+}
+
 export async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
@@ -61,21 +75,8 @@ export async function POST(request: Request): Promise<Response> {
   const apply = body.apply === true;
   const publish = body.publish === true;
 
-  // Which agents: the one named, else every voice channel's.
-  let agentIds: string[];
-  if (typeof body.agent_id === "string" && /^agent_[a-z0-9]+$/i.test(body.agent_id)) {
-    agentIds = [body.agent_id];
-  } else {
-    const db = pg();
-    if (!db) return refuse(503, "no_database");
-    const { data, error } = await db
-      .from("tenant_channels")
-      .select("external_id")
-      .eq("kind", "voice")
-      .eq("status", "active");
-    if (error) return refuse(503, "read_failed", error.message);
-    agentIds = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
-  }
+  const agentIds = await agentsNamed(body);
+  if (agentIds instanceof Response) return agentIds;
 
   const cfg = { apiKey };
   const agents: Record<string, unknown>[] = [];

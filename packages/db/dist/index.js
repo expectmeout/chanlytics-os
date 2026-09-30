@@ -3324,7 +3324,8 @@ function scoped(builder, tenantId) {
         const statement = Reflect.apply(build, builder, args);
         const eq = statement && Reflect.get(statement, "eq");
         if (typeof eq !== "function") throw new Error(`tenantDb: ${verb} built nothing to filter`);
-        return Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        const filtered = Reflect.apply(eq, statement, ["tenant_id", tenantId]);
+        return filtered;
       }
     });
   }
@@ -3332,10 +3333,13 @@ function scoped(builder, tenantId) {
     const build = Reflect.get(builder, verb);
     if (typeof build !== "function") continue;
     Object.defineProperty(builder, verb, {
-      value: (rows, ...rest) => Reflect.apply(build, builder, [
-        Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
-        ...rest
-      ])
+      value: (rows, ...rest) => {
+        const statement = Reflect.apply(build, builder, [
+          Array.isArray(rows) ? rows.map((r2) => stamped(r2, tenantId)) : stamped(rows, tenantId),
+          ...rest
+        ]);
+        return statement;
+      }
     });
   }
   return builder;

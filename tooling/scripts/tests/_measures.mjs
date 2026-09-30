@@ -93,14 +93,14 @@ export function tenantTablesOf() {
   let inRow = false;
   let inTables = false;
   for (const line of fs.readFileSync(path.join(ROOT, "packages/db/src/database.types.ts"), "utf8").split(/\r?\n/)) {
-    if (/^  public: \{/.test(line)) inTables = true;
-    else if (/^  \w+: \{/.test(line)) inTables = false;
+    if (/^ {2}public: \{/.test(line)) inTables = true;
+    else if (/^ {2}\w+: \{/.test(line)) inTables = false;
     if (!inTables) continue;
-    const t = /^      (\w+): \{$/.exec(line);
+    const t = /^ {6}(\w+): \{$/.exec(line);
     if (t) table = t[1];
-    if (/^        Row: \{$/.test(line)) inRow = true;
-    else if (inRow && /^        \}$/.test(line)) inRow = false;
-    else if (inRow && table && /^          tenant_id: /.test(line)) tables.add(table);
+    if (/^ {8}Row: \{$/.test(line)) inRow = true;
+    else if (inRow && /^ {8}\}$/.test(line)) inRow = false;
+    else if (inRow && table && /^ {10}tenant_id: /.test(line)) tables.add(table);
   }
   return tables;
 }

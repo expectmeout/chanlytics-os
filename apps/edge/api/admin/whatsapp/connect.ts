@@ -13,7 +13,7 @@
  * the receptionist answers on this number with this business's token, never
  * the environment's.
  *
- * Diagnostic-key only: the dashboard is the sole caller, as for steer.
+ * Signed admin token only: the dashboard is the sole caller, as for steer.
  */
 import { json, refuse } from "../../../lib/http.js";
 import { readBody } from "../../../lib/admin-door.js";
