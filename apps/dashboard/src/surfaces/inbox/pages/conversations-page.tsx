@@ -19,6 +19,7 @@ import { ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
 import { ThreadPane } from "../thread/thread-pane";
 import type { ConversationRow, ConversationsSurface } from "../types";
+import { Button } from "../../kit/button/button";
 
 // The box's words, kept per tab in the tab's storage (the loading standard's F, legacy-bridge/tab-memory.ts): a
 // search typed on Phone is there again after a trip to People or a refresh; none on the standalone harness.
@@ -152,15 +153,17 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
     <header className="ix-th-head">
       <div className="ix-th-head-main">
         {onBack && (
-          <button
+          <Button
             type="button"
-            className="btn btn-ghost btn-sm ix-back"
+            variant="quiet"
+            size="sm"
+            className="ix-back"
             onClick={onBack}
             aria-label="Back to the list"
             data-testid="ix-back"
           >
             <span aria-hidden="true">&larr;</span>
-          </button>
+          </Button>
         )}
         {/* Who the call was with opens their page, as the thread's header does (inbox-thread.jsx IxWho). */}
         <IxWho to={clientId ? `clients/${clientId}` : null} who={c.who} avatar={c.initials.slice(0, 2)}>
@@ -203,9 +206,9 @@ function callLive(secs: number | null) {
         </span>
       </div>
       <div className="tl-call-live-acts">
-        <button type="button" className="btn btn-sm ix-state-go" onClick={() => navigate("live")}>
+        <Button type="button" size="sm" className="ix-state-go" onClick={() => navigate("live")}>
           <Icon name="phone" size={12} /> Open Live
-        </button>
+        </Button>
       </div>
     </div>
   );

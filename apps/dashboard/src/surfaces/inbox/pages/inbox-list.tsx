@@ -22,6 +22,7 @@ import { threadRow } from "./list-rows";
 import { askOnScreenKey, demoSession, gate, setAskOnScreen, surfaceState } from "../shell";
 import { inboxData } from "../store";
 import type { InboxBucket, InboxView, Thread } from "../types";
+import { Button } from "../../kit/button/button";
 
 /** How much of a row the desk draws: the phone ignores it. */
 export type Density = "compact" | "medium" | "rich";
@@ -448,34 +449,37 @@ function bulkBar(L: ListCtx) {
       <span className="ix-bulk-count tabular">{selected.length} selected</span>
       <div className="ix-bulk-actions">
         {threads.some((t) => t.approval) && (
-          <button
-            className="btn btn-sm btn-primary"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onBulkApprove}
             title="Approves selected approvals with ≥80% confidence"
             {...gate("approve")}
           >
             Approve all safe
-          </button>
+          </Button>
         )}
-        <button
-          className="btn btn-sm btn-ghost"
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={onBulkSnooze}
           aria-busy={bulkBusy === "snooze" || undefined}
           {...gate("approve")}
         >
           {bulkBusy === "snooze" ? "Snoozing…" : "Snooze"}
-        </button>
-        <button
-          className="btn btn-sm btn-ghost"
+        </Button>
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={pressArchive}
           aria-busy={bulkBusy === "archive" || undefined}
           {...gate("approve")}
         >
           {bulkBusy === "archive" ? "Archiving…" : "Archive"}
-        </button>
-        <button className="btn btn-sm btn-ghost" onClick={onClearSelection}>
+        </Button>
+        <Button variant="quiet" size="sm" onClick={onClearSelection}>
           Clear
-        </button>
+        </Button>
       </div>
     </div>
   );

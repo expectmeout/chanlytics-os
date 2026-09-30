@@ -30,6 +30,7 @@ import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
+import { Button } from "../../kit/button/button";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -394,15 +395,17 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
       {/* Phone only (mobile.css): the list and the thread take turns. The arrow alone: the top bar says Inbox over it,
             and "← Inbox" said it again. */}
       {onBack && (
-        <button
+        <Button
           type="button"
-          className="btn btn-ghost btn-sm ix-back"
+          variant="quiet"
+          size="sm"
+          className="ix-back"
           onClick={onBack}
           aria-label="Back to the list"
           data-testid="ix-back"
         >
           <span aria-hidden="true">&larr;</span>
-        </button>
+        </Button>
       )}
       <IxWho
         to={personTo}
@@ -467,9 +470,9 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
           thread.primaryChannel === "phone" &&
           thread.optedOut &&
           !ixBandCallBack(thread) && (
-            <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
+            <Button variant="quiet" size="sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
               <Icon name="phone" size={12} /> Call back
-            </a>
+            </Button>
           )}
         {/* A ghost button with a word, lit only while its menu is open: a ⋯ alone in the dim ink was too faint to
             find on a phone. The menu says what to do with the conversation, then with the person, then the file --

@@ -16,6 +16,7 @@ import type { ApprovedTemplate, Thread } from "../types";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField, fieldOf } from "./shell-thread";
 import { ixBandCallBack } from "./band";
+import { Button } from "../../kit/button/button";
 
 /** What a send carries: the words typed, or the template chosen (`true` where none was named). */
 export type SendWords = string | { template: ApprovedTemplate | true };
@@ -193,8 +194,9 @@ const TemplateSendButton = ({
           ))}
         </select>
       )}
-      <button
-        className="btn btn-sm btn-primary"
+      <Button
+        variant="primary"
+        size="sm"
         onClick={fire}
         disabled={sending}
         title={
@@ -212,7 +214,7 @@ const TemplateSendButton = ({
             : chosenTitle
               ? `Send “${chosenTitle}”`
               : "Send booking link"}
-      </button>
+      </Button>
       {choice && choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
     </>
   );
@@ -362,9 +364,9 @@ function noChatComposer(thread: Thread, onSend: OnSend) {
       <div className="ix-composer-foot">
         <div className="ix-composer-actions">
           {!ixBandCallBack(thread) && thread.phone && (
-            <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
+            <Button size="sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
               <Icon name="phone" size={12} /> Call back
-            </a>
+            </Button>
           )}
           <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
         </div>
@@ -406,14 +408,15 @@ function realComposer(c: ComposerDraw) {
         aria-label={`Reply to ${thread.who}`}
         rows={1}
       />
-      <button
-        className="btn btn-primary ix-composer-send"
+      <Button
+        variant="primary"
+        className="ix-composer-send"
         disabled={!text.trim() || sending}
         onClick={doSend}
         {...gate("approve")}
       >
         {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -463,8 +466,9 @@ function seededFoot(c: ComposerDraw) {
       <div className="ix-composer-actions">
         {/* The mockup's Save draft kept nothing: a real thread keeps no drafts, so it offers none. */}
         {!thread.real && (
-          <button
-            className="btn btn-ghost btn-sm"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => {
               setSaved(true);
               setTimeout(() => setSaved(false), SAVED_NOTICE_MS);
@@ -472,16 +476,11 @@ function seededFoot(c: ComposerDraw) {
             disabled={saved}
           >
             {saved ? "Draft saved ✓" : "Save draft"}
-          </button>
+          </Button>
         )}
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={!text.trim() || sending}
-          onClick={doSend}
-          {...gate("approve")}
-        >
+        <Button variant="primary" size="sm" disabled={!text.trim() || sending} onClick={doSend} {...gate("approve")}>
           {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"}
-        </button>
+        </Button>
       </div>
     </div>
   );

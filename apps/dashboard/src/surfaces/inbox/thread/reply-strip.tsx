@@ -12,6 +12,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { gate, refusalToast, useToast } from "../shell";
 import { detailField, repliesDoor, type StripThread } from "./shell-thread";
 import type { Thread } from "../types";
+import { Button } from "../../kit/button/button";
 
 /** The composer's side of "Use the draft": the draft for this thread, put in the reply box when the strip asks. */
 export const useReplyDraftDoor = (threadId: string | null, write: (text: string) => void) => {
@@ -86,27 +87,29 @@ export const ReplyStrip = ({ thread }: { thread: Thread }) => {
       {strip.doors.length ? (
         <div className="ix-th-reply-doors">
           {strip.doors.includes("use_draft") ? (
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost btn-sm"
+              variant="quiet"
+              size="sm"
               onClick={putDraft}
               data-testid="ix-th-reply-use-draft"
               {...gate("approve", "use the draft")}
             >
               Use the draft
-            </button>
+            </Button>
           ) : null}
           {strip.doors.includes("undo") ? (
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost btn-sm"
+              variant="quiet"
+              size="sm"
               onClick={undo}
               disabled={busy}
               data-testid="ix-th-reply-undo"
               {...gate("approve", "undo a reply read as no")}
             >
               Read as no · undo
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

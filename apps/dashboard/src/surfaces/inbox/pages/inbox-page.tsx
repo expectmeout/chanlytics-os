@@ -35,6 +35,7 @@ import { inboxData } from "../store";
 import { ThreadPane } from "../thread/thread-pane";
 import type { InboxSurface, Thread } from "../types";
 import { cancelSend } from "../verbs";
+import { Button } from "../../kit/button/button";
 
 /** The record once the bulk bar's acts are in: what is on screen is read from it. */
 type AfterBulk = InboxSoFar & InboxActs & InboxRealBulk & ReturnType<typeof inboxBulkActs>;
@@ -337,9 +338,9 @@ function sendingStrip(ix: InboxRecord) {
           <b>{vetoLive.length} drafts</b> about to send
         </span>
       )}
-      <button className="btn btn-sm" onClick={holdAll} {...gate("approve")}>
+      <Button size="sm" onClick={holdAll} {...gate("approve")}>
         Hold all
-      </button>
+      </Button>
     </div>
   );
 }

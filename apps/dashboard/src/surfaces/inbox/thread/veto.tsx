@@ -9,6 +9,7 @@ import { gate, useToast } from "../shell";
 import { trustRateFor } from "./shell-thread";
 import { steerDraft } from "../verbs";
 import type { Thread, Veto } from "../types";
+import { Button } from "../../kit/button/button";
 
 // =============== STEER — rewrite a held draft to the owner's instruction ===============
 // The WhatsApp counterpart of the call whisper. One line, and the receptionist
@@ -46,9 +47,9 @@ export const SteerBox = ({ messageId }: { messageId: string }) => {
         disabled={busy}
         aria-label="Instruction for the rewrite"
       />
-      <button className="btn btn-sm" onClick={send} disabled={busy || !text.trim()} {...gate("approve")}>
+      <Button size="sm" onClick={send} disabled={busy || !text.trim()} {...gate("approve")}>
         {busy ? "Rewriting…" : "Rewrite"}
-      </button>
+      </Button>
       {toastNode}
     </div>
   );
@@ -138,16 +139,16 @@ export const VetoBar = ({
     <span className="ix-veto-spacer"></span>
     {remaining != null && (
       <>
-        <button className="btn btn-ghost btn-sm" onClick={() => onAct(thread.id, "edit")} {...gate("approve")}>
+        <Button variant="quiet" size="sm" onClick={() => onAct(thread.id, "edit")} {...gate("approve")}>
           Edit
-        </button>
-        <button className="btn btn-sm" onClick={() => onAct(thread.id, "hold")} {...gate("approve")}>
+        </Button>
+        <Button size="sm" onClick={() => onAct(thread.id, "hold")} {...gate("approve")}>
           Hold
-        </button>
+        </Button>
       </>
     )}
-    <button className="btn btn-ghost btn-sm" onClick={() => onTakeOver(thread.id)} {...gate("approve")}>
+    <Button variant="quiet" size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve")}>
       Take over
-    </button>
+    </Button>
   </div>
 );

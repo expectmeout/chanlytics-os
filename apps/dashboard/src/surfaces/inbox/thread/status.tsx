@@ -15,6 +15,8 @@ import type { Thread, ThreadAsk, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
 import { IxWhy } from "./composer";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
+import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 
 /** The other side's move while you read: who did what, and the entries it left behind. */
 export interface Stale {
@@ -83,12 +85,12 @@ function staleBar(p: StatusProps) {
             changed for you.
           </div>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={onReconcile}>
+        <Button variant="primary" size="sm" onClick={onReconcile}>
           <Icon name="refresh" size={12} /> Refresh
-        </button>
-        <button className="btn btn-ghost btn-icon btn-sm" onClick={onDismissStale} aria-label="Dismiss">
+        </Button>
+        <Button variant="quiet" size="sm" iconOnly onClick={onDismissStale} aria-label="Dismiss">
           <Icon name="x" size={12} />
-        </button>
+        </Button>
       </div>
     )
   );
@@ -115,9 +117,9 @@ function resolvedBar(p: StatusProps) {
       <span>
         You chose <b>“{res.action}”</b> at {res.at} — {now}
       </span>
-      <button className="cl-bucket-link" onClick={() => navigate("conversations")}>
+      <LinkButton onClick={() => navigate("conversations")}>
         Transcript <Icon name="arrow-right" size={10} />
-      </button>
+      </LinkButton>
     </div>
   );
 }
@@ -144,13 +146,14 @@ function snoozedBar(p: StatusProps) {
           </>
         }
         acts={
-          <button
-            className="btn btn-ghost btn-sm"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => onWake(thread.id)}
             {...gate("approve", "wake a conversation")}
           >
             Wake now
-          </button>
+          </Button>
         }
       />
     ) : (
@@ -159,13 +162,9 @@ function snoozedBar(p: StatusProps) {
         <span>
           Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>. Nothing happens until then.
         </span>
-        <button
-          className="cl-bucket-link"
-          onClick={() => onWake(thread.id)}
-          {...gate("approve", "wake a conversation")}
-        >
+        <LinkButton onClick={() => onWake(thread.id)} {...gate("approve", "wake a conversation")}>
           Wake now <Icon name="arrow-right" size={10} />
-        </button>
+        </LinkButton>
       </div>
     ))
   );
@@ -185,17 +184,19 @@ function needsYouState(p: StatusProps, thread: Thread) {
       acts={
         <>
           {ixDockDials(thread) ? (
-            <a
-              className="btn btn-sm ix-state-go"
+            <Button
+              size="sm"
+              className="ix-state-go"
               href={`tel:${thread.phone}`}
               onClick={() => onTakeOver(thread.id)}
               data-testid="ix-call-back"
             >
               <Icon name="phone" size={12} /> Call back
-            </a>
+            </Button>
           ) : (
-            <button
-              className="btn btn-sm ix-state-go"
+            <Button
+              size="sm"
+              className="ix-state-go"
               onClick={() => onTakeOver(thread.id)}
               {...gate("approve", "take over a conversation")}
             >
@@ -206,18 +207,19 @@ function needsYouState(p: StatusProps, thread: Thread) {
               ) : (
                 "I'll answer this"
               )}
-            </button>
+            </Button>
           )}
           {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
           {thread.escalationId && (
-            <button
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="quiet"
+              size="sm"
               onClick={() => onDecide(thread.id, "__HANDBACK__")}
               aria-label="Nothing needed — hand it back to the receptionist"
               {...gate("approve", "hand a conversation back")}
             >
               Hand back
-            </button>
+            </Button>
           )}
         </>
       }
@@ -239,13 +241,14 @@ function needsYouSeeded(p: StatusProps) {
       </div>
       {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
       <div className="ix-take-actions">
-        <button
-          className="btn btn-primary btn-sm"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => onTakeOver(thread.id)}
           {...gate("approve", "take over a conversation")}
         >
           I'll take this one
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -319,14 +322,15 @@ function yoursBar(p: StatusProps) {
         // What they asked, where you answer it: it was only in the timeline (I3).
         ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
         acts={
-          <button
-            className="btn btn-ghost btn-sm"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => onHandBack(thread.id)}
             aria-label={`Hand back to ${thread.agent.name}`}
             {...gate("approve", "hand a conversation back")}
           >
             Hand back
-          </button>
+          </Button>
         }
       />
     ) : (
@@ -335,13 +339,9 @@ function yoursBar(p: StatusProps) {
         <div className="ix-take-body">
           <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
         </div>
-        <button
-          className="cl-bucket-link"
-          onClick={() => onHandBack(thread.id)}
-          {...gate("approve", "hand a conversation back")}
-        >
+        <LinkButton onClick={() => onHandBack(thread.id)} {...gate("approve", "hand a conversation back")}>
           Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
-        </button>
+        </LinkButton>
       </div>
     ))
   );

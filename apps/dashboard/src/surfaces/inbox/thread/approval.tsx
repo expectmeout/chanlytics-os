@@ -12,6 +12,7 @@ import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { confTone, fmtDelta, ROUTES } from "../constants";
 import { gate, keyPress, navigate } from "../shell";
 import type { Approval, Evidence, NextStep, Thread, Verdict, VerdictOption } from "../types";
+import { Button } from "../../kit/button/button";
 
 /** What the decision row asks of a plan's parameter: the label picked. */
 export interface DecideExtra {
@@ -259,24 +260,22 @@ function approvalFoot(props: ApprovalCardProps) {
   return (
     <div className="ix-approval-foot">
       <div className="ix-approval-decide">
-        <button
-          className="btn btn-primary btn-sm"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() =>
             onDecide(thread.id, "Approve", plan.param ? { param: plan.param.options[planParam]?.label } : {})
           }
           {...gate("approve")}
         >
           <Icon name="check" size={12} /> {plan.cta || "Approve"}
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => window.dispatchEvent(new CustomEvent("inbox:focus-composer"))}
-        >
+        </Button>
+        <Button variant="quiet" size="sm" onClick={() => window.dispatchEvent(new CustomEvent("inbox:focus-composer"))}>
           Edit reply
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "Decline")} {...gate("approve")}>
+        </Button>
+        <Button variant="quiet" size="sm" onClick={() => onDecide(thread.id, "Decline")} {...gate("approve")}>
           Decline
-        </button>
+        </Button>
       </div>
       <span className="ix-approval-hint">
         <span>
@@ -385,9 +384,9 @@ export const VerdictCard = ({
       <div className="ix-approval-foot">
         <span className="ix-approval-hint">Unanswered → Interested in 48h. Details editable later.</span>
         {v.apptId && (
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate(ROUTES.appt(v.apptId ?? ""))}>
+          <Button variant="quiet" size="sm" onClick={() => navigate(ROUTES.appt(v.apptId ?? ""))}>
             On the calendar <Icon name="arrow-right" size={10} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
