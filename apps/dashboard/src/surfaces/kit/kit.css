@@ -2891,3 +2891,44 @@ a.list-row {
 :where([data-look="glass"]) .pp-toast-cta {
   color: var(--accent-ink);
 }
+
+/* ---------- Page head ----------
+   What a canvas puts above a page in Glass (kit/head/page-head.tsx, drawn only there, inside <Glass>): the date and time
+   in the mono face, the page's name light and large, and beside it, on its baseline, the one sentence that says where the
+   page stands. Its own gutter is the Glass pane's (a page in Glass has its panes 16px in from the window). */
+.pg-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px 12px;
+  min-width: 0;
+}
+.pg-dateline {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.pg-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  min-width: 0;
+}
+.pg-title {
+  margin: 0;
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  color: var(--ink);
+}
+.pg-sentence {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}

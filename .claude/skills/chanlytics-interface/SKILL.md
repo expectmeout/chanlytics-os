@@ -72,6 +72,16 @@ Done when the change raises no count and adds no entry in the three measures: no
 colour or blur; no class that draws a primitive, and no selector naming a kit class, in a page's stylesheet; and no
 `style` prop.
 
+## What only one look draws
+
+A look changes how a thing looks with a `[data-look]` rule and no code. A canvas that adds a thing (the page head with
+its date, its name and its standing sentence, drawn in Glass alone) draws it in TSX inside `<Glass>`
+(`apps/dashboard/src/surfaces/kit/look/look.tsx`, which reads the look the document wears): nothing is in the page in
+Classic, never an element drawn and hidden, so the proofs that hold Classic to what it drew (the recorder by value, the
+computed styles of every element) see nothing new. The head is the kit's `PageHead`; a surface draws it from its route,
+its sentence counted by the rules its badge and tabs already read. The rules that stand a page's panes under it are the
+frame's (`components.css`), each under `:where([data-look="glass"])`, and none names a kit class from a page's sheet.
+
 ## Add a variant
 
 1. **The rule** in `kit.css`, on a class of its own as `.btn-sm` is, beside the primitive's other rules. It reads a

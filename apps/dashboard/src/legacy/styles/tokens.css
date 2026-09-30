@@ -33,6 +33,7 @@
   --tracking-normal: -0.005em;
   --tracking-wide: 0.04em;
 
+  --weight-light: 300; /* a page head's name in Glass: the canvases draw it light and large */
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;

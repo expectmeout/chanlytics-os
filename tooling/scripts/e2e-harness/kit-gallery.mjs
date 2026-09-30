@@ -1517,6 +1517,22 @@ export const FAMILIES = [
       { id: "field-kit-wrong", html: kitFieldsWrong() },
     ],
   },
+  {
+    family: "Page head",
+    about:
+      "The kit's page head (surfaces/kit/head/page-head.tsx): the date and time in the mono face, the page's name light " +
+      "and large, and beside it the one sentence that says where the page stands. A page draws it in Glass alone, " +
+      "inside Glass; Classic's top bar carries the name.",
+    entries: [
+      {
+        id: "page-head",
+        html:
+          `<header class="pg-head"><p class="pg-dateline">Friday, October 2 · 4:02 PM</p>` +
+          `<div class="pg-line"><h1 class="pg-title">Inbox</h1>` +
+          `<p class="pg-sentence">4 need you · the oldest since 2:26 PM</p></div></header>`,
+      },
+    ],
+  },
 ];
 
 /* ---- the document ---- */
