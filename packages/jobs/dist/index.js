@@ -546,32 +546,32 @@ var DAY_NAMES = {
 };
 var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
-  const name2 = DAY_NAME[day] ?? day;
+  const name = DAY_NAME[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -743,10 +743,10 @@ var LeadSearchPlanSchema = z7.object({
   if (!US_CODES.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var L = (id, name2, region, native) => ({
+var L = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -1080,7 +1080,7 @@ var MODEL_PRICES = {
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -1137,11 +1137,11 @@ var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_ERASE_WORDS = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION = "Did you send it?";
@@ -3972,32 +3972,32 @@ var DAY_NAMES2 = {
 };
 var DAY_NAME2 = DAY_NAMES2;
 function dayProblems2(h, day) {
-  const name2 = DAY_NAME2[day] ?? day;
+  const name = DAY_NAME2[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY2) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -4181,10 +4181,10 @@ var LeadSearchPlanSchema2 = z72.object({
   if (!US_CODES2.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var L2 = (id, name2, region, native) => ({
+var L2 = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -4523,7 +4523,7 @@ var MODEL_PRICES2 = {
   [MODELS2.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES2 = Object.fromEntries(
-  Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
@@ -4580,11 +4580,11 @@ var LEAD_REVIEW_WORD2 = "Needs review";
 var LEAD_LEFT_OUT_WORD2 = "Left out";
 var LEAD_ERASE_WORDS2 = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION2 = "Did you send it?";
@@ -7343,32 +7343,32 @@ var DAY_NAMES3 = {
 };
 var DAY_NAME3 = DAY_NAMES3;
 function dayProblems3(h, day) {
-  const name2 = DAY_NAME3[day] ?? day;
+  const name = DAY_NAME3[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY3) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -7540,10 +7540,10 @@ var LeadSearchPlanSchema3 = z73.object({
   if (!US_CODES3.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var L3 = (id, name2, region, native) => ({
+var L3 = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -7877,7 +7877,7 @@ var MODEL_PRICES3 = {
   [MODELS3.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES3 = Object.fromEntries(
-  Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
@@ -7934,11 +7934,11 @@ var LEAD_REVIEW_WORD3 = "Needs review";
 var LEAD_LEFT_OUT_WORD3 = "Left out";
 var LEAD_ERASE_WORDS3 = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION3 = "Did you send it?";
@@ -10796,32 +10796,32 @@ var DAY_NAMES4 = {
 };
 var DAY_NAME4 = DAY_NAMES4;
 function dayProblems4(h, day) {
-  const name2 = DAY_NAME4[day] ?? day;
+  const name = DAY_NAME4[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY4) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY4} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY4} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -10993,10 +10993,10 @@ var LeadSearchPlanSchema4 = z74.object({
   if (!US_CODES4.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var L4 = (id, name2, region, native) => ({
+var L4 = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -11330,7 +11330,7 @@ var MODEL_PRICES4 = {
   [MODELS4.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES4 = Object.fromEntries(
-  Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES4).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
@@ -11387,11 +11387,11 @@ var LEAD_REVIEW_WORD4 = "Needs review";
 var LEAD_LEFT_OUT_WORD4 = "Left out";
 var LEAD_ERASE_WORDS4 = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION4 = "Did you send it?";
@@ -14017,32 +14017,32 @@ var DAY_NAMES22 = {
 };
 var DAY_NAME22 = DAY_NAMES22;
 function dayProblems22(h, day) {
-  const name2 = DAY_NAME22[day] ?? day;
+  const name = DAY_NAME22[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY22) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY22} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY22} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -14397,10 +14397,10 @@ function wallClockAt(tz, dayKey2, hh, mm) {
     mm
   );
 }
-var L22 = (id, name2, region, native) => ({
+var L22 = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -14724,9 +14724,9 @@ function summaryOf(v) {
 var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
-var saysAny = (summary, names3) => {
+var saysAny = (summary, names2) => {
   const words322 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names3.some((n) => words322.has(n));
+  return names2.some((n) => words322.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -15077,7 +15077,7 @@ var MODEL_PRICES22 = {
   [MODELS22.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES22 = Object.fromEntries(
-  Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES22).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
@@ -15134,11 +15134,11 @@ var LEAD_REVIEW_WORD22 = "Needs review";
 var LEAD_LEFT_OUT_WORD22 = "Left out";
 var LEAD_ERASE_WORDS22 = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION22 = "Did you send it?";
@@ -17713,32 +17713,32 @@ var DAY_NAMES32 = {
 };
 var DAY_NAME32 = DAY_NAMES32;
 function dayProblems32(h, day) {
-  const name2 = DAY_NAME32[day] ?? day;
+  const name = DAY_NAME32[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY32) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY32} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY32} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -17910,10 +17910,10 @@ var LeadSearchPlanSchema32 = z732.object({
   if (!US_CODES32.has(p.area.state))
     ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var L32 = (id, name2, region, native) => ({
+var L32 = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -18247,7 +18247,7 @@ var MODEL_PRICES32 = {
   [MODELS32.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES32 = Object.fromEntries(
-  Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES32).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
@@ -18304,11 +18304,11 @@ var LEAD_REVIEW_WORD32 = "Needs review";
 var LEAD_LEFT_OUT_WORD32 = "Left out";
 var LEAD_ERASE_WORDS32 = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION32 = "Did you send it?";

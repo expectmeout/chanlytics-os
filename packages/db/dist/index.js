@@ -109,9 +109,9 @@ function fencedInline(tag, text2) {
   return `<${tag}>${defang(text2)}</${tag}>`;
 }
 var PROFILE_NAME_MAX = 60;
-function promptSafeName(name2) {
-  if (typeof name2 !== "string") return null;
-  const flat = defang(name2).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
+function promptSafeName(name) {
+  if (typeof name !== "string") return null;
+  const flat = defang(name).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!flat) return null;
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
 }
@@ -558,32 +558,32 @@ var DAY_NAMES = {
 };
 var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
-  const name2 = DAY_NAME[day] ?? day;
+  const name = DAY_NAME[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name2} needs both an opening and a closing time, or neither.`
+      message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
   return out;
@@ -806,10 +806,10 @@ function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
-var L = (id, name2, region, native) => ({
+var L = (id, name, region, native) => ({
   id,
-  label: region ? `${name2} (${region})` : name2,
-  name: name2,
+  label: region ? `${name} (${region})` : name,
+  name,
   region,
   native
 });
@@ -1143,7 +1143,7 @@ var MODEL_PRICES = {
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
 var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
+  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -1200,11 +1200,11 @@ var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_ERASE_WORDS = {
   act: "Erase this lead",
-  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name2) => `${name2} is erased. It won't be found again.`,
+  done: (name) => `${name} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION = "Did you send it?";
