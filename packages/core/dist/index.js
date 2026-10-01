@@ -4392,8 +4392,8 @@ function fallbackMessages(brain, known) {
     const stored = brain.fallbacks[kind];
     return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
   };
-  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
+  const say3 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say3("greeting"), error: say3("error"), non_text: say3("non_text") };
 }
 var BrainConfigSchema2 = z52.object({
   business_name: z52.string().min(1).max(120),
@@ -5477,9 +5477,9 @@ function summaryOf(v) {
 var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
-var saysAny = (summary, names2) => {
+var saysAny = (summary, names3) => {
   const words32 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n) => words32.has(n));
+  return names3.some((n) => words32.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;

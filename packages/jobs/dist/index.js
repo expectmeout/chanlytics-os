@@ -14724,9 +14724,9 @@ function summaryOf(v) {
 var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
-var saysAny = (summary, names2) => {
+var saysAny = (summary, names3) => {
   const words322 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n) => words322.has(n));
+  return names3.some((n) => words322.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;

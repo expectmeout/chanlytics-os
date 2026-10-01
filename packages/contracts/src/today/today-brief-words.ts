@@ -26,7 +26,9 @@ export interface TodayBriefWords {
 }
 
 const say = (text: string): TodayBriefSegment => ({ text });
-const name = (text: string): TodayBriefSegment => ({ text, strong: true });
+// `bold`, not `name`: a top-level `name` in contracts makes the bundler rename every other `name` in every dist that
+// bundles it (core, jobs, channels, db), which is churn in four committed files for one word.
+const bold = (text: string): TodayBriefSegment => ({ text, strong: true });
 
 /** Up to three names in bold, the rest counted: "Ana Reyes, Kenia Duarte and 2 more". `rest` are the ones not named. */
 function names(who: readonly string[], rest: number): TodayBriefSegment[] {
@@ -35,7 +37,7 @@ function names(who: readonly string[], rest: number): TodayBriefSegment[] {
   const out: TodayBriefSegment[] = [];
   said.forEach((w, i) => {
     if (i > 0) out.push(say(i === said.length - 1 && !left ? " and " : ", "));
-    out.push(name(w));
+    out.push(bold(w));
   });
   if (left) out.push(say(` and ${left} more`));
   return out;
@@ -63,7 +65,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
     // sentences are one: "Ana Reyes needs you, waiting since 2:20 PM."
     const lead = `${people[0]} has been `;
     if (one && detail && detail.startsWith(lead))
-      out.push([name(people[0]), say(` needs you, ${detail.slice(lead.length)}`)]);
+      out.push([bold(people[0]), say(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       out.push([...names(people, vm.queue.more), say(one ? " needs you." : " need you.")]);
       if (detail) out.push([say(detail)]);
@@ -79,7 +81,7 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
 
 /** Who an appointment is with, in bold, and what for; or what it is where nobody is named. */
 const withWhom = (b: TodayDayItemVM): TodayBriefSegment[] =>
-  b.person ? [name(b.person.name), ...(b.service ? [say(` (${b.service})`)] : [])] : [say(b.service || b.title)];
+  b.person ? [bold(b.person.name), ...(b.service ? [say(` (${b.service})`)] : [])] : [say(b.service || b.title)];
 
 /** The calendar's day: how many, the one under way, the next, and how many after; or that the day is closed or empty. */
 function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
@@ -115,7 +117,7 @@ function cameIn(vm: TodayVM): TodayBriefSegment[][] {
 
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */
 const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
-  name(r.label),
+  bold(r.label),
   say(` is waiting for your word: ${r.sentence}`),
 ];
 
