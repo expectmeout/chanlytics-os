@@ -13,7 +13,8 @@ import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
 import { peekPerson, personDetail, warmPeople, warmPerson } from "../people-detail";
 import { plLoadedWords, plMatcher } from "../words";
-import { pipeColumns, pipePhoneColumns } from "./columns";
+import { lookNow } from "../../kit/look/look";
+import { pipeColumns, pipeGlassColumns, pipePhoneColumns } from "./columns";
 import type { NewAdd } from "./new";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
@@ -65,7 +66,8 @@ export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: Pi
   const [firstLayout] = useState(pipeFirstLayout);
   const controls = usePlControls({
     scope: "pipeline",
-    cols: pipeColumns(),
+    // The table's columns are the look's (columns.tsx): canvas D1's in Glass, the JSX's in Classic.
+    cols: lookNow() === "glass" ? pipeGlassColumns() : pipeColumns(),
     phoneCols: pipePhoneColumns(),
     colCtx: PIPE_CTX,
     people,
@@ -357,8 +359,11 @@ type PeekRow = ReturnType<typeof usePipelinePeekRow>;
 export function usePipelineColumns(f: PipelineFrame, pk: PeekRow) {
   const { columns } = f.controls;
   const { compact } = pk;
-  return useMemo(() => (compact ? columns.filter((c) => PIPE_PEEK_KEEPS.has(c.key)) : columns), [columns, compact]);
+  // In Glass where it stands is Stage's column (columns.tsx pipeGlassColumns), so that is what a peek leaves beside the name.
+  const keeps = lookNow() === "glass" ? PIPE_PEEK_KEEPS_GLASS : PIPE_PEEK_KEEPS;
+  return useMemo(() => (compact ? columns.filter((c) => keeps.has(c.key)) : columns), [columns, compact, keeps]);
 }
+const PIPE_PEEK_KEEPS_GLASS = new Set(["name", "stage"]);
 
 /**
  * A board column shows twenty; a cursor or a peek the address puts on a card past them shows the column whole, or the

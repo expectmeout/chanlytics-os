@@ -19,7 +19,7 @@ import { useLook } from "../../kit/look/look";
 import { inboxVerb } from "../../inbox/verbs";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, canDo, gate, refusalFlash, surfaceFailed, useMoved, useToast } from "../shell";
+import { appNavigate, doorGlyph, canDo, gate, refusalFlash, surfaceFailed, useMoved, useToast } from "../shell";
 import { liveClock, useLiveNow } from "./live-now";
 import { broadcastsRead, runRows, runsPending, type Nav, type Say, type VerbKind } from "./queue-runs";
 
@@ -164,7 +164,7 @@ function queueHead(vm: TodayVM, runsCount: number, nav: Nav, head: { glass: bool
       </span>
       <button type="button" className="tq-open" onClick={() => nav("inbox")}>
         Open Inbox
-        {head.glass && <Icon name="arrow-right" size={11} />}
+        {head.glass && <Icon name={doorGlyph()} size={11} />}
       </button>
     </div>
   );

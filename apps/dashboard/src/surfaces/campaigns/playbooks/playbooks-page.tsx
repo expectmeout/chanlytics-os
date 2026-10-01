@@ -31,6 +31,7 @@ import {
   pbHead,
   pbList,
   pbMore,
+  pbPanes,
 } from "./page-parts";
 import { playbooksSample } from "./sample";
 
@@ -150,11 +151,16 @@ function PlaybooksReal({ initialPlaybook = null, data }: PlaybooksRealProps) {
           />
         )}
         <PbChainsFailed />
-        {/* The playbooks, as People's table: the columns named once above the rows; a reach-out's chain first. */}
-        {pbList({ cards, chains, canAct, flash, tz: data.timezone, openId, setOpenId, initialPlaybook, onEdit })}
-        {pbMore(unused, startAt)}
+        {/* The playbooks, as People's table: the columns named once above the rows; a reach-out's chain first. In Glass
+            the table, the moments not set up and the always-on rules are one pane (canvas C1); Classic draws them as
+            they were. */}
+        {pbPanes({
+          glass,
+          list: pbList({ cards, chains, canAct, flash, tz: data.timezone, openId, setOpenId, initialPlaybook, onEdit }),
+          more: pbMore(unused, startAt),
+          always: (cards.length > 0 || unused.length > 0) && <PbAlwaysOn rows={rows} />,
+        })}
         {rows.length === 0 && chains.length === 0 && unused.length === 0 && !composing && pbEmpty()}
-        {(cards.length > 0 || unused.length > 0) && <PbAlwaysOn rows={rows} />}
         {!canAct && rows.length > 0 && (
           <div className="bc-excl-hint" data-testid="pb-role">
             {gateTitle("approve", "pause, run, change or delete a playbook")}

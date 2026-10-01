@@ -14017,8 +14017,9 @@ declare const DEFAULT_THEME_PREF: ThemePref;
 declare const themePrefOf: (stored: unknown) => ThemePref;
 /**
  * The look: the finish every page is drawn in, the interface kit's second setting beside the theme
- * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Classic is the app as it is drawn today;
- * Glass is the canvases'. It travels as the theme does: kept on this device in the same stored object, stamped as
+ * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Glass is the canvases', and the default
+ * since 1 October 2026 (the plan's step 5.6); Classic is the app as it was drawn before, kept for a member who chooses
+ * it. It travels as the theme does: kept on this device in the same stored object, stamped as
  * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
  * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
  * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
@@ -14029,29 +14030,28 @@ declare const LOOK_OPTIONS: ReadonlyArray<{
     label: string;
 }>;
 declare const isLookPref: (v: unknown) => v is LookPref;
-/** The look of a device that has chosen nothing, or holds one this build no longer knows. */
+/**
+ * The look of a device that has chosen nothing, or holds one this build no longer knows: Glass, since 1 October 2026
+ * (the plan's step 5.6). A member who chose Classic keeps it, since a device keeps a look only once it is chosen.
+ */
 declare const DEFAULT_LOOK_PREF: LookPref;
 /** A device's stored look as the app keeps it: anything unknown is the default. */
 declare const lookPrefOf: (stored: unknown) => LookPref;
 /**
  * Whether the account menu offers the look to members: it does, since Glass was drawn on every canvas (the plan's step
- * 5.5). A device paints the look it keeps, which is the default, Classic, until a member picks the other by hand.
+ * 5.5). A device paints the look it keeps, which is the default until a member picks the other by hand.
  */
 declare const LOOK_OFFERED: boolean;
 /** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 declare const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 /**
- * What the browser paints its own bars with, per theme: each one's paper (tokens.css --bg, as sRGB). The phone's
- * address bar and the tab strip are chrome the page does not draw but does own, and a bar in the other theme's
- * paper reads as a strip of somebody else's app above this one.
+ * The default look's paper per theme: what a document that has run no script keeps (layout.tsx, the manifest), and
+ * what the native shell paints its own screens with, beside the page.
  */
 declare const THEME_COLORS: Readonly<Record<Theme, string>>;
-/**
- * The ink on that paper, per theme (tokens.css --ink, as sRGB): what the native shell draws its own words and tab
- * labels with, beside the page. The two pairs are the shell's whole palette; the page's other tones stay the page's.
- */
+/** The default look's ink per theme. */
 declare const THEME_INK: Readonly<Record<Theme, string>>;
-/** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
+/** The bars' colour for a resolved theme, in a look; anything else is the app's own, as the document's markup says. */
 declare function themeColorOf(theme: unknown, look?: unknown): string;
 /**
  * Where the bars' colour is written. Every match, not the first: React plants a second copy of the meta during

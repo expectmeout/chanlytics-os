@@ -27,8 +27,8 @@ export interface Prefs {
   theme: ThemePref;
   /**
    * The look this device chose, and none until it has. A device that never chose follows DEFAULT_LOOK_PREF wherever
-   * the default goes (the interface kit's step 5.6 moves it to Glass), so a save of the theme or the rail must not
-   * write today's default down as if it had been picked.
+   * the default goes (the interface kit's step 5.6 moved it to Glass on 1 October 2026), so a save of the theme or the
+   * rail must not write today's default down as if it had been picked.
    */
   look?: LookPref;
   sidebar: SidebarPref;

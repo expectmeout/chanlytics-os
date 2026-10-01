@@ -4,7 +4,7 @@
  * three rules that shape every run, and the pb* helpers the page reads its rows through.
  */
 import { Fragment } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { ReachOutChainDto } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { gate } from "../../legacy-verbs";
@@ -288,6 +288,39 @@ export function pbMore(unused: readonly PlaybookTriggerOption[], startAt: (id: s
       </section>
     )
   );
+}
+
+/**
+ * The table, the moments not set up and the always-on rules, as the page lays them: in Glass one pane (canvas C1), in
+ * Classic as they were, so Classic's tree is the tree it drew; nothing to hold is no pane.
+ */
+export function pbPanes({
+  glass,
+  list,
+  more,
+  always,
+}: {
+  glass: boolean;
+  list: ReactNode;
+  more: ReactNode;
+  always: ReactNode;
+}) {
+  if (!glass) {
+    return (
+      <>
+        {list}
+        {more}
+        {always}
+      </>
+    );
+  }
+  return list || more || always ? (
+    <div className="pb-glass">
+      {list}
+      {more}
+      {always}
+    </div>
+  ) : null;
 }
 
 /** No moment to name and no playbook: what one is for, and the one press that makes the first. */

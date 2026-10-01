@@ -20,6 +20,7 @@ globalThis.clearInterval = () => undefined;
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { peopleSample } = await importSrc("apps/dashboard/src/surfaces/people/sample.ts");
 const { usePeopleStanding } = await importSrc("apps/dashboard/src/surfaces/people/page/people-head.tsx");
+const { usePipelineStanding } = await importSrc("apps/dashboard/src/surfaces/people/pipeline/standing.tsx");
 const { standingSaid, forgetStanding } = await importSrc("apps/dashboard/src/surfaces/kit/head/standing.ts");
 const { P } = await importSrc("apps/dashboard/src/surfaces/people/pipeline/pipe.ts");
 
@@ -59,21 +60,28 @@ test("People says its name and the standing line's counts in words to the frame'
   assert.equal(headOf("people").sentence, null, "before People has landed the head is the name and no sentence");
 });
 
-test("the Pipeline's head is the line over its table: every part it draws, in its order", () => {
-  // The e2e harness's pipeline record: a studio that sells by proposal, with someone in every group.
+test("the Pipeline's head is the line over its table: every part it draws, in its order; its act is Glass's alone", () => {
+  // The e2e harness's pipeline record: a studio that sells by proposal, with someone in every group. The page says its
+  // own standing (pipeline/standing.tsx), handed the line its table draws and the New proposal press.
   const record = scenario("pipeline", NOW.getTime());
   const rows = record.people.map((r) => toPersonRowVM(r, "America/New_York", NOW));
-  const surface = { ...peopleSample(NOW), rows, dealsOn: true, fetchedAt: NOW.getTime() };
-  setSurfaceValue("people", surface);
-  const head = headOf("pipeline");
-  assert.equal(head.title, "Pipeline");
-  const line = P.of(rows, NOW.getTime(), "UTC", null).line.map((part) => part.words);
+  const line = P.of(rows, NOW.getTime(), "UTC", null).line;
   assert.ok(line.length > 0, "the record has deals to say");
-  assert.equal(head.sentence, line.join(" · "));
-  setSurfaceValue("people", undefined);
+  const Pipeline = () => {
+    usePipelineStanding(line, { openNew: () => undefined, gate: {} });
+    return null;
+  };
+  forgetStanding();
+  fresh();
+  again(() => Pipeline());
+  const said = standingSaid();
+  assert.equal(said.title, "Pipeline");
+  assert.equal(said.sentence, line.map((part) => part.words).join(" · "));
+  assert.equal(said.back, null, "a scope picked in the page's own strip has no way back");
+  assert.equal(said.act, undefined, "on the stub's document, Classic: the button stays in the controls row");
 });
 
-test("a person's page is its own head: a null title and no way back, so the frame draws only the date", () => {
+test("a person's page is its own head: a null title, and its way back to People where the frame draws the date", () => {
   setSurfaceValue("people", peopleSample(NOW));
   forgetStanding();
   fresh();
@@ -81,19 +89,22 @@ test("a person's page is its own head: a null title and no way back, so the fram
   const said = standingSaid();
   assert.ok(said, "a standing is said");
   assert.equal(said.title, null, "no name: the hero names them");
-  assert.equal(said.back, null, "and no way back above it");
+  // The frame puts a null-titled page's way back in the top bar's row (kit/head/frame-head.tsx PageDateline), as canvas
+  // P3 draws "‹ People" where the date stands; the move is the person page's own (person-verbs backToPeople).
+  assert.equal(said.back?.label, "People", "the way back is People's");
+  assert.equal(typeof said.back?.go, "function", "and it is the page's own move");
   setSurfaceValue("people", undefined);
 });
 
-test("the route says the standing once, from its address: a person's page none, the Pipeline its own, else People's", async () => {
+test("the route says the standing once, from its address: a person's page its own head, the Pipeline's page its own, else People's", async () => {
   const route = (await import("node:fs")).readFileSync(
     new URL("../../../../../apps/dashboard/src/surfaces/people/people-route.tsx", import.meta.url),
     "utf8",
   );
   assert.match(
     route,
-    /usePeopleStanding\(person \? "person" : pipeline \? "pipeline" : "people"\)/,
-    "one call, keyed by the address",
+    /usePeopleStanding\(person \? "person" : pipeline \? null : "people"\)/,
+    "one call, keyed by the address; the Pipeline's page says its own (pipeline/standing.tsx)",
   );
   assert.equal(route.match(/usePeopleStanding\(/g).length, 1, "and only the one");
   assert.ok(!/<PeopleHead|<Glass>/.test(route), "the page draws no head of its own; the frame's is the head");

@@ -2486,6 +2486,17 @@ var CHECKOUT_OUTCOME_WORDS = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF = "glass";
+var LOOK_THEME_COLORS = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS = LOOK_THEME_COLORS[DEFAULT_LOOK_PREF];
+var LOOK_THEME_INK = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var ReachOutRepliesQuerySchema = z18.object({
@@ -5968,6 +5979,17 @@ var CHECKOUT_OUTCOME_WORDS2 = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF2 = "glass";
+var LOOK_THEME_COLORS2 = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS2 = LOOK_THEME_COLORS2[DEFAULT_LOOK_PREF2];
+var LOOK_THEME_INK2 = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK2 = LOOK_THEME_INK2[DEFAULT_LOOK_PREF2];
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var ReachOutRepliesQuerySchema2 = z182.object({
@@ -9261,6 +9283,17 @@ var CHECKOUT_OUTCOME_WORDS3 = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF3 = "glass";
+var LOOK_THEME_COLORS3 = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS3 = LOOK_THEME_COLORS3[DEFAULT_LOOK_PREF3];
+var LOOK_THEME_INK3 = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK3 = LOOK_THEME_INK3[DEFAULT_LOOK_PREF3];
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var ReachOutRepliesQuerySchema3 = z183.object({
@@ -12703,6 +12736,17 @@ var CHECKOUT_OUTCOME_WORDS4 = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF4 = "glass";
+var LOOK_THEME_COLORS4 = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS4 = LOOK_THEME_COLORS4[DEFAULT_LOOK_PREF4];
+var LOOK_THEME_INK4 = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK4 = LOOK_THEME_INK4[DEFAULT_LOOK_PREF4];
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
 var ReachOutRepliesQuerySchema4 = z184.object({
@@ -16492,6 +16536,17 @@ var CHECKOUT_OUTCOME_WORDS22 = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF22 = "glass";
+var LOOK_THEME_COLORS22 = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS22 = LOOK_THEME_COLORS22[DEFAULT_LOOK_PREF22];
+var LOOK_THEME_INK22 = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK22 = LOOK_THEME_INK22[DEFAULT_LOOK_PREF22];
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
 var ReachOutRepliesQuerySchema22 = z1822.object({
@@ -19599,6 +19654,17 @@ var CHECKOUT_OUTCOME_WORDS32 = {
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var DEFAULT_LOOK_PREF32 = "glass";
+var LOOK_THEME_COLORS32 = {
+  classic: { light: "#fbfaf8", dark: "#0c0d0f" },
+  glass: { light: "#f1f2f6", dark: "#0f1014" }
+};
+var THEME_COLORS32 = LOOK_THEME_COLORS32[DEFAULT_LOOK_PREF32];
+var LOOK_THEME_INK32 = {
+  classic: { light: "#161616", dark: "#fbfaf8" },
+  glass: { light: "#1b1c20", dark: "#f4f4f6" }
+};
+var THEME_INK32 = LOOK_THEME_INK32[DEFAULT_LOOK_PREF32];
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
 var ReachOutRepliesQuerySchema32 = z1832.object({

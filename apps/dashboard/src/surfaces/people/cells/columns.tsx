@@ -116,13 +116,17 @@ function PeopleRowActions({
  * lines. The number and the channels are Reach, a column of their own; when they first wrote is First contact, a column of
  * its own; their WhatsApp name is the name's tip; the counts are the profile's.
  */
-export const plNameCell = (p: PersonRowVM, { attention, onOpen }: Pick<PeopleCellCtx, "attention" | "onOpen">) => {
+export const plNameCell = (
+  p: PersonRowVM,
+  { attention, onOpen }: Pick<PeopleCellCtx, "attention" | "onOpen">,
+  said?: string | null,
+) => {
   // Named by an identifier, a number or an address: nobody has named them yet.
   const byNumber = plIsNumber(p.name);
   const numbered = byNumber || plIsAddress(p);
   // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you said neither, and
-  // gave no reason for the state either.
-  const words = attentionWordsOf(p, attention);
+  // gave no reason for the state either. A table that has its own line for the row (the Pipeline's deal, in Glass) says it.
+  const words = said === undefined ? attentionWordsOf(p, attention) : said;
   return (
     <td key="name" className="cl-name-cell pl-pin">
       <div className="cl-row-name">

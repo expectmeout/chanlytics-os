@@ -2720,16 +2720,30 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   :where([data-look="glass"]) .main-scroll .cl-rail-label {
     font-family: var(--font-mono);
   }
+  /* The canvases' rail (P1, L1) opens with its rows under their groups' names: the one label with a glyph before it
+     ("Smart lists") says nothing a group's name does not. */
+  :where([data-look="glass"]) .main-scroll .cl-rail-label:has(> svg) {
+    display: none;
+  }
+  /* A row spans the rail (a button sizes to its words unless told), its count at the far end in the dim ink, its words
+     in the page's; the one picked is the lozenge. */
   :where([data-look="glass"]) .main-scroll .cl-rail-row {
+    width: 100%;
     border-radius: var(--surface-inset-radius);
     padding: 6px 10px;
+    font-size: var(--text-base);
+    text-align: left;
+    color: var(--ink);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-rail-row .count {
+    font-size: var(--text-sm);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-row:hover {
     background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-row.active {
-    background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
   }
   :where([data-look="glass"]) .main-scroll .cl-rail-newseg {
     border-style: solid;
@@ -2775,18 +2789,23 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   :where([data-look="glass"]) .main-scroll .cl-section {
     padding: 10px 16px 6px;
   }
-  /* The table is an inset on the pane. Its pinned cells paint their own ground over the others (--pl-row), so that ground
-     is the inset's, opaque: the token that lays its fill over the pane and the page. */
+  /* The table sits on the pane itself, as the canvases draw it (P1, L1, D1): rows told apart by hairlines, no box of
+     its own. Its pinned cells and its sticky head paint their own ground over the rows that pass under (--pl-row), so
+     that ground is the pane's solid: the token that lays the pane's fill over the page, opaque. */
   :where([data-look="glass"]) .main-scroll .cl-table-wrap {
-    margin: 0 14px;
-    border-color: var(--surface-inset-edge);
-    border-radius: var(--surface-inset-radius);
-    background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
+    margin: 0 18px;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
   :where([data-look="glass"]) .main-scroll .pl-table {
-    --pl-row: var(--surface-inset-solid);
-    --pl-hover: color-mix(in oklab, var(--surface-inset-solid) 92%, var(--ink));
+    --pl-row: transparent;
+    --pl-hover: color-mix(in oklab, var(--surface-pane-solid) 92%, var(--ink));
+  }
+  /* A pinned cell paints its own ground only once the rows have scrolled sideways under it. */
+  :where([data-look="glass"]) .main-scroll .pl-table-scroll.scrolled .pl-table {
+    --pl-row: var(--surface-pane-solid);
   }
   :where([data-look="glass"]) .main-scroll .pl-table tbody tr:hover,
   :where([data-look="glass"]) .main-scroll .pl-table tbody tr.focused {
@@ -2794,7 +2813,32 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     background: var(--pl-hover);
   }
   :where([data-look="glass"]) .main-scroll .pl-table tbody tr.selected {
-    --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-inset-solid);
+    --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
+  }
+  /* A row at the canvases' height, the name in the semibold at the canvases' size over its line, the face 32px. */
+  :where([data-look="glass"]) .main-scroll .cl-table td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  :where([data-look="glass"]) .main-scroll .cl-row-fullname {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+  }
+  :where([data-look="glass"]) .main-scroll .cl-row-name > :first-child {
+    width: 32px;
+    height: 32px;
+    font-size: var(--text-xs);
+  }
+  /* People's first act, Add a person, is the inset capsule the canvas draws (P1); the others stay words. */
+  :where([data-look="glass"]) .main-scroll .cl-controls-right > [data-testid="add-person"] {
+    height: var(--control-h-md);
+    padding: 0 14px;
+    border: 1px solid var(--surface-inset-edge);
+    border-radius: var(--radius-full);
+    background: var(--surface-inset-fill);
+    box-shadow: var(--surface-inset-depth);
+    color: var(--ink);
+    font-weight: var(--weight-medium);
   }
   /* What a list says it can do for the people on it (the broadcast's door) is an inset too. */
   :where([data-look="glass"]) .main-scroll .cl-list-action {
@@ -2803,11 +2847,13 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     background: var(--surface-inset-fill);
     box-shadow: var(--surface-inset-depth);
   }
+  /* The head is clear on the pane, as the canvases draw it; it stays sticky, so it blurs the rows that pass under it. */
   :where([data-look="glass"]) .main-scroll .cl-table thead th,
   :where([data-look="glass"]) .main-scroll .pl-table thead th.cl-sel,
   :where([data-look="glass"]) .main-scroll .pl-table thead th.pl-pin {
     font-family: var(--font-mono);
-    background: var(--surface-inset-solid);
+    background: transparent;
+    backdrop-filter: blur(var(--blur-md));
   }
   :where([data-look="glass"]) .main-scroll .cl-table-foot {
     background: transparent;
@@ -2877,18 +2923,37 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     background: var(--surface-pane-solid);
   }
   /* The history's filters are a capsule on an inset's fill, the picked one a lozenge. */
+  /* The history's filters are words on a hairline, the one picked underlined in ink (canvas P3), not a capsule. */
   :where([data-look="glass"]) .cl-tl-filters {
-    border-color: var(--surface-inset-edge);
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow: var(--surface-inset-depth);
+    display: flex;
+    gap: 18px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
   :where([data-look="glass"]) .cl-tl-filters .cl-tab {
-    border-radius: var(--radius-full);
+    margin-bottom: -1px;
+    padding: 6px 0 8px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    font-size: var(--text-base);
+    color: var(--ink-dim);
+  }
+  :where([data-look="glass"]) .cl-tl-filters > :hover {
+    background: transparent;
+    color: var(--ink);
   }
   :where([data-look="glass"]) .cl-tl-filters .cl-tab.active {
-    background: var(--selected-fill);
-    box-shadow: var(--selected-depth);
+    background: transparent;
+    border-bottom-color: var(--ink);
+    box-shadow: none;
+    color: var(--ink);
+    font-weight: var(--weight-semibold);
   }
 }
 
@@ -2899,8 +2964,29 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
    edge. Each rule names the look inside :where() and none matches in Classic.
    ==================================================================== */
 @media (width > 900px) {
+  /* A group's head (D1): its name in the semibold at the rows' size, its count and its meta beside it in the dim ink. */
   :where([data-look="glass"]) .main-scroll .pl-sec-head > th {
-    background: var(--surface-inset-solid);
+    padding-top: 16px;
+    font-size: var(--text-sm);
+    background: transparent;
+    backdrop-filter: blur(var(--blur-md));
+  }
+  :where([data-look="glass"]) .main-scroll .pl-sec-head .pl-sec-label {
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
+  }
+  /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
+     has stood there, in the dim ink. */
+  :where([data-look="glass"]) .main-scroll .pipe-stands-in {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  :where([data-look="glass"]) .main-scroll .pipe-stands-sub {
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
   }
   :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek {
     flex-direction: row;

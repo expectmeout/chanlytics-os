@@ -6,10 +6,12 @@
  * it drew, by value and by computed style, sees nothing new).
  *
  * The look is on the document as `data-look` (legacy-bridge/LegacyApp.tsx stamps it, and again when a member chooses
- * another). A page draws Classic until it has read it, so a server's HTML and a first client draw agree.
+ * another). A server draws the default, which is what the document it sends is stamped with (app/layout.tsx), so a
+ * server's HTML and a first client draw agree on every device that has chosen nothing.
  */
 import { useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
+import { DEFAULT_LOOK_PREF } from "@chanlytics/contracts";
 
 type Look = "classic" | "glass";
 
@@ -27,7 +29,7 @@ export const lookNow = (): Look =>
     ? "glass"
     : "classic";
 
-const lookOnAServer = (): Look => "classic";
+const lookOnAServer = (): Look => DEFAULT_LOOK_PREF;
 
 /** The look on the document now, drawn again when it changes. */
 export function useLook(): Look {

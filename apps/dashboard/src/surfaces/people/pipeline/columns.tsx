@@ -145,6 +145,52 @@ export const pipeColumns = (): PipelineColumn[] => {
   return PIPE_COLUMNS;
 };
 
+/**
+ * The table as canvas D1 draws it, in Glass: the person with the deal's service on the line under the name, the value,
+ * where it stands in words (the chip's, with how long it has stood there under them) in Stage's column, so the saved
+ * sort and the Columns menu keep their keys, and the next step; the steps' picture and the chip's own column go, since
+ * the words say what they drew. The two a member shows, and the row's menu, are Classic's.
+ */
+let PIPE_GLASS_COLUMNS: PipelineColumn[] | null = null;
+export const pipeGlassColumns = (): PipelineColumn[] => {
+  if (PIPE_GLASS_COLUMNS) return PIPE_GLASS_COLUMNS;
+  const w = P.words.columns;
+  const classic = pipeColumns();
+  const kept = (key: string) => classic.find((c) => c.key === key) as PipelineColumn;
+  PIPE_GLASS_COLUMNS = [
+    {
+      key: "name",
+      label: w.person,
+      sortable: true,
+      pinned: true,
+      cell: (r, x) => plNameCell(r.person, x, r.service),
+    },
+    kept("value"),
+    {
+      key: "stage",
+      label: w.chip,
+      sortable: true,
+      cell: (r) => (
+        <td key="stage" className="pipe-stands" data-testid="pipe-stands">
+          <span className="pipe-stands-in">
+            {r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}
+            {r.inStage ? (
+              <span className="pipe-stands-sub tabular" data-testid="pipe-in-stage">
+                {r.inStage}
+              </span>
+            ) : null}
+          </span>
+        </td>
+      ),
+    },
+    kept("next"),
+    kept("came"),
+    kept("valid"),
+    kept("actions"),
+  ];
+  return PIPE_GLASS_COLUMNS;
+};
+
 // A row on a phone is People's card (plRowCard): the face and the name with the chip beside them; the service under
 // them; then the deal's steps, the value and the time in stage; and their next step on a line of its own, where it
 // takes nothing from the facts.

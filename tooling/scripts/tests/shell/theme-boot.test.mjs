@@ -167,22 +167,34 @@ test("a device that has chosen nothing opens in the app's default, not its own s
   assert.equal(themePrefOf("system"), "system");
 });
 
-test("the look is Classic until the device keeps another, and each attribute is read on its own: a value one does not know leaves the other standing", () => {
-  assert.equal(DEFAULT_LOOK_PREF, "classic", "the app as it is drawn today");
+test("the look is the default, Glass, until the device keeps another, and each attribute is read on its own: a value one does not know leaves the other standing", () => {
+  assert.equal(
+    DEFAULT_LOOK_PREF,
+    "glass",
+    "the canvases' look, the default since 1 October 2026 (the plan's step 5.6)",
+  );
   assert.equal(lookPrefOf(undefined), DEFAULT_LOOK_PREF);
   assert.equal(lookPrefOf("junk"), DEFAULT_LOOK_PREF);
-  assert.equal(lookPrefOf("glass"), "glass");
+  assert.equal(lookPrefOf("classic"), "classic", "a member who chose Classic keeps it");
   const stamped = (stored) => {
     const { theme, look } = boot({ stored, systemDark: false });
     return { theme, look };
   };
   const theme = resolveTheme(DEFAULT_THEME_PREF, false);
-  assert.deepEqual(stamped(null), { theme, look: "classic" }, "a device that has chosen nothing");
-  assert.deepEqual(stamped('{"theme":"light","look":"glass"}'), { theme: "light", look: "glass" });
-  assert.deepEqual(stamped('{"theme":"junk","look":"glass"}'), { theme, look: "glass" }, "a theme it does not know");
+  assert.deepEqual(stamped(null), { theme, look: DEFAULT_LOOK_PREF }, "a device that has chosen nothing");
+  assert.deepEqual(
+    stamped('{"theme":"light","look":"classic"}'),
+    { theme: "light", look: "classic" },
+    "one that chose",
+  );
+  assert.deepEqual(
+    stamped('{"theme":"junk","look":"classic"}'),
+    { theme, look: "classic" },
+    "a theme it does not know",
+  );
   assert.deepEqual(
     stamped('{"theme":"light","look":"junk"}'),
-    { theme: "light", look: "classic" },
+    { theme: "light", look: DEFAULT_LOOK_PREF },
     "a look it does not know",
   );
 });
