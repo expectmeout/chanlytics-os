@@ -198,7 +198,11 @@ before Node starts: UTC, whatever the machine's, or `TEST_TZ`'s. `TEST_TZ=Pacifi
 (PowerShell: `$env:TEST_TZ='Pacific/Auckland'; corepack pnpm test`) is CI's second leg, "Node suite,
 Pacific/Auckland": the whole suite twelve hours east, where a rule that reads the viewer's zone, or a test that builds a
 date with no zone, gives the wrong day. A test that reads the wall clock pins it (`t.mock.timers.enable({ apis:
-["Date"], now })`), and one that builds an instant gives it its offset.
+["Date"], now })`), and one that builds an instant gives it its offset. **CI runs the two legs only when asked** (Ruben,
+1 Oct 2026: the suite took 27 minutes of every push): on a pull request labelled `suite` (adding the label starts a
+run), or by hand from the Actions tab (`workflow_dispatch`). Every push still gets the typecheck, the lint, the
+dead-export and format checks, the build and the bundle; before a push, run the test files a change touches
+(`node tooling/scripts/checks/test.mjs <file>`, one per command) and the ratchets, never the whole suite on a laptop.
 
 **What the suite ran of the code.** A full run in UTC has Node measure line coverage and prints it per package and
 per tree at its end, with the floor of the three that are held: `core`, the edge's doors (`apps/edge/api`) and the

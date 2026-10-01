@@ -2,11 +2,14 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
   # A merge queue runs the required checks on the queue's own commit. Nothing here
   # needs it until the queue is turned on (a repository setting); then it works.
   merge_group:
+  # The node suite by hand (both legs), when a pull request has none and someone wants one (below).
+  workflow_dispatch:
 
 # A pull request's runs share one group, and a push that supersedes a commit
 # cancels the run that commit started, so minutes are spent only on what can
@@ -130,7 +133,15 @@ jobs:
       # type-stripping flags to import the dashboard's .ts modules, and a
       # duplicated invocation here silently ran without them — passing only
       # because this runner's Node happens to strip types by default.
-      - run: pnpm test
+      #
+      # The suite runs only when asked for (Ruben, 1 Oct 2026: it took 27 minutes
+      # of every push, here and in the Auckland leg): on a pull request with the
+      # `suite` label (adding it starts a run), or by hand (workflow_dispatch).
+      # The rest of this job, the typecheck, the lint, the dead-export and
+      # format checks, the build and the bundle, runs on every push; the files a
+      # change touches and the ratchets are run before the push (CLAUDE.md).
+      - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
+        run: pnpm test
       # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
       # The production build, the way Vercel runs it for the dashboard (Root
       # Directory apps/dashboard, `next build`, on Node 24 like this job). Nothing
@@ -172,10 +183,11 @@ jobs:
   # failed under it on 29 Sep 2026 (billing, calendar, broadcasts, business tab,
   # the day stepper), and each now names the instant it means or pins the clock.
   # TEST_TZ is the zone the launcher (tooling/scripts/checks/test.mjs) reads, TZ
-  # the one node reads.
+  # the one node reads. Like the UTC leg above, it runs only when asked for: the
+  # `suite` label on the pull request, or by hand.
   auckland:
     name: Node suite, Pacific/Auckland
-    if: github.event_name != 'merge_group'
+    if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
