@@ -13,7 +13,7 @@ import type { gate } from "../../legacy-verbs";
 import { P } from "./pipe";
 
 /** New proposal as the page offers it: the press, and the honesty gate's props for a role that may not. */
-export interface PipelineNewAct {
+interface PipelineNewAct {
   openNew: () => void;
   gate: ReturnType<typeof gate>;
 }
