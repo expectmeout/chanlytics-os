@@ -461,6 +461,11 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
     "data/people-globals.js",
     "the Leads scope reads plSortKeys as it loads, and the Pipeline and the person page draw People's parts by name, TSX since decision 0015",
   );
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 4],
+    "data/leads-globals.js",
+    "the Leads pages draw the peek and its acts by name, TSX since decision 0015 (surfaces/leads/globals.ts)",
+  );
 });
 
 test("the kit's bundle publishes the kit's own components on the page's React, under the names the pages read", async () => {

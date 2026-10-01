@@ -1238,3 +1238,112 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     padding: 12px 18px 16px;
   }
 }
+
+/* Glass, the peek's content as the canvas draws it (L2): the spread's bars under the score, the checks open under the
+   verdict, each row's words under its value (the mark keeps its tip), the sections named in the third ink. Each rule
+   names the look inside :where(); none matches in Classic. */
+:where([data-look="glass"]) .pk-spread {
+  display: grid;
+  grid-template-columns: 1ch minmax(0, 1fr) 3.5ch;
+  column-gap: var(--space-2);
+  row-gap: 3px;
+  align-items: center;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .pk-spread-row {
+  display: contents;
+}
+:where([data-look="glass"]) .pk-spread-n,
+:where([data-look="glass"]) .pk-spread-pct {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pk-spread-pct {
+  text-align: right;
+}
+:where([data-look="glass"]) .pk-spread-track {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  overflow: hidden;
+}
+:where([data-look="glass"]) .pk-spread-bar {
+  fill: var(--ink-muted);
+}
+:where([data-look="glass"]) .pk-spread-row:last-child .pk-spread-bar {
+  fill: var(--warn);
+}
+:where([data-look="glass"]) .pk-checks-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+:where([data-look="glass"]) .pk-checks-open .pk-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+:where([data-look="glass"]) .pk-checks-open .pk-ck {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: start;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+:where([data-look="glass"]) .pk-checks-open .pk-ck .from {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  text-align: right;
+}
+:where([data-look="glass"]) .pk-eyebrow {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pk-reach > .pk-eyebrow {
+  padding-bottom: var(--space-1);
+}
+:where([data-look="glass"]) .pk-rr {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  align-items: center;
+  row-gap: 2px;
+  padding: var(--space-2) 0;
+}
+:where([data-look="glass"]) .pk-rr > .icon {
+  grid-column: 1;
+  grid-row: 1;
+}
+:where([data-look="glass"]) .pk-rr > .pk-rv {
+  grid-column: 2;
+  grid-row: 1;
+}
+:where([data-look="glass"]) .pk-rr > .pk-hint {
+  grid-column: 3;
+  grid-row: 1;
+}
+:where([data-look="glass"]) .pk-rr > .sp {
+  display: none;
+}
+:where([data-look="glass"]) .pk-rr > .pk-rr-acts {
+  grid-column: 4;
+  grid-row: 1;
+}
+:where([data-look="glass"]) .pk-rr > .pk-rr-note {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .pk-box > .pk-eyebrow {
+  padding: var(--space-2) 0 0;
+}

@@ -524,7 +524,7 @@ globalThis.LeadPeek = (p) => {
   peeks.push(p);
   return null;
 };
-// The peek's own file (Task 12's leads-peek.jsx), for real: its acts (LeadPeekActions) are what the page must
+// The peek's own module (Task 12's, TSX since decision 0015: surfaces/leads/peek), for real: its acts (LeadPeekActions) are what the page must
 // build and hand over, and its four seams are what the page reads -- Esc backing out one step, the peek following
 // the row cursor, the focus rule, and the watcher that asks once the owner is back at the tab. Only the DRAWING is
 // a recorder (globalThis.LeadPeek, above); a hand-written stub of the acts would pin the page against a shape of
@@ -578,7 +578,8 @@ globalThis.window.fetch = (u, init = {}) => {
 globalThis.window.MediaRecorder = function MediaRecorderSpy() {
   uploads.push("MediaRecorder");
 };
-await import("../../../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
+const { LEADS_GLOBALS } = await import("../../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+Object.assign(globalThis.window, LEADS_GLOBALS);
 for (const k of [
   "LeadPeekActions",
   "LeadNotFitWhy",
@@ -2402,7 +2403,7 @@ test("the peek is handed acts, not setters: every control it draws has a functio
   draw();
   const peek = peeks.at(-1);
   assert.equal(peek.vm.id, "l1", "the peek is open on the lead under the cursor");
-  // What leads-peek.jsx reads off its props as `on.<name>`: the stage, Not a fit, Draft and its tones, Open in
+  // What the peek (surfaces/leads/peek) reads off its props as `on.<name>`: the stage, Not a fit, Draft and its tones, Open in
   // your email, Copy, the two answers to "Did you send it?", the way back and the way out. Handed the page's raw
   // setters instead, every one of them is undefined -- a pane of dead controls that the peek's own unit tests
   // never see, because those build the acts themselves and this page did not.

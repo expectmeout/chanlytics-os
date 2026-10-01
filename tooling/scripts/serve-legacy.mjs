@@ -86,6 +86,17 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
+  // The lead peek's names (surfaces/leads/globals.ts), on the page's own React, for the Leads pages that have not moved.
+  "/data/leads-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/leads/globals.ts"),
+    globalName: "__LG",
+    footer: "Object.assign(window, __LG.LEADS_GLOBALS);",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/leads", "apps/dashboard/src/legacy-bridge"],
+  },
   // The same for the e2e harness's People record: the fixture boots People (peopleOverride) in a bundle of its own, before
   // React loads, so this bundle keeps its own copy of the surface's store and takes People from the window the fixture
   // published it on (people-src.ts).
@@ -174,6 +185,7 @@ async function sampleBundle(route) {
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
+export const leadsGlobalsBundle = () => sampleBundle("/data/leads-globals.js");
 export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");

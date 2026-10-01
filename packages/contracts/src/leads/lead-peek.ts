@@ -33,6 +33,7 @@ import {
   LEAD_UNCLAIMED_NOTE,
   type LeadClass,
   leadLowShare,
+  leadRatingSpread,
   type LeadStage,
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
@@ -92,7 +93,7 @@ export interface LeadPeekVM {
    * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
    * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
    */
-  rated: { score: string; count: string; low: string | null } | null;
+  rated: { score: string; count: string; low: string | null; spread?: { stars: number; pct: number }[] } | null;
   /** The two reach slots, as the row wears them. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
   /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
@@ -264,6 +265,21 @@ function foundWords(
   };
 }
 
+/**
+ * "4.7" and "1,284", apart, the low share where it is worth saying, and in Glass how the ratings fall (D8, L2); null where
+ * the source does not rate. The spread rides only where the listing published its five counts, so the shape stays where it
+ * did not.
+ */
+function leadRated(r: LeadRowDto): LeadPeekVM["rated"] {
+  if (r.rating === null || r.rating === undefined) return null;
+  return {
+    score: r.rating.toFixed(1),
+    count: (r.reviews ?? 0).toLocaleString("en-US"),
+    low: leadLowShare(r.reviews_dist ?? null),
+    ...(r.reviews_dist ? { spread: leadRatingSpread(r.reviews_dist) } : {}),
+  };
+}
+
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
@@ -331,14 +347,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
           ...(failed ? [`${failed} failed`] : []),
         ].join(" · ");
   const week = leadWeekBars(r.hours ?? [], tz, now);
-  const rated =
-    r.rating === null || r.rating === undefined
-      ? null
-      : {
-          score: r.rating.toFixed(1),
-          count: (r.reviews ?? 0).toLocaleString("en-US"),
-          low: leadLowShare(r.reviews_dist ?? null),
-        };
+  const rated = leadRated(r);
   const facts: LeadPeekVM["facts"] = [
     ...(r.category ? [{ k: "Kind", v: r.category }] : []),
     ...(r.price ? [{ k: "Price", v: r.price }] : []),

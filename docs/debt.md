@@ -140,6 +140,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Index reads the compiler lets pass +3 (the Calendar's demo day, in `surfaces/calendar/` since Today's own sample went): `sample-day.ts` 5 and `surface.ts` 1, less the one each of `people-detail.ts`, `surfaces/people.ts` and `surfaces/calendar.ts` that left                                                                                                       | The day's items are a fixed list of a known length, so the reads cannot miss; the demo day moved here as it was written, and a guard on each is its own small change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | The demo's Calendar takes its day from the contracts' fixtures, not a list read by position (Phase 4)                                                                                                                |
 | Dead exports +2 in `apps/dashboard/src/surfaces/kit/head/standing.ts`, `standingSaid` and `forgetStanding` (the Glass lane, step 5.4)                                                                                                                                                                                                                                  | The head tests read what a page said to the frame's head, and forget it between tests, through the source loader knip does not follow, as `forgetFeeds` in `server/ask/openings.ts` is read; the frame itself reads the store through `useStandingSaid`.                                                                                                                                                                                                                                                                                                                                                                                                           | The tests read the standing through a drawn head instead, and the two exports go.                                                                                                                                    |
 | Workspace route CSS +4,555 bytes gzipped, the budget 135,083 → 139,638, measured 139,638 on one machine (Glass to its canvases, plan step 5.4: Today's bento in `dashboard-a-v2.css`, the Inbox's boxes and buckets, the Calendar's pane, the sidebar's rules, and the three lanes' Glass blocks meeting in one build; the JS falls 42,060, 945,567 → 903,507, banked) | Every rule is the look's, named inside `:where([data-look="glass"])`, and none matches in Classic, so a member in Classic pays only the bytes; the rules sit in the pages' sheets because the looks share one stylesheet (plan step 5.4), and nothing that exists loads a sheet by the look in force.                                                                                                                                                                                                                                                                                                                                                              | Falls when the looks' rules move to a stylesheet of their own, loaded by the look in force (plan step 5.6), or Glass becomes the one look and Classic's rules go.                                                    |
+| Inline style props +3 in three TSX files, −3 in one JSX (the lead peek leaves the shell, decision 0015, the Glass lane's lane 3): `surfaces/leads/peek/hint.tsx` 1, `info.tsx` 1, `lightbox.tsx` 1, where `legacy/pages/leads-peek.jsx` held 3                                                                                                                         | A pure move: the week's bars and the tip's placement are the numbers the view model worked out, laid on the element as the JSX laid them; the baseline is keyed by file, so a move reads as a rise in the new files and a fall in the old.                                                                                                                                                                                                                                                                                                                                                                                                                         | Falls when the peek's kit step (Phase 4) draws the bars and the tip's place from the kit's own parts.                                                                                                                |
 
 ## The numbers
 
@@ -149,11 +150,11 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            118   of which over 200 lines: 23
+functions over the limit            117   of which over 200 lines: 23
 files over 800 lines                  7
 directories over 20 modules           4
 window globals                      155   names
-window publishers                   263   sites in 87 files
+window publishers                   262   sites in 86 files
 copies                               73   of 21 names
 as unknown as                       158
 as never                             13
@@ -166,7 +167,7 @@ doors importing db or channels       54   imports in 50 files
 unnamed durations                    64   in 33 files
 literal style values               1088   in 22 stylesheets
 primitives outside the kit         2175   selectors naming 862 classes
-inline style props                  219   in 53 files
+inline style props                  219   in 55 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     306
 source-text reads in tests          788

@@ -4594,6 +4594,14 @@ function leadNoteLeft(left, max) {
 }
 var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var LEAD_LOW_SHARE_FLOOR = 0.15;
+function leadRatingSpread(dist) {
+  const total = dist.one + dist.two + dist.three + dist.four + dist.five;
+  if (total <= 0) return [];
+  return [dist.five, dist.four, dist.three, dist.two, dist.one].map((n, i) => ({
+    stars: 5 - i,
+    pct: Math.round(n / total * 100)
+  }));
+}
 function leadLowShare(dist) {
   if (!dist) return null;
   const total = dist.one + dist.two + dist.three + dist.four + dist.five;
@@ -6482,6 +6490,15 @@ function foundWords(r2, term) {
     site: host ? r2.email_state === "none" ? `${host} \xB7 no email on the home, contact or about pages` : `${host} \xB7 an email on the contact page` : "No website to check"
   };
 }
+function leadRated(r2) {
+  if (r2.rating === null || r2.rating === void 0) return null;
+  return {
+    score: r2.rating.toFixed(1),
+    count: (r2.reviews ?? 0).toLocaleString("en-US"),
+    low: leadLowShare(r2.reviews_dist ?? null),
+    ...r2.reviews_dist ? { spread: leadRatingSpread(r2.reviews_dist) } : {}
+  };
+}
 function toLeadPeekVM(r2, search, tz, now) {
   const m = r2.member;
   const area = [r2.city, r2.state].filter(Boolean).join(", ");
@@ -6523,11 +6540,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
   const week = leadWeekBars(r2.hours ?? [], tz, now);
-  const rated = r2.rating === null || r2.rating === void 0 ? null : {
-    score: r2.rating.toFixed(1),
-    count: (r2.reviews ?? 0).toLocaleString("en-US"),
-    low: leadLowShare(r2.reviews_dist ?? null)
-  };
+  const rated = leadRated(r2);
   const facts = [
     ...r2.category ? [{ k: "Kind", v: r2.category }] : [],
     ...r2.price ? [{ k: "Price", v: r2.price }] : [],

@@ -278,3 +278,54 @@ button.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: v
   .rpt-ask, .ck-card-actions { display: none; }
   .ck-card { break-inside: avoid; }
 }
+
+/* ====================================================================
+   Glass: Reports (no canvas of its own; the panes the other surfaces wear). The period row stands on the page under the
+   frame's head, its range a capsule of the control layer and Ask's door another; the tiles are one pane with hairlines
+   between them, and every card of the grid a pane. Each rule names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+:where([data-look="glass"]) .rpt-head {
+  background: transparent;
+  box-shadow: none;
+  padding: 2px 0 12px;
+}
+:where([data-look="glass"]) .rpt-range {
+  padding: 3px;
+  gap: 2px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+:where([data-look="glass"]) .rpt-range button {
+  border-radius: var(--radius-full);
+}
+:where([data-look="glass"]) .rpt-range button.on {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+:where([data-look="glass"]) .rpt-ask {
+  border-color: var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .rpt :is(.rpt-grid, .rpt-top) > * {
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+/* Google's strip of numbers sits inside its card: an inset there, not glass on glass. */
+:where([data-look="glass"]) .rp2-strip-google {
+  border: 0;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .rpt-body {
+  gap: 14px;
+}
+:where([data-look="glass"]) .rpt :is(.rpt-grid, .rpt-top) {
+  gap: 14px;
+}

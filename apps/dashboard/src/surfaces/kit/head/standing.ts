@@ -9,6 +9,7 @@
  * Classic reads none of it: the frame leaves no place for the head there, and the head draws nothing.
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { nothing } from "../../legacy-parts";
 import type { ReactNode } from "react";
 
 interface Standing {
@@ -53,7 +54,6 @@ const subscribe = (fn: () => void): (() => void) => {
 
 const standingNow = (): Standing | null => said?.standing ?? null;
 const crumbsNow = (): readonly ShownCrumb[] => crumbs;
-const nothing = (): null => null;
 const noCrumbs: readonly ShownCrumb[] = [];
 const noCrumbsEver = (): readonly ShownCrumb[] => noCrumbs;
 
