@@ -354,6 +354,21 @@
      Geist's stylistic sets (the base rules' ss01, cv11, cv02) are its own, so the look reads Mona Sans plain, as the
      canvases do (the rule after the body's, below). */
   --font-sans: "Mona Sans", var(--font-geist), "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* The look's type scale is the canvases' (E3 and its family, 28 September): a 15.5px body line against Classic's
+     14.5, a 17px section title against its 18, a 30px phone title and a 34px figure. Every sheet reads the scale through
+     these names, so the remap moves every page in Glass at once and Classic reads its own values (Ruben, 1 October
+     2026, the review of Today against E3). The small and base steps stay: the canvases set their labels, verbs and
+     sub-lines on 13.5 and 12.5 as Classic does. */
+  --text-xs: 11.5px;
+  --text-md: 15.5px;
+  --text-xl: 17px;
+  --text-3xl: 30px;
+  /* The day's figures (E3): a step under the page's name, which keeps the scale's 36. Read by Today's card alone. */
+  --text-figure: 34px;
+  /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
+  --tracking-normal: -0.003em;
+  /* A person's face on a row: the canvases' avatar, a step whiter than an inset. */
+  --face-fill: oklch(1 0 0 / 0.72);
   /* The ground, a step under it and over it, and what a press washes it with (derived: the canvases draw none). */
   --bg: oklch(0.962 0.005 275);
   --bg-sunken: oklch(0.945 0.006 275);
@@ -563,6 +578,7 @@
   --surface-inset-fill: oklch(1 0 0 / 0.075);
   --surface-inset-edge: oklch(1 0 0 / 0.09);
   --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.2);
+  --face-fill: oklch(1 0 0 / 0.11);
 
   --surface-pop-fill: oklch(0.24 0.01 277 / 0.97);
   --surface-pop-edge: oklch(1 0 0 / 0.09);

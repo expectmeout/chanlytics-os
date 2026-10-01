@@ -3141,6 +3141,7 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .sidebar {
   position: relative;
   align-self: start;
+  width: 232px;
   max-height: calc(100% - 28px);
   margin: 14px 0 14px 14px;
   border-right: 0;
@@ -3161,9 +3162,39 @@ html.legacy-on .msg-use-link { position: relative; }
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-/* A place in it: rounded as the sidebar's inset, the one you are on the lozenge in ink, a hover an inset's fill. */
+/* The sidebar's inside is the canvases' (E3): 14px over and under, 12px at the sides, the places in one run three
+   pixels apart with no group between them, the rail's own columns left to the collapsed rail. */
+:where([data-look="glass"]) .sidebar:not(.collapsed) {
+  padding: 14px 12px;
+}
+:where([data-look="glass"]) .sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+}
+:where([data-look="glass"]) .sidebar-section + .sidebar-section {
+  margin-top: 3px;
+}
+:where([data-look="glass"]) .sidebar-section:first-child {
+  padding-top: 0;
+}
+/* A place in it: a 38px row rounded as the sidebar's inset, its glyph 18px and 12px from its name, the one you are on
+   the lozenge in ink and semibold, a hover an inset's fill. The glyph is the row's first child where the row has one
+   (the kit-primitives ratchet counts its class), and the doubled class outweighs the rail's own glyph rule. */
 :where([data-look="glass"]) .nav-item {
+  min-height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 12px;
+  gap: 12px;
   border-radius: var(--radius-xl);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+:where([data-look="glass"]) .nav-item.nav-item > :first-child:not(span) {
+  width: 18px;
+  height: 18px;
 }
 :where([data-look="glass"]) .nav-item:hover {
   background: var(--surface-inset-fill);
@@ -3172,6 +3203,7 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .nav-item.urgent.active {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
+  font-weight: var(--weight-semibold);
 }
 /* A place's count is the neutral count, filled, as the canvases' sidebar draws it: never a warning's colour. */
 :where([data-look="glass"]) .nav-badge {
@@ -3197,6 +3229,58 @@ html.legacy-on .msg-use-link { position: relative; }
   box-shadow: var(--surface-inset-depth);
   color: var(--ink);
 }
+/* The workspace row as E3 draws it: the three in a 36px inset tile (sidebar.jsx draws them in Glass), the name
+   semibold, the lines under it, no rule under the row; and the member's row under the rail's one hairline, a 32px
+   face, the name semibold and the role under it, no chip of its own. Each reached by its place, since the ratchet
+   counts the mark's, the chip's and the face's names. */
+:where([data-look="glass"]) .sidebar:not(.collapsed) .sb-team {
+  gap: 11px;
+  padding: 4px 6px 16px;
+  border-bottom: 0;
+}
+:where([data-look="glass"]) .sb-team:hover {
+  background: transparent;
+}
+:where([data-look="glass"]) .sb-team > :first-child {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-lg);
+  color: var(--accent);
+}
+:where([data-look="glass"]) .sb-team-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .sb-team-plan {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+:where([data-look="glass"]) .sidebar:not(.collapsed) .sidebar-foot {
+  margin-top: 8px;
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--line);
+}
+:where([data-look="glass"]) .sidebar:not(.collapsed) [data-testid="sb-account"] {
+  gap: 10px;
+  padding: 4px 0;
+  border-radius: 0;
+}
+:where([data-look="glass"]) [data-testid="sb-account"]:hover {
+  background: transparent;
+}
+:where([data-look="glass"]) [data-testid="sb-account"] > :first-child {
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .sidebar-foot .who .name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+:where([data-look="glass"]) .sidebar-foot .who .email {
+  font-size: var(--text-xs);
+}
 
 /* The top bar is its capsules (liquid.py toolbar): the bar no ground and no rule of its own, the crumbs where they
    were, and each control a capsule of the control layer's glass with its rim: Ask's wide one with its key, the bell
@@ -3212,7 +3296,7 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .tb-ask,
 :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
   position: relative;
-  height: var(--control-h-lg);
+  height: 40px;
   border: 0;
   border-radius: var(--radius-full);
   background-color: var(--surface-control-fill);
@@ -3224,14 +3308,20 @@ html.legacy-on .msg-use-link { position: relative; }
     backdrop-filter: var(--surface-control-blur);
   }
 }
+/* Ask's capsule at the canvases' 280 by 40, its words a size up and regular, ten pixels from the three; the bell the
+   same 40 round. */
 :where([data-look="glass"]) .tb-ask {
-  padding: 0 8px 0 12px;
+  width: 280px;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
 }
 :where([data-look="glass"]) .tb-ask:hover {
   background-color: var(--surface-control-fill);
 }
 :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme) {
-  width: var(--control-h-lg);
+  width: 40px;
   color: var(--ink-muted);
 }
 :where([data-look="glass"]) .topbar :is(.tb-bell, .tb-theme):hover {
@@ -3264,11 +3354,6 @@ html.legacy-on .msg-use-link { position: relative; }
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
   pointer-events: none;
-}
-:where([data-look="glass"]) .tb-ask .kbd {
-  border-color: var(--surface-inset-edge);
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
 }
 /* The canvases' top bar is Ask and the bell: the theme is chosen in the account menu, under the member's name. */
 :where([data-look="glass"]) .topbar .tb-theme {
@@ -3979,7 +4064,7 @@ html.legacy-on .msg-use-link { position: relative; }
   color: var(--ink-muted);
 }
 :where([data-look="glass"]) .bc-band-part + .bc-band-part::before {
-  content: " B7";
+  content: "·";
   margin: 0 8px;
   color: var(--ink-faint);
 }
@@ -3999,7 +4084,7 @@ html.legacy-on .msg-use-link { position: relative; }
 :where([data-look="glass"]) .sidebar-label { display: none; }
 :where([data-look="glass"]) .sidebar-section + .sidebar-section { margin-top: 0; }
 :where([data-look="glass"]) .sb-collapse { display: none; }
-:where([data-look="glass"]) .nav-item { padding: 10px 12px; font-size: var(--text-md); }
+:where([data-look="glass"]) .nav-item { padding: 0 12px; font-size: var(--text-base); }
 
 /* The key hint on the Ask capsule (Glass alone, topbar.jsx tbAskKbd): a small inset at the capsule's right, in the mono. */
 :where([data-look="glass"]) .tb-ask-kbd {

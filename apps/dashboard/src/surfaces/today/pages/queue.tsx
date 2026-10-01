@@ -113,10 +113,14 @@ const queueVerb: (flash: Say, r: TodayQueueRowVM, also: Also) => unknown = async
   else if (!said) done();
 };
 
-/** The people the card draws: each with its one verb, and a second, quiet one where the state asks a second thing. */
-function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verbKind: VerbKind) {
+/**
+ * The people the card draws: each with its one verb, and in Classic a second, quiet one where the state asks a second
+ * thing. Glass draws the one verb, as E3 does (Ruben, 1 Oct 2026: a second word on the row read as clutter); snooze and
+ * resolve are the thread's, in the Inbox.
+ */
+function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verb: { kind: VerbKind; glass: boolean }) {
   return rows.map((r) => {
-    const also = r.also;
+    const also = verb.glass ? null : r.also;
     return (
       <AttnRow
         key={r.id}
@@ -128,7 +132,7 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, flash: Say, verbKind: Ver
         quoted={r.quoted}
         status={r.status}
         tone={r.tone}
-        cta={{ label: r.cta.label, kind: verbKind(), onClick: () => nav(r.cta.to) }}
+        cta={{ label: r.cta.label, kind: verb.kind(), onClick: () => nav(r.cta.to) }}
         also={
           also
             ? {
@@ -202,24 +206,23 @@ function queueList(vm: TodayVM, drawn: ReactElement[], runs: ReactElement[], tot
   );
 }
 
-/** What the card could not hold, said with the door to it. */
-function queueFoot(rowsCut: number, runsCut: number, nav: Nav) {
+/**
+ * What the card could not hold, said with the door to it. In Glass the foot stands whatever was cut, as E3 draws it,
+ * and says so when the card holds everything: the Inbox has nothing more that needs a person.
+ */
+function queueFoot(rowsCut: number, runsCut: number, nav: Nav, glass: boolean) {
+  const parts = [
+    rowsCut > 0 ? `${rowsCut} more in the Inbox` : "",
+    runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : "",
+  ].filter(Boolean);
+  if (!parts.length && !glass) return null;
   return (
-    (rowsCut > 0 || runsCut > 0) && (
-      <div className="tq-foot">
-        <span>
-          {[
-            rowsCut > 0 ? `${rowsCut} more in the Inbox` : "",
-            runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : "",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </span>
-        <button className="cl-attn-cta ghost" onClick={() => nav(rowsCut > 0 ? "inbox" : "broadcasts")}>
-          See all
-        </button>
-      </div>
-    )
+    <div className="tq-foot">
+      <span>{parts.join(" · ") || "Nothing more in the Inbox"}</span>
+      <button className="cl-attn-cta ghost" onClick={() => nav(rowsCut === 0 && runsCut > 0 ? "broadcasts" : "inbox")}>
+        See all
+      </button>
+    </div>
   );
 }
 
@@ -240,7 +243,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // The run's seat, held only while a run wants it (CARD_MAX).
   const wants = runsPending();
   const peopleRoom = wants.waiting.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
-  const drawn = personRows(rows.slice(0, peopleRoom), nav, ppFlash, verbKind);
+  const drawn = personRows(rows.slice(0, peopleRoom), nav, ppFlash, { kind: verbKind, glass });
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
   const {
     drawn: runs,
@@ -257,7 +260,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
       {queueHead(vm, runsCount, nav, { glass, count: total })}
       <LiveRail nav={nav} />
       {queueList(vm, drawn, runs, total)}
-      {queueFoot(rowsCut, runsCut, nav)}
+      {queueFoot(rowsCut, runsCut, nav, glass)}
       {toastNode}
     </section>
   );

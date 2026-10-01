@@ -69,6 +69,8 @@ const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today
 const { TodayLeaks } = await import("../../../../apps/dashboard/src/surfaces/today/pages/leaks.tsx");
 const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
 const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
+const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
+const { TodayStrip } = await import("../../../../apps/dashboard/src/surfaces/today/pages/strip.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
@@ -1678,4 +1680,206 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
     "the not-numbers live in one place",
   );
   W.__DEMO_MODE = false;
+});
+
+/* ------------------------------------ Glass (canvas E3) ------------------------------------ */
+
+// The look is on the document (kit/look/look.tsx lookNow); the stub's document says none, which is Classic, so every
+// test above is Classic's. These stamp Glass on it for their run: what Glass draws that Classic does not, after the
+// review of Today against E3 (1 October 2026): the queue's foot whatever was cut and one verb a row, the bell's rows
+// without a dismiss, the brief's Listen where the device can speak, the day's card with its door in the head, the
+// strip's bold start, and the bento without a day pane.
+const inGlass = (run) => {
+  const doc = W.document.documentElement;
+  const was = doc.getAttribute;
+  doc.getAttribute = (name) => (name === "data-look" ? "glass" : null);
+  try {
+    return run();
+  } finally {
+    doc.getAttribute = was;
+  }
+};
+const emptyBell = () => ({
+  feed: () => [],
+  onChange: () => () => {},
+  read() {},
+  dismiss() {},
+  seenAll() {},
+  unread: () => 0,
+});
+
+test("Glass: the queue's foot stands with nothing cut and says so, and a row carries its one verb", () => {
+  clear();
+  // Ana's row asks a second thing of you (snooze): Classic draws it as the quiet second verb.
+  const vm = busy();
+  vm.queue.rows = vm.queue.rows.map((r, i) =>
+    i === 0
+      ? { ...r, also: { label: "Snooze", verb: "snooze", conversationId: r.conversationId, escalationId: null } }
+      : r,
+  );
+  set({ today: vm, __BROADCASTS: broadcasts() });
+  const classic = byTestId(draw(AgentCommand), "today-queue");
+  assert.equal(all(classic, (n) => n.props?.["data-testid"] === "queue-snooze").length, 1, "Classic: the second verb");
+  assert.equal(
+    find(classic, (n) => classes(n).includes("tq-foot")),
+    null,
+    "Classic: nothing cut, no foot",
+  );
+  inGlass(() => {
+    const queue = byTestId(draw(AgentCommand), "today-queue");
+    const foot = find(queue, (n) => classes(n).includes("tq-foot"));
+    assert.ok(foot, "the foot stands whatever was cut (E3)");
+    assert.match(textOf(foot), /Nothing more in the Inbox/, "and says the card holds everything");
+    const seeAll = buttons(foot, "See all");
+    assert.equal(seeAll.length, 1);
+    press(seeAll[0]);
+    assert.equal(went.at(-1), "inbox");
+    assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
+    assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the same four rows");
+    assert.ok(byTestId(queue, "today-queue-count"), "the count before the name");
+  });
+});
+
+test("Glass: the bell's rows carry no dismiss of their own; Mark all read stays", () => {
+  clear();
+  const rows = [
+    bellRow("n:1", "review", "1 new rating on Google", "ok"),
+    bellRow("n:2", "quality", "Quality rating flagged", "warn"),
+  ];
+  const api = { ...emptyBell(), feed: () => rows, unread: () => unreadCount(rows) };
+  set({ today: busy(), __notifs: api });
+  const classic = draw(TodayAway);
+  assert.equal(all(classic, (n) => classes(n).includes("ta-x")).length, 2, "Classic: a dismiss per row");
+  inGlass(() => {
+    const glass = draw(TodayAway);
+    assert.equal(all(glass, (n) => n.props?.["data-testid"] === "today-away-row").length, 2, "the same rows");
+    assert.equal(all(glass, (n) => classes(n).includes("ta-x")).length, 0, "no dismiss (E3)");
+    assert.equal(buttons(glass, "Mark all read").length, 1);
+  });
+});
+
+test("Glass brief: Listen reads the line aloud where the device can speak, says Stop while it does, and is absent where it cannot", () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  inGlass(() => {
+    const silent = draw(TodayBriefPane);
+    assert.equal(byTestId(silent, "today-brief-listen"), null, "no voice on this device: no Listen");
+    assert.equal(buttons(silent, "Ask a follow-up").length, 1, "the follow-up stands alone");
+    const spoken = [];
+    W.speechSynthesis = { speak: (u) => spoken.push(u), cancel: () => spoken.push("cancel") };
+    globalThis.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
+      this.text = text;
+    };
+    try {
+      fresh();
+      const tree = again(() => TodayBriefPane());
+      const listen = byTestId(tree, "today-brief-listen");
+      assert.ok(listen, "a voice: Listen");
+      assert.match(textOf(listen), /Listen\d+:\d\d/, "with how long it takes to hear");
+      assert.equal(listen.props["aria-pressed"], false);
+      press(listen);
+      assert.equal(spoken.at(-1)?.text, textOf(byTestId(tree, "today-brief-line")), "the line, read aloud");
+      const reading = byTestId(
+        again(() => TodayBriefPane()),
+        "today-brief-listen",
+      );
+      assert.equal(reading.props["aria-pressed"], true);
+      assert.match(textOf(reading), /Stop/, "and Stop while it reads");
+      press(reading);
+      assert.equal(spoken.at(-1), "cancel");
+    } finally {
+      delete W.speechSynthesis;
+      delete globalThis.SpeechSynthesisUtterance;
+    }
+  });
+});
+
+test("Glass card: the door to Reports stands in the head as words, none in the foot; Classic keeps the foot's", () => {
+  clear();
+  set({ today: busy(), __REPORTS: reports() });
+  const classic = byTestId(draw(TodayCard), "today-card");
+  assert.equal(
+    buttons(
+      find(classic, (n) => classes(n).includes("tc-foot")),
+      "Open Reports",
+    ).length,
+    1,
+  );
+  assert.equal(
+    buttons(
+      find(classic, (n) => classes(n).includes("tc-head")),
+      "Reports",
+    ).length,
+    0,
+  );
+  inGlass(() => {
+    const glass = byTestId(draw(TodayCard, { beats: false }), "today-card");
+    const door = buttons(
+      find(glass, (n) => classes(n).includes("tc-head")),
+      "Reports",
+    );
+    assert.equal(door.length, 1, "the door in the head (E3)");
+    assert.equal(door[0].props["aria-label"], "Open Reports", "named for a reader as the foot's was");
+    press(door[0]);
+    assert.equal(went.at(-1), "reports");
+    assert.equal(
+      buttons(
+        find(glass, (n) => classes(n).includes("tc-foot")),
+        "Reports",
+      ).length,
+      0,
+      "none in the foot",
+    );
+    assert.ok(byTestId(glass, "today-period"), "the period's line stays");
+  });
+});
+
+test("Glass strip: the next appointment's start in bold before its words, the cell saying Next", () => {
+  clear();
+  set({ today: busy(), __CALENDAR: calendar([block("b17", 17, "Color", { id: "p1", name: "Dulce Amaro" })]) });
+  inGlass(() => {
+    const strip = byTestId(draw(TodayStrip), "today-strip");
+    assert.ok(strip, "the strip stands: an appointment to come");
+    assert.equal(byTestId(strip, "today-strip-live"), null, "no call up");
+    const words = find(byTestId(strip, "today-strip-next"), (n) => classes(n).includes("ts-words"));
+    assert.equal(words.props["data-phase"], "Next", "a phone draws the phase into the words");
+    assert.ok(textOf(find(words, (n) => n.type === "b")).length > 0, "the start, in bold");
+    assert.match(textOf(find(words, (n) => classes(n).includes("ts-rest"))), /Dulce Amaro/, "then who it is with");
+  });
+});
+
+test("Glass bento (E3): the strip, the queue's column beside the brief and the bell, the card beside Worth a look, the pins; no day pane", () => {
+  clear();
+  set({
+    today: busy(),
+    __REPORTS: reports(),
+    __PEOPLE: people(),
+    __BROADCASTS: broadcasts(),
+    __CALENDAR: calendar([block("b9", 9, "Gloss")]),
+    __PLAYBOOKS: { rows: [] },
+    __notifs: emptyBell(),
+  });
+  inGlass(() => {
+    const tree = draw(DashboardA);
+    const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
+    const page = find(tree, (n) => classes(n).includes("dash-a-v2-glass"));
+    assert.ok(page, "the Glass composition");
+    assert.deepEqual(page.props.children.map(name), [
+      "HeroBrief",
+      "TodayStrip",
+      "dash-a-v2-work",
+      "dash-a-v2-side",
+      "dash-a-v2-bottom",
+      "TodayPins",
+    ]);
+    const side = find(tree, (n) => classes(n).includes("dash-a-v2-side"));
+    assert.deepEqual(
+      side.props.children.map(name),
+      ["TodayBriefPane", "TodayAway"],
+      "no day pane: the strip says the day",
+    );
+    assert.equal(byTestId(tree, "today-day"), null);
+    const bottom = find(tree, (n) => classes(n).includes("dash-a-v2-bottom"));
+    assert.deepEqual(bottom.props.children.map(name), ["TodayCard", "TodayLeaks"]);
+  });
 });

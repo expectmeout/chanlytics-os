@@ -100,6 +100,12 @@ test.describe("Today on a real workspace", () => {
     page,
   }) => {
     const day = page.getByTestId("today-day");
+    // Glass, the default look, draws no day pane: canvas E3 folds the day into the strip's Next cell, and the Calendar
+    // has the rest (today-page.tsx GlassPage, 1 Oct 2026). The pane is Classic's.
+    if ((await page.locator("html").getAttribute("data-look")) === "glass") {
+      await expect(day).toHaveCount(0);
+      return;
+    }
     await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
     if ((await day.count()) === 0) {
       const res = await apiGet(page, "/api/v1/calendar");
