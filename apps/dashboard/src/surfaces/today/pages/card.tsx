@@ -18,7 +18,16 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, borrowed, workspaceClock, googleRead, googleVm, surfaceFailed, useMoved } from "../shell";
+import {
+  appNavigate,
+  doorGlyph,
+  borrowed,
+  workspaceClock,
+  googleRead,
+  googleVm,
+  surfaceFailed,
+  useMoved,
+} from "../shell";
 import { Button } from "../../kit/button/button";
 
 /** A door to a route: the frame's move. */
@@ -64,7 +73,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           {w.still ? " · still sending" : ""}
         </span>
         <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>
-          Open <Icon name="arrow-right" size={10} />
+          Open <Icon name={doorGlyph()} size={10} />
         </button>
       </div>
     );
@@ -88,7 +97,7 @@ const ReviewLine = ({ nav }: { nav: Nav }) => {
       </span>
       <span className="brief-beat-text">{line.text}</span>
       <button className="brief-chip" onClick={() => nav(line.to)}>
-        Open Reports <Icon name="arrow-right" size={10} />
+        Open Reports <Icon name={doorGlyph()} size={10} />
       </button>
     </div>
   );
@@ -168,7 +177,7 @@ const TodayReceipt = ({ f, i, last, nav }: ReceiptProps) => {
       <p className="tc-receipt-t">{f.receipt.text}</p>
       {door && (
         <button type="button" className="tc-receipt-door" onClick={() => nav(door.to)}>
-          {door.label} <Icon name="arrow-right" size={10} />
+          {door.label} <Icon name={doorGlyph()} size={10} />
         </button>
       )}
     </div>
@@ -250,7 +259,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
             </span>
             {sn.warn && (
               <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>
-                See the thread <Icon name="arrow-right" size={10} />
+                See the thread <Icon name={doorGlyph()} size={10} />
               </button>
             )}
           </div>
@@ -274,7 +283,7 @@ export function recapBeats(vm: TodayVM, nav: Nav) {
             {r.at}: {r.text}
           </span>
           <button className="brief-chip" onClick={() => nav(r.to)}>
-            Open <Icon name="arrow-right" size={10} />
+            Open <Icon name={doorGlyph()} size={10} />
           </button>
         </div>
       ))}
@@ -329,7 +338,7 @@ export const TodayCard = ({ beats = true }: { beats?: boolean } = {}) => {
                 {period.text}
               </span>
               <Button variant="quiet" size="sm" onClick={() => nav(period.to)}>
-                Open Reports <Icon name="arrow-right" size={11} />
+                Open Reports <Icon name={doorGlyph()} size={11} />
               </Button>
             </>
           ) : (

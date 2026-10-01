@@ -38,6 +38,7 @@ import {
   agendaOpen,
   appNavigate,
   borrowed,
+  doorGlyph,
   workspaceClock,
   surfaceFailed,
   useMoved,
@@ -102,7 +103,7 @@ const TodaySteps = ({ vm, nav }: { vm: TodayStepsVM; nav: Nav }) => {
       {more ? (
         <button type="button" className="td-day-more" onClick={() => nav(more.to)} data-testid="today-steps-more">
           <span>{more.words}</span>
-          <Icon name="arrow-right" size={10} />
+          <Icon name={doorGlyph()} size={10} />
         </button>
       ) : null}
     </div>
@@ -149,7 +150,7 @@ function dayHead(vm: TodayDayVM, nav: Nav) {
       <span className="td-day-title">The day</span>
       <span className="td-day-sub">{vm.nextOpening ? `next open time ${vm.nextOpening}` : ""}</span>
       <Button variant="quiet" size="sm" onClick={() => nav("calendar")}>
-        Open Calendar <Icon name="arrow-right" size={11} />
+        Open Calendar <Icon name={doorGlyph()} size={11} />
       </Button>
     </div>
   );
@@ -236,7 +237,7 @@ function dayFrame(d: TodayDayFrameVM, glyphFor: GlyphFor, open: Open, nav: Nav) 
       {d.more > 0 && (
         <button className="td-day-more" onClick={() => nav("calendar")} data-testid="today-day-more">
           <span>{d.moreLine}</span>
-          <Icon name="arrow-right" size={10} />
+          <Icon name={doorGlyph()} size={10} />
         </button>
       )}
       {d.open.length > 0 && frameOpen(d.open)}
@@ -321,7 +322,7 @@ export const TodayDay = () => {
         <button className="td-day-foot" onClick={() => nav(reminders.to)} data-testid="today-day-reminders">
           <Icon name="bolt" size={11} />
           <span>{reminders.text}</span>
-          <Icon name="arrow-right" size={10} />
+          <Icon name={doorGlyph()} size={10} />
         </button>
       )}
     </section>

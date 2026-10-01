@@ -250,34 +250,38 @@ function peopleDeskControls(s: PeopleState) {
       </div>
       <div className="cl-controls-right">
         {canEditLists && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
-        {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
-            (import/import-sheet.tsx). */}
-        {canExport && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people">
-            <Icon name="download" size={12} /> Import
-          </button>
-        )}
-        {/* Everyone as a CSV, from the route: owner only, and the button says so for anyone else instead of leading to a refusal. */}
-        {!canDo("export") ? (
-          <button className="btn btn-ghost btn-sm" {...gate("export")}>
-            <Icon name="external" size={12} /> Export CSV
-          </button>
-        ) : exportBlocked ? (
-          <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export">
-            <Icon name="external" size={12} /> Export CSV
-          </button>
-        ) : (
-          <a
-            className="btn btn-ghost btn-sm"
-            href={exportHref}
-            download
-            title={
-              exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"
-            }
-            data-testid="people-export"
-          >
-            <Icon name="external" size={12} /> Export CSV
-          </a>
+        {lookNow() === "glass" ? null : (
+          <>
+            {/* A client list as a file, for the owner: read in the browser, counted, then written in parts of fifty
+                (import/import-sheet.tsx). */}
+            {canExport && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setImportOpen(true)} data-testid="import-people">
+                <Icon name="download" size={12} /> Import
+              </button>
+            )}
+            {/* Everyone as a CSV, from the route: owner only, and the button says so for anyone else instead of leading to a refusal. */}
+            {!canDo("export") ? (
+              <button className="btn btn-ghost btn-sm" {...gate("export")}>
+                <Icon name="external" size={12} /> Export CSV
+              </button>
+            ) : exportBlocked ? (
+              <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export">
+                <Icon name="external" size={12} /> Export CSV
+              </button>
+            ) : (
+              <a
+                className="btn btn-ghost btn-sm"
+                href={exportHref}
+                download
+                title={
+                  exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"
+                }
+                data-testid="people-export"
+              >
+                <Icon name="external" size={12} /> Export CSV
+              </a>
+            )}
+          </>
         )}
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
@@ -288,6 +292,29 @@ function peopleDeskControls(s: PeopleState) {
           onPick={pickColumn}
           buttonRef={colsButton}
         />
+        {lookNow() === "glass" && (
+          // The canvas (P1) folds the file acts under one ⋯ after Columns: Import, and Export CSV with its gate or the
+          // reason it is held, the same doors as the buttons Classic draws above.
+          <MoreMenu
+            testid="people-more"
+            items={[
+              ...(canExport ? [{ label: "Import", icon: "download", onClick: () => setImportOpen(true) }] : []),
+              !canDo("export")
+                ? { label: "Export CSV", icon: "external", gate: gate("export") }
+                : exportBlocked
+                  ? { label: "Export CSV", icon: "external", title: exportBlocked, onClick: () => undefined }
+                  : {
+                      label: "Export CSV",
+                      icon: "external",
+                      title: exportName
+                        ? `Download the people on ${exportName} as a CSV file`
+                        : "Download everyone as a CSV file",
+                      // The route answers as an attachment, so the page stays where it is (as Leads' export does).
+                      onClick: () => window.open(exportHref, "_self"),
+                    },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

@@ -916,6 +916,9 @@ globalThis.React = {
     cells[k] = { deps, cleanup: undefined };
     cells[k].cleanup = fn();
   },
+  // The head's standing is said in a layout effect (kit/head/standing.ts useStanding): an effect, here as everywhere the
+  // stub stands in for React.
+  useLayoutEffect: (fn, deps) => globalThis.React.useEffect(fn, deps),
   // What the TSX page and the kit's parts take from React: the seam's hook (a store outside React, read as it stands:
   // these tests draw once, and the redraw is proved in shell/surfaces) and an id.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),

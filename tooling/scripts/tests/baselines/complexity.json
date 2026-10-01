@@ -230,8 +230,8 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
-    "lines": 326,
-    "branches": 62,
+    "lines": 312,
+    "branches": 55,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {

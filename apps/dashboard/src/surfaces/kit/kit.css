@@ -2937,6 +2937,13 @@ a.list-row {
   line-height: var(--leading-snug);
   color: var(--ink-muted);
 }
+/* A phone's head is the page's name alone (the canvases' phone boards): the sentence is a desk's, and the rows under
+   the head carry what it said. */
+@media (max-width: 900px) {
+  .pg-sentence {
+    display: none;
+  }
+}
 
 /* ---------- The badge rules in Glass ----------
    The canvases (the plan's Appendix B): counts are neutral text (the tally), amber is the one warning, coral the primary

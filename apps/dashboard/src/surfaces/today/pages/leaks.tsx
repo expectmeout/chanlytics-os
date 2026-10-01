@@ -12,7 +12,7 @@ import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, askAbout, borrowed, surfaceFailed, useMoved } from "../shell";
+import { appNavigate, doorGlyph, askAbout, borrowed, surfaceFailed, useMoved } from "../shell";
 
 /** The row's own second door, where it has one: called, not drawn, so the tree has no part of its own for it. */
 function leakAlso(also: TodayLeakVM["also"]) {
@@ -135,7 +135,7 @@ export const TodayLeaks = () => {
                 </button>
                 {leakAlso(l.also)}
                 <button type="button" className="tl-act tl-act-go" onClick={() => appNavigate(l.cta.to)}>
-                  {l.cta.label} <Icon name="arrow-right" size={11} />
+                  {l.cta.label} <Icon name={doorGlyph()} size={11} />
                 </button>
               </span>
             </div>

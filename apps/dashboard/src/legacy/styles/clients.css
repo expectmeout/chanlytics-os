@@ -2976,6 +2976,18 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
     font-weight: var(--weight-semibold);
     color: var(--ink);
   }
+  /* Where a deal stands, in words (canvas D1, pipeline/columns.tsx pipeGlassColumns): the chip's words over how long it
+     has stood there, in the dim ink. */
+  :where([data-look="glass"]) .main-scroll .pipe-stands-in {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  :where([data-look="glass"]) .main-scroll .pipe-stands-sub {
+    font-size: var(--text-sm);
+    color: var(--ink-dim);
+  }
   :where([data-look="glass"]) .main-scroll .pipe-scope .cl-main.has-peek {
     flex-direction: row;
     gap: 14px;
