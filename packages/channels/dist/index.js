@@ -724,32 +724,32 @@ var DAY_NAMES = {
 };
 var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
-  const name = DAY_NAME[day] ?? day;
+  const name2 = DAY_NAME[day] ?? day;
   const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
-      message: `${name} needs both an opening and a closing time, or neither.`
+      message: `${name2} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
+    out.push({ path: ["close"], message: `${name2} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
+    out.push({ path: ["intervals"], message: `${name2} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
+      out.push({ path: ["intervals", n, "close"], message: `${name2}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
+      out.push({ path: ["intervals", n, "open"], message: `${name2}: two shifts overlap.` });
     }
   }
   return out;
@@ -927,10 +927,10 @@ var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
 }
-var L = (id, name, region, native) => ({
+var L = (id, name2, region, native) => ({
   id,
-  label: region ? `${name} (${region})` : name,
-  name,
+  label: region ? `${name2} (${region})` : name2,
+  name: name2,
   region,
   native
 });
@@ -1382,7 +1382,7 @@ function usageOf(raw) {
   };
 }
 var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
+  Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
 );
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -1439,11 +1439,11 @@ var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_ERASE_WORDS = {
   act: "Erase this lead",
-  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
   yes: "Yes, erase",
   no: "No",
   busy: "Erasing\u2026",
-  done: (name) => `${name} is erased. It won't be found again.`,
+  done: (name2) => `${name2} is erased. It won't be found again.`,
   refused: "Not erased"
 };
 var LEAD_SENT_QUESTION = "Did you send it?";
@@ -2916,8 +2916,8 @@ var PLAYBOOK_CLASS_LABEL = {
 };
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
-function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
+function greetingFor(name2) {
+  const who = name2 ? ` ${name2}` : "";
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);

@@ -27599,7 +27599,12 @@ function names2(who, rest) {
   if (left) out.push(say2(` and ${left} more`));
   return out;
 }
-var PEOPLE_KINDS = /* @__PURE__ */ new Set(["handoff", "callback", "window", "reply"]);
+var PEOPLE_KINDS = /* @__PURE__ */ new Set([
+  "handoff",
+  "callback",
+  "window",
+  "reply"
+]);
 function needsSentences(vm) {
   const rows = vm.queue.rows;
   const people = [...new Set(rows.filter((r2) => PEOPLE_KINDS.has(r2.kind)).map((r2) => r2.who))];
@@ -27610,7 +27615,8 @@ function needsSentences(vm) {
     const one = people.length === 1 && vm.queue.more === 0;
     const detail = vm.standing.detail;
     const lead = `${people[0]} has been `;
-    if (one && detail && detail.startsWith(lead)) out.push([name(people[0]), say2(` needs you, ${detail.slice(lead.length)}`)]);
+    if (one && detail && detail.startsWith(lead))
+      out.push([name(people[0]), say2(` needs you, ${detail.slice(lead.length)}`)]);
     else {
       out.push([...names2(people, vm.queue.more), say2(one ? " needs you." : " need you.")]);
       if (detail) out.push([say2(detail)]);
@@ -27618,7 +27624,9 @@ function needsSentences(vm) {
   }
   if (calls) out.push([say2(calls === 1 ? "One call is worth a listen." : `${calls} calls are worth a listen.`)]);
   if (searches)
-    out.push([say2(searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`)]);
+    out.push([
+      say2(searches === 1 ? "A search is waiting on your answer." : `${searches} searches are waiting on your answer.`)
+    ]);
   return out;
 }
 var withWhom = (b) => b.person ? [name(b.person.name), ...b.service ? [say2(` (${b.service})`)] : []] : [say2(b.service || b.title)];
@@ -27634,7 +27642,12 @@ function daySentence(day) {
   const after = items.filter((b) => b.phase === "later").length + today.more;
   const out = [say2(`${total} appointment${total === 1 ? "" : "s"} today`)];
   if (now) out.push(say2(": "), ...withWhom(now), say2(` is in now${now.dur ? ` (${now.dur})` : ""}`));
-  if (next) out.push(say2(now ? ", then " : ": next is "), ...withWhom(next), say2(next.allDay ? ", all day" : ` at ${next.start}`));
+  if (next)
+    out.push(
+      say2(now ? ", then " : ": next is "),
+      ...withWhom(next),
+      say2(next.allDay ? ", all day" : ` at ${next.start}`)
+    );
   if (!now && !next) out.push(say2(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
   else if (after) out.push(say2(`, ${after} more after`));
   out.push(say2("."));
@@ -27645,7 +27658,10 @@ function cameIn(vm) {
   if (!line) return [];
   return vm.quiet ? [[say2(line)], [say2(vm.proof)]] : [[say2(line)]];
 }
-var runSentence = (r2) => [name(r2.label), say2(` is waiting for your word: ${r2.sentence}`)];
+var runSentence = (r2) => [
+  name(r2.label),
+  say2(` is waiting for your word: ${r2.sentence}`)
+];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
   const sentences = [...needsSentences(vm), ...dayWords3 ? [dayWords3] : [], ...cameIn(vm), ...runs.map(runSentence)];
