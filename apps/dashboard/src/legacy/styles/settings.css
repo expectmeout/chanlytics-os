@@ -1838,3 +1838,46 @@ html.legacy-on .bt-link { position: relative; }
 }
 /* A form's own buttons, side by side: the press and its way back (Settings › Partner, 0016). */
 .set-form-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ====================================================================
+   Glass: Settings (no canvas of its own; People's rail and panes). The places are a pane of their own beside the cards,
+   the one you are on its lozenge; the cards keep the record kit's own Glass. Each rule names the look inside :where();
+   none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  :where([data-look="glass"]) .main-scroll > .settings {
+    padding: 0 var(--gutter-page) 16px;
+    column-gap: 14px;
+    overflow: visible;
+  }
+  :where([data-look="glass"]) .set-nav {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+  :where([data-look="glass"]) .set-nav::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+  :where([data-look="glass"]) .set-nav-row {
+    border-radius: var(--radius-xl);
+  }
+  :where([data-look="glass"]) .set-nav-row:hover {
+    background: var(--surface-inset-fill);
+  }
+  :where([data-look="glass"]) .set-nav-row.active {
+    background: var(--selected-fill);
+    box-shadow: var(--selected-depth);
+  }
+}

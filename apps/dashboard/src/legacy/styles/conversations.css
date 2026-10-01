@@ -217,3 +217,39 @@
     margin-left: auto;
   }
 }
+
+/* ====================================================================
+   Glass: Conversations (no canvas of its own; the Inbox's two panes, which it is a tab of). The list is a pane beside the
+   thread's (inbox.css draws .ix-thread-pane), at the page's gutter under the frame's head. Each rule names the look
+   inside :where(); none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  :where([data-look="glass"]) .main-scroll > .conversations {
+    padding: 0 var(--gutter-page) 16px;
+    column-gap: 14px;
+    overflow: visible;
+  }
+  :where([data-look="glass"]) .cv-list {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+  :where([data-look="glass"]) .cv-list::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+  :where([data-look="glass"]) .cv-filters {
+    border-bottom-color: transparent;
+  }
+}
