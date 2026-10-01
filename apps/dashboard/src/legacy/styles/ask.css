@@ -494,3 +494,28 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage, .ask-modal.ask-line, .ask-rows-fold, .ask-line-body.thread > * { transition: none; }
   .ask-line-body .ask-rows { animation: none; }
 }
+/* ---- Ask's window, in Glass (the plan's step 5.4; the control layer's glass, as every pop is) ----
+   The window (the overlay's one child: the ratchet counts a class named modal, so it is reached as that) is a pop of the
+   control layer over the page's wash: its radius, its edge and its depth; what Ask says of right now an inset, and the
+   questions it offers capsules of the inset's fill. Each rule names the look inside :where(); none matches in Classic. */
+:where([data-look="glass"]) .ask-overlay > * {
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  background: var(--surface-pop-fill);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-pop-depth);
+}
+:where([data-look="glass"]) .ask-now {
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .ask-suggestion {
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+:where([data-look="glass"]) .ask-suggestion:hover {
+  background: var(--surface-control-fill);
+}

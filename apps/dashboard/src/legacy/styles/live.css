@@ -498,3 +498,38 @@
     line-height: var(--row-facts-line);
   }
 }
+
+/* ====================================================================
+   Glass: Live (no canvas of its own; the Inbox's two panes, which it is a tab of). The calls and the call are two clear
+   panes on the page's light under the frame's head, at the page's gutter, as the Inbox's list and thread are. Each rule
+   names the look inside :where(); none matches in Classic.
+   ==================================================================== */
+@media (width > 900px) {
+  :where([data-look="glass"]) .main-scroll > .live-monitor {
+    padding: 0 var(--gutter-page) 16px;
+  }
+  :where([data-look="glass"]) .lm-body {
+    column-gap: 14px;
+    overflow: visible;
+  }
+  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child) {
+  position: relative;
+  border: 0;
+  border-radius: var(--surface-pane-radius);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+  overflow: hidden;
+}
+  :where([data-look="glass"]) :is(.lm-list, .lm-body > :last-child)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-pane-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+}
