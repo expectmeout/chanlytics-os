@@ -2838,6 +2838,11 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   background: transparent;
 }
 @media (width > 900px) {
+  /* The hero is the head (canvas P3): the frame draws no name and no way back over it, and the page's own way back goes
+     too, the sidebar's People being the way; a phone keeps it. */
+  :where([data-look="glass"]) .cl-prof-hero > .cl-prof-back {
+    display: none;
+  }
   :where([data-look="glass"]) .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history) {
     padding: 18px;
     border-radius: var(--surface-pane-radius);

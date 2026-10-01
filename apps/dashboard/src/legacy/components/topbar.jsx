@@ -247,6 +247,22 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   );
 };
 
+/** The key that opens Ask, as this device writes it: the command key on a Mac, Ctrl elsewhere (app-shell.jsx binds both). */
+const tbAskKey = () => (/Mac|iPhone|iPad/.test(navigator.platform || "") ? "\u2318K" : "Ctrl K");
+
+/**
+ * The capsule's words, and in Glass alone the key hint beside them (the canvases' top bar): Classic draws the capsule as it
+ * always has. The look is read where the frame stamps it (LegacyApp, `data-look` on the document), as the pages read it.
+ */
+const tbAskLabel = () => (
+  <>
+    <span className="tb-ask-label">Ask Chanlytics</span>
+    {typeof document !== "undefined" && document.documentElement?.getAttribute("data-look") === "glass" ? (
+      <kbd className="tb-ask-kbd">{tbAskKey()}</kbd>
+    ) : null}
+  </>
+);
+
 const Topbar = ({
   crumbs = [],
   theme = "light",
@@ -559,7 +575,7 @@ const Topbar = ({
         {TbFace
           ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
           : <Icon name="sparkle" size={13} />}
-        <span className="tb-ask-label">Ask Chanlytics</span>
+        {tbAskLabel()}
       </button>
 
       {right}

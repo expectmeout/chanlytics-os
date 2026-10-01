@@ -12,8 +12,9 @@ import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 
 interface Standing {
-  /** The page's name; the last crumb's words where the page says none. */
-  title?: ReactNode;
+  /** The page's name; the last crumb's words where the page says none. Null: the page draws its own head (a person's
+   *  hero, canvas P3), so the frame draws no name and no way back, only the date. */
+  title?: ReactNode | null;
   /** Where the page stands, in one line beside the name. */
   sentence?: ReactNode;
   /** The sentence under the name rather than beside it, where the name is a whole sentence (Today's greeting). */

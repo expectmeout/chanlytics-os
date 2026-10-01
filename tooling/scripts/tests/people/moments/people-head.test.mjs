@@ -3,7 +3,7 @@
  * name and where it stands in one sentence. The frame draws the head (kit/head/frame-head.tsx, with the date and time in
  * the business's zone); the page says the name and the sentence through the standing store (kit/head/standing.ts). The
  * sentence is the standing line's, in words: the same counts and the same parts, from the same rules (rail/standing.tsx,
- * pipeline/scope-screen.tsx). A person's page says nothing: the frame names it from the crumbs, with the way back.
+ * pipeline/scope-screen.tsx). A person's page says a null title: its hero is the head, and the frame draws only the date.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -73,9 +73,15 @@ test("the Pipeline's head is the line over its table: every part it draws, in it
   setSurfaceValue("people", undefined);
 });
 
-test("a person's page says nothing: the frame names it from the crumbs, with the way back to People", () => {
+test("a person's page is its own head: a null title and no way back, so the frame draws only the date", () => {
   setSurfaceValue("people", peopleSample(NOW));
-  assert.equal(headOf(null), null, "no standing said");
+  forgetStanding();
+  fresh();
+  again(() => Page({ scope: "person" }));
+  const said = standingSaid();
+  assert.ok(said, "a standing is said");
+  assert.equal(said.title, null, "no name: the hero names them");
+  assert.equal(said.back, null, "and no way back above it");
   setSurfaceValue("people", undefined);
 });
 
@@ -86,7 +92,7 @@ test("the route says the standing once, from its address: a person's page none, 
   );
   assert.match(
     route,
-    /usePeopleStanding\(person \? null : pipeline \? "pipeline" : "people"\)/,
+    /usePeopleStanding\(person \? "person" : pipeline \? "pipeline" : "people"\)/,
     "one call, keyed by the address",
   );
   assert.equal(route.match(/usePeopleStanding\(/g).length, 1, "and only the one");

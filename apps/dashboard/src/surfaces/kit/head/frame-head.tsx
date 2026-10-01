@@ -69,6 +69,8 @@ function backOf(crumb: ShownCrumb): BackWay | null {
 function GlassHead() {
   const said = useStandingSaid();
   const crumbs = useCrumbsShown();
+  // The page draws its own head (a person's hero): the frame's place stays empty.
+  if (said?.title === null) return null;
   const last = crumbs.length ? crumbs[crumbs.length - 1] : undefined;
   const before = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined;
   const title = said?.title ?? (last ? crumbLabel(last) : "");
